@@ -1,0 +1,78 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Client {
+  id        Int      @id @default(autoincrement())
+  firstName String
+  lastName  String
+  createdAt DateTime @default(now())
+
+  vehicles  Vehicle[]
+}
+
+model Vehicle {
+  id        String   @id @default(cuid())
+  clientId  Int
+  brand     String
+  model     String
+  plate     String   @unique
+  vin       String?  @unique
+  fuel      String?
+  createdAt DateTime @default(now())
+
+  client        Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  interventions Intervention[]
+}
+
+model Intervention {
+  id        String   @id @default(cuid())
+  vehicleId String
+  type      String
+  notes     String?
+  createdAt DateTime @default(now())
+  // traçabilité
+  createdBy String?
+  clientIp  String?
+  userAgent String?
+
+  // preuve “assurance”
+  hash      String?  @unique
+  payload   String?  // JSON string (snapshot)
+
+  // structured fields for professional interventions / insurance
+  performedAt     DateTime?
+  odometerKm      Int?
+  ecuType         String?
+  softwareVersion String?
+  checksum        String?
+
+  // attachments will be implemented later (file paths / storage references)
+  // attachments String[]
+
+  // revisions store immutable snapshots when interventions are created/edited
+  revisions InterventionRevision[]
+
+  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+}
+
+model InterventionRevision {
+  id             String       @id @default(cuid())
+  interventionId String
+  intervention   Intervention @relation(fields: [interventionId], references: [id], onDelete: Cascade)
+
+  createdAt     DateTime @default(now())
+  createdBy     String?
+  clientIp      String?
+  userAgent     String?
+
+  payload       String
+  hash          String
+
+  @@index([interventionId])
+}

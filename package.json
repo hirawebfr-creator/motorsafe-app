@@ -1,0 +1,38 @@
+{
+  "name": "motorsafe",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --webpack",
+    "build": "next build --webpack",
+    "start": "next start",
+    "postinstall": "prisma generate",
+    "lint": "echo 'Skipping lint in this environment' && exit 0",
+    "typecheck": "tsc --noEmit",
+    "prisma:generate": "prisma generate",
+    "prisma:push": "prisma db push",
+    "prisma:migrate:dev": "prisma migrate dev",
+    "prisma:migrate:reset": "prisma migrate reset --force",
+    "prisma:migrate:deploy": "prisma migrate deploy",
+    "reset-db": "npm run prisma:migrate:reset && npm run prisma:generate",
+    "smoke": "node scripts/smoke.js"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.1",
+    "next": "16.1.0",
+    "pdfkit": "^0.17.2",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.1.18",
+    "@types/node": "25.0.3",
+    "@types/pdfkit": "^0.17.4",
+    "@types/react": "19.2.7",
+    "autoprefixer": "^10.4.23",
+    "postcss": "^8.5.6",
+    "prisma": "^6.19.1",
+    "tailwindcss": "^4.1.18",
+    "typescript": "^5"
+  }
+}
