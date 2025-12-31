@@ -21,7 +21,7 @@ export default async function ParametresPage() {
       <div>
         <p className="text-xs uppercase tracking-[0.3em] text-[var(--muted)]">Parametres</p>
         <h1 className="mt-3 text-3xl font-semibold">Identite & conformite</h1>
-        <p className="mt-2 max-w-2xl text-sm text-[var(--muted)]">
+        <p className="mt-2 text-sm text-[var(--muted)]">
           Centralisez les informations legales et les preferences de votre atelier.
         </p>
       </div>

@@ -12,6 +12,7 @@ import { fetcher, requestJson } from "@/lib/fetcher";
 import { ErrorBanner } from "@/components/common/ErrorBanner";
 import { useToast } from "@/components/ui/Toast";
 import { useUser } from "@/components/user-context";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 
 type LegalReference = {
   id: string;
@@ -30,6 +31,7 @@ const TYPES = ["E85", "Reprog", "Diag", "Autre"];
 
 export default function AdminReferencesPage() {
   const user = useUser();
+  if (!user) return null;
   const [items, setItems] = useState<LegalReference[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({
@@ -141,33 +143,31 @@ export default function AdminReferencesPage() {
   if (!isAdmin) {
     return (
       <Card>
-        <p className="text-sm text-[var(--muted)]">Acces reserve a l'administration.</p>
+        <p className="text-sm text-[var(--muted)]">Accès réservé à l'administration.</p>
       </Card>
     );
   }
 
   return (
-    <div className="grid gap-8">
-      <div>
-        <p className="text-xs uppercase tracking-[0.3em] text-[var(--muted)]">Administration</p>
-        <h1 className="mt-3 text-3xl font-semibold">References legales</h1>
-        <p className="mt-2 text-sm text-[var(--muted)]">
-          Gere les references applicables aux interventions. Elles seront visibles dans les dossiers.
-        </p>
-      </div>
+    <div className="flex flex-col gap-10">
+      <SectionHeader
+        title="Références légales"
+        description="Gérez les références applicables aux interventions. Elles seront visibles dans les dossiers."
+        level={1}
+      />
 
       {error ? <ErrorBanner message={error} /> : null}
 
       <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
         <Card className="grid gap-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">References actives</h2>
+            <h2 className="text-lg font-semibold">Références actives</h2>
             <Badge variant="accent">{activeCount} actives</Badge>
           </div>
           <DataTable stickyHeader>
             <DataTableHead sticky>
               <tr>
-                <th className="px-5 py-4">Reference</th>
+                <th className="px-5 py-4">Référence</th>
                 <th className="px-5 py-4">Types</th>
                 <th className="px-5 py-4 text-right">Actions</th>
               </tr>
@@ -176,7 +176,7 @@ export default function AdminReferencesPage() {
               {items.length === 0 ? (
                 <tr>
                   <td className="px-5 py-6" colSpan={3}>
-                    <p className="text-sm text-[var(--muted)]">Aucune reference.</p>
+                    <p className="text-sm text-[var(--muted)]">Aucune référence.</p>
                   </td>
                 </tr>
               ) : (
@@ -186,7 +186,7 @@ export default function AdminReferencesPage() {
                     className="border-t border-[rgba(31,41,55,0.7)] transition hover:bg-[rgba(139,92,246,0.06)]"
                   >
                     <td className="px-5 py-4">
-                      <p className="font-semibold">{item.title}</p>
+                      <p className="font-semibold text-[var(--text)]">{item.title}</p>
                       <p className="text-xs text-[var(--muted)]">{item.summary || "-"}</p>
                       <div className="mt-2 flex flex-wrap gap-2 text-xs text-[var(--muted)]">
                         {item.code ? <span>{item.code}</span> : null}
@@ -199,7 +199,7 @@ export default function AdminReferencesPage() {
                     <td className="px-5 py-4 text-right">
                       <div className="flex justify-end gap-2">
                         <Button variant="ghost" size="sm" onClick={() => toggleActive(item)}>
-                          {item.isActive ? "Desactiver" : "Activer"}
+                          {item.isActive ? "Désactiver" : "Activer"}
                         </Button>
                         <Button variant="destructive" size="sm" onClick={() => deleteReference(item)}>
                           Supprimer
@@ -216,9 +216,9 @@ export default function AdminReferencesPage() {
         <Card className="grid gap-4">
           <div>
             <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
-              Nouvelle reference
+              Nouvelle référence
             </p>
-            <h2 className="mt-2 text-xl font-semibold">Ajouter une reference</h2>
+            <h2 className="mt-2 text-xl font-semibold">Ajouter une référence</h2>
           </div>
           <Input
             label="Titre"
@@ -227,10 +227,10 @@ export default function AdminReferencesPage() {
             placeholder="Intervention E85 et obligations"
           />
           <Textarea
-            label="Resume"
+            label="Résumé"
             value={form.summary}
             onChange={(event) => setForm((prev) => ({ ...prev, summary: event.target.value }))}
-            placeholder="Resume court pour les techniciens."
+            placeholder="Résumé court pour les techniciens."
           />
           <Input
             label="Source URL"
@@ -259,7 +259,7 @@ export default function AdminReferencesPage() {
             placeholder="E85, anti-demarrage"
           />
           <Select
-            label="Severite"
+            label="Sévérité"
             value={form.severity}
             onChange={(event) => setForm((prev) => ({ ...prev, severity: event.target.value }))}
           >
@@ -268,7 +268,7 @@ export default function AdminReferencesPage() {
             <option value="CRITICAL">Critique</option>
           </Select>
           <div className="grid gap-2 text-xs text-[var(--muted)]">
-            <p className="text-[var(--text)]">Types d'intervention associes</p>
+            <p className="text-[var(--text)]">Types d'intervention associés</p>
             <div className="flex flex-wrap gap-2">
               {TYPES.map((type) => (
                 <button
@@ -286,7 +286,7 @@ export default function AdminReferencesPage() {
               ))}
             </div>
           </div>
-          <Button onClick={submit}>Ajouter la reference</Button>
+          <Button onClick={submit}>Ajouter la référence</Button>
         </Card>
       </div>
     </div>

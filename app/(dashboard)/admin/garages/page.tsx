@@ -4,9 +4,10 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
+// import { Input } from "@/components/ui/Input";
 import { DataTable, DataTableHead } from "@/components/ui/DataTable";
 import { Badge } from "@/components/ui/Badge";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 import { useUser } from "@/components/user-context";
 import { fetcher } from "@/lib/fetcher";
 import { ErrorBanner } from "@/components/common/ErrorBanner";
@@ -24,6 +25,7 @@ type GarageItem = {
 
 export default function AdminGaragesPage() {
   const user = useUser();
+  if (!user) return null;
   const [garages, setGarages] = useState<GarageItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -69,7 +71,8 @@ export default function AdminGaragesPage() {
           Acces reserve a l'administration. Renseignez votre ADMIN_KEY pour continuer.
         </p>
         <div className="mt-4 grid gap-3">
-          <Input
+          <input
+            className="input"
             value={adminKey}
             onChange={(event) => setAdminKey(event.target.value)}
             placeholder="ADMIN_KEY"
@@ -89,16 +92,17 @@ export default function AdminGaragesPage() {
   }
 
   return (
-    <div className="grid gap-8">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-[var(--muted)]">Administration</p>
-          <h1 className="mt-3 text-3xl font-semibold">Tous les garages</h1>
-        </div>
-        <Link href="/admin" className="text-sm text-[var(--accent-2)]">
-          Retour validations
-        </Link>
-      </div>
+    <div className="flex flex-col gap-10">
+      <SectionHeader
+        title="Tous les garages"
+        description="Liste complète des garages inscrits sur la plateforme."
+        action={
+          <Link href="/admin" className="text-sm text-[var(--accent-2)] hover:underline">
+            Retour validations
+          </Link>
+        }
+        level={1}
+      />
 
       {error ? <ErrorBanner message={error} /> : null}
 
@@ -109,7 +113,7 @@ export default function AdminGaragesPage() {
               <th className="px-5 py-4">Garage</th>
               <th className="px-5 py-4">Statut</th>
               <th className="px-5 py-4">Responsable</th>
-              <th className="px-5 py-4 text-right">Creation</th>
+              <th className="px-5 py-4 text-right">Création</th>
             </tr>
           </DataTableHead>
           <tbody>
@@ -132,7 +136,7 @@ export default function AdminGaragesPage() {
                   className="border-t border-[rgba(31,41,55,0.7)] transition hover:bg-[rgba(139,92,246,0.06)]"
                 >
                   <td className="px-5 py-4">
-                    <p className="font-semibold">{garage.name}</p>
+                    <p className="font-semibold text-[var(--text)]">{garage.name}</p>
                     <p className="text-xs text-[var(--muted)]">{garage.email}</p>
                   </td>
                   <td className="px-5 py-4">
@@ -148,7 +152,7 @@ export default function AdminGaragesPage() {
                       {garage.status === "ACTIVE"
                         ? "Actif"
                         : garage.status === "REJECTED"
-                        ? "Refuse"
+                        ? "Refusé"
                         : "En attente"}
                     </Badge>
                   </td>

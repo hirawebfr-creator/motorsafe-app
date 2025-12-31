@@ -1,6 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Tooltip } from "@/components/ui/Tooltip";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { Plus } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
+import { fr } from "date-fns/locale";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -63,24 +68,32 @@ export default function DocumentsPage() {
 
   const visibleDocuments = filtered.slice(0, visibleCount);
 
+  // Helper for relative date
+  const getRelativeDate = (date) => {
+    const d = typeof date === "string" ? new Date(date) : date;
+    return formatDistanceToNow(d, { addSuffix: true, locale: fr });
+  };
+
   return (
     <div className="grid gap-8">
       <div>
         <p className="text-xs uppercase tracking-[0.3em] text-[var(--muted)]">Documents</p>
         <h1 className="mt-3 text-3xl font-semibold">Dossiers PDF</h1>
-        <p className="mt-2 max-w-2xl text-sm text-[var(--muted)]">
+        <p className="mt-2 text-sm text-[var(--muted)]">
           Telechargez les dossiers d'intervention generes a la demande. Chaque PDF reprend les preuves, hashes et revisions.
         </p>
       </div>
 
-      <Card className="grid gap-6">
+      <Card className="grid gap-6 relative">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Rechercher par plaque, client, type"
           />
-          <Badge variant="accent">{filtered.length} documents</Badge>
+          <Tooltip content="Nombre de documents filtrés">
+            <Badge variant="accent">{filtered.length} documents</Badge>
+          </Tooltip>
         </div>
 
         {error ? <ErrorBanner message={error} /> : null}
@@ -95,11 +108,13 @@ export default function DocumentsPage() {
           </DataTableHead>
           <tbody>
             {loading ? (
-              <tr>
-                <td className="px-5 py-6" colSpan={3}>
-                  <Loading />
-                </td>
-              </tr>
+              Array.from({ length: 6 }).map((_, i) => (
+                <tr key={i}>
+                  <td className="px-5 py-6" colSpan={3}>
+                    <Skeleton className="h-10 w-full" />
+                  </td>
+                </tr>
+              ))
             ) : filtered.length === 0 ? (
               <tr>
                 <td className="px-5 py-6" colSpan={3}>
@@ -110,14 +125,14 @@ export default function DocumentsPage() {
               visibleDocuments.map((doc) => (
                 <tr
                   key={doc.id}
-                  className="border-t border-[rgba(31,41,55,0.7)] transition hover:bg-[rgba(139,92,246,0.06)]"
+                  className="border-t border-[rgba(31,41,55,0.7)] transition hover:bg-[rgba(139,92,246,0.06)] animate-fade-in"
                 >
                   <td className="px-5 py-4">
                     <p className="font-semibold">
                       {doc.vehicle.plate} - {doc.type}
                     </p>
                     <p className="text-xs text-[var(--muted)]">
-                      {new Date(doc.createdAt).toLocaleDateString("fr-FR")}
+                      <span title={new Date(doc.createdAt).toLocaleString("fr-FR")}>{getRelativeDate(doc.createdAt)}</span>
                     </p>
                   </td>
                   <td className="px-5 py-4 text-sm text-[var(--muted)]">
@@ -140,6 +155,10 @@ export default function DocumentsPage() {
             </Button>
           </div>
         ) : null}
+        {/* Floating add button (could link to interventions or upload) */}
+        <a href="/interventions" className="absolute bottom-6 right-6 bg-[var(--accent)] text-white rounded-full p-3 shadow-lg hover:scale-105 transition" title="Nouvelle intervention">
+          <Plus size={20} />
+        </a>
       </Card>
     </div>
   );

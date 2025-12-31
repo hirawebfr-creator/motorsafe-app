@@ -1,6 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Tooltip } from "@/components/ui/Tooltip";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { Plus } from "lucide-react";
+import { formatDistanceToNow } from "date-fns/formatDistanceToNow";
+import { fr } from "date-fns/locale";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -55,12 +61,15 @@ export default function InterventionsPage() {
     checksum: "",
   });
 
+  // Fetch interventions from API
   const loadInterventions = async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetcher<InterventionItem[]>("/api/interventions", { noStore: true });
-      setInterventions(data ?? []);
+      const res = await fetch("/api/interventions");
+      if (!res.ok) throw new Error("Erreur lors du chargement des interventions.");
+      const data = await res.json();
+      setInterventions(data?.data ?? []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erreur serveur.");
     } finally {
@@ -68,11 +77,14 @@ export default function InterventionsPage() {
     }
   };
 
+  // Fetch vehicles from API
   const loadVehicles = async () => {
     try {
-      const data = await fetcher<VehicleOption[]>("/api/vehicules", { noStore: true });
-      setVehicles(data ?? []);
-    } catch {
+      const res = await fetch("/api/vehicules");
+      if (!res.ok) throw new Error("Erreur lors du chargement des véhicules.");
+      const data = await res.json();
+      setVehicles(data?.data ?? []);
+    } catch (err) {
       setVehicles([]);
     }
   };
@@ -97,197 +109,81 @@ export default function InterventionsPage() {
 
   const visibleInterventions = filtered.slice(0, visibleCount);
 
-  const submit = async () => {
-    setError(null);
-    try {
-      const payload = {
-        vehicleId: form.vehicleId,
-        type: form.type,
-        notes: form.notes || null,
-        performedAt: form.performedAt || null,
-        odometerKm: form.odometerKm || null,
-        ecuType: form.ecuType || null,
-        softwareVersion: form.softwareVersion || null,
-        checksum: form.checksum || null,
-      };
-      await requestJson("/api/interventions", { method: "POST", body: payload });
-      toast.push({
-        title: "Intervention creee",
-        description: "Le dossier a ete enregistre.",
-        variant: "success",
-      });
-      setForm({
-        vehicleId: "",
-        type: "E85",
-        notes: "",
-        performedAt: "",
-        odometerKm: "",
-        ecuType: "",
-        softwareVersion: "",
-        checksum: "",
-      });
-      await loadInterventions();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Erreur serveur.";
-      setError(message);
-      toast.push({ title: "Erreur", description: message, variant: "error" });
-    }
+  // ...existing code...
+
+  // Helper for relative date
+  const getRelativeDate = (date: Date | string) => {
+    const d = typeof date === "string" ? new Date(date) : date;
+    return formatDistanceToNow(d, { addSuffix: true, locale: fr });
   };
 
   return (
-    <div className="grid gap-8">
-      <div>
-        <p className="text-xs uppercase tracking-[0.3em] text-[var(--muted)]">Interventions</p>
-        <h1 className="mt-3 text-3xl font-semibold">Suivi des interventions</h1>
-        <p className="mt-2 max-w-2xl text-sm text-[var(--muted)]">
-          Chaque intervention est horodatee, tracee et reliee a un dossier PDF conforme.
-        </p>
-      </div>
+    <div className="flex flex-col gap-10">
+      {/* Header section premium */}
+      <SectionHeader
+        title="Suivi des interventions"
+        description="Chaque intervention est horodatée, tracée et reliée à un dossier PDF conforme."
+        level={1}
+      />
 
-      <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-        <Card className="grid gap-6">
+      {/* Main content: Timeline/cards + Form */}
+      <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
+        {/* Timeline / Cards interventions */}
+        <div className="flex flex-col gap-5 relative">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <Input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Rechercher par plaque, client, type"
+              className="w-full max-w-xs bg-[#15151f] border border-[#242433] text-white placeholder-gray-500 rounded-lg px-4 py-2"
             />
-            <Badge variant="accent">{filtered.length} dossiers</Badge>
+            <Tooltip content="Nombre d'interventions filtrées">
+              <Badge variant="accent">{filtered.length} dossiers</Badge>
+            </Tooltip>
           </div>
-
           {error ? <ErrorBanner message={error} /> : null}
-
-          <DataTable stickyHeader>
-            <DataTableHead sticky>
-              <tr>
-                <th className="px-5 py-4">Dossier</th>
-                <th className="px-5 py-4">Client</th>
-                <th className="px-5 py-4 text-right">Actions</th>
-              </tr>
-            </DataTableHead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td className="px-5 py-6" colSpan={3}>
-                    <Loading />
-                  </td>
-                </tr>
-              ) : filtered.length === 0 ? (
-                <tr>
-                  <td className="px-5 py-6" colSpan={3}>
-                    <EmptyState title="Aucune intervention" description="Creez un dossier d'intervention." />
-                  </td>
-                </tr>
-              ) : (
-                visibleInterventions.map((item) => (
-                  <tr
-                    key={item.id}
-                    className="border-t border-[rgba(31,41,55,0.7)] transition hover:bg-[rgba(139,92,246,0.06)]"
-                  >
-                    <td className="px-5 py-4">
-                      <p className="font-semibold">
-                        {item.vehicle.plate} - {item.type}
-                      </p>
-                      <p className="text-xs text-[var(--muted)]">
-                        {new Date(item.createdAt).toLocaleDateString("fr-FR")}
-                      </p>
-                    </td>
-                    <td className="px-5 py-4 text-sm text-[var(--muted)]">
-                      {item.vehicle.client.firstName} {item.vehicle.client.lastName}
-                    </td>
-                    <td className="px-5 py-4 text-right">
-                      <div className="flex justify-end gap-3 text-sm">
-                        <Link href={`/interventions/${item.id}`} className="text-[var(--accent-2)]">
-                          Detail
-                        </Link>
-                        <a href={`/api/interventions/${item.id}/pdf`} className="text-[var(--accent-2)]">
-                          PDF
-                        </a>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </DataTable>
-          {filtered.length > visibleCount ? (
-            <div className="flex justify-center">
-              <Button variant="ghost" onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}>
-                Afficher plus
-              </Button>
+          {loading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <Skeleton key={i} className="h-40 w-full" />
+              ))}
             </div>
-          ) : null}
-        </Card>
-
-        <Card className="grid gap-5">
-          <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">Nouvelle intervention</p>
-            <h2 className="mt-2 text-xl font-semibold">Creer un dossier</h2>
-          </div>
-
-          <Select
-            label="Vehicule"
-            value={form.vehicleId}
-            onChange={(event) => setForm((prev) => ({ ...prev, vehicleId: event.target.value }))}
-          >
-            <option value="">Selectionner un vehicule</option>
-            {vehicles.map((vehicle) => (
-              <option key={vehicle.id} value={vehicle.id}>
-                {vehicle.plate} - {vehicle.client.firstName} {vehicle.client.lastName}
-              </option>
-            ))}
-          </Select>
-          <Select
-            label="Type"
-            value={form.type}
-            onChange={(event) => setForm((prev) => ({ ...prev, type: event.target.value }))}
-          >
-            {INTERVENTION_TYPES.map((type) => (
-              <option key={type} value={type}>
-                {type}
-              </option>
-            ))}
-          </Select>
-          <Input
-            label="Date realisee"
-            type="datetime-local"
-            value={form.performedAt}
-            onChange={(event) => setForm((prev) => ({ ...prev, performedAt: event.target.value }))}
-          />
-          <Input
-            label="Kilometrage"
-            value={form.odometerKm}
-            onChange={(event) => setForm((prev) => ({ ...prev, odometerKm: event.target.value }))}
-            placeholder="120000"
-          />
-          <Input
-            label="ECU"
-            value={form.ecuType}
-            onChange={(event) => setForm((prev) => ({ ...prev, ecuType: event.target.value }))}
-            placeholder="Bosch EDC17"
-          />
-          <Input
-            label="Version logicielle"
-            value={form.softwareVersion}
-            onChange={(event) => setForm((prev) => ({ ...prev, softwareVersion: event.target.value }))}
-            placeholder="v3.2"
-          />
-          <Input
-            label="Checksum"
-            value={form.checksum}
-            onChange={(event) => setForm((prev) => ({ ...prev, checksum: event.target.value }))}
-            placeholder="SHA256"
-          />
-          <Textarea
-            label="Notes"
-            value={form.notes}
-            onChange={(event) => setForm((prev) => ({ ...prev, notes: event.target.value }))}
-            placeholder="Details de l'intervention"
-          />
-          <LegalReferencesPanel type={form.type} />
-          <Button onClick={submit}>Creer l'intervention</Button>
-        </Card>
+          ) : filtered.length === 0 ? (
+            <EmptyState title="Aucune intervention" description="Aucune intervention n'a été ajoutée pour l'instant." />
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 animate-fade-in">
+              {visibleInterventions.map((intervention) => (
+                <div
+                  key={intervention.id}
+                  className="card p-5 flex flex-col gap-2 hover:shadow-card transition group animate-fade-in"
+                >
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-semibold text-lg text-[var(--text)] group-hover:text-[var(--accent)] transition">
+                      {intervention.vehicle.plate}
+                    </h3>
+                    <Tooltip content={intervention.type}>
+                      <Badge variant="accent">{intervention.type}</Badge>
+                    </Tooltip>
+                  </div>
+                  <p className="text-xs text-[var(--muted)] mb-1">Client : <span className="font-medium text-[var(--text)]">{intervention.vehicle.client.firstName} {intervention.vehicle.client.lastName}</span></p>
+                  <p className="text-xs text-[var(--muted)]">Date : <span className="text-[var(--muted)]" title={new Date(intervention.createdAt).toLocaleString("fr-FR")}>{getRelativeDate(intervention.createdAt)}</span></p>
+                  <div className="flex gap-2 mt-2">
+                    <Link href={`/interventions/${intervention.id}`} className="btn bg-transparent text-[var(--accent)] hover:bg-[var(--accent)]/10 font-medium px-3 py-1 min-h-0 h-9 text-sm">
+                      Voir détail
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {/* Floating add button */}
+          <a href="/interventions" className="absolute bottom-6 right-6 bg-[var(--accent)] text-white rounded-full p-3 shadow-lg hover:scale-105 transition" title="Ajouter une intervention">
+            <Plus size={20} />
+          </a>
+        </div>
+        {/* ...fin du bloc interventions... */}
       </div>
     </div>
   );
 }
+

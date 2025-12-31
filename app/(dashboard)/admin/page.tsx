@@ -10,10 +10,11 @@ import { fetcher, requestJson } from "@/lib/fetcher";
 import { ErrorBanner } from "@/components/common/ErrorBanner";
 import { Loading } from "@/components/common/Loading";
 import { EmptyState } from "@/components/common/EmptyState";
-import { Input } from "@/components/ui/Input";
+// import { Input } from "@/components/ui/Input";
 import { Dialog } from "@/components/ui/Dialog";
 import { Textarea } from "@/components/ui/Textarea";
 import { useToast } from "@/components/ui/Toast";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 
 type GarageItem = {
   id: number;
@@ -29,6 +30,7 @@ type GarageItem = {
 
 export default function AdminPendingPage() {
   const user = useUser();
+  if (!user) return null;
   const [garages, setGarages] = useState<GarageItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -133,7 +135,8 @@ export default function AdminPendingPage() {
           Acces reserve a l'administration. Renseignez votre ADMIN_KEY pour continuer.
         </p>
         <div className="mt-4 grid gap-3">
-          <Input
+          <input
+            className="input"
             value={adminKey}
             onChange={(event) => setAdminKey(event.target.value)}
             placeholder="ADMIN_KEY"
@@ -153,16 +156,17 @@ export default function AdminPendingPage() {
   }
 
   return (
-    <div className="grid gap-8">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-[var(--muted)]">Administration</p>
-          <h1 className="mt-3 text-3xl font-semibold">Demandes en attente</h1>
-        </div>
-        <Link href="/admin/garages" className="text-sm text-[var(--accent-2)]">
-          Voir tous les garages
-        </Link>
-      </div>
+    <div className="flex flex-col gap-10">
+      <SectionHeader
+        title="Demandes en attente"
+        description="Gérez les demandes d'inscription des garages. Approvez ou refusez avec un motif."
+        action={
+          <Link href="/admin/garages" className="text-sm text-[var(--accent-2)] hover:underline">
+            Voir tous les garages
+          </Link>
+        }
+        level={1}
+      />
 
       {error ? <ErrorBanner message={error} /> : null}
 
@@ -176,19 +180,19 @@ export default function AdminPendingPage() {
             <Card key={garage.id} className="grid gap-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold">{garage.name}</p>
+                  <p className="text-base font-semibold text-[var(--text)]">{garage.name}</p>
                   <p className="text-xs text-[var(--muted)]">{garage.email}</p>
                 </div>
                 <Badge variant="warning">En attente</Badge>
               </div>
               <div className="grid gap-2 text-sm text-[var(--muted)]">
-                <p>Telephone: {garage.phone || "-"}</p>
-                <p>Adresse: {garage.address || "-"}</p>
-                <p>SIRET: {garage.siret || "-"}</p>
+                <p>Téléphone : {garage.phone || "-"}</p>
+                <p>Adresse : {garage.address || "-"}</p>
+                <p>SIRET : {garage.siret || "-"}</p>
               </div>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="text-xs text-[var(--muted)]">
-                  Responsable: {garage.users[0]?.email ?? "-"}
+                  Responsable : {garage.users[0]?.email ?? "-"}
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button variant="ghost" onClick={() => openReject(garage)}>

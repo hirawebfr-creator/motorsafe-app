@@ -4,171 +4,130 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Card } from "@/components/ui/Card";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
-import { fetcher } from "@/lib/fetcher";
 import { ErrorBanner } from "@/components/common/ErrorBanner";
 import { Loading } from "@/components/common/Loading";
+
 import { LegalReferencesPanel } from "@/components/common/LegalReferencesPanel";
 
-type InterventionDetail = {
+type Vehicle = {
+  id: string;
+  plate: string;
+  brand: string;
+  model: string;
+  client: { firstName: string; lastName: string };
+};
+
+type Intervention = {
   id: string;
   type: string;
-  notes?: string | null;
   createdAt: string;
   performedAt?: string | null;
-  odometerKm?: number | null;
+  notes?: string | null;
+  odometerKm?: string | null;
   ecuType?: string | null;
   softwareVersion?: string | null;
   checksum?: string | null;
-  hash?: string | null;
-  payload?: string | null;
-  clientIp?: string | null;
-  userAgent?: string | null;
-  createdBy?: string | null;
-  vehicle: {
-    id: string;
-    plate: string;
-    brand: string;
-    model: string;
-    client: { firstName: string; lastName: string };
-  };
-  revisions: Array<{
-    id: string;
-    createdAt: string;
-    hash: string;
-    payload: string;
-  }>;
+  vehicle: Vehicle;
+  revisions?: Array<any>;
 };
 
 export default function InterventionDetailPage() {
-  const params = useParams();
-  const interventionId = Array.isArray(params?.id) ? params.id[0] : (params?.id as string);
-
-  const [intervention, setIntervention] = useState<InterventionDetail | null>(null);
+  const { id } = useParams();
+  const [intervention, setIntervention] = useState<Intervention | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadIntervention = async () => {
-    if (!interventionId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const data = await fetcher<InterventionDetail>(`/api/interventions/${interventionId}`, {
-        noStore: true,
-      });
-      setIntervention(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erreur serveur.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    loadIntervention();
-  }, [interventionId]);
+    const fetchIntervention = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch(`/api/interventions/${id}`);
+        if (!res.ok) throw new Error("Erreur lors du chargement de l'intervention.");
+        const data = await res.json();
+        setIntervention(data?.data ?? null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Erreur serveur.");
+      } finally {
+        setLoading(false);
+      }
+    };
+    if (id) fetchIntervention();
+  }, [id]);
 
   return (
-    <div className="grid gap-8">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-[var(--muted)]">Intervention</p>
-          <h1 className="mt-3 text-3xl font-semibold">
-            {intervention ? `Dossier ${intervention.vehicle.plate}` : "Dossier intervention"}
-          </h1>
-        </div>
-        <Link href="/interventions" className="text-sm text-[var(--accent-2)]">
-          Retour interventions
-        </Link>
-      </div>
-
-      {error ? <ErrorBanner message={error} /> : null}
-
+    <div className="flex flex-col gap-10">
+      <SectionHeader
+        title={intervention ? `Dossier ${intervention.vehicle.plate}` : "Dossier intervention"}
+        description="Détail complet de l'intervention, traçabilité et conformité."
+        level={1}
+      />
       {loading ? (
-        <Loading />
-      ) : intervention ? (
-        <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-          <div className="grid gap-6">
-            <Card className="grid gap-4">
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">Vehicule</p>
-                  <h2 className="mt-2 text-xl font-semibold">
-                    {intervention.vehicle.brand} {intervention.vehicle.model}
-                  </h2>
-                  <p className="text-sm text-[var(--muted)]">
-                    {intervention.vehicle.client.firstName} {intervention.vehicle.client.lastName}
-                  </p>
-                </div>
-                <Badge variant="accent">{intervention.type}</Badge>
-              </div>
-              <div className="grid gap-2 text-sm text-[var(--muted)]">
-                <p>Date creation: {new Date(intervention.createdAt).toLocaleString("fr-FR")}</p>
-                <p>
-                  Date realisee:{" "}
-                  {intervention.performedAt
-                    ? new Date(intervention.performedAt).toLocaleString("fr-FR")
-                    : "-"}
-                </p>
-                <p>Kilometrage: {intervention.odometerKm ?? "-"}</p>
-                <p>ECU: {intervention.ecuType || "-"}</p>
-                <p>Version logicielle: {intervention.softwareVersion || "-"}</p>
-                <p>Checksum: {intervention.checksum || "-"}</p>
-              </div>
+        <div className="flex justify-center py-12"><Loading /></div>
+      ) : error ? (
+        <ErrorBanner message={error} />
+      ) : !intervention ? (
+        <div className="text-center py-16 text-gray-500">Intervention introuvable.</div>
+      ) : (
+        <div className="grid gap-8 lg:grid-cols-2">
+          <Card className="flex flex-col gap-4 p-6 bg-[#15151f] border border-[#242433] rounded-xl shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
               <div>
-                <Button onClick={() => window.open(`/api/interventions/${intervention.id}/pdf`)}>
-                  Telecharger PDF dossier
-                </Button>
+                <h2 className="text-xl font-semibold text-white">{intervention.vehicle.plate} <span className="text-violet-400 font-normal">· {intervention.type}</span></h2>
+                <p className="text-xs text-gray-400 mt-1">{intervention.vehicle.brand} {intervention.vehicle.model}</p>
+                <p className="text-xs text-gray-400">Client : <span className="font-medium text-gray-300">{intervention.vehicle.client.firstName} {intervention.vehicle.client.lastName}</span></p>
               </div>
-            </Card>
-
-            <Card className="grid gap-4">
-              <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">Conformite</p>
-                <h2 className="mt-2 text-xl font-semibold">Traceabilite et preuves</h2>
+              <div className="flex flex-col gap-2 items-end">
+                <a href={`/api/interventions/${intervention.id}/pdf`} className="text-violet-400 hover:underline text-sm font-medium">PDF</a>
+                <span className="text-xs text-gray-500">Créée le {new Date(intervention.createdAt).toLocaleDateString("fr-FR")}</span>
+                {intervention.performedAt && <span className="text-xs text-gray-500">Réalisée le {new Date(intervention.performedAt).toLocaleDateString("fr-FR")}</span>}
               </div>
-              <div className="grid gap-2 text-sm text-[var(--muted)]">
-                <p>Hash de preuve: {intervention.hash || "-"}</p>
-                <p>Payload snapshot: {intervention.payload ? "Disponible" : "Non fourni"}</p>
-                <p>IP client: {intervention.clientIp || "-"}</p>
-                <p>User-Agent: {intervention.userAgent || "-"}</p>
-                <p>Cree par: {intervention.createdBy || "-"}</p>
-              </div>
-            </Card>
-
-            <LegalReferencesPanel type={intervention.type} />
-          </div>
-
-          <Card className="grid gap-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">Historique</p>
-                <h2 className="mt-2 text-xl font-semibold">Revisions</h2>
-              </div>
-              <Badge variant="accent">{intervention.revisions.length}</Badge>
             </div>
-            {intervention.revisions.length === 0 ? (
-              <p className="text-sm text-[var(--muted)]">Aucune revision enregistree.</p>
-            ) : (
-              <div className="grid gap-3">
-                {intervention.revisions.map((rev) => (
-                  <div
-                    key={rev.id}
-                    className="rounded-2xl border border-[var(--border)] bg-[var(--panel)] p-4 text-sm text-[var(--muted)]"
-                  >
-                    <p className="font-semibold text-[var(--text)]">
-                      {new Date(rev.createdAt).toLocaleString("fr-FR")}
-                    </p>
-                    <p className="break-all text-xs">HASH: {rev.hash}</p>
-                  </div>
-                ))}
+            <div className="grid grid-cols-2 gap-4 mt-2">
+              <div>
+                <p className="text-xs text-gray-400 mb-1">Kilométrage</p>
+                <p className="text-white font-medium">{intervention.odometerKm ?? '-'}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-400 mb-1">ECU</p>
+                <p className="text-white font-medium">{intervention.ecuType ?? '-'}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-400 mb-1">Version logicielle</p>
+                <p className="text-white font-medium">{intervention.softwareVersion ?? '-'}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-400 mb-1">Checksum</p>
+                <p className="text-white font-medium">{intervention.checksum ?? '-'}</p>
+              </div>
+            </div>
+            {intervention.notes && (
+              <div className="mt-4">
+                <p className="text-xs text-gray-400 mb-1">Notes</p>
+                <p className="text-white whitespace-pre-line">{intervention.notes}</p>
               </div>
             )}
           </Card>
+          <div className="flex flex-col gap-6">
+            <LegalReferencesPanel type={intervention.type} />
+            {/* Historique des révisions, si présent */}
+            {intervention.revisions && intervention.revisions.length > 0 && (
+              <Card className="p-4 bg-[#15151f] border border-[#242433] rounded-xl shadow-sm">
+                <h3 className="text-lg font-semibold mb-2 text-white">Historique des révisions</h3>
+                <ul className="space-y-2">
+                  {intervention.revisions.map((rev, idx) => (
+                    <li key={rev.id || idx} className="text-xs text-gray-400">
+                      <span className="font-medium text-white">Revision {idx + 1}</span> – {rev.createdAt ? new Date(rev.createdAt).toLocaleDateString("fr-FR") : ""}
+                      {rev.hash && <span className="ml-2 text-gray-500">HASH: {rev.hash}</span>}
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            )}
+          </div>
         </div>
-      ) : (
-        <p className="text-sm text-[var(--muted)]">Intervention introuvable.</p>
       )}
     </div>
   );

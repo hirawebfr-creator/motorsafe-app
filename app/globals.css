@@ -2,39 +2,141 @@
 @tailwind components;
 @tailwind utilities;
 
+
 :root {
   color-scheme: dark;
-  --bg-0: 11 13 18;
-  --bg-1: 14 17 26;
-  --card-rgb: 17 20 31;
-  --card-strong-rgb: 23 28 40;
-  --border-rgb: 31 41 55;
-  --text-rgb: 229 231 235;
-  --muted-rgb: 156 163 175;
-  --violet-rgb: 139 92 246;
-  --violet-2-rgb: 167 139 250;
-  --blue-rgb: 96 165 250;
+  --bg: #0B0D12;
+  --panel: #0F1420;
+  --panel-2: #121A2A;
+  --border: rgba(255,255,255,0.07);
+  --text: #EAF0FF;
+  --muted: rgba(234,240,255,0.65);
+  --accent: #8B5CF6;
+  --accent-2: #A78BFA;
+  --success: #22C55E;
+  --warning: #F59E0B;
+  --danger: #EF4444;
   --radius: 16px;
   --radius-sm: 12px;
   --radius-lg: 18px;
-  --space-1: 4px;
-  --space-2: 8px;
-  --space-3: 12px;
-  --space-4: 16px;
-  --space-5: 20px;
-  --shadow-card: 0 24px 60px rgba(10, 14, 25, 0.35);
-  --shadow-soft: 0 16px 40px rgba(15, 18, 30, 0.25);
-  --bg: rgb(var(--bg-0) / 1);
-  --panel: rgb(var(--bg-1) / 1);
-  --card: rgb(var(--card-rgb) / 0.86);
-  --card-strong: rgb(var(--card-strong-rgb) / 1);
-  --border: rgb(var(--border-rgb) / 1);
-  --text: rgb(var(--text-rgb) / 1);
-  --muted: rgb(var(--muted-rgb) / 1);
-  --accent: rgb(var(--violet-rgb) / 1);
-  --accent-2: rgb(var(--violet-2-rgb) / 1);
-  --blue: rgb(var(--blue-rgb) / 1);
+  --shadow-card: 0 10px 40px rgba(0,0,0,0.45);
+  --shadow-soft: 0 6px 24px rgba(0,0,0,0.25);
+  --focus: 0 0 0 2px #8B5CF6, 0 0 8px #8B5CF6;
 }
+
+html, body {
+  height: 100%;
+}
+
+body {
+  min-height: 100%;
+  font-family: 'Inter', var(--font-sans), system-ui, sans-serif;
+  background:
+    radial-gradient(1200px 600px at 30% 0%, rgba(139,92,246,.18), transparent 55%),
+    radial-gradient(900px 500px at 80% 20%, rgba(167,139,250,.10), transparent 60%),
+    linear-gradient(160deg, #0B0D12 0%, #0F1420 100%);
+  color: var(--text);
+  position: relative;
+  scrollbar-color: var(--accent) var(--panel-2);
+  scrollbar-width: thin;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  background: var(--panel-2);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--accent);
+  border-radius: 8px;
+}
+
+/* Micro-noise overlay (optional, subtle) */
+body::after {
+  content: "";
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  opacity: 0.07;
+  background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=');
+}
+
+/* Focus ring */
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus);
+  transition: box-shadow 0.18s;
+}
+
+/* Selection */
+::selection {
+  background: var(--accent-2);
+  color: #fff;
+}
+
+/* Utility classes for design system */
+.btn {
+  min-height: 44px;
+  border-radius: 1rem;
+  font-weight: 500;
+  font-size: 1rem;
+  padding: 0.5rem 1.25rem;
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.08), 0 10px 25px rgba(139,92,246,.25);
+  transition: background 0.18s, box-shadow 0.18s;
+}
+.btn:hover, .btn:focus-visible {
+  background: var(--accent-2);
+  box-shadow: 0 0 0 2px var(--accent-2), 0 0 12px var(--accent-2);
+}
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.card {
+  border-radius: 1.25rem;
+  border: 1px solid var(--border);
+  background: var(--panel)/0.90;
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(8px);
+}
+
+.input {
+  height: 44px;
+  width: 100%;
+  border-radius: 1rem;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  padding: 0 1rem;
+  font-size: 1rem;
+  color: var(--text);
+  transition: border 0.18s, box-shadow 0.18s;
+}
+.input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-2);
+}
+.input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.badge {
+  display: inline-block;
+  border-radius: 0.75rem;
+  padding: 0.25em 0.75em;
+  font-size: 0.85em;
+  font-weight: 500;
+  background: var(--panel-2);
+  color: var(--accent);
+  border: 1px solid var(--border);
+}
+.badge-success { color: var(--success); }
+.badge-warning { color: var(--warning); }
+.badge-danger { color: var(--danger); }
 
 @layer base {
   *,
