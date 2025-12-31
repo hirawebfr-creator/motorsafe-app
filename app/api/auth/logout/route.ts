@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
   try {
-    const token = getSessionToken(req);
+    const token = await getSessionToken(req);
     if (token) await deleteSession(token);
 
     const res = NextResponse.json(success(true));

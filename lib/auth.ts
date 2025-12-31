@@ -82,13 +82,13 @@ export function clearSessionCookie(res: NextResponse) {
   });
 }
 
-export function getSessionToken(req?: Request) {
+export async function getSessionToken(req?: Request) {
   if (req) {
     const cookie = parseCookie(req.headers.get("cookie"));
     return cookie[SESSION_COOKIE];
   }
 
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   return cookieStore.get(SESSION_COOKIE)?.value;
 }
 
@@ -126,7 +126,7 @@ async function getSessionByToken(token: string | undefined | null) {
 }
 
 export async function getSessionUser(req?: Request) {
-  const token = getSessionToken(req);
+  const token = await getSessionToken(req);
   return getSessionByToken(token);
 }
 
