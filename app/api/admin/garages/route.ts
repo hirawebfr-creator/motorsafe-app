@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { success, failure } from "@/lib/api";
 import { getSessionUser } from "@/lib/auth";
@@ -18,7 +19,7 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const status = url.searchParams.get("status");
 
-    const where =
+    const where: Prisma.GarageWhereInput =
       status === "pending"
         ? { status: "PENDING" }
         : status === "active"
