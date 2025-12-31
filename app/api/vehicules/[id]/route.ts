@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { success, failure } from "@/lib/api";
+import { getSessionUser, isApprovedGarage } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,16 +12,24 @@ function normalizeText(value: unknown) {
   return String(value ?? "").trim();
 }
 
-export async function GET(_req: Request, ctx: Ctx) {
+export async function GET(req: Request, ctx: Ctx) {
   try {
+    const user = await getSessionUser(req);
+    if (!user) return NextResponse.json(failure("Non autorise"), { status: 401 });
+    if (!isApprovedGarage(user)) {
+      return NextResponse.json(failure("Compte en attente de validation."), { status: 403 });
+    }
+
     const { id } = await ctx.params;
 
     if (!id || typeof id !== "string") {
       return NextResponse.json(failure("ID invalide"), { status: 400 });
     }
 
-    const vehicle = await prisma.vehicle.findUnique({
-      where: { id },
+    const vehicle = await prisma.vehicle.findFirst({
+      where: user.role === "ADMIN"
+        ? { id }
+        : { id, garageId: user.garageId ?? -1 },
       include: {
         client: true,
         interventions: { orderBy: { createdAt: "desc" } },
@@ -28,10 +37,8 @@ export async function GET(_req: Request, ctx: Ctx) {
     });
 
     if (!vehicle) {
-      return NextResponse.json(failure("Véhicule introuvable"), { status: 404 });
+      return NextResponse.json(failure("Vehicule introuvable"), { status: 404 });
     }
-
-    console.log("API /api/vehicules/[id] returning vehicle:", JSON.stringify(vehicle));
 
     return NextResponse.json(success(vehicle));
   } catch (err) {
@@ -42,6 +49,12 @@ export async function GET(_req: Request, ctx: Ctx) {
 
 export async function PUT(req: Request, ctx: Ctx) {
   try {
+    const user = await getSessionUser(req);
+    if (!user) return NextResponse.json(failure("Non autorise"), { status: 401 });
+    if (!isApprovedGarage(user)) {
+      return NextResponse.json(failure("Compte en attente de validation."), { status: 403 });
+    }
+
     const { id } = await ctx.params;
     const body = await req.json();
 
@@ -59,13 +72,13 @@ export async function PUT(req: Request, ctx: Ctx) {
     }
 
     if (brand.length < 2 || model.length < 2) {
-      return NextResponse.json(failure("Marque et modèle doivent faire au moins 2 caractères."), {
+      return NextResponse.json(failure("Marque et modele doivent faire au moins 2 caracteres."), {
         status: 400,
       });
     }
 
     if (brand.length > 60 || model.length > 60) {
-      return NextResponse.json(failure("Marque et modèle doivent faire moins de 60 caractères."), {
+      return NextResponse.json(failure("Marque et modele doivent faire moins de 60 caracteres."), {
         status: 400,
       });
     }
@@ -76,7 +89,7 @@ export async function PUT(req: Request, ctx: Ctx) {
 
     if (vin && !/^[A-Z0-9]{17}$/.test(vin)) {
       return NextResponse.json(
-        failure("VIN invalide (17 caractères alphanumériques)."),
+        failure("VIN invalide (17 caracteres alphanumeriques)."),
         { status: 400 }
       );
     }
@@ -85,13 +98,15 @@ export async function PUT(req: Request, ctx: Ctx) {
       return NextResponse.json(failure("Carburant trop long."), { status: 400 });
     }
 
-    const existing = await prisma.vehicle.findUnique({
-      where: { id },
+    const existing = await prisma.vehicle.findFirst({
+      where: user.role === "ADMIN"
+        ? { id }
+        : { id, garageId: user.garageId ?? -1 },
       select: { id: true },
     });
 
     if (!existing) {
-      return NextResponse.json(failure("Véhicule introuvable"), { status: 404 });
+      return NextResponse.json(failure("Vehicule introuvable"), { status: 404 });
     }
 
     const updated = await prisma.vehicle.update({
@@ -113,21 +128,29 @@ export async function PUT(req: Request, ctx: Ctx) {
   }
 }
 
-export async function DELETE(_req: Request, ctx: Ctx) {
+export async function DELETE(req: Request, ctx: Ctx) {
   try {
+    const user = await getSessionUser(req);
+    if (!user) return NextResponse.json(failure("Non autorise"), { status: 401 });
+    if (!isApprovedGarage(user)) {
+      return NextResponse.json(failure("Compte en attente de validation."), { status: 403 });
+    }
+
     const { id } = await ctx.params;
 
     if (!id || typeof id !== "string") {
       return NextResponse.json(failure("ID invalide"), { status: 400 });
     }
 
-    const existing = await prisma.vehicle.findUnique({
-      where: { id },
+    const existing = await prisma.vehicle.findFirst({
+      where: user.role === "ADMIN"
+        ? { id }
+        : { id, garageId: user.garageId ?? -1 },
       select: { id: true },
     });
 
     if (!existing) {
-      return NextResponse.json(failure("Véhicule introuvable"), { status: 404 });
+      return NextResponse.json(failure("Vehicule introuvable"), { status: 404 });
     }
 
     await prisma.vehicle.delete({ where: { id } });

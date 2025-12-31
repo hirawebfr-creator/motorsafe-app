@@ -1,0 +1,19 @@
+import type { SelectHTMLAttributes } from "react";
+
+type SelectProps = SelectHTMLAttributes<HTMLSelectElement> & {
+  label?: string;
+};
+
+export function Select({ className = "", label, children, ...props }: SelectProps) {
+  return (
+    <label className="grid gap-2 text-sm text-[var(--muted)]">
+      {label ? <span className="text-xs uppercase tracking-[0.2em]">{label}</span> : null}
+      <select
+        className={`h-11 w-full rounded-2xl border border-[var(--border)] bg-[var(--panel)] px-4 text-sm text-[var(--text)] outline-none transition focus:border-[var(--accent)] ${className}`}
+        {...props}
+      >
+        {children}
+      </select>
+    </label>
+  );
+}

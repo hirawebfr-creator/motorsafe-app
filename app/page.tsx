@@ -1,134 +1,112 @@
-// app/page.tsx
-"use client";
+import Link from "next/link";
+import { ShieldCheck, Sparkles, Wrench, ArrowUpRight } from "lucide-react";
+import { Card } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
 
-import { FormEvent, useState } from "react";
-
-export default function Home() {
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<{ firstName?: string; lastName?: string }>({});
-
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    setMessage(null);
-    setError(null);
-
-    const trimmedFirstName = firstName.trim();
-    const trimmedLastName = lastName.trim();
-    const errors: { firstName?: string; lastName?: string } = {};
-
-    if (!trimmedFirstName) errors.firstName = "Le prénom est obligatoire.";
-    if (!trimmedLastName) errors.lastName = "Le nom est obligatoire.";
-
-    setFieldErrors(errors);
-    if (Object.keys(errors).length > 0) return;
-
-    setLoading(true);
-
-    try {
-      const res = await fetch("/api/clients", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ firstName: trimmedFirstName, lastName: trimmedLastName }),
-      });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        setError(data?.error || "Erreur serveur.");
-        return;
-      }
-
-      setMessage("Client enregistré avec succès.");
-      setFirstName("");
-      setLastName("");
-    } catch (err) {
-      console.error(err);
-      setError("Erreur réseau. Vérifie que le serveur tourne bien.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
+export default function HomePage() {
   return (
-    <main style={{ padding: "2rem", maxWidth: 520, margin: "0 auto" }}>
-      <h1 style={{ fontSize: 28, fontWeight: 700 }}>MotorSafe</h1>
-      <p style={{ marginTop: 8, opacity: 0.8 }}>
-        Création rapide d’un client (test MVP)
-      </p>
+    <main className="relative overflow-hidden">
+      <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-8">
+        <div className="flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--accent)]/20 text-xl font-bold text-[var(--accent)]">
+            M
+          </div>
+          <div>
+            <p className="text-xs uppercase tracking-[0.3em] text-[var(--muted)]">MotorSafe</p>
+            <p className="text-lg font-semibold">Panel garages</p>
+          </div>
+        </div>
+        <nav className="flex items-center gap-3">
+          <Link
+            href="/auth/login"
+            className="rounded-full border border-[var(--border)] px-5 py-2 text-sm font-semibold text-[var(--text)] hover:border-[var(--accent)]"
+          >
+            Connexion
+          </Link>
+          <Link
+            href="/auth/register-pro"
+            className="rounded-full bg-[var(--accent)] px-5 py-2 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(124,92,255,0.35)] hover:bg-[var(--accent-2)]"
+          >
+            Creer compte pro
+          </Link>
+        </nav>
+      </header>
 
-      <div style={{ marginTop: 16 }}>
-        <a href="/clients">← Voir la liste des clients</a>
-      </div>
-
-      <form
-        onSubmit={handleSubmit}
-        style={{ display: "grid", gap: "1rem", marginTop: "1.5rem" }}
-      >
-        <div>
-          <label>
-            Prénom<br />
-            <input
-              type="text"
-              value={firstName}
-              onChange={(e) => {
-                setFirstName(e.target.value);
-                setFieldErrors((prev) => ({ ...prev, firstName: undefined }));
-              }}
-              required
-              minLength={2}
-              maxLength={60}
-              autoComplete="given-name"
-              aria-invalid={Boolean(fieldErrors.firstName)}
-              style={{ width: "100%", padding: 10 }}
-            />
-          </label>
-          {fieldErrors.firstName && (
-            <div style={{ marginTop: 4, color: "#b00", fontSize: 12 }}>
-              {fieldErrors.firstName}
-            </div>
-          )}
+      <section className="mx-auto grid w-full max-w-6xl gap-10 px-6 pb-20 pt-10 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="grid gap-6">
+          <Badge variant="accent">Plateforme garages B2B</Badge>
+          <h1 className="text-balance text-4xl font-semibold leading-tight lg:text-5xl">
+            MotorSafe pilote vos interventions avec une traceabilite digne des grandes fintechs.
+          </h1>
+          <p className="text-balance text-base text-[var(--muted)]">
+            Un dashboard inspire Revolut pour suivre vos clients, vehicules et dossiers PDF. Multi-garages,
+            validations admin, preuves hash et historique revisions.
+          </p>
+          <div className="flex flex-wrap items-center gap-4">
+            <Link
+              href="/auth/register-pro"
+              className="inline-flex items-center gap-2 rounded-full bg-[var(--accent)] px-6 py-3 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(124,92,255,0.35)] hover:bg-[var(--accent-2)]"
+            >
+              Demander un compte <ArrowUpRight size={16} />
+            </Link>
+            <Link
+              href="/auth/login"
+              className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] px-6 py-3 text-sm font-semibold text-[var(--text)] hover:border-[var(--accent)]"
+            >
+              Se connecter
+            </Link>
+          </div>
         </div>
 
-        <div>
-          <label>
-            Nom<br />
-            <input
-              type="text"
-              value={lastName}
-              onChange={(e) => {
-                setLastName(e.target.value);
-                setFieldErrors((prev) => ({ ...prev, lastName: undefined }));
-              }}
-              required
-              minLength={2}
-              maxLength={60}
-              autoComplete="family-name"
-              aria-invalid={Boolean(fieldErrors.lastName)}
-              style={{ width: "100%", padding: 10 }}
-            />
-          </label>
-          {fieldErrors.lastName && (
-            <div style={{ marginTop: 4, color: "#b00", fontSize: 12 }}>
-              {fieldErrors.lastName}
+        <div className="grid gap-4">
+          <Card className="grid gap-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">Performance atelier</p>
+              <Sparkles size={18} className="text-[var(--accent)]" />
             </div>
-          )}
+            <p className="text-2xl font-semibold">Temps reel, zero friction</p>
+            <p className="text-sm text-[var(--muted)]">
+              Un flux unifie pour verifier vos vehicules, signer les interventions, generer les PDFs.
+            </p>
+          </Card>
+          <Card className="grid gap-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">Traceabilite</p>
+              <ShieldCheck size={18} className="text-[var(--accent)]" />
+            </div>
+            <p className="text-2xl font-semibold">Preuves hash integrees</p>
+            <p className="text-sm text-[var(--muted)]">
+              Chaque dossier conserve l'historique des revisions et les preuves de signature.
+            </p>
+          </Card>
+          <Card className="grid gap-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">Equipe pro</p>
+              <Wrench size={18} className="text-[var(--accent)]" />
+            </div>
+            <p className="text-2xl font-semibold">Multi-garages securise</p>
+            <p className="text-sm text-[var(--muted)]">
+              Chaque garage voit uniquement ses donnees. L'admin valide les comptes avant activation.
+            </p>
+          </Card>
         </div>
+      </section>
 
-        <button
-          type="submit"
-          disabled={loading || !firstName.trim() || !lastName.trim()}
-          style={{ padding: 12 }}
-        >
-          {loading ? "Enregistrement..." : "Enregistrer le client"}
-        </button>
-      </form>
-
-      {message && <p style={{ color: "green", marginTop: 12 }}>{message}</p>}
-      {error && <p style={{ color: "red", marginTop: 12 }}>{error}</p>}
+      <section className="mx-auto grid w-full max-w-6xl gap-6 px-6 pb-20">
+        <Card className="grid gap-4">
+          <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">Conformite & confiance</p>
+          <h2 className="text-2xl font-semibold">Traceabilite sans surcouche</h2>
+          <p className="text-sm text-[var(--muted)]">
+            MotorSafe structure vos donnees: interventions, revisions, preuves hash et journaux de creation.
+            Vos dossiers restent exploitables en cas de litige, audit ou assurance.
+          </p>
+          <div className="flex flex-wrap gap-3 text-sm text-[var(--muted)]">
+            <span>Audit interne rapide</span>
+            <span>Historique immuable</span>
+            <span>Responsabilite atelier</span>
+          </div>
+        </Card>
+      </section>
     </main>
   );
 }

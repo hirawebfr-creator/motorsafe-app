@@ -15,10 +15,14 @@
     "prisma:migrate:reset": "prisma migrate reset --force",
     "prisma:migrate:deploy": "prisma migrate deploy",
     "reset-db": "npm run prisma:migrate:reset && npm run prisma:generate",
-    "smoke": "node scripts/smoke.js"
+    "smoke": "node scripts/smoke.js",
+    "backfill:garage": "node scripts/backfill-garage.js",
+    "create:admin": "node scripts/create-admin.js"
   },
   "dependencies": {
     "@prisma/client": "^6.19.1",
+    "bcryptjs": "^2.4.3",
+    "lucide-react": "^0.542.0",
     "next": "16.1.0",
     "pdfkit": "^0.17.2",
     "react": "^19.0.0",
@@ -26,6 +30,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.18",
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "25.0.3",
     "@types/pdfkit": "^0.17.4",
     "@types/react": "19.2.7",

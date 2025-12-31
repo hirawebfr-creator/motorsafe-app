@@ -1,36 +1,75 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# MotorSafe
 
-## Getting Started
+Panel Next.js (App Router) + Prisma + SQLite avec dashboard pro, multi-garages et validation admin.
 
-First, run the development server:
+## Fonctionnalites
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- UI dashboard moderne (sidebar, topbar, cards, tables).
+- Multi-garages (chaque garage voit ses donnees).
+- Demande de compte pro + validation admin.
+- PDF dossier intervention (hash + historique revisions).
+- Scripts utilitaires (creation admin, backfill garage).
+
+## Prerequis
+
+- Node.js 20+
+- npm
+- SQLite (dev) ou DB configurable via Prisma
+
+## Variables d'environnement
+
+Creer un fichier `.env` a la racine :
+
+```
+DATABASE_URL="file:./prisma/dev.db"
+NODE_ENV="development"
+ADMIN_KEY="votre-cle-secrete"
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+En production, adaptez `DATABASE_URL` vers le chemin de la base (ex: `/var/lib/motorsafe/prod.db`).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Installation locale
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+npm install
+npx prisma migrate dev -n init-multi-tenant
+npm run backfill:garage
+ADMIN_EMAIL="admin@domain.fr" ADMIN_PASSWORD="motdepassefort" npm run create:admin
+npm run dev --webpack
+```
 
-## Learn More
+## Deploiement VPS (resume)
 
-To learn more about Next.js, take a look at the following resources:
+```
+git pull --ff-only
+npm ci
+npx prisma migrate deploy
+npm run backfill:garage
+ADMIN_EMAIL="admin@domain.fr" ADMIN_PASSWORD="motdepassefort" npm run create:admin
+npm run build
+pm2 restart motorsafe --update-env
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Pages
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- `/` : landing
+- `/auth/login` : connexion
+- `/auth/register-pro` : demande compte pro
+- `/pro` : raccourci pro
+- `/dashboard` : KPIs
+- `/clients` : gestion clients
+- `/vehicules` : parc vehicules
+- `/interventions` : interventions
+- `/documents` : PDFs
+- `/settings` : infos garage
+- `/admin` : validation garages
 
-## Deploy on Vercel
+## Scripts utiles
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- `npm run backfill:garage` : associe un garage par defaut a l'existant.
+- `npm run create:admin` : cree un admin (ADMIN_EMAIL/ADMIN_PASSWORD).
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Notes
+
+- Les endpoints renvoient toujours `{ ok: true, data }` ou `{ ok: false, error, details }`.
+- Les routes admin acceptent une cle via header `x-admin-key` si `ADMIN_KEY` est defini.

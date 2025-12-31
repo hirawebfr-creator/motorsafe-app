@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { failure } from "@/lib/api";
+import { getSessionUser, isApprovedGarage } from "@/lib/auth";
 import PDFDocument from "pdfkit/js/pdfkit.standalone";
 import { Buffer } from "buffer";
 
@@ -20,16 +22,24 @@ function formatDate(date: Date | string | null | undefined) {
   return d.toLocaleString("fr-FR");
 }
 
-export async function GET(_req: Request, ctx: Ctx) {
+export async function GET(req: Request, ctx: Ctx) {
   try {
+    const user = await getSessionUser(req);
+    if (!user) return NextResponse.json(failure("Non autorise"), { status: 401 });
+    if (!isApprovedGarage(user)) {
+      return NextResponse.json(failure("Compte en attente de validation."), { status: 403 });
+    }
+
     const { id } = await ctx.params;
 
     if (!id || typeof id !== "string") {
-      return NextResponse.json({ ok: false, error: "ID invalide" }, { status: 400 });
+      return NextResponse.json(failure("ID invalide"), { status: 400 });
     }
 
-    const intervention = await prisma.intervention.findUnique({
-      where: { id },
+    const intervention = await prisma.intervention.findFirst({
+      where: user.role === "ADMIN"
+        ? { id }
+        : { id, garageId: user.garageId ?? -1 },
       include: {
         vehicle: { include: { client: true } },
         revisions: { orderBy: { createdAt: "desc" } },
@@ -37,7 +47,7 @@ export async function GET(_req: Request, ctx: Ctx) {
     });
 
     if (!intervention) {
-      return NextResponse.json({ ok: false, error: "Intervention introuvable" }, { status: 404 });
+      return NextResponse.json(failure("Intervention introuvable"), { status: 404 });
     }
 
     const doc = new PDFDocument({ size: "A4", margin: 50 });
@@ -74,8 +84,8 @@ export async function GET(_req: Request, ctx: Ctx) {
     doc.moveDown(0.8);
 
     row("ID intervention", intervention.id);
-    row("Créé le", formatDate(intervention.createdAt));
-    row("Réalisée le", formatDate(intervention.performedAt));
+    row("Cree le", formatDate(intervention.createdAt));
+    row("Realisee le", formatDate(intervention.performedAt));
 
     doc.moveDown(0.4);
     doc.fontSize(13).font("Helvetica-Bold").text("Client", { underline: true });
@@ -84,10 +94,10 @@ export async function GET(_req: Request, ctx: Ctx) {
     row("Client ID", String(intervention.vehicle.client.id));
 
     doc.moveDown(0.3);
-    doc.fontSize(13).font("Helvetica-Bold").text("Véhicule", { underline: true });
+    doc.fontSize(13).font("Helvetica-Bold").text("Vehicule", { underline: true });
     doc.moveDown(0.2);
     row("Immatriculation", intervention.vehicle.plate);
-    row("Marque / Modèle", `${intervention.vehicle.brand} ${intervention.vehicle.model}`);
+    row("Marque / Modele", `${intervention.vehicle.brand} ${intervention.vehicle.model}`);
     row("VIN", asText(intervention.vehicle.vin));
     row("Carburant", asText(intervention.vehicle.fuel));
 
@@ -95,7 +105,12 @@ export async function GET(_req: Request, ctx: Ctx) {
     doc.fontSize(13).font("Helvetica-Bold").text("Intervention", { underline: true });
     doc.moveDown(0.2);
     row("Type", intervention.type);
-    row("Kilométrage", intervention.odometerKm !== null && intervention.odometerKm !== undefined ? `${intervention.odometerKm} km` : "-");
+    row(
+      "Kilometrage",
+      intervention.odometerKm !== null && intervention.odometerKm !== undefined
+        ? `${intervention.odometerKm} km`
+        : "-"
+    );
     row("ECU", asText(intervention.ecuType));
     row("Version soft", asText(intervention.softwareVersion));
     row("Checksum", asText(intervention.checksum));
@@ -108,15 +123,15 @@ export async function GET(_req: Request, ctx: Ctx) {
     }
 
     doc.moveDown(0.4);
-    doc.fontSize(13).font("Helvetica-Bold").text("Traçabilité", { underline: true });
+    doc.fontSize(13).font("Helvetica-Bold").text("Traceabilite", { underline: true });
     doc.moveDown(0.2);
     row("IP", asText(intervention.clientIp));
     row("User-Agent", asText(intervention.userAgent));
-    if (intervention.createdBy) row("Créé par", String(intervention.createdBy));
+    if (intervention.createdBy) row("Cree par", String(intervention.createdBy));
 
     if (intervention.hash) {
       doc.moveDown(0.2);
-      doc.fontSize(11).font("Helvetica-Bold").text("Hash (preuve d'intégrité)", { underline: true });
+      doc.fontSize(11).font("Helvetica-Bold").text("Hash (preuve d'integrite)", { underline: true });
       doc.moveDown(0.2);
       doc.font("Courier").fontSize(9).text(intervention.hash, { width: right - left });
       doc.font("Helvetica");
@@ -132,14 +147,14 @@ export async function GET(_req: Request, ctx: Ctx) {
 
     if (intervention.revisions?.length) {
       doc.addPage();
-      doc.fontSize(14).font("Helvetica-Bold").text("Historique des révisions", { underline: true });
+      doc.fontSize(14).font("Helvetica-Bold").text("Historique des revisions", { underline: true });
       doc.moveDown(0.6);
 
       intervention.revisions.forEach((rev, idx) => {
         doc
           .fontSize(11)
           .font("Helvetica-Bold")
-          .text(`Révision ${idx + 1} - ${formatDate(rev.createdAt)}`);
+          .text(`Revision ${idx + 1} - ${formatDate(rev.createdAt)}`);
         doc.fontSize(9).font("Courier").text(`HASH: ${rev.hash}`);
         doc.font("Helvetica").moveDown(0.2);
         doc.fontSize(9).font("Courier").text(rev.payload, { width: right - left });
@@ -171,6 +186,6 @@ export async function GET(_req: Request, ctx: Ctx) {
     });
   } catch (err) {
     console.error("Erreur API PDF /api/interventions/[id]/pdf :", err);
-    return NextResponse.json({ ok: false, error: "Erreur serveur PDF" }, { status: 500 });
+    return NextResponse.json(failure("Erreur serveur PDF"), { status: 500 });
   }
 }

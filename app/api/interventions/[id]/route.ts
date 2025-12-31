@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createHash } from "crypto";
+import { success, failure } from "@/lib/api";
+import { getSessionUser, isApprovedGarage } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -52,12 +54,20 @@ function normalizeText(value: unknown) {
   return String(value ?? "").trim();
 }
 
-export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
+    const user = await getSessionUser(req);
+    if (!user) return NextResponse.json(failure("Non autorise"), { status: 401 });
+    if (!isApprovedGarage(user)) {
+      return NextResponse.json(failure("Compte en attente de validation."), { status: 403 });
+    }
+
     const { id } = await ctx.params;
 
-    const intervention = await prisma.intervention.findUnique({
-      where: { id: String(id) },
+    const intervention = await prisma.intervention.findFirst({
+      where: user.role === "ADMIN"
+        ? { id: String(id) }
+        : { id: String(id), garageId: user.garageId ?? -1 },
       include: {
         vehicle: { include: { client: true } },
         revisions: { orderBy: { createdAt: "desc" } },
@@ -65,35 +75,37 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     });
 
     if (!intervention) {
-      return NextResponse.json(
-        { ok: false, error: "Intervention introuvable." },
-        { status: 404 }
-      );
+      return NextResponse.json(failure("Intervention introuvable."), { status: 404 });
     }
 
-    return NextResponse.json({ ok: true, intervention });
+    return NextResponse.json(success(intervention));
   } catch (err) {
     console.error("Erreur API GET /api/interventions/[id] :", err);
-    return NextResponse.json({ ok: false, error: "Erreur serveur." }, { status: 500 });
+    return NextResponse.json(failure("Erreur serveur."), { status: 500 });
   }
 }
 
 export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
+    const user = await getSessionUser(req);
+    if (!user) return NextResponse.json(failure("Non autorise"), { status: 401 });
+    if (!isApprovedGarage(user)) {
+      return NextResponse.json(failure("Compte en attente de validation."), { status: 403 });
+    }
+
     const { id } = await ctx.params;
 
     const interventionId = String(id);
     const body = await req.json();
 
-    const existing = await prisma.intervention.findUnique({
-      where: { id: interventionId },
+    const existing = await prisma.intervention.findFirst({
+      where: user.role === "ADMIN"
+        ? { id: interventionId }
+        : { id: interventionId, garageId: user.garageId ?? -1 },
     });
 
     if (!existing) {
-      return NextResponse.json(
-        { ok: false, error: "Intervention introuvable." },
-        { status: 404 }
-      );
+      return NextResponse.json(failure("Intervention introuvable."), { status: 404 });
     }
 
     const type = normalizeText(body.type ?? existing.type);
@@ -136,37 +148,37 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
         : null;
 
     if (!type) {
-      return NextResponse.json({ ok: false, error: "Type obligatoire." }, { status: 400 });
+      return NextResponse.json(failure("Type obligatoire."), { status: 400 });
     }
 
     if (!allowedTypes.has(type)) {
-      return NextResponse.json({ ok: false, error: "Type d'intervention invalide." }, { status: 400 });
+      return NextResponse.json(failure("Type d'intervention invalide."), { status: 400 });
     }
 
     if (notes && notes.length > 2000) {
-      return NextResponse.json({ ok: false, error: "Notes trop longues (max 2000 caractères)." }, { status: 400 });
+      return NextResponse.json(failure("Notes trop longues (max 2000 caracteres)."), { status: 400 });
     }
 
     if (performedAt && Number.isNaN(performedAt.getTime())) {
-      return NextResponse.json({ ok: false, error: "Date d'intervention invalide." }, { status: 400 });
+      return NextResponse.json(failure("Date d'intervention invalide."), { status: 400 });
     }
 
     if (odometerKm !== null && odometerKm !== undefined) {
       if (!Number.isFinite(odometerKm) || odometerKm < 0) {
-        return NextResponse.json({ ok: false, error: "Kilométrage invalide." }, { status: 400 });
+        return NextResponse.json(failure("Kilometrage invalide."), { status: 400 });
       }
     }
 
     if (ecuType && ecuType.length > 80) {
-      return NextResponse.json({ ok: false, error: "ECU trop long." }, { status: 400 });
+      return NextResponse.json(failure("ECU trop long."), { status: 400 });
     }
 
     if (softwareVersion && softwareVersion.length > 80) {
-      return NextResponse.json({ ok: false, error: "Version logicielle trop longue." }, { status: 400 });
+      return NextResponse.json(failure("Version logicielle trop longue."), { status: 400 });
     }
 
     if (checksum && checksum.length > 128) {
-      return NextResponse.json({ ok: false, error: "Checksum trop long." }, { status: 400 });
+      return NextResponse.json(failure("Checksum trop long."), { status: 400 });
     }
 
     const clientIp = getClientIp(req);
@@ -212,7 +224,7 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
           interventionId,
           payload,
           hash,
-          createdBy: body.createdBy ? normalizeText(body.createdBy) : null,
+          createdBy: body.createdBy ? normalizeText(body.createdBy) : user.email,
           clientIp,
           userAgent,
         },
@@ -221,35 +233,40 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
       return intervention;
     });
 
-    return NextResponse.json({ ok: true, intervention: updated }, { status: 200 });
+    return NextResponse.json(success(updated), { status: 200 });
   } catch (err) {
     console.error("Erreur API PUT /api/interventions/[id] :", err);
-    return NextResponse.json({ ok: false, error: "Erreur serveur." }, { status: 500 });
+    return NextResponse.json(failure("Erreur serveur."), { status: 500 });
   }
 }
 
-export async function DELETE(_req: Request, ctx: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
+    const user = await getSessionUser(req);
+    if (!user) return NextResponse.json(failure("Non autorise"), { status: 401 });
+    if (!isApprovedGarage(user)) {
+      return NextResponse.json(failure("Compte en attente de validation."), { status: 403 });
+    }
+
     const { id } = await ctx.params;
     const interventionId = String(id);
 
-    const existing = await prisma.intervention.findUnique({
-      where: { id: interventionId },
+    const existing = await prisma.intervention.findFirst({
+      where: user.role === "ADMIN"
+        ? { id: interventionId }
+        : { id: interventionId, garageId: user.garageId ?? -1 },
       select: { id: true },
     });
 
     if (!existing) {
-      return NextResponse.json(
-        { ok: false, error: "Intervention introuvable." },
-        { status: 404 }
-      );
+      return NextResponse.json(failure("Intervention introuvable."), { status: 404 });
     }
 
     await prisma.intervention.delete({ where: { id: interventionId } });
 
-    return NextResponse.json({ ok: true, id: interventionId }, { status: 200 });
+    return NextResponse.json(success({ id: interventionId }), { status: 200 });
   } catch (err) {
     console.error("Erreur API DELETE /api/interventions/[id] :", err);
-    return NextResponse.json({ ok: false, error: "Erreur serveur." }, { status: 500 });
+    return NextResponse.json(failure("Erreur serveur."), { status: 500 });
   }
 }

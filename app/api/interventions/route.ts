@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createHash } from "crypto";
 import { success, failure } from "@/lib/api";
+import { getSessionUser, isApprovedGarage } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,9 +20,17 @@ function normalizeText(value: unknown) {
   return String(value ?? "").trim();
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    const user = await getSessionUser(req);
+    if (!user) return NextResponse.json(failure("Non autorise"), { status: 401 });
+    if (!isApprovedGarage(user)) {
+      return NextResponse.json(failure("Compte en attente de validation."), { status: 403 });
+    }
+
+    const where = user.role === "ADMIN" ? {} : { garageId: user.garageId ?? -1 };
     const interventions = await prisma.intervention.findMany({
+      where,
       orderBy: { createdAt: "desc" },
       include: { vehicle: { include: { client: true } } },
     });
@@ -35,6 +44,12 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    const user = await getSessionUser(req);
+    if (!user) return NextResponse.json(failure("Non autorise"), { status: 401 });
+    if (!isApprovedGarage(user)) {
+      return NextResponse.json(failure("Compte en attente de validation."), { status: 403 });
+    }
+
     const body = await req.json();
 
     const vehicleId = normalizeText(body.vehicleId);
@@ -42,9 +57,10 @@ export async function POST(req: Request) {
     const notes = body.notes ? normalizeText(body.notes) : null;
 
     const performedAt = body.performedAt ? new Date(body.performedAt) : null;
-    const odometerKm = body.odometerKm !== null && body.odometerKm !== undefined && body.odometerKm !== ""
-      ? Number(body.odometerKm)
-      : null;
+    const odometerKm =
+      body.odometerKm !== null && body.odometerKm !== undefined && body.odometerKm !== ""
+        ? Number(body.odometerKm)
+        : null;
     const ecuType = body.ecuType ? normalizeText(body.ecuType) : null;
     const softwareVersion = body.softwareVersion ? normalizeText(body.softwareVersion) : null;
     const checksum = body.checksum ? normalizeText(body.checksum) : null;
@@ -60,7 +76,7 @@ export async function POST(req: Request) {
     }
 
     if (notes && notes.length > 2000) {
-      return NextResponse.json(failure("Notes trop longues (max 2000 caractères)."), { status: 400 });
+      return NextResponse.json(failure("Notes trop longues (max 2000 caracteres)."), { status: 400 });
     }
 
     if (performedAt && Number.isNaN(performedAt.getTime())) {
@@ -69,7 +85,7 @@ export async function POST(req: Request) {
 
     if (odometerKm !== null) {
       if (!Number.isFinite(odometerKm) || odometerKm < 0) {
-        return NextResponse.json(failure("Kilométrage invalide."), { status: 400 });
+        return NextResponse.json(failure("Kilometrage invalide."), { status: 400 });
       }
     }
 
@@ -85,12 +101,23 @@ export async function POST(req: Request) {
       return NextResponse.json(failure("Checksum trop long."), { status: 400 });
     }
 
-    const vehicle = await prisma.vehicle.findUnique({
-      where: { id: vehicleId },
-      select: { id: true },
+    const vehicle = await prisma.vehicle.findFirst({
+      where: user.role === "ADMIN"
+        ? { id: vehicleId }
+        : { id: vehicleId, garageId: user.garageId ?? -1 },
+      select: { id: true, garageId: true },
     });
     if (!vehicle) {
-      return NextResponse.json(failure("Véhicule introuvable."), { status: 404 });
+      return NextResponse.json(failure("Vehicule introuvable."), { status: 404 });
+    }
+
+    const providedGarageId = Number(body.garageId);
+    const targetGarageId =
+      user.role === "ADMIN"
+        ? (Number.isFinite(providedGarageId) ? providedGarageId : vehicle.garageId)
+        : user.garageId;
+    if (!targetGarageId) {
+      return NextResponse.json(failure("Garage invalide."), { status: 400 });
     }
 
     const userAgent = req.headers.get("user-agent") ?? null;
@@ -98,6 +125,7 @@ export async function POST(req: Request) {
 
     const created = await prisma.intervention.create({
       data: {
+        garageId: targetGarageId,
         vehicleId,
         type,
         notes,
@@ -106,7 +134,7 @@ export async function POST(req: Request) {
         ecuType: ecuType ?? undefined,
         softwareVersion: softwareVersion ?? undefined,
         checksum: checksum ?? undefined,
-        createdBy: body.createdBy ? normalizeText(body.createdBy) : null,
+        createdBy: body.createdBy ? normalizeText(body.createdBy) : user.email,
         clientIp,
         userAgent,
       },
@@ -144,7 +172,7 @@ export async function POST(req: Request) {
         interventionId: created.id,
         payload,
         hash,
-        createdBy: body.createdBy ? normalizeText(body.createdBy) : null,
+        createdBy: body.createdBy ? normalizeText(body.createdBy) : user.email,
         clientIp,
         userAgent,
       },

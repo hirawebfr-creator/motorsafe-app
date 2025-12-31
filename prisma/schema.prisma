@@ -7,17 +7,76 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum UserRole {
+  ADMIN
+  GARAGE
+}
+
+enum GarageStatus {
+  PENDING
+  ACTIVE
+  REJECTED
+}
+
+model Garage {
+  id         Int       @id @default(autoincrement())
+  name       String
+  email      String    @unique
+  phone      String?
+  address    String?
+  siret      String?
+  status     GarageStatus @default(PENDING)
+  createdAt  DateTime  @default(now())
+
+  users         User[]
+  clients       Client[]
+  vehicles      Vehicle[]
+  interventions Intervention[]
+}
+
+model User {
+  id           String   @id @default(cuid())
+  garageId     Int?
+  email        String   @unique
+  passwordHash String
+  role         UserRole @default(GARAGE)
+  createdAt    DateTime @default(now())
+
+  garage   Garage?   @relation(fields: [garageId], references: [id], onDelete: Cascade)
+  sessions Session[]
+
+  @@index([garageId])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
 model Client {
   id        Int      @id @default(autoincrement())
+  garageId  Int?
   firstName String
   lastName  String
   createdAt DateTime @default(now())
 
-  vehicles  Vehicle[]
+  garage   Garage?  @relation(fields: [garageId], references: [id], onDelete: Cascade)
+  vehicles Vehicle[]
+
+  @@index([garageId])
 }
 
 model Vehicle {
   id        String   @id @default(cuid())
+  garageId  Int?
   clientId  Int
   brand     String
   model     String
@@ -26,24 +85,28 @@ model Vehicle {
   fuel      String?
   createdAt DateTime @default(now())
 
+  garage        Garage?        @relation(fields: [garageId], references: [id], onDelete: Cascade)
   client        Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
   interventions Intervention[]
+
+  @@index([garageId])
 }
 
 model Intervention {
   id        String   @id @default(cuid())
+  garageId  Int?
   vehicleId String
   type      String
   notes     String?
   createdAt DateTime @default(now())
-  // traçabilité
+  // traceability
   createdBy String?
   clientIp  String?
   userAgent String?
 
-  // preuve “assurance”
-  hash      String?  @unique
-  payload   String?  // JSON string (snapshot)
+  // proof of integrity
+  hash    String? @unique
+  payload String? // JSON string (snapshot)
 
   // structured fields for professional interventions / insurance
   performedAt     DateTime?
@@ -58,7 +121,10 @@ model Intervention {
   // revisions store immutable snapshots when interventions are created/edited
   revisions InterventionRevision[]
 
-  vehicle   Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  garage  Garage? @relation(fields: [garageId], references: [id], onDelete: Cascade)
+  vehicle Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@index([garageId])
 }
 
 model InterventionRevision {
@@ -66,13 +132,13 @@ model InterventionRevision {
   interventionId String
   intervention   Intervention @relation(fields: [interventionId], references: [id], onDelete: Cascade)
 
-  createdAt     DateTime @default(now())
-  createdBy     String?
-  clientIp      String?
-  userAgent     String?
+  createdAt DateTime @default(now())
+  createdBy String?
+  clientIp  String?
+  userAgent String?
 
-  payload       String
-  hash          String
+  payload String
+  hash    String
 
   @@index([interventionId])
 }
