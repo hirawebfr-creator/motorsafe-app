@@ -34,7 +34,11 @@ export default function ClientPage() {
 
       const vRes = await fetch(`/api/vehicules`, { cache: "no-store" });
       const vJson = await vRes.json().catch(() => null);
-      const allVehicles: Vehicle[] = vJson && vJson.ok && Array.isArray(vJson.data) ? vJson.data : Array.isArray(vJson) ? vJson : [];
+      const allVehicles: Vehicle[] = vJson && vJson.ok && Array.isArray(vJson.data)
+        ? vJson.data
+        : Array.isArray(vJson)
+        ? vJson
+        : [];
       setVehicles(allVehicles.filter((v) => String(v.clientId) === String(id)));
     } catch (e) {
       setErr("Erreur réseau. Vérifie que le serveur tourne.");
@@ -59,7 +63,7 @@ export default function ClientPage() {
       </div>
 
       {loading ? (
-        <p>Chargement…</p>
+        <p>Chargement...</p>
       ) : err ? (
         <p style={{ color: "red" }}>{err}</p>
       ) : !client ? (
@@ -68,7 +72,9 @@ export default function ClientPage() {
         <>
           <section style={{ marginTop: 16, padding: 16, border: "1px solid #eee", borderRadius: 12 }}>
             <div style={{ fontSize: 18, fontWeight: 800 }}>{client.firstName} {client.lastName}</div>
-            <div style={{ marginTop: 6, fontSize: 13, opacity: 0.9 }}>Créé le : {client.createdAt ? new Date(client.createdAt).toLocaleString() : "-"}</div>
+            <div style={{ marginTop: 6, fontSize: 13, opacity: 0.9 }}>
+              Créé le : {client.createdAt ? new Date(client.createdAt).toLocaleString() : "-"}
+            </div>
 
             <div style={{ marginTop: 12 }}>
               <button onClick={() => window.print()} style={{ padding: 8 }}>Imprimer le dossier</button>
@@ -103,7 +109,15 @@ export default function ClientPage() {
                 <div key={v.id} style={{ marginBottom: 18, padding: 12, border: "1px solid #f0f0f0", borderRadius: 8 }}>
                   <div style={{ fontWeight: 800 }}>{v.plate} — {v.brand} {v.model}</div>
                   <div style={{ marginTop: 8 }}>
-                    <a href={`/vehicules/${v.id}`} onClick={(e) => { e.preventDefault(); router.push(`/vehicules/${v.id}`); }}>Voir interventions &gt;</a>
+                    <a
+                      href={`/vehicules/${v.id}`}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        router.push(`/vehicules/${v.id}`);
+                      }}
+                    >
+                      Voir interventions &gt;
+                    </a>
                   </div>
                 </div>
               ))

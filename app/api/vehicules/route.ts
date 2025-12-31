@@ -5,6 +5,10 @@ import { success, failure } from "@/lib/api";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+function normalizeText(value: unknown) {
+  return String(value ?? "").trim();
+}
+
 // GET /api/vehicules -> renvoie un TABLEAU DIRECT
 export async function GET() {
   try {
@@ -28,14 +32,48 @@ export async function POST(req: Request) {
     const body = await req.json();
 
     const clientId = Number(body.clientId);
-    const brand = String(body.brand ?? "").trim();
-    const model = String(body.model ?? "").trim();
-    const plate = String(body.plate ?? "").trim().toUpperCase();
-    const vin = body.vin ? String(body.vin).trim().toUpperCase() : null;
-    const fuel = body.fuel ? String(body.fuel).trim() : null;
+    const brand = normalizeText(body.brand);
+    const model = normalizeText(body.model);
+    const plate = normalizeText(body.plate).toUpperCase();
+    const vin = body.vin ? normalizeText(body.vin).toUpperCase() : null;
+    const fuel = body.fuel ? normalizeText(body.fuel) : null;
 
-    if (!Number.isFinite(clientId) || clientId <= 0 || !brand || !model || !plate) {
-      return NextResponse.json(failure("Champs obligatoires: clientId, brand, model, plate."), { status: 400 });
+    if (!Number.isFinite(clientId) || clientId <= 0) {
+      return NextResponse.json(failure("Client invalide."), { status: 400 });
+    }
+
+    if (!brand || !model || !plate) {
+      return NextResponse.json(
+        failure("Champs obligatoires: clientId, brand, model, plate."),
+        { status: 400 }
+      );
+    }
+
+    if (brand.length < 2 || model.length < 2) {
+      return NextResponse.json(failure("Marque et modèle doivent faire au moins 2 caractères."), {
+        status: 400,
+      });
+    }
+
+    if (brand.length > 60 || model.length > 60) {
+      return NextResponse.json(failure("Marque et modèle doivent faire moins de 60 caractères."), {
+        status: 400,
+      });
+    }
+
+    if (plate.length < 2 || plate.length > 12) {
+      return NextResponse.json(failure("Immatriculation invalide."), { status: 400 });
+    }
+
+    if (vin && !/^[A-Z0-9]{17}$/.test(vin)) {
+      return NextResponse.json(
+        failure("VIN invalide (17 caractères alphanumériques)."),
+        { status: 400 }
+      );
+    }
+
+    if (fuel && fuel.length > 40) {
+      return NextResponse.json(failure("Carburant trop long."), { status: 400 });
     }
 
     const vehicle = await prisma.vehicle.create({

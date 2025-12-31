@@ -5,6 +5,10 @@ import { success, failure } from "@/lib/api";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+function normalizeName(value: unknown) {
+  return String(value ?? "").trim();
+}
+
 export async function GET() {
   try {
     const clients = await prisma.client.findMany({ orderBy: { id: "desc" } });
@@ -18,11 +22,23 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const firstName = String(body.firstName ?? "").trim();
-    const lastName = String(body.lastName ?? "").trim();
+    const firstName = normalizeName(body.firstName);
+    const lastName = normalizeName(body.lastName);
 
     if (!firstName || !lastName) {
       return NextResponse.json(failure("Prénom et nom obligatoires."), { status: 400 });
+    }
+
+    if (firstName.length < 2 || lastName.length < 2) {
+      return NextResponse.json(failure("Prénom et nom doivent faire au moins 2 caractères."), {
+        status: 400,
+      });
+    }
+
+    if (firstName.length > 60 || lastName.length > 60) {
+      return NextResponse.json(failure("Prénom et nom doivent faire moins de 60 caractères."), {
+        status: 400,
+      });
     }
 
     const client = await prisma.client.create({ data: { firstName, lastName } });

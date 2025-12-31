@@ -8,9 +8,16 @@ export const dynamic = "force-dynamic";
 
 type Ctx = { params: Promise<{ id: string }> };
 
-function asText(value: unknown) {
-  if (value === null || value === undefined) return "";
+function asText(value: unknown, fallback = "-") {
+  if (value === null || value === undefined || value === "") return fallback;
   return String(value);
+}
+
+function formatDate(date: Date | string | null | undefined) {
+  if (!date) return "-";
+  const d = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(d.getTime())) return "-";
+  return d.toLocaleString("fr-FR");
 }
 
 export async function GET(_req: Request, ctx: Ctx) {
@@ -43,92 +50,111 @@ export async function GET(_req: Request, ctx: Ctx) {
       doc.on("end", () => resolve(Buffer.concat(chunks)));
     });
 
-    doc.fontSize(18).text("Dossier d'intervention", { underline: true });
-    doc.moveDown(0.5);
-    doc.fontSize(10).fillColor("#444").text(`ID intervention: ${intervention.id}`);
-    doc.text(`Cree le: ${new Date(intervention.createdAt).toLocaleString("fr-FR")}`);
-    if (intervention.performedAt) {
-      doc.text(`Realisee le: ${new Date(intervention.performedAt).toLocaleString("fr-FR")}`);
-    }
-    doc.moveDown();
+    const left = doc.page.margins.left;
+    const right = doc.page.width - doc.page.margins.right;
 
-    doc.fillColor("#000").fontSize(14).text("Client", { underline: true });
-    doc.moveDown(0.3);
-    doc.fontSize(11).text(
-      `${intervention.vehicle.client.firstName} ${intervention.vehicle.client.lastName}`
-    );
-    doc.text(`Client ID: ${intervention.vehicle.client.id}`);
-    doc.moveDown();
+    const row = (label: string, value: string) => {
+      const labelWidth = 150;
+      const valueWidth = right - left - labelWidth;
+      const y = doc.y;
+      doc.font("Helvetica-Bold").text(label, left, y, { width: labelWidth });
+      doc.font("Helvetica").text(value, left + labelWidth, y, { width: valueWidth });
+      doc.moveDown(0.3);
+    };
 
-    doc.fontSize(14).text("Vehicule", { underline: true });
-    doc.moveDown(0.3);
-    doc.fontSize(11).text(`Immat: ${intervention.vehicle.plate}`);
-    doc.text(
-      `Marque / Modele: ${intervention.vehicle.brand} ${intervention.vehicle.model}`
-    );
-    if (intervention.vehicle.vin) doc.text(`VIN: ${intervention.vehicle.vin}`);
-    if (intervention.vehicle.fuel) doc.text(`Carburant: ${intervention.vehicle.fuel}`);
-    doc.moveDown();
+    doc.fontSize(18).font("Helvetica-Bold").text("MotorSafe", left, doc.y);
+    doc.fontSize(10).font("Helvetica").text(formatDate(new Date()), right - 160, doc.y - 18, {
+      width: 160,
+      align: "right",
+    });
 
-    doc.fontSize(14).text("Intervention", { underline: true });
+    doc.moveDown(0.4);
+    doc.fontSize(16).font("Helvetica-Bold").text("Dossier d'intervention");
+    doc.moveTo(left, doc.y + 4).lineTo(right, doc.y + 4).strokeColor("#444").stroke();
+    doc.moveDown(0.8);
+
+    row("ID intervention", intervention.id);
+    row("Créé le", formatDate(intervention.createdAt));
+    row("Réalisée le", formatDate(intervention.performedAt));
+
+    doc.moveDown(0.4);
+    doc.fontSize(13).font("Helvetica-Bold").text("Client", { underline: true });
+    doc.moveDown(0.2);
+    row("Nom", `${intervention.vehicle.client.firstName} ${intervention.vehicle.client.lastName}`);
+    row("Client ID", String(intervention.vehicle.client.id));
+
     doc.moveDown(0.3);
-    doc.fontSize(11).text(`Type: ${intervention.type}`);
-    if (intervention.odometerKm !== null && intervention.odometerKm !== undefined) {
-      doc.text(`Kilometrage: ${intervention.odometerKm} km`);
-    }
-    if (intervention.ecuType) doc.text(`ECU: ${intervention.ecuType}`);
-    if (intervention.softwareVersion) {
-      doc.text(`Version soft: ${intervention.softwareVersion}`);
-    }
-    if (intervention.checksum) doc.text(`Checksum: ${intervention.checksum}`);
+    doc.fontSize(13).font("Helvetica-Bold").text("Véhicule", { underline: true });
+    doc.moveDown(0.2);
+    row("Immatriculation", intervention.vehicle.plate);
+    row("Marque / Modèle", `${intervention.vehicle.brand} ${intervention.vehicle.model}`);
+    row("VIN", asText(intervention.vehicle.vin));
+    row("Carburant", asText(intervention.vehicle.fuel));
+
     doc.moveDown(0.3);
+    doc.fontSize(13).font("Helvetica-Bold").text("Intervention", { underline: true });
+    doc.moveDown(0.2);
+    row("Type", intervention.type);
+    row("Kilométrage", intervention.odometerKm !== null && intervention.odometerKm !== undefined ? `${intervention.odometerKm} km` : "-");
+    row("ECU", asText(intervention.ecuType));
+    row("Version soft", asText(intervention.softwareVersion));
+    row("Checksum", asText(intervention.checksum));
 
     if (intervention.notes) {
-      doc.fontSize(11).text("Notes:", { underline: true });
       doc.moveDown(0.2);
-      doc.fontSize(11).text(intervention.notes, { width: 500 });
-      doc.moveDown();
+      doc.fontSize(11).font("Helvetica-Bold").text("Notes", { underline: true });
+      doc.moveDown(0.2);
+      doc.fontSize(11).font("Helvetica").text(intervention.notes, { width: right - left });
     }
 
-    doc.fontSize(14).text("Tracabilite", { underline: true });
-    doc.moveDown(0.3);
-    doc.fontSize(11).text(`IP: ${asText(intervention.clientIp) || "?"}`);
-    doc.text(`User-Agent: ${asText(intervention.userAgent) || "?"}`);
-    if (intervention.createdBy) doc.text(`Cree par: ${intervention.createdBy}`);
-    doc.moveDown(0.3);
+    doc.moveDown(0.4);
+    doc.fontSize(13).font("Helvetica-Bold").text("Traçabilité", { underline: true });
+    doc.moveDown(0.2);
+    row("IP", asText(intervention.clientIp));
+    row("User-Agent", asText(intervention.userAgent));
+    if (intervention.createdBy) row("Créé par", String(intervention.createdBy));
 
     if (intervention.hash) {
-      doc.fontSize(11).text("Hash (preuve d'integrite):", { underline: true });
       doc.moveDown(0.2);
-      doc.font("Courier").fontSize(9).text(intervention.hash);
+      doc.fontSize(11).font("Helvetica-Bold").text("Hash (preuve d'intégrité)", { underline: true });
+      doc.moveDown(0.2);
+      doc.font("Courier").fontSize(9).text(intervention.hash, { width: right - left });
       doc.font("Helvetica");
-      doc.moveDown();
     }
 
     if (intervention.payload) {
-      doc.fontSize(11).text("Payload (snapshot):", { underline: true });
       doc.moveDown(0.2);
-      doc.font("Courier").fontSize(8).text(intervention.payload, { width: 500 });
+      doc.fontSize(11).font("Helvetica-Bold").text("Payload (snapshot)", { underline: true });
+      doc.moveDown(0.2);
+      doc.font("Courier").fontSize(8).text(intervention.payload, { width: right - left });
       doc.font("Helvetica");
-      doc.moveDown();
     }
 
     if (intervention.revisions?.length) {
       doc.addPage();
-      doc.fontSize(14).text("Historique des revisions", { underline: true });
-      doc.moveDown(0.5);
+      doc.fontSize(14).font("Helvetica-Bold").text("Historique des révisions", { underline: true });
+      doc.moveDown(0.6);
 
       intervention.revisions.forEach((rev, idx) => {
         doc
           .fontSize(11)
-          .text(`Revision ${idx + 1} - ${new Date(rev.createdAt).toLocaleString("fr-FR")}`);
+          .font("Helvetica-Bold")
+          .text(`Révision ${idx + 1} - ${formatDate(rev.createdAt)}`);
         doc.fontSize(9).font("Courier").text(`HASH: ${rev.hash}`);
         doc.font("Helvetica").moveDown(0.2);
-        doc.fontSize(9).font("Courier").text(rev.payload, { width: 500 });
+        doc.fontSize(9).font("Courier").text(rev.payload, { width: right - left });
         doc.font("Helvetica").moveDown();
-        doc.moveDown(0.5);
       });
     }
+
+    doc.addPage();
+    doc.fontSize(12).font("Helvetica-Bold").text("Signature client", left, doc.y);
+    doc.moveDown(2);
+    doc.moveTo(left, doc.y).lineTo(right - 200, doc.y).strokeColor("#999").stroke();
+    doc.moveDown(2);
+    doc.fontSize(12).font("Helvetica-Bold").text("Signature technicien", left, doc.y);
+    doc.moveDown(2);
+    doc.moveTo(left, doc.y).lineTo(right - 200, doc.y).strokeColor("#999").stroke();
 
     doc.end();
     const pdfBuffer = await done;

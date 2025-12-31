@@ -16,6 +16,7 @@ export default function ClientsList({ initialClients }: { initialClients: Client
   const [editId, setEditId] = useState<string | null>(null);
   const [editFirstName, setEditFirstName] = useState("");
   const [editLastName, setEditLastName] = useState("");
+  const [editError, setEditError] = useState<string | null>(null);
 
   async function refresh() {
     const res = await fetch("/api/clients", { cache: "no-store" });
@@ -44,19 +45,33 @@ export default function ClientsList({ initialClients }: { initialClients: Client
     setEditId(c.id);
     setEditFirstName(c.firstName);
     setEditLastName(c.lastName);
+    setEditError(null);
   }
 
   async function saveEdit() {
     if (!editId) return;
+
+    const cleanFirstName = editFirstName.trim();
+    const cleanLastName = editLastName.trim();
+
+    if (!cleanFirstName || !cleanLastName) {
+      setEditError("Prénom et nom sont obligatoires.");
+      return;
+    }
+
     setLoadingId(editId);
+    setEditError(null);
     try {
       const res = await fetch(`/api/clients/${editId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ firstName: editFirstName, lastName: editLastName }),
+        body: JSON.stringify({ firstName: cleanFirstName, lastName: cleanLastName }),
       });
       const data = await res.json().catch(() => null);
-      if (!res.ok || (data && data.ok === false)) alert(data?.error ?? "Erreur");
+      if (!res.ok || (data && data.ok === false)) {
+        setEditError(data?.error ?? "Erreur");
+        return;
+      }
       setEditId(null);
       await refresh();
     } finally {
@@ -75,10 +90,7 @@ export default function ClientsList({ initialClients }: { initialClients: Client
           {clients.map((c) => (
             <li key={c.id} style={{ marginBottom: 10 }}>
               <strong>{c.firstName}</strong> {c.lastName}{" "}
-              <button
-                onClick={() => startEdit(c)}
-                style={{ marginLeft: 8 }}
-              >
+              <button onClick={() => startEdit(c)} style={{ marginLeft: 8 }}>
                 Modifier
               </button>
               <button
@@ -99,14 +111,25 @@ export default function ClientsList({ initialClients }: { initialClients: Client
           <div style={{ display: "grid", gap: 8, maxWidth: 320 }}>
             <input
               value={editFirstName}
-              onChange={(e) => setEditFirstName(e.target.value)}
+              onChange={(e) => {
+                setEditFirstName(e.target.value);
+                setEditError(null);
+              }}
               placeholder="Prénom"
+              aria-invalid={Boolean(editError && !editFirstName.trim())}
             />
             <input
               value={editLastName}
-              onChange={(e) => setEditLastName(e.target.value)}
+              onChange={(e) => {
+                setEditLastName(e.target.value);
+                setEditError(null);
+              }}
               placeholder="Nom"
+              aria-invalid={Boolean(editError && !editLastName.trim())}
             />
+            {editError && (
+              <div style={{ color: "#b00", fontSize: 12 }}>{editError}</div>
+            )}
             <div>
               <button onClick={saveEdit} disabled={loadingId === editId}>
                 {loadingId === editId ? "..." : "Enregistrer"}

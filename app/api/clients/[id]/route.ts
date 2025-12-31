@@ -7,6 +7,10 @@ export const dynamic = "force-dynamic";
 
 type Ctx = { params: Promise<{ id: string }> };
 
+function normalizeName(value: unknown) {
+  return String(value ?? "").trim();
+}
+
 export async function GET(_req: Request, { params }: Ctx) {
   const { id } = await params;
   const clientId = Number(id);
@@ -31,11 +35,23 @@ export async function PUT(req: Request, { params }: Ctx) {
     }
 
     const body = await req.json();
-    const firstName = String(body.firstName ?? "").trim();
-    const lastName = String(body.lastName ?? "").trim();
+    const firstName = normalizeName(body.firstName);
+    const lastName = normalizeName(body.lastName);
 
     if (!firstName || !lastName) {
       return NextResponse.json(failure("Prénom et nom obligatoires."), { status: 400 });
+    }
+
+    if (firstName.length < 2 || lastName.length < 2) {
+      return NextResponse.json(failure("Prénom et nom doivent faire au moins 2 caractères."), {
+        status: 400,
+      });
+    }
+
+    if (firstName.length > 60 || lastName.length > 60) {
+      return NextResponse.json(failure("Prénom et nom doivent faire moins de 60 caractères."), {
+        status: 400,
+      });
     }
 
     const client = await prisma.client.update({

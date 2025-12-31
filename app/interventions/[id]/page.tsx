@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 
 type Client = { id: number; firstName: string; lastName: string };
 type Vehicle = { id: string; plate: string; brand: string; model: string; client: Client };
@@ -34,8 +34,14 @@ type Intervention = {
   revisions: Revision[];
 };
 
+type FieldErrors = {
+  performedAt?: string;
+  odometerKm?: string;
+};
+
 export default function InterventionDetailPage({ params }: any) {
   const routeParams = useParams();
+  const router = useRouter();
   const idValue = params?.id ?? routeParams?.id;
   const id = Array.isArray(idValue) ? idValue[0] : idValue;
 
@@ -51,8 +57,10 @@ export default function InterventionDetailPage({ params }: any) {
   const [checksum, setChecksum] = useState("");
 
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   async function load() {
     setLoading(true);
@@ -74,7 +82,7 @@ export default function InterventionDetailPage({ params }: any) {
 
       setType(data.type || "E85");
       setNotes(data.notes || "");
-      setPerformedAt(data.performedAt ? data.performedAt.slice(0, 16).replace("T", " ") : "");
+      setPerformedAt(data.performedAt ? data.performedAt.replace(" ", "T").slice(0, 16) : "");
       setOdometerKm(data.odometerKm ? String(data.odometerKm) : "");
       setEcuType(data.ecuType || "");
       setSoftwareVersion(data.softwareVersion || "");
@@ -95,11 +103,53 @@ export default function InterventionDetailPage({ params }: any) {
     window.location.href = `/api/interventions/${id}/pdf`;
   }
 
+  async function deleteIntervention() {
+    if (!id) return;
+    if (!confirm("Supprimer cette intervention ? Les révisions seront aussi supprimées.")) return;
+    setDeleting(true);
+    setErr(null);
+
+    try {
+      const res = await fetch(`/api/interventions/${id}`, { method: "DELETE" });
+      const json = await res.json().catch(() => null);
+      if (!res.ok || (json && json.ok === false)) {
+        setErr(json?.error || "Erreur serveur.");
+        return;
+      }
+      router.push("/interventions");
+    } catch {
+      setErr("Erreur réseau.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setSaving(true);
     setMsg(null);
     setErr(null);
+
+    const errors: FieldErrors = {};
+    const cleanPerformedAt = performedAt.trim();
+    const kmRaw = odometerKm.trim();
+
+    if (cleanPerformedAt && Number.isNaN(Date.parse(cleanPerformedAt))) {
+      errors.performedAt = "Date invalide.";
+    }
+    if (kmRaw) {
+      const kmValue = Number(kmRaw);
+      if (!Number.isFinite(kmValue) || kmValue < 0) {
+        errors.odometerKm = "Kilométrage invalide.";
+      }
+    }
+
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      setErr("Merci de corriger les champs signalés.");
+      setSaving(false);
+      return;
+    }
 
     try {
       const res = await fetch(`/api/interventions/${id}`, {
@@ -107,12 +157,12 @@ export default function InterventionDetailPage({ params }: any) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           type,
-          notes: notes || null,
-          performedAt: performedAt || null,
-          odometerKm: odometerKm ? Number(odometerKm) : null,
-          ecuType: ecuType || null,
-          softwareVersion: softwareVersion || null,
-          checksum: checksum || null,
+          notes: notes.trim() || null,
+          performedAt: cleanPerformedAt || null,
+          odometerKm: kmRaw ? Number(kmRaw) : null,
+          ecuType: ecuType.trim() || null,
+          softwareVersion: softwareVersion.trim() || null,
+          checksum: checksum.trim() || null,
         }),
       });
 
@@ -122,7 +172,7 @@ export default function InterventionDetailPage({ params }: any) {
         return;
       }
 
-      setMsg("Intervention mise à jour ✅ (révision ajoutée)");
+      setMsg("Intervention mise à jour (révision ajoutée).");
       await load();
     } catch {
       setErr("Erreur réseau.");
@@ -131,7 +181,7 @@ export default function InterventionDetailPage({ params }: any) {
     }
   }
 
-  if (loading) return <main style={{ padding: 24 }}>Chargement…</main>;
+  if (loading) return <main style={{ padding: 24 }}>Chargement...</main>;
   if (err) return <main style={{ padding: 24, color: "red" }}>{err}</main>;
   if (!it) return <main style={{ padding: 24 }}>Introuvable.</main>;
 
@@ -142,6 +192,13 @@ export default function InterventionDetailPage({ params }: any) {
         <div style={{ display: "flex", gap: 10 }}>
           <button onClick={downloadPdf} style={{ padding: "8px 10px" }}>
             Télécharger le PDF
+          </button>
+          <button
+            onClick={deleteIntervention}
+            disabled={deleting}
+            style={{ padding: "8px 10px" }}
+          >
+            {deleting ? "Suppression..." : "Supprimer"}
           </button>
           <Link href="/interventions">← Retour</Link>
         </div>
@@ -166,7 +223,7 @@ export default function InterventionDetailPage({ params }: any) {
       </div>
 
       <h2 style={{ marginTop: 18, fontSize: 16, fontWeight: 800 }}>
-        Modifier l’intervention
+        Modifier l'intervention
       </h2>
 
       <form
@@ -203,20 +260,42 @@ export default function InterventionDetailPage({ params }: any) {
             <br />
             <input
               value={performedAt}
-              onChange={(e) => setPerformedAt(e.target.value)}
-              placeholder="2025-12-30 14:30"
+              onChange={(e) => {
+                setPerformedAt(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, performedAt: undefined }));
+              }}
+              type="datetime-local"
+              aria-invalid={Boolean(fieldErrors.performedAt)}
               style={{ width: "100%", padding: 8 }}
             />
+            {fieldErrors.performedAt && (
+              <div style={{ marginTop: 4, color: "#b00", fontSize: 12 }}>
+                {fieldErrors.performedAt}
+              </div>
+            )}
           </div>
           <div>
             <label>Kilométrage (optionnel)</label>
             <br />
             <input
               value={odometerKm}
-              onChange={(e) => setOdometerKm(e.target.value)}
+              onChange={(e) => {
+                setOdometerKm(e.target.value);
+                setFieldErrors((prev) => ({ ...prev, odometerKm: undefined }));
+              }}
+              type="number"
+              min={0}
+              step={1}
+              inputMode="numeric"
+              aria-invalid={Boolean(fieldErrors.odometerKm)}
               placeholder="123456"
               style={{ width: "100%", padding: 8 }}
             />
+            {fieldErrors.odometerKm && (
+              <div style={{ marginTop: 4, color: "#b00", fontSize: 12 }}>
+                {fieldErrors.odometerKm}
+              </div>
+            )}
           </div>
         </div>
 
