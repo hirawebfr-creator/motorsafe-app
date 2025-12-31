@@ -3,7 +3,7 @@ import { getSessionUser, isApprovedGarage } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { Toggle } from "@/components/ui/Toggle";
+import { ComplianceToggles } from "@/components/parametres/ComplianceToggles";
 
 export const runtime = "nodejs";
 
@@ -58,11 +58,7 @@ export default async function ParametresPage() {
             <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">Conformite</p>
             <h2 className="mt-2 text-xl font-semibold">Assurance & traceabilite</h2>
           </div>
-          <div className="grid gap-3 text-sm text-[var(--muted)]">
-            <Toggle checked onChange={() => undefined} label="Activer le hash de preuve" />
-            <Toggle checked onChange={() => undefined} label="Historique revisions obligatoire" />
-            <Toggle checked onChange={() => undefined} label="Alertes email sur dossier critique" />
-          </div>
+          <ComplianceToggles />
           <Badge variant="success">Conformite active</Badge>
         </Card>
       </div>
