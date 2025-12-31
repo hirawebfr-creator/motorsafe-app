@@ -5,12 +5,14 @@ import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import { useToast } from "@/components/ui/Toast";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -26,14 +28,17 @@ export default function LoginPage() {
       const json = await res.json();
       if (!res.ok || !json.ok) {
         if (res.status === 403) {
-          window.location.href = "/pro/pending";
+          window.location.href = "/pro/en-attente";
           return;
         }
         throw new Error(json?.error || "Erreur serveur.");
       }
+      toast.push({ title: "Connexion reussie", description: "Bienvenue sur votre panel.", variant: "success" });
       window.location.href = "/dashboard";
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erreur serveur.");
+      const message = err instanceof Error ? err.message : "Erreur serveur.";
+      setError(message);
+      toast.push({ title: "Erreur", description: message, variant: "error" });
     } finally {
       setLoading(false);
     }

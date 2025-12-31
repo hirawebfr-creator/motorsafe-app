@@ -11,7 +11,8 @@ export function StatCard({
   badge?: string;
 }) {
   return (
-    <Card className="flex flex-col gap-3">
+    <Card className="relative flex flex-col gap-3 overflow-hidden">
+      <div className="absolute right-0 top-0 h-16 w-16 rounded-full bg-[rgba(139,92,246,0.18)] blur-2xl" />
       <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">{label}</p>
       <p className="text-3xl font-semibold">{value}</p>
       {badge ? <Badge variant="accent">{badge}</Badge> : null}

@@ -10,9 +10,9 @@ import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
 import { Badge } from "@/components/ui/Badge";
 import { fetcher, requestJson } from "@/lib/fetcher";
-import { getLegalContent } from "@/content/legal";
 import { ErrorBanner } from "@/components/common/ErrorBanner";
 import { Loading } from "@/components/common/Loading";
+import { LegalReferencesPanel } from "@/components/common/LegalReferencesPanel";
 
 type VehicleDetails = {
   id: string;
@@ -99,8 +99,6 @@ export default function VehiculeDetailPage() {
       setError(err instanceof Error ? err.message : "Erreur serveur.");
     }
   };
-
-  const legalContent = getLegalContent(form.type);
 
   return (
     <div className="grid gap-8">
@@ -235,17 +233,7 @@ export default function VehiculeDetailPage() {
               onChange={(event) => setForm((prev) => ({ ...prev, notes: event.target.value }))}
               placeholder="Details de l'intervention"
             />
-            <div className="rounded-2xl border border-[var(--border)] bg-[var(--panel)] p-4 text-sm text-[var(--muted)]">
-              <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
-                Cadre legal & responsabilite
-              </p>
-              <p className="mt-2 text-sm text-[var(--text)]">{legalContent.title}</p>
-              <ul className="mt-3 grid gap-2 text-xs text-[var(--muted)]">
-                {legalContent.bullets.map((item) => (
-                  <li key={item}>- {item}</li>
-                ))}
-              </ul>
-            </div>
+            <LegalReferencesPanel type={form.type} />
             <Button onClick={createIntervention}>Creer l'intervention</Button>
           </Card>
         </div>

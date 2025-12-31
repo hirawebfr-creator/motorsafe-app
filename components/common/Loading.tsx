@@ -1,3 +1,11 @@
+import { Skeleton } from "@/components/ui/Skeleton";
+
 export function Loading({ label = "Chargement..." }: { label?: string }) {
-  return <p className="text-sm text-[var(--muted)]">{label}</p>;
+  return (
+    <div className="grid gap-3">
+      <Skeleton className="h-4 w-24" />
+      <Skeleton className="h-4 w-full" />
+      <p className="text-xs text-[var(--muted)]">{label}</p>
+    </div>
+  );
 }

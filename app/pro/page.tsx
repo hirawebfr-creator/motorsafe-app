@@ -15,9 +15,9 @@ export default function ProLandingPage() {
         </div>
         <div className="flex flex-wrap justify-center gap-3">
           <Link href="/auth/login">
-            <Button>Connexion</Button>
+            <Button>Connexion Pro</Button>
           </Link>
-          <Link href="/auth/register-pro">
+          <Link href="/pro/inscription">
             <Button variant="secondary">Creer compte pro</Button>
           </Link>
         </div>

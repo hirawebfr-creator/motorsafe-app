@@ -7,9 +7,9 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { fetcher } from "@/lib/fetcher";
-import { getLegalContent } from "@/content/legal";
 import { ErrorBanner } from "@/components/common/ErrorBanner";
 import { Loading } from "@/components/common/Loading";
+import { LegalReferencesPanel } from "@/components/common/LegalReferencesPanel";
 
 type InterventionDetail = {
   id: string;
@@ -88,9 +88,6 @@ export default function InterventionDetailPage() {
       {loading ? (
         <Loading />
       ) : intervention ? (
-        (() => {
-          const legalContent = getLegalContent(intervention.type);
-          return (
         <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="grid gap-6">
             <Card className="grid gap-4">
@@ -140,19 +137,7 @@ export default function InterventionDetailPage() {
               </div>
             </Card>
 
-            <Card className="grid gap-4">
-              <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
-                  Cadre legal & responsabilite
-                </p>
-                <h2 className="mt-2 text-xl font-semibold">{legalContent.title}</h2>
-              </div>
-              <ul className="grid gap-2 text-sm text-[var(--muted)]">
-                {legalContent.bullets.map((item) => (
-                  <li key={item}>- {item}</li>
-                ))}
-              </ul>
-            </Card>
+            <LegalReferencesPanel type={intervention.type} />
           </div>
 
           <Card className="grid gap-4">
@@ -182,8 +167,6 @@ export default function InterventionDetailPage() {
             )}
           </Card>
         </div>
-          );
-        })()
       ) : (
         <p className="text-sm text-[var(--muted)]">Intervention introuvable.</p>
       )}

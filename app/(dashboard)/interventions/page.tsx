@@ -7,13 +7,14 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
-import { Table } from "@/components/ui/Table";
+import { DataTable, DataTableHead } from "@/components/ui/DataTable";
 import { Badge } from "@/components/ui/Badge";
 import { fetcher, requestJson } from "@/lib/fetcher";
-import { getLegalContent } from "@/content/legal";
 import { ErrorBanner } from "@/components/common/ErrorBanner";
 import { Loading } from "@/components/common/Loading";
 import { EmptyState } from "@/components/common/EmptyState";
+import { LegalReferencesPanel } from "@/components/common/LegalReferencesPanel";
+import { useToast } from "@/components/ui/Toast";
 
 type VehicleOption = {
   id: string;
@@ -41,6 +42,7 @@ export default function InterventionsPage() {
   const [query, setQuery] = useState("");
   const PAGE_SIZE = 10;
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const toast = useToast();
 
   const [form, setForm] = useState({
     vehicleId: "",
@@ -109,6 +111,11 @@ export default function InterventionsPage() {
         checksum: form.checksum || null,
       };
       await requestJson("/api/interventions", { method: "POST", body: payload });
+      toast.push({
+        title: "Intervention creee",
+        description: "Le dossier a ete enregistre.",
+        variant: "success",
+      });
       setForm({
         vehicleId: "",
         type: "E85",
@@ -121,11 +128,11 @@ export default function InterventionsPage() {
       });
       await loadInterventions();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erreur serveur.");
+      const message = err instanceof Error ? err.message : "Erreur serveur.";
+      setError(message);
+      toast.push({ title: "Erreur", description: message, variant: "error" });
     }
   };
-
-  const legalContent = getLegalContent(form.type);
 
   return (
     <div className="grid gap-8">
@@ -150,58 +157,59 @@ export default function InterventionsPage() {
 
           {error ? <ErrorBanner message={error} /> : null}
 
-          <Table>
-            <table className="w-full text-sm">
-              <thead className="text-left text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
+          <DataTable stickyHeader>
+            <DataTableHead sticky>
+              <tr>
+                <th className="px-5 py-4">Dossier</th>
+                <th className="px-5 py-4">Client</th>
+                <th className="px-5 py-4 text-right">Actions</th>
+              </tr>
+            </DataTableHead>
+            <tbody>
+              {loading ? (
                 <tr>
-                  <th className="px-5 py-4">Dossier</th>
-                  <th className="px-5 py-4">Client</th>
-                  <th className="px-5 py-4 text-right">Actions</th>
+                  <td className="px-5 py-6" colSpan={3}>
+                    <Loading />
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td className="px-5 py-6" colSpan={3}>
-                      <Loading />
+              ) : filtered.length === 0 ? (
+                <tr>
+                  <td className="px-5 py-6" colSpan={3}>
+                    <EmptyState title="Aucune intervention" description="Creez un dossier d'intervention." />
+                  </td>
+                </tr>
+              ) : (
+                visibleInterventions.map((item) => (
+                  <tr
+                    key={item.id}
+                    className="border-t border-[rgba(31,41,55,0.7)] transition hover:bg-[rgba(139,92,246,0.06)]"
+                  >
+                    <td className="px-5 py-4">
+                      <p className="font-semibold">
+                        {item.vehicle.plate} - {item.type}
+                      </p>
+                      <p className="text-xs text-[var(--muted)]">
+                        {new Date(item.createdAt).toLocaleDateString("fr-FR")}
+                      </p>
+                    </td>
+                    <td className="px-5 py-4 text-sm text-[var(--muted)]">
+                      {item.vehicle.client.firstName} {item.vehicle.client.lastName}
+                    </td>
+                    <td className="px-5 py-4 text-right">
+                      <div className="flex justify-end gap-3 text-sm">
+                        <Link href={`/interventions/${item.id}`} className="text-[var(--accent-2)]">
+                          Detail
+                        </Link>
+                        <a href={`/api/interventions/${item.id}/pdf`} className="text-[var(--accent-2)]">
+                          PDF
+                        </a>
+                      </div>
                     </td>
                   </tr>
-                ) : filtered.length === 0 ? (
-                  <tr>
-                    <td className="px-5 py-6" colSpan={3}>
-                      <EmptyState title="Aucune intervention" description="Creez un dossier d'intervention." />
-                    </td>
-                  </tr>
-                ) : (
-                  visibleInterventions.map((item) => (
-                    <tr key={item.id} className="border-t border-[var(--border)]">
-                      <td className="px-5 py-4">
-                        <p className="font-semibold">
-                          {item.vehicle.plate} - {item.type}
-                        </p>
-                        <p className="text-xs text-[var(--muted)]">
-                          {new Date(item.createdAt).toLocaleDateString("fr-FR")}
-                        </p>
-                      </td>
-                      <td className="px-5 py-4 text-sm text-[var(--muted)]">
-                        {item.vehicle.client.firstName} {item.vehicle.client.lastName}
-                      </td>
-                      <td className="px-5 py-4 text-right">
-                        <div className="flex justify-end gap-3 text-sm">
-                          <Link href={`/interventions/${item.id}`} className="text-[var(--accent-2)]">
-                            Detail
-                          </Link>
-                          <a href={`/api/interventions/${item.id}/pdf`} className="text-[var(--accent-2)]">
-                            PDF
-                          </a>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </Table>
+                ))
+              )}
+            </tbody>
+          </DataTable>
           {filtered.length > visibleCount ? (
             <div className="flex justify-center">
               <Button variant="ghost" onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}>
@@ -276,17 +284,7 @@ export default function InterventionsPage() {
             onChange={(event) => setForm((prev) => ({ ...prev, notes: event.target.value }))}
             placeholder="Details de l'intervention"
           />
-          <div className="rounded-2xl border border-[var(--border)] bg-[var(--panel)] p-4 text-sm text-[var(--muted)]">
-            <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
-              Cadre legal & responsabilite
-            </p>
-            <p className="mt-2 text-sm text-[var(--text)]">{legalContent.title}</p>
-            <ul className="mt-3 grid gap-2 text-xs text-[var(--muted)]">
-              {legalContent.bullets.map((item) => (
-                <li key={item}>- {item}</li>
-              ))}
-            </ul>
-          </div>
+          <LegalReferencesPanel type={form.type} />
           <Button onClick={submit}>Creer l'intervention</Button>
         </Card>
       </div>

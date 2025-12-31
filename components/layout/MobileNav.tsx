@@ -16,7 +16,7 @@ export function MobileNav({
   activePath: string;
 }) {
   return (
-    <nav className="fixed bottom-4 left-1/2 z-40 w-[92%] -translate-x-1/2 rounded-3xl border border-[var(--border)] bg-[var(--panel)] px-4 py-3 shadow-[0_24px_60px_rgba(6,10,20,0.35)] lg:hidden">
+    <nav className="fixed bottom-4 left-1/2 z-40 w-[92%] -translate-x-1/2 rounded-[var(--radius-lg)] border border-[rgba(31,41,55,0.7)] bg-[var(--panel)] px-4 py-3 pb-[calc(env(safe-area-inset-bottom,0px)+12px)] shadow-[var(--shadow-card)] lg:hidden">
       <div className="flex items-center justify-between gap-3">
         {navItems.slice(0, 5).map((item) => {
           const isActive = activePath === item.href || activePath.startsWith(`${item.href}/`);

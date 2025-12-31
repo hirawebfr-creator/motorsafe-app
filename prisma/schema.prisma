@@ -18,6 +18,12 @@ enum GarageStatus {
   REJECTED
 }
 
+enum LegalSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
 model Garage {
   id         Int       @id @default(autoincrement())
   name       String
@@ -26,6 +32,8 @@ model Garage {
   address    String?
   siret      String?
   status     GarageStatus @default(PENDING)
+  reviewNote String?
+  reviewedAt DateTime?
   createdAt  DateTime  @default(now())
 
   users         User[]
@@ -141,4 +149,31 @@ model InterventionRevision {
   hash    String
 
   @@index([interventionId])
+}
+
+model LegalReference {
+  id         String        @id @default(cuid())
+  title      String
+  summary    String?
+  sourceUrl  String?
+  code       String?
+  articleRef String?
+  tags       String?
+  severity   LegalSeverity @default(INFO)
+  isActive   Boolean       @default(true)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  assignments LegalReferenceAssignment[]
+}
+
+model LegalReferenceAssignment {
+  id               String         @id @default(cuid())
+  referenceId      String
+  interventionType String
+
+  reference LegalReference @relation(fields: [referenceId], references: [id], onDelete: Cascade)
+
+  @@index([referenceId])
+  @@index([interventionType])
 }

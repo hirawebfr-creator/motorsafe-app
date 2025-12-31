@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { Table } from "@/components/ui/Table";
+import { DataTable, DataTableHead } from "@/components/ui/DataTable";
 import { Badge } from "@/components/ui/Badge";
 import { fetcher } from "@/lib/fetcher";
 import { ErrorBanner } from "@/components/common/ErrorBanner";
@@ -85,53 +85,54 @@ export default function DocumentsPage() {
 
         {error ? <ErrorBanner message={error} /> : null}
 
-        <Table>
-          <table className="w-full text-sm">
-            <thead className="text-left text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
+        <DataTable stickyHeader>
+          <DataTableHead sticky>
+            <tr>
+              <th className="px-5 py-4">Intervention</th>
+              <th className="px-5 py-4">Client</th>
+              <th className="px-5 py-4 text-right">PDF</th>
+            </tr>
+          </DataTableHead>
+          <tbody>
+            {loading ? (
               <tr>
-                <th className="px-5 py-4">Intervention</th>
-                <th className="px-5 py-4">Client</th>
-                <th className="px-5 py-4 text-right">PDF</th>
+                <td className="px-5 py-6" colSpan={3}>
+                  <Loading />
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td className="px-5 py-6" colSpan={3}>
-                    <Loading />
+            ) : filtered.length === 0 ? (
+              <tr>
+                <td className="px-5 py-6" colSpan={3}>
+                  <EmptyState title="Aucun document" description="Les PDFs seront disponibles ici." />
+                </td>
+              </tr>
+            ) : (
+              visibleDocuments.map((doc) => (
+                <tr
+                  key={doc.id}
+                  className="border-t border-[rgba(31,41,55,0.7)] transition hover:bg-[rgba(139,92,246,0.06)]"
+                >
+                  <td className="px-5 py-4">
+                    <p className="font-semibold">
+                      {doc.vehicle.plate} - {doc.type}
+                    </p>
+                    <p className="text-xs text-[var(--muted)]">
+                      {new Date(doc.createdAt).toLocaleDateString("fr-FR")}
+                    </p>
+                  </td>
+                  <td className="px-5 py-4 text-sm text-[var(--muted)]">
+                    {doc.vehicle.client.firstName} {doc.vehicle.client.lastName}
+                  </td>
+                  <td className="px-5 py-4 text-right">
+                    <a href={`/api/interventions/${doc.id}/pdf`} className="text-[var(--accent-2)]">
+                      Telecharger
+                    </a>
                   </td>
                 </tr>
-              ) : filtered.length === 0 ? (
-                <tr>
-                  <td className="px-5 py-6" colSpan={3}>
-                    <EmptyState title="Aucun document" description="Les PDFs seront disponibles ici." />
-                  </td>
-                </tr>
-              ) : (
-                visibleDocuments.map((doc) => (
-                  <tr key={doc.id} className="border-t border-[var(--border)]">
-                    <td className="px-5 py-4">
-                      <p className="font-semibold">
-                        {doc.vehicle.plate} - {doc.type}
-                      </p>
-                      <p className="text-xs text-[var(--muted)]">
-                        {new Date(doc.createdAt).toLocaleDateString("fr-FR")}
-                      </p>
-                    </td>
-                    <td className="px-5 py-4 text-sm text-[var(--muted)]">
-                      {doc.vehicle.client.firstName} {doc.vehicle.client.lastName}
-                    </td>
-                    <td className="px-5 py-4 text-right">
-                      <a href={`/api/interventions/${doc.id}/pdf`} className="text-[var(--accent-2)]">
-                        Telecharger
-                      </a>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </Table>
+              ))
+            )}
+          </tbody>
+        </DataTable>
         {filtered.length > visibleCount ? (
           <div className="flex justify-center">
             <Button variant="ghost" onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}>

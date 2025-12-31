@@ -9,7 +9,7 @@ export default async function DashboardLayout({
 }) {
   const user = await getSessionUser();
   if (!user) redirect("/auth/login");
-  if (!isApprovedGarage(user)) redirect("/pro/pending");
+  if (!isApprovedGarage(user)) redirect("/pro/en-attente");
 
   return <DashboardShell user={user}>{children}</DashboardShell>;
 }

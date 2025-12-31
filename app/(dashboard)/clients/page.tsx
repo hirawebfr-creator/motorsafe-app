@@ -6,8 +6,10 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
-import { Table } from "@/components/ui/Table";
+import { DataTable, DataTableHead } from "@/components/ui/DataTable";
 import { Badge } from "@/components/ui/Badge";
+import { Dialog } from "@/components/ui/Dialog";
+import { useToast } from "@/components/ui/Toast";
 import { fetcher, requestJson } from "@/lib/fetcher";
 import { ErrorBanner } from "@/components/common/ErrorBanner";
 import { Loading } from "@/components/common/Loading";
@@ -31,6 +33,9 @@ export default function ClientsPage() {
   const [query, setQuery] = useState("");
   const PAGE_SIZE = 10;
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
+  const toast = useToast();
 
   const [form, setForm] = useState({
     firstName: "",
@@ -110,20 +115,42 @@ export default function ClientsPage() {
         editing ? `/api/clients/${editing.id}` : "/api/clients",
         { method: editing ? "PUT" : "POST", body: payload }
       );
+      toast.push({
+        title: editing ? "Client mis a jour" : "Client cree",
+        description: "Les informations sont enregistrees.",
+        variant: "success",
+      });
       resetForm();
       await loadClients();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erreur serveur.");
+      const message = err instanceof Error ? err.message : "Erreur serveur.";
+      setError(message);
+      toast.push({ title: "Erreur", description: message, variant: "error" });
     }
   };
 
-  const removeClient = async (clientId: number) => {
-    if (!confirm("Supprimer ce client ?")) return;
+  const requestDelete = (clientId: number) => {
+    setPendingDeleteId(clientId);
+    setConfirmOpen(true);
+  };
+
+  const removeClient = async () => {
+    if (!pendingDeleteId) return;
     try {
-      await requestJson<boolean>(`/api/clients/${clientId}`, { method: "DELETE" });
+      await requestJson<boolean>(`/api/clients/${pendingDeleteId}`, { method: "DELETE" });
+      toast.push({
+        title: "Client supprime",
+        description: "Le client a ete retire.",
+        variant: "success",
+      });
       await loadClients();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erreur serveur.");
+      const message = err instanceof Error ? err.message : "Erreur serveur.";
+      setError(message);
+      toast.push({ title: "Erreur", description: message, variant: "error" });
+    } finally {
+      setConfirmOpen(false);
+      setPendingDeleteId(null);
     }
   };
 
@@ -151,58 +178,59 @@ export default function ClientsPage() {
 
           {error ? <ErrorBanner message={error} /> : null}
 
-          <Table>
-            <table className="w-full text-sm">
-              <thead className="text-left text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
+          <DataTable stickyHeader>
+            <DataTableHead sticky>
+              <tr>
+                <th className="px-5 py-4">Client</th>
+                {user.role === "ADMIN" ? <th className="px-5 py-4">Garage</th> : null}
+                <th className="px-5 py-4 text-right">Actions</th>
+              </tr>
+            </DataTableHead>
+            <tbody>
+              {loading ? (
                 <tr>
-                  <th className="px-5 py-4">Client</th>
-                  {user.role === "ADMIN" ? <th className="px-5 py-4">Garage</th> : null}
-                  <th className="px-5 py-4 text-right">Actions</th>
+                  <td className="px-5 py-6" colSpan={user.role === "ADMIN" ? 3 : 2}>
+                    <Loading />
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td className="px-5 py-6" colSpan={user.role === "ADMIN" ? 3 : 2}>
-                      <Loading />
+              ) : filtered.length === 0 ? (
+                <tr>
+                  <td className="px-5 py-6" colSpan={user.role === "ADMIN" ? 3 : 2}>
+                    <EmptyState title="Aucun client" description="Ajoutez votre premier client." />
+                  </td>
+                </tr>
+              ) : (
+                visibleClients.map((client) => (
+                  <tr
+                    key={client.id}
+                    className="border-t border-[rgba(31,41,55,0.7)] transition hover:bg-[rgba(139,92,246,0.06)]"
+                  >
+                    <td className="px-5 py-4">
+                      <p className="font-semibold">
+                        {client.firstName} {client.lastName}
+                      </p>
+                      <p className="text-xs text-[var(--muted)]">ID #{client.id}</p>
+                    </td>
+                    {user.role === "ADMIN" ? (
+                      <td className="px-5 py-4 text-sm text-[var(--muted)]">
+                        {client.garage?.name ?? client.garageId ?? "-"}
+                      </td>
+                    ) : null}
+                    <td className="px-5 py-4 text-right">
+                      <div className="flex justify-end gap-2">
+                        <Button variant="ghost" size="sm" onClick={() => startEdit(client)}>
+                          Editer
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => requestDelete(client.id)}>
+                          Supprimer
+                        </Button>
+                      </div>
                     </td>
                   </tr>
-                ) : filtered.length === 0 ? (
-                  <tr>
-                    <td className="px-5 py-6" colSpan={user.role === "ADMIN" ? 3 : 2}>
-                      <EmptyState title="Aucun client" description="Ajoutez votre premier client." />
-                    </td>
-                  </tr>
-                ) : (
-                  visibleClients.map((client) => (
-                    <tr key={client.id} className="border-t border-[var(--border)]">
-                      <td className="px-5 py-4">
-                        <p className="font-semibold">
-                          {client.firstName} {client.lastName}
-                        </p>
-                        <p className="text-xs text-[var(--muted)]">ID #{client.id}</p>
-                      </td>
-                      {user.role === "ADMIN" ? (
-                        <td className="px-5 py-4 text-sm text-[var(--muted)]">
-                          {client.garage?.name ?? client.garageId ?? "-"}
-                        </td>
-                      ) : null}
-                      <td className="px-5 py-4 text-right">
-                        <div className="flex justify-end gap-2">
-                          <Button variant="ghost" size="sm" onClick={() => startEdit(client)}>
-                            Editer
-                          </Button>
-                          <Button variant="outline" size="sm" onClick={() => removeClient(client.id)}>
-                            Supprimer
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </Table>
+                ))
+              )}
+            </tbody>
+          </DataTable>
           {filtered.length > visibleCount ? (
             <div className="flex justify-center">
               <Button variant="ghost" onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}>
@@ -261,6 +289,15 @@ export default function ClientsPage() {
           </div>
         </Card>
       </div>
+      <Dialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="Supprimer ce client"
+        description="Cette action est definitive. Le client et ses donnees associees seront supprimes."
+        confirmLabel="Supprimer"
+        confirmVariant="destructive"
+        onConfirm={removeClient}
+      />
     </div>
   );
 }

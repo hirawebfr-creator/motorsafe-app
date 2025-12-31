@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { Table } from "@/components/ui/Table";
+import { DataTable, DataTableHead } from "@/components/ui/DataTable";
 import { Badge } from "@/components/ui/Badge";
 import { useUser } from "@/components/user-context";
 import { fetcher } from "@/lib/fetcher";
@@ -103,65 +103,66 @@ export default function AdminGaragesPage() {
       {error ? <ErrorBanner message={error} /> : null}
 
       <Card className="grid gap-6">
-        <Table>
-          <table className="w-full text-sm">
-            <thead className="text-left text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
+        <DataTable stickyHeader>
+          <DataTableHead sticky>
+            <tr>
+              <th className="px-5 py-4">Garage</th>
+              <th className="px-5 py-4">Statut</th>
+              <th className="px-5 py-4">Responsable</th>
+              <th className="px-5 py-4 text-right">Creation</th>
+            </tr>
+          </DataTableHead>
+          <tbody>
+            {loading ? (
               <tr>
-                <th className="px-5 py-4">Garage</th>
-                <th className="px-5 py-4">Statut</th>
-                <th className="px-5 py-4">Responsable</th>
-                <th className="px-5 py-4 text-right">Creation</th>
+                <td className="px-5 py-6" colSpan={4}>
+                  <Loading />
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td className="px-5 py-6" colSpan={4}>
-                    <Loading />
+            ) : garages.length === 0 ? (
+              <tr>
+                <td className="px-5 py-6" colSpan={4}>
+                  <EmptyState title="Aucun garage" description="Les garages apparaitront ici." />
+                </td>
+              </tr>
+            ) : (
+              garages.map((garage) => (
+                <tr
+                  key={garage.id}
+                  className="border-t border-[rgba(31,41,55,0.7)] transition hover:bg-[rgba(139,92,246,0.06)]"
+                >
+                  <td className="px-5 py-4">
+                    <p className="font-semibold">{garage.name}</p>
+                    <p className="text-xs text-[var(--muted)]">{garage.email}</p>
                   </td>
-                </tr>
-              ) : garages.length === 0 ? (
-                <tr>
-                  <td className="px-5 py-6" colSpan={4}>
-                    <EmptyState title="Aucun garage" description="Les garages apparaitront ici." />
-                  </td>
-                </tr>
-              ) : (
-                garages.map((garage) => (
-                  <tr key={garage.id} className="border-t border-[var(--border)]">
-                    <td className="px-5 py-4">
-                      <p className="font-semibold">{garage.name}</p>
-                      <p className="text-xs text-[var(--muted)]">{garage.email}</p>
-                    </td>
-                    <td className="px-5 py-4">
-                      <Badge
-                        variant={
-                          garage.status === "ACTIVE"
-                            ? "success"
-                            : garage.status === "REJECTED"
-                            ? "neutral"
-                            : "warning"
-                        }
-                      >
-                        {garage.status === "ACTIVE"
-                          ? "Actif"
+                  <td className="px-5 py-4">
+                    <Badge
+                      variant={
+                        garage.status === "ACTIVE"
+                          ? "success"
                           : garage.status === "REJECTED"
-                          ? "Refuse"
-                          : "En attente"}
-                      </Badge>
-                    </td>
-                    <td className="px-5 py-4 text-sm text-[var(--muted)]">
-                      {garage.users[0]?.email ?? "-"}
-                    </td>
-                    <td className="px-5 py-4 text-right text-sm text-[var(--muted)]">
-                      {new Date(garage.createdAt).toLocaleDateString("fr-FR")}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </Table>
+                          ? "neutral"
+                          : "warning"
+                      }
+                    >
+                      {garage.status === "ACTIVE"
+                        ? "Actif"
+                        : garage.status === "REJECTED"
+                        ? "Refuse"
+                        : "En attente"}
+                    </Badge>
+                  </td>
+                  <td className="px-5 py-4 text-sm text-[var(--muted)]">
+                    {garage.users[0]?.email ?? "-"}
+                  </td>
+                  <td className="px-5 py-4 text-right text-sm text-[var(--muted)]">
+                    {new Date(garage.createdAt).toLocaleDateString("fr-FR")}
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </DataTable>
       </Card>
     </div>
   );

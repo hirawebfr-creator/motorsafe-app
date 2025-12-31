@@ -11,6 +11,9 @@ import { ErrorBanner } from "@/components/common/ErrorBanner";
 import { Loading } from "@/components/common/Loading";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Input } from "@/components/ui/Input";
+import { Dialog } from "@/components/ui/Dialog";
+import { Textarea } from "@/components/ui/Textarea";
+import { useToast } from "@/components/ui/Toast";
 
 type GarageItem = {
   id: number;
@@ -31,7 +34,11 @@ export default function AdminPendingPage() {
   const [error, setError] = useState<string | null>(null);
   const [adminKey, setAdminKey] = useState("");
   const [keyReady, setKeyReady] = useState(user.role === "ADMIN");
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectTarget, setRejectTarget] = useState<GarageItem | null>(null);
   const isAdmin = user.role === "ADMIN";
+  const toast = useToast();
 
   useEffect(() => {
     if (isAdmin) return;
@@ -67,9 +74,49 @@ export default function AdminPendingPage() {
         noStore: true,
         headers: !isAdmin && adminKey ? { "x-admin-key": adminKey } : undefined,
       });
+      toast.push({
+        title: "Garage approuve",
+        description: "Le compte est maintenant actif.",
+        variant: "success",
+      });
       await loadPending();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erreur serveur.");
+      const message = err instanceof Error ? err.message : "Erreur serveur.";
+      setError(message);
+      toast.push({ title: "Erreur", description: message, variant: "error" });
+    }
+  };
+
+  const openReject = (garage: GarageItem) => {
+    setRejectTarget(garage);
+    setRejectReason("");
+    setRejectOpen(true);
+  };
+
+  const reject = async () => {
+    if (!rejectTarget) return;
+    setError(null);
+    try {
+      await requestJson(`/api/admin/garages/${rejectTarget.id}/reject`, {
+        method: "POST",
+        body: { reviewNote: rejectReason },
+        noStore: true,
+        headers: !isAdmin && adminKey ? { "x-admin-key": adminKey } : undefined,
+      });
+      toast.push({
+        title: "Garage refuse",
+        description: "La demande a ete refusee.",
+        variant: "info",
+      });
+      await loadPending();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Erreur serveur.";
+      setError(message);
+      toast.push({ title: "Erreur", description: message, variant: "error" });
+    } finally {
+      setRejectOpen(false);
+      setRejectTarget(null);
+      setRejectReason("");
     }
   };
 
@@ -143,12 +190,33 @@ export default function AdminPendingPage() {
                 <div className="text-xs text-[var(--muted)]">
                   Responsable: {garage.users[0]?.email ?? "-"}
                 </div>
-                <Button onClick={() => approve(garage.id)}>Approuver</Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="ghost" onClick={() => openReject(garage)}>
+                    Refuser
+                  </Button>
+                  <Button onClick={() => approve(garage.id)}>Approuver</Button>
+                </div>
               </div>
             </Card>
           ))}
         </div>
       )}
+      <Dialog
+        open={rejectOpen}
+        onOpenChange={setRejectOpen}
+        title="Refuser la demande"
+        description={rejectTarget ? `Motif pour ${rejectTarget.name}` : undefined}
+        confirmLabel="Refuser"
+        confirmVariant="destructive"
+        onConfirm={reject}
+      >
+        <Textarea
+          label="Motif"
+          value={rejectReason}
+          onChange={(event) => setRejectReason(event.target.value)}
+          placeholder="Expliquer la raison du refus."
+        />
+      </Dialog>
     </div>
   );
 }

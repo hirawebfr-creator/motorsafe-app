@@ -3,14 +3,14 @@ import { getSessionUser, isApprovedGarage } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { StatCard } from "@/components/common/StatCard";
+import { KpiCard } from "@/components/ui/KpiCard";
 
 export const runtime = "nodejs";
 
 export default async function DashboardPage() {
   const user = await getSessionUser();
   if (!user) redirect("/auth/login");
-  if (!isApprovedGarage(user)) redirect("/pro/pending");
+  if (!isApprovedGarage(user)) redirect("/pro/en-attente");
 
   const baseWhere = user.role === "ADMIN" ? {} : { garageId: user.garageId ?? -1 };
   const weekSince = new Date();
@@ -43,20 +43,19 @@ export default async function DashboardPage() {
 
   return (
     <div className="grid gap-8">
-      <div>
-        <p className="text-xs uppercase tracking-[0.3em] text-[var(--muted)]">Vue generale</p>
-        <h1 className="mt-3 text-3xl font-semibold">Pilotage temps reel</h1>
-        <p className="mt-2 max-w-2xl text-sm text-[var(--muted)]">
-          Suivi des operations et de la conformite. Chaque carte synthese les flux clients,
-          vehicules et interventions sur 30 jours.
+      <div className="grid gap-2">
+        <p className="text-xs uppercase tracking-[0.3em] text-[var(--muted)]">Dashboard</p>
+        <h1 className="text-3xl font-semibold">Pilotage premium</h1>
+        <p className="mt-1 max-w-2xl text-sm text-[var(--muted)]">
+          Vision globale des clients, vehicules et interventions avec un suivi pro en temps reel.
         </p>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-4">
-        <StatCard label="Clients actifs" value={clientsCount} badge="Stable" />
-        <StatCard label="Vehicules suivis" value={vehiclesCount} badge="Stable" />
-        <StatCard label="Interventions totales" value={interventionsCount} badge="Stable" />
-        <StatCard label="Interventions aujourd'hui" value={interventionsToday} badge={`7j: ${interventionsWeek}`} />
+        <KpiCard title="Clients actifs" value={clientsCount} trend="Stable" />
+        <KpiCard title="Vehicules suivis" value={vehiclesCount} trend="Stable" />
+        <KpiCard title="Interventions totales" value={interventionsCount} trend="Stable" />
+        <KpiCard title="Interventions aujourd'hui" value={interventionsToday} trend={`7j: ${interventionsWeek}`} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">

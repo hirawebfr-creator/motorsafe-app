@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
   LayoutGrid,
@@ -30,8 +30,9 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Vehicules", href: "/vehicules", icon: Car },
   { label: "Interventions", href: "/interventions", icon: Wrench },
   { label: "Documents PDF", href: "/documents", icon: FileText },
-  { label: "Parametres", href: "/settings", icon: Settings },
-  { label: "Admin", href: "/admin", icon: ShieldCheck, adminOnly: true },
+  { label: "Parametres", href: "/parametres", icon: Settings },
+  { label: "Pro demandes", href: "/admin/pro-demandes", icon: ShieldCheck, adminOnly: true },
+  { label: "References legales", href: "/admin/references", icon: ShieldCheck, adminOnly: true },
 ];
 
 export default function DashboardShell({
@@ -44,6 +45,22 @@ export default function DashboardShell({
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem("ms_sidebar_collapsed");
+    if (stored) {
+      setCollapsed(stored === "1");
+    }
+  }, []);
+
+  const toggleCollapse = () => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      window.localStorage.setItem("ms_sidebar_collapsed", next ? "1" : "0");
+      return next;
+    });
+  };
 
   const filteredNav = useMemo(
     () => NAV_ITEMS.filter((item) => !item.adminOnly || user.role === "ADMIN"),
@@ -65,16 +82,18 @@ export default function DashboardShell({
             activePath={pathname}
             open={sidebarOpen}
             onClose={() => setSidebarOpen(false)}
+            collapsed={collapsed}
+            onToggleCollapse={toggleCollapse}
           />
 
-          <div className="flex min-h-screen flex-1 flex-col lg:ml-72">
+          <div className={`flex min-h-screen flex-1 flex-col ${collapsed ? "lg:ml-[76px]" : "lg:ml-[260px]"}`}>
             <Topbar
               onMenu={() => setSidebarOpen(true)}
               onToggleCreate={() => setCreateOpen((open) => !open)}
               createOpen={createOpen}
               onLogout={handleLogout}
             />
-            <main className="flex-1 px-6 py-8 lg:px-10">{children}</main>
+            <main className="flex-1 px-4 py-8 lg:px-8">{children}</main>
           </div>
         </div>
         <MobileNav navItems={filteredNav} activePath={pathname} />
