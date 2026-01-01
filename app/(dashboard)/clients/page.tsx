@@ -220,7 +220,8 @@ export default function ClientsPage() {
                   {user.role === "ADMIN" && (
                     <p className="text-xs text-gray-400 mb-1">Garage : <span className="font-medium text-gray-300">{client.garage?.name ?? client.garageId ?? "-"}</span></p>
                   )}
-                  <p className="text-xs text-gray-500">Ajouté <span title={client.id}>{getRelativeDate(client.id)}</span></p>
+                  {/* Assuming client has a createdAt field of type string or Date */}
+                  <p className="text-xs text-gray-500">Ajouté <span title={client.createdAt}>{getRelativeDate(client.createdAt ?? "")}</span></p>
                   <div className="flex gap-2 mt-2">
                     <Button variant="ghost" size="sm" onClick={() => startEdit(client)}>
                       Editer
