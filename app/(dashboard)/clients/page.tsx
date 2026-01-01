@@ -28,6 +28,7 @@ type ClientItem = {
   lastName: string;
   garageId: number | null;
   garage?: { id: number; name: string } | null;
+  createdAt: string;
 };
 
 export default function ClientsPage() {
