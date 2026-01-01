@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Plus } from "lucide-react";
-import { formatDistanceToNow } from "date-fns/formatDistanceToNow";
+import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import Link from "next/link";

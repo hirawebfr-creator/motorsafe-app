@@ -161,7 +161,7 @@ export default function ClientsPage() {
   };
 
   // Helper for relative date
-  const getRelativeDate = (date) => {
+  const getRelativeDate = (date: Date | string) => {
     const d = typeof date === "string" ? new Date(date) : date;
     return formatDistanceToNow(d, { addSuffix: true, locale: fr });
   };
