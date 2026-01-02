@@ -20,7 +20,7 @@ const ToastContext = createContext<ToastContextValue | null>(null);
 const variantStyles: Record<ToastVariant, string> = {
   success: "border-[rgba(34,197,94,0.35)]",
   error: "border-[rgba(239,68,68,0.35)]",
-  info: "border-[rgba(124,92,255,0.30)]",
+  info: "border-[rgba(139,92,246,0.30)]",
 };
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {

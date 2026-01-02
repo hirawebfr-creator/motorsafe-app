@@ -174,7 +174,7 @@ export function AppShell({
                     href={item.href}
                     className={`flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition ${
                       isActive
-                        ? "bg-[rgba(139,92,246,0.14)] text-white"
+                        ? "bg-[color:var(--accentWeak)] text-white"
                         : "text-[color:var(--textMuted)] hover:bg-white/5 hover:text-white"
                     }`}
                   >
@@ -226,7 +226,7 @@ export function AppShell({
                 onClick={onSidebarClose}
                 className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm transition ${
                   isActive
-                    ? "bg-[rgba(139,92,246,0.14)] text-white"
+                    ? "bg-[color:var(--accentWeak)] text-white"
                     : "text-[color:var(--textMuted)] hover:bg-white/5 hover:text-white"
                 }`}
               >
