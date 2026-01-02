@@ -37,7 +37,7 @@ export default function ProInscriptionPage() {
         throw new Error(json?.error || "Erreur serveur.");
       }
       toast.push({
-        title: "Demande envoyee",
+        title: "Demande envoyée",
         description: "Votre compte pro est en attente de validation.",
         variant: "success",
       });
@@ -52,87 +52,126 @@ export default function ProInscriptionPage() {
   };
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-6xl items-center justify-center px-6 py-16">
-      <Card className="w-full max-w-3xl p-8">
-        <div className="grid gap-3">
-          <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--textMuted)]">Inscription</p>
-          <h1 className="text-3xl font-semibold tracking-tight text-[color:var(--text)]">Demander un accès MotorSafe</h1>
-          <p className="text-sm text-[color:var(--textMuted)]">
-            Remplissez votre dossier, l'équipe MotorSafe valide les comptes avant activation.
-          </p>
+    <main className="min-h-screen w-full bg-bg text-text">
+      <div className="mx-auto grid w-full max-w-6xl gap-10 px-6 py-16 lg:grid-cols-[1fr_520px] lg:items-start">
+        <div className="hidden lg:flex flex-col gap-8">
+          <Link href="/" className="flex items-center gap-3">
+            <div className="grid h-11 w-11 place-items-center rounded-[14px] bg-gradient-to-br from-primary to-primary2 text-white shadow-sm">
+              <span className="text-sm font-semibold">MS</span>
+            </div>
+            <div className="leading-tight">
+              <div className="text-sm font-semibold">MotorSafe</div>
+              <div className="text-xs text-muted2">Accès pro</div>
+            </div>
+          </Link>
+
+          <div>
+            <p className="ms-kicker">Inscription</p>
+            <h1 className="mt-3 text-4xl font-semibold tracking-tight">Demandez votre accès MotorSafe</h1>
+            <p className="mt-3 text-base text-muted2">
+              L&apos;équipe MotorSafe valide les comptes pour garantir une communauté professionnelle fiable.
+            </p>
+          </div>
+
+          <Card className="p-4">
+            <p className="ms-kicker">Process</p>
+            <ol className="mt-3 grid gap-2 text-sm text-muted2">
+              <li>1. Déposez vos informations atelier.</li>
+              <li>2. Vérification administrative rapide.</li>
+              <li>3. Activation et accès au dashboard.</li>
+            </ol>
+          </Card>
+
+          <Card className="p-4">
+            <p className="ms-kicker">Support</p>
+            <p className="mt-2 text-sm font-semibold">Un accompagnement dédié</p>
+            <p className="mt-1 text-xs text-muted2">
+              Nos équipes répondent en moins de 24h pour les demandes urgentes.
+            </p>
+          </Card>
         </div>
 
-        <form onSubmit={submit} className="mt-8 grid gap-5">
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Input
-              label="Nom du garage"
-              value={form.garageName}
-              onChange={(event) => setForm((prev) => ({ ...prev, garageName: event.target.value }))}
-              placeholder="Garage Horizon"
-              required
-            />
-            <Input
-              label="Email garage"
-              type="email"
-              value={form.garageEmail}
-              onChange={(event) => setForm((prev) => ({ ...prev, garageEmail: event.target.value }))}
-              placeholder="garage@horizon.fr"
-              required
-            />
-            <Input
-              label="Telephone"
-              value={form.phone}
-              onChange={(event) => setForm((prev) => ({ ...prev, phone: event.target.value }))}
-              placeholder="+33 6 00 00 00 00"
-            />
-            <Input
-              label="Adresse"
-              value={form.address}
-              onChange={(event) => setForm((prev) => ({ ...prev, address: event.target.value }))}
-              placeholder="12 rue des Ateliers, Lyon"
-            />
-            <Input
-              label="SIRET"
-              value={form.siret}
-              onChange={(event) => setForm((prev) => ({ ...prev, siret: event.target.value }))}
-              placeholder="123 456 789 00010"
-            />
+        <Card className="w-full p-8">
+          <div className="grid gap-3">
+            <p className="ms-kicker">Inscription</p>
+            <h1 className="text-2xl font-semibold tracking-tight text-text">Créer un compte pro</h1>
+            <p className="text-sm text-muted2">
+              Renseignez vos informations, nous reviendrons vers vous rapidement.
+            </p>
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Input
-              label="Email responsable"
-              type="email"
-              value={form.email}
-              onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
-              placeholder="responsable@garage.fr"
-              required
-            />
-            <Input
-              label="Mot de passe"
-              type="password"
-              value={form.password}
-              onChange={(event) => setForm((prev) => ({ ...prev, password: event.target.value }))}
-              placeholder="********"
-              required
-            />
-          </div>
+          <form onSubmit={submit} className="mt-8 grid gap-5">
+            <div className="grid gap-4 lg:grid-cols-2">
+              <Input
+                label="Nom du garage"
+                value={form.garageName}
+                onChange={(event) => setForm((prev) => ({ ...prev, garageName: event.target.value }))}
+                placeholder="Garage Horizon"
+                required
+              />
+              <Input
+                label="Email garage"
+                type="email"
+                value={form.garageEmail}
+                onChange={(event) => setForm((prev) => ({ ...prev, garageEmail: event.target.value }))}
+                placeholder="garage@horizon.fr"
+                required
+              />
+              <Input
+                label="Téléphone"
+                value={form.phone}
+                onChange={(event) => setForm((prev) => ({ ...prev, phone: event.target.value }))}
+                placeholder="+33 6 00 00 00 00"
+              />
+              <Input
+                label="Adresse"
+                value={form.address}
+                onChange={(event) => setForm((prev) => ({ ...prev, address: event.target.value }))}
+                placeholder="12 rue des Ateliers, Lyon"
+              />
+              <Input
+                label="SIRET"
+                value={form.siret}
+                onChange={(event) => setForm((prev) => ({ ...prev, siret: event.target.value }))}
+                placeholder="123 456 789 00010"
+              />
+            </div>
 
-          {error ? <p className="text-sm text-[color:var(--danger)]">{error}</p> : null}
+            <div className="grid gap-4 lg:grid-cols-2">
+              <Input
+                label="Email responsable"
+                type="email"
+                value={form.email}
+                onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
+                placeholder="responsable@garage.fr"
+                required
+              />
+              <Input
+                label="Mot de passe"
+                type="password"
+                value={form.password}
+                onChange={(event) => setForm((prev) => ({ ...prev, password: event.target.value }))}
+                placeholder="********"
+                required
+              />
+            </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <Button type="submit" disabled={loading}>
-              {loading ? "Envoi..." : "Envoyer la demande"}
-            </Button>
-            <Link
-              href="/auth/login"
-              className="text-sm font-semibold text-[color:var(--accent)] hover:text-[color:var(--accentHover)]"
-            >
-              Déjà un compte ? Connexion
-            </Link>
-          </div>
-        </form>
-      </Card>
+            {error ? <p className="text-sm text-danger">{error}</p> : null}
+
+            <div className="flex flex-wrap items-center gap-3">
+              <Button type="submit" disabled={loading}>
+                {loading ? "Envoi..." : "Envoyer la demande"}
+              </Button>
+              <Link
+                href="/auth/login"
+                className="text-sm font-semibold text-primary hover:text-primaryHover"
+              >
+                Déjà un compte ? Connexion
+              </Link>
+            </div>
+          </form>
+        </Card>
+      </div>
     </main>
   );
 }

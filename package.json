@@ -7,13 +7,15 @@
     "npm": ">=10"
   },
   "scripts": {
-    "dev": "next dev --webpack",
-    "dev:webpack": "next dev --webpack",
+    "dev": "node scripts/next-dev.js",
+    "dev:daemon": "node scripts/next-dev-daemon.js",
+    "dev:stop": "node scripts/next-dev-stop.js",
+    "dev:webpack": "node scripts/next-dev.js",
     "dev:turbo": "next dev",
     "build": "node scripts/next-build.js",
     "start": "next start",
     "postinstall": "prisma generate",
-    "lint": "echo 'Skipping lint in this environment' && exit 0",
+    "lint": "node scripts/eslint-run.js",
     "typecheck": "tsc --noEmit",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
@@ -38,6 +40,8 @@
     "tailwind-merge": "^3.4.0"
   },
   "devDependencies": {
+    "eslint": "^9.18.0",
+    "eslint-config-next": "16.1.0",
     "@tailwindcss/postcss": "^4.1.18",
     "@types/bcryptjs": "^2.4.6",
     "@types/date-fns": "^2.5.3",

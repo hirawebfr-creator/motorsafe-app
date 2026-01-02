@@ -5,7 +5,7 @@ export function Loading({ label = "Chargement..." }: { label?: string }) {
     <div className="grid gap-3">
       <Skeleton className="h-4 w-24" />
       <Skeleton className="h-4 w-full" />
-      <p className="text-xs text-[color:var(--textMuted)]">{label}</p>
+      <p className="text-xs text-muted2">{label}</p>
     </div>
   );
 }

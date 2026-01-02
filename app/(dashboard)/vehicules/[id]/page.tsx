@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Card } from "@/components/ui/Card";
@@ -51,7 +51,7 @@ export default function VehiculeDetailPage() {
     checksum: "",
   });
 
-  const loadVehicle = async () => {
+  const loadVehicle = useCallback(async () => {
     if (!vehicleId) return;
     setLoading(true);
     setError(null);
@@ -65,11 +65,11 @@ export default function VehiculeDetailPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [vehicleId]);
 
   useEffect(() => {
     loadVehicle();
-  }, [vehicleId]);
+  }, [loadVehicle]);
 
   const createIntervention = async () => {
     if (!vehicleId) return;
@@ -109,7 +109,7 @@ export default function VehiculeDetailPage() {
         action={
           <Link
             href="/vehicules"
-            className="text-sm font-semibold text-[color:var(--accent)] hover:text-[color:var(--accentHover)]"
+            className="text-sm font-semibold text-primary hover:text-primaryHover"
           >
             Retour véhicules
           </Link>
@@ -127,17 +127,17 @@ export default function VehiculeDetailPage() {
             <Card>
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--textMuted)]">Véhicule</p>
-                  <h2 className="mt-2 text-xl font-semibold text-[color:var(--text)]">
+                  <p className="ms-kicker">Véhicule</p>
+                  <h2 className="mt-2 text-xl font-semibold text-text">
                     {vehicle.brand} {vehicle.model}
                   </h2>
-                  <p className="text-sm text-[color:var(--textMuted)]">
+                  <p className="text-sm text-muted2">
                     Client: {vehicle.client.firstName} {vehicle.client.lastName}
                   </p>
                 </div>
                 <Badge variant="accent">{vehicle.plate}</Badge>
               </div>
-              <div className="mt-6 grid gap-3 text-sm text-[color:var(--textMuted)]">
+              <div className="mt-6 grid gap-3 text-sm text-muted2">
                 <p>VIN: {vehicle.vin || "-"}</p>
                 <p>Carburant: {vehicle.fuel || "-"}</p>
               </div>
@@ -146,36 +146,36 @@ export default function VehiculeDetailPage() {
             <Card>
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--textMuted)]">Interventions</p>
-                  <h2 className="mt-2 text-xl font-semibold text-[color:var(--text)]">Historique</h2>
+                  <p className="ms-kicker">Interventions</p>
+                  <h2 className="mt-2 text-xl font-semibold text-text">Historique</h2>
                 </div>
                 <Badge variant="accent">{vehicle.interventions.length}</Badge>
               </div>
               <div className="mt-6 grid gap-3">
                 {vehicle.interventions.length === 0 ? (
-                  <p className="text-sm text-[color:var(--textMuted)]">Aucune intervention.</p>
+                  <p className="text-sm text-muted2">Aucune intervention.</p>
                 ) : (
                   vehicle.interventions.map((intervention) => (
                     <div
                       key={intervention.id}
-                      className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--r)] border border-[color:var(--border)] bg-[color:var(--surface2)] px-4 py-3"
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--r)] border border-border bg-surface2 px-4 py-3"
                     >
                       <div>
-                        <p className="text-sm font-semibold text-[color:var(--text)]">{intervention.type}</p>
-                        <p className="text-xs text-[color:var(--textMuted)]">
+                        <p className="text-sm font-semibold text-text">{intervention.type}</p>
+                        <p className="text-xs text-muted2">
                           {new Date(intervention.createdAt).toLocaleDateString("fr-FR")}
                         </p>
                       </div>
                       <div className="flex flex-wrap items-center gap-3 text-sm">
                         <Link
                           href={`/interventions/${intervention.id}`}
-                          className="font-semibold text-[color:var(--accent)] hover:text-[color:var(--accentHover)]"
+                          className="font-semibold text-primary hover:text-primaryHover"
                         >
                           Détails
                         </Link>
                         <a
                           href={`/api/interventions/${intervention.id}/pdf`}
-                          className="font-semibold text-[color:var(--accent)] hover:text-[color:var(--accentHover)]"
+                          className="font-semibold text-primary hover:text-primaryHover"
                         >
                           PDF
                         </a>
@@ -189,8 +189,8 @@ export default function VehiculeDetailPage() {
 
           <Card className="grid gap-5">
             <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--textMuted)]">Nouvelle intervention</p>
-              <h2 className="mt-2 text-xl font-semibold text-[color:var(--text)]">Ajouter un dossier</h2>
+              <p className="ms-kicker">Nouvelle intervention</p>
+              <h2 className="mt-2 text-xl font-semibold text-text">Ajouter un dossier</h2>
             </div>
             <Select
               label="Type"
@@ -204,13 +204,13 @@ export default function VehiculeDetailPage() {
               ))}
             </Select>
             <Input
-              label="Date realisee"
+              label="Date réalisée"
               type="datetime-local"
               value={form.performedAt}
               onChange={(event) => setForm((prev) => ({ ...prev, performedAt: event.target.value }))}
             />
             <Input
-              label="Kilometrage"
+              label="Kilométrage"
               value={form.odometerKm}
               onChange={(event) => setForm((prev) => ({ ...prev, odometerKm: event.target.value }))}
               placeholder="120000"
@@ -237,14 +237,14 @@ export default function VehiculeDetailPage() {
               label="Notes"
               value={form.notes}
               onChange={(event) => setForm((prev) => ({ ...prev, notes: event.target.value }))}
-              placeholder="Details de l'intervention"
+              placeholder="Détails de l'intervention"
             />
             <LegalReferencesPanel type={form.type} />
-            <Button onClick={createIntervention}>Créer l'intervention</Button>
+            <Button onClick={createIntervention}>Créer l’intervention</Button>
           </Card>
         </div>
       ) : (
-        <p className="text-sm text-[color:var(--textMuted)]">Véhicule introuvable.</p>
+        <p className="text-sm text-muted2">Véhicule introuvable.</p>
       )}
     </div>
   );

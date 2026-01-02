@@ -1,4 +1,5 @@
 import type { HTMLAttributes } from "react";
+import { cn } from "@/lib/cn";
 
 type BadgeVariant = "success" | "warning" | "neutral" | "accent";
 
@@ -7,16 +8,20 @@ type BadgeProps = HTMLAttributes<HTMLSpanElement> & {
 };
 
 const variants: Record<BadgeVariant, string> = {
-  success: "bg-[rgba(34,197,94,0.16)] text-[color:var(--success)]",
-  warning: "bg-[rgba(251,191,36,0.14)] text-[rgba(251,191,36,0.92)]",
-  neutral: "bg-[rgba(255,255,255,0.06)] text-[color:var(--textMuted)]",
-  accent: "bg-[color:var(--accentWeak)] text-[color:var(--accent)]",
+  success: "bg-success/12 text-success border-success/25",
+  warning: "bg-warning/12 text-warning border-warning/25",
+  neutral: "bg-surface2 text-muted border-border/70",
+  accent: "bg-primary/12 text-primary border-primary/30",
 };
 
 export function Badge({ className = "", variant = "neutral", ...props }: BadgeProps) {
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${variants[variant]} ${className}`}
+      className={cn(
+        "inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold",
+        variants[variant],
+        className
+      )}
       {...props}
     />
   );

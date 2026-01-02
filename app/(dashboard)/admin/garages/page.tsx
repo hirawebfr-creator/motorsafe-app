@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -25,13 +25,13 @@ type GarageItem = {
 
 export default function AdminGaragesPage() {
   const user = useUser();
-  if (!user) return null;
+
   const [garages, setGarages] = useState<GarageItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [adminKey, setAdminKey] = useState("");
-  const [keyReady, setKeyReady] = useState(user.role === "ADMIN");
-  const isAdmin = user.role === "ADMIN";
+  const [keyReady, setKeyReady] = useState(false);
+  const isAdmin = user?.role === "ADMIN";
 
   useEffect(() => {
     if (isAdmin) return;
@@ -42,7 +42,7 @@ export default function AdminGaragesPage() {
     }
   }, [isAdmin]);
 
-  const loadGarages = async () => {
+  const loadGarages = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -56,19 +56,26 @@ export default function AdminGaragesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [adminKey, isAdmin]);
 
   useEffect(() => {
-    if (keyReady) {
+    if (!user) return;
+    if (isAdmin) {
+      setKeyReady(true);
       loadGarages();
+      return;
     }
-  }, [keyReady]);
+
+    if (keyReady) loadGarages();
+  }, [isAdmin, keyReady, loadGarages, user]);
+
+  if (!user) return null;
 
   if (!keyReady && !isAdmin) {
     return (
       <Card className="p-6">
-        <p className="text-sm text-[color:var(--textMuted)]">
-          Accès réservé à l'administration. Renseignez votre ADMIN_KEY pour continuer.
+        <p className="text-sm text-muted2">
+          Accès réservé à l’administration. Renseignez votre ADMIN_KEY pour continuer.
         </p>
         <div className="mt-4 grid gap-3 max-w-md">
           <Input
@@ -97,11 +104,8 @@ export default function AdminGaragesPage() {
         title="Tous les garages"
         description="Liste complète des garages inscrits sur la plateforme."
         action={
-          <Link
-            href="/admin"
-            className="text-sm font-semibold text-[color:var(--accent)] hover:text-[color:var(--accentHover)]"
-          >
-            Retour validations
+          <Link href="/admin">
+            <Button variant="secondary" size="sm">Retour validations</Button>
           </Link>
         }
         level={1}
@@ -110,39 +114,36 @@ export default function AdminGaragesPage() {
       {error ? <ErrorBanner message={error} /> : null}
 
       <Card className="p-0 overflow-hidden">
-        <DataTable stickyHeader className="rounded-none border-0 shadow-none">
+        <DataTable stickyHeader variant="plain">
           <DataTableHead sticky>
             <tr>
-              <th className="px-5 py-4">Garage</th>
-              <th className="px-5 py-4">Statut</th>
-              <th className="px-5 py-4">Responsable</th>
-              <th className="px-5 py-4 text-right">Création</th>
+              <th>Garage</th>
+              <th>Statut</th>
+              <th>Responsable</th>
+              <th className="text-right">Création</th>
             </tr>
           </DataTableHead>
           <tbody>
             {loading ? (
               <tr>
-                <td className="px-5 py-6" colSpan={4}>
+                <td colSpan={4}>
                   <Loading />
                 </td>
               </tr>
             ) : garages.length === 0 ? (
               <tr>
-                <td className="px-5 py-6" colSpan={4}>
+                <td colSpan={4}>
                   <EmptyState title="Aucun garage" description="Les garages apparaitront ici." />
                 </td>
               </tr>
             ) : (
               garages.map((garage) => (
-                <tr
-                  key={garage.id}
-                  className="border-t border-[color:var(--border)] transition hover:bg-[color:var(--surface2)]"
-                >
-                  <td className="px-5 py-4">
-                    <p className="font-semibold text-[color:var(--text)]">{garage.name}</p>
-                    <p className="text-xs text-[color:var(--textMuted)]">{garage.email}</p>
+                <tr key={garage.id}>
+                  <td>
+                    <p className="font-semibold text-text">{garage.name}</p>
+                    <p className="text-xs text-muted2">{garage.email}</p>
                   </td>
-                  <td className="px-5 py-4">
+                  <td>
                     <Badge
                       variant={
                         garage.status === "ACTIVE"
@@ -159,10 +160,10 @@ export default function AdminGaragesPage() {
                         : "En attente"}
                     </Badge>
                   </td>
-                  <td className="px-5 py-4 text-sm text-[color:var(--textMuted)]">
+                  <td className="text-sm text-muted2">
                     {garage.users[0]?.email ?? "-"}
                   </td>
-                  <td className="px-5 py-4 text-right text-sm text-[color:var(--textMuted)]">
+                  <td className="text-right text-sm text-muted2">
                     {new Date(garage.createdAt).toLocaleDateString("fr-FR")}
                   </td>
                 </tr>

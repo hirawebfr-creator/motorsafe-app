@@ -46,8 +46,8 @@ export function ParametresClient({
   const tabButtonClass = (active: boolean) => {
     return `inline-flex h-10 items-center justify-center rounded-xl border px-3 text-sm font-semibold transition ${
       active
-        ? "border-[color:var(--accent)] bg-[color:var(--surface2)] text-[color:var(--text)]"
-        : "border-[color:var(--border)] bg-transparent text-[color:var(--textMuted)] hover:bg-[color:var(--surface2)] hover:text-[color:var(--text)]"
+        ? "border-primary bg-surface2 text-text"
+        : "border-border/70 bg-transparent text-muted2 hover:bg-surface2/80 hover:text-text"
     }`;
   };
 
@@ -55,7 +55,7 @@ export function ParametresClient({
     <div className="grid gap-6">
       <SectionHeader
         title="Paramètres"
-        description="Identité, conformité et préférences de l’atelier."
+        description="Identité, conformité et préférences de l'atelier."
         level={1}
       />
 
@@ -83,34 +83,34 @@ export function ParametresClient({
           <Card className="grid gap-4">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--textMuted)]">Profil</p>
-                <h2 className="mt-2 text-lg font-semibold text-[color:var(--text)]">
+                <p className="ms-kicker">Profil</p>
+                <h2 className="mt-2 text-lg font-semibold text-text">
                   {role === "ADMIN" ? "Administration" : garage?.name ?? "Garage"}
                 </h2>
               </div>
               <Badge variant="accent">{roleLabel}</Badge>
             </div>
 
-            <div className="grid gap-2 text-sm text-[color:var(--textMuted)]">
+            <div className="grid gap-2 text-sm text-muted2">
               <div className="flex items-center justify-between gap-4">
                 <span>Email</span>
-                <span className="text-[color:var(--text)]">{garage?.email ?? userEmail}</span>
+                <span className="text-text">{garage?.email ?? userEmail}</span>
               </div>
               <div className="flex items-center justify-between gap-4">
                 <span>Téléphone</span>
-                <span className="text-[color:var(--text)]">{garage?.phone || "-"}</span>
+                <span className="text-text">{garage?.phone || "-"}</span>
               </div>
               <div className="flex items-center justify-between gap-4">
                 <span>Adresse</span>
-                <span className="text-[color:var(--text)]">{garage?.address || "-"}</span>
+                <span className="text-text">{garage?.address || "-"}</span>
               </div>
               <div className="flex items-center justify-between gap-4">
                 <span>SIRET</span>
-                <span className="text-[color:var(--text)]">{garage?.siret || "-"}</span>
+                <span className="text-text">{garage?.siret || "-"}</span>
               </div>
               <div className="flex items-center justify-between gap-4">
                 <span>Statut</span>
-                <span className="text-[color:var(--text)]">{statusLabel}</span>
+                <span className="text-text">{statusLabel}</span>
               </div>
             </div>
 
@@ -121,10 +121,10 @@ export function ParametresClient({
 
           <Card className="grid gap-3">
             <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--textMuted)]">Résumé</p>
-              <h3 className="mt-2 text-lg font-semibold text-[color:var(--text)]">Conformité</h3>
+              <p className="ms-kicker">Résumé</p>
+              <h3 className="mt-2 text-lg font-semibold text-text">Conformité</h3>
             </div>
-            <p className="text-sm text-[color:var(--textMuted)]">
+            <p className="text-sm text-muted2">
               Les paramètres de sécurité contrôlent la traçabilité et la génération des preuves.
             </p>
             <Badge variant="success">Conformité active</Badge>
@@ -145,8 +145,8 @@ export function ParametresClient({
         <div className="grid gap-4 lg:grid-cols-2">
           <Card className="grid gap-4">
             <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--textMuted)]">Sécurité</p>
-              <h3 className="mt-2 text-lg font-semibold text-[color:var(--text)]">Assurance & traçabilité</h3>
+              <p className="ms-kicker">Sécurité</p>
+              <h3 className="mt-2 text-lg font-semibold text-text">Assurance & traçabilité</h3>
             </div>
             <ComplianceToggles />
             <Badge variant="success">Conformité active</Badge>
@@ -154,13 +154,13 @@ export function ParametresClient({
 
           <Card className="grid gap-3">
             <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--textMuted)]">Bonnes pratiques</p>
-              <h3 className="mt-2 text-lg font-semibold text-[color:var(--text)]">Recommandations</h3>
+              <p className="ms-kicker">Bonnes pratiques</p>
+              <h3 className="mt-2 text-lg font-semibold text-text">Recommandations</h3>
             </div>
-            <div className="grid gap-2 text-sm text-[color:var(--textMuted)]">
-              <p>• Conservez les preuves et révisions pour chaque dossier.</p>
-              <p>• Générez un PDF après validation du client.</p>
-              <p>• Activez les alertes pour les dossiers critiques.</p>
+            <div className="grid gap-2 text-sm text-muted2">
+              <p>- Conservez les preuves et révisions pour chaque dossier.</p>
+              <p>- Générez un PDF après validation du client.</p>
+              <p>- Activez les alertes pour les dossiers critiques.</p>
             </div>
           </Card>
         </div>
@@ -181,15 +181,15 @@ function NotificationsPanel() {
   return (
     <Card className="grid gap-4">
       <div>
-        <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--textMuted)]">Notifications</p>
-        <h3 className="mt-2 text-lg font-semibold text-[color:var(--text)]">Préférences email</h3>
+        <p className="ms-kicker">Notifications</p>
+        <h3 className="mt-2 text-lg font-semibold text-text">Préférences email</h3>
       </div>
       <div className="grid gap-3">
         <Toggle checked={mailOnCritical} onChange={setMailOnCritical} label="Alertes sur dossier critique" />
         <Toggle checked={mailOnPdf} onChange={setMailOnPdf} label="Confirmation lors de génération PDF" />
         <Toggle checked={digest} onChange={setDigest} label="Récapitulatif hebdomadaire" />
       </div>
-      <p className="text-xs text-[color:var(--textMuted)]">
+      <p className="text-xs text-muted2">
         Ces préférences sont locales pour le moment.
       </p>
     </Card>

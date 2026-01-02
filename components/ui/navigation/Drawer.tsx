@@ -24,38 +24,31 @@ export default function Drawer({
 
   const panelClass =
     side === "bottom"
-      ? "w-full max-h-[85vh] rounded-t-[var(--r)]"
-      : "h-full w-[88vw] max-w-[320px]";
-
-  const sideClass =
-    side === "right"
-      ? "ml-auto"
-      : side === "bottom"
-      ? "mt-auto"
-      : "";
-
-  const borderClass = side === "bottom" ? "border-t" : side === "right" ? "border-l" : "border-r";
+      ? "fixed inset-x-0 bottom-0 w-full max-h-[85vh] rounded-t-[var(--r)] border-t"
+      : side === "right"
+      ? "fixed inset-y-0 right-0 h-full w-[88vw] max-w-[320px] border-l"
+      : "fixed inset-y-0 left-0 h-full w-[88vw] max-w-[320px] border-r";
 
   return (
-    <div className="fixed inset-0 z-50 flex">
+    <div className="fixed inset-0 z-50">
       <button
         type="button"
-        className="absolute inset-0 bg-black/60"
+        className="absolute inset-0 bg-black/45 backdrop-blur-sm"
         aria-label="Fermer"
         onClick={onClose}
       />
       <aside
-        className={`${sideClass} relative ${panelClass} ${borderClass} border-[color:var(--border)] bg-[color:var(--surface)] shadow-[var(--sh)]`}
+        className={`relative ${panelClass} border-border bg-surface/95 shadow-[var(--shDropdown)]`}
         role="dialog"
         aria-modal="true"
       >
         {title ? (
-          <div className="flex items-center justify-between gap-3 border-b border-[color:var(--border)] px-4 py-3">
-            <p className="text-sm font-semibold text-[color:var(--text)]">{title}</p>
+          <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+            <p className="text-sm font-semibold text-text">{title}</p>
             <button
               type="button"
               onClick={onClose}
-              className="rounded-xl border border-[color:var(--border)] bg-transparent px-3 py-1.5 text-xs text-[color:var(--textMuted)] hover:bg-white/5"
+              className="rounded-xl border border-border bg-transparent px-3 py-1.5 text-xs text-muted2 hover:bg-surface2"
             >
               Fermer
             </button>

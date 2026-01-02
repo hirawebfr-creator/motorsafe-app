@@ -19,7 +19,7 @@ export function ComplianceToggles({
   const [alertsEnabled, setAlertsEnabled] = useState(initialAlerts);
 
   return (
-    <div className="grid gap-3 text-sm text-[color:var(--textMuted)]">
+    <div className="grid gap-3 text-sm text-muted2">
       <Toggle checked={hashEnabled} onChange={setHashEnabled} label="Activer le hash de preuve" />
       <Toggle checked={historyEnabled} onChange={setHistoryEnabled} label="Historique des révisions obligatoire" />
       <Toggle checked={alertsEnabled} onChange={setAlertsEnabled} label="Alertes email sur dossier critique" />

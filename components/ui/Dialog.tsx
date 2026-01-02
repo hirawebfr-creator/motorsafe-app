@@ -37,14 +37,15 @@ export function Dialog({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
       <button
-        className="absolute inset-0 bg-black/60"
+        type="button"
+        className="absolute inset-0 bg-black/45 backdrop-blur-sm"
         aria-label="Fermer"
         onClick={() => onOpenChange(false)}
       />
-      <div className="relative w-full max-w-lg rounded-[var(--r)] border border-[color:var(--border)] bg-[color:var(--surface2)] p-6 shadow-[var(--sh)]">
+      <div className="relative w-full max-w-lg rounded-[var(--r)] border border-border/70 bg-surface/95 p-7 shadow-[var(--shDropdown)]">
         <div className="grid gap-2">
           <h3 className="text-lg font-semibold">{title}</h3>
-          {description ? <p className="text-sm text-[color:var(--textMuted)]">{description}</p> : null}
+          {description ? <p className="text-sm text-muted2">{description}</p> : null}
         </div>
         {children ? <div className="mt-4">{children}</div> : null}
         <div className="mt-6 flex flex-wrap justify-end gap-3">

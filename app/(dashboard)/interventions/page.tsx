@@ -55,7 +55,8 @@ export default function InterventionsPage() {
   const [vehicles, setVehicles] = useState<VehicleOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [query, setQuery] = useState("");
+  const qFromUrl = searchParams.get("q") || "";
+  const [query, setQuery] = useState(qFromUrl);
   const toast = useToast();
 
   const selectedFromUrl = searchParams.get("selected") || "";
@@ -99,7 +100,7 @@ export default function InterventionsPage() {
       if (!res.ok) throw new Error("Erreur lors du chargement des véhicules.");
       const data = await res.json();
       setVehicles(data?.data ?? []);
-    } catch (err) {
+    } catch {
       setVehicles([]);
     }
   };
@@ -111,8 +112,11 @@ export default function InterventionsPage() {
 
   useEffect(() => {
     setSelectedId(selectedFromUrl || null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedFromUrl]);
+
+  useEffect(() => {
+    setQuery(qFromUrl);
+  }, [qFromUrl]);
 
   useEffect(() => {
     const loadDetail = async () => {
@@ -216,20 +220,20 @@ export default function InterventionsPage() {
 
       <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
         <Card className="p-0 overflow-hidden">
-          <div className="border-b border-[color:var(--border)] p-4">
+          <div className="border-b border-border p-4">
             <Input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Rechercher par plaque, client, type"
             />
-            <p className="mt-3 text-xs text-[color:var(--textMuted)]">
+            <p className="mt-3 text-xs text-muted2">
               {loading ? "Chargement…" : `${filtered.length} intervention(s)`}
             </p>
           </div>
 
           <div className="max-h-[calc(100vh-220px)] overflow-auto">
             {loading ? (
-              <div className="p-4 text-sm text-[color:var(--textMuted)]">Chargement…</div>
+              <div className="p-4 text-sm text-muted2">Chargement…</div>
             ) : filtered.length === 0 ? (
               <div className="p-4">
                 <EmptyState
@@ -255,15 +259,15 @@ export default function InterventionsPage() {
                       }}
                       className={`flex items-center justify-between gap-3 rounded-xl px-3 py-3 text-sm transition ${
                         isActive
-                          ? "bg-[color:var(--surface2)] text-white border border-[color:var(--accent)]"
-                          : "text-[color:var(--text)] hover:bg-white/5 border border-transparent"
+                          ? "bg-surface2 text-text border border-primary"
+                          : "text-text hover:bg-surface2 border border-transparent"
                       }`}
                     >
                       <div className="min-w-0">
                         <p className="truncate font-medium">
-                          {item.vehicle.plate} <span className="text-[color:var(--textMuted)]">· {item.type}</span>
+                          {item.vehicle.plate} <span className="text-muted2">· {item.type}</span>
                         </p>
-                        <p className="truncate text-xs text-[color:var(--textMuted)]">
+                        <p className="truncate text-xs text-muted2">
                           {item.vehicle.client.firstName} {item.vehicle.client.lastName} · {new Date(item.createdAt).toLocaleDateString("fr-FR")}
                         </p>
                       </div>
@@ -277,10 +281,10 @@ export default function InterventionsPage() {
         </Card>
 
         <Card className="p-0 overflow-hidden">
-          <div className="border-b border-[color:var(--border)] p-4 flex items-start justify-between gap-3">
+          <div className="border-b border-border p-4 flex items-start justify-between gap-3">
             <div>
               <p className="ms-kicker">Détail</p>
-              <p className="mt-1 text-sm text-[color:var(--textMuted)]">
+              <p className="mt-1 text-sm text-muted2">
                 {detail ? `${detail.vehicle.plate} · ${detail.type}` : "Sélectionnez une intervention"}
               </p>
             </div>
@@ -290,19 +294,19 @@ export default function InterventionsPage() {
                 trigger={
                   <button
                     type="button"
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] hover:bg-white/5"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-surface hover:bg-surface2"
                     aria-label="Actions"
                   >
                     <MoreHorizontal size={18} />
                   </button>
                 }
               >
-                <DropdownItem>
-                  <a className="block" href={`/api/interventions/${detail.id}/pdf`} target="_blank" rel="noreferrer">
+                <DropdownItem asChild>
+                  <a href={`/api/interventions/${detail.id}/pdf`} target="_blank" rel="noreferrer">
                     Télécharger PDF
                   </a>
                 </DropdownItem>
-                <DropdownItem>
+                <DropdownItem asChild>
                   <Link href={`/interventions/${detail.id}`}>Ouvrir le dossier complet</Link>
                 </DropdownItem>
               </DropdownMenu>
@@ -311,7 +315,7 @@ export default function InterventionsPage() {
 
           <div className="p-4">
             {detailLoading ? (
-              <div className="text-sm text-[color:var(--textMuted)]">Chargement du détail…</div>
+              <div className="text-sm text-muted2">Chargement du détail…</div>
             ) : !detail ? (
               <EmptyState
                 title="Aucune intervention sélectionnée"
@@ -319,17 +323,17 @@ export default function InterventionsPage() {
               />
             ) : (
               <div className="grid gap-4">
-                <div className="rounded-[var(--r)] border border-[color:var(--border)] bg-[color:var(--surface2)] p-4">
+                <div className="rounded-[var(--r)] border border-border bg-surface2 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-sm font-semibold">{detail.vehicle.plate}</p>
-                      <p className="mt-1 text-xs text-[color:var(--textMuted)]">
+                      <p className="mt-1 text-xs text-muted2">
                         {detail.vehicle.brand} {detail.vehicle.model} · {detail.vehicle.client.firstName} {detail.vehicle.client.lastName}
                       </p>
                     </div>
                     <Badge variant="accent">{detail.type}</Badge>
                   </div>
-                  <div className="mt-3 grid gap-1 text-sm text-[color:var(--textMuted)]">
+                  <div className="mt-3 grid gap-1 text-sm text-muted2">
                     <p>Créée le {new Date(detail.createdAt).toLocaleString("fr-FR")}</p>
                     {detail.performedAt ? (
                       <p>Réalisée le {new Date(detail.performedAt).toLocaleString("fr-FR")}</p>
@@ -337,16 +341,16 @@ export default function InterventionsPage() {
                   </div>
                 </div>
 
-                <div className="rounded-[var(--r)] border border-[color:var(--border)] bg-[color:var(--surface)] p-4">
+                <div className="rounded-[var(--r)] border border-border bg-surface p-4">
                   <p className="text-sm font-semibold">Conformité</p>
                   <div className="mt-3">
                     <LegalReferencesPanel type={detail.type} />
                   </div>
                 </div>
 
-                <div className="rounded-[var(--r)] border border-[color:var(--border)] bg-[color:var(--surface)] p-4">
+                <div className="rounded-[var(--r)] border border-border bg-surface p-4">
                   <p className="text-sm font-semibold">Révisions</p>
-                  <p className="mt-2 text-sm text-[color:var(--textMuted)]">
+                  <p className="mt-2 text-sm text-muted2">
                     {detail.revisions && detail.revisions.length > 0
                       ? `${detail.revisions.length} révision(s) enregistrée(s).`
                       : "Aucune révision."}
@@ -443,4 +447,3 @@ export default function InterventionsPage() {
     </div>
   );
 }
-

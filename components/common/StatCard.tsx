@@ -12,9 +12,9 @@ export function StatCard({
 }) {
   return (
     <Card className="relative flex flex-col gap-3 overflow-hidden">
-      <div className="absolute right-0 top-0 h-16 w-16 rounded-full bg-[color:var(--accentWeak)] blur-2xl" />
-      <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--textMuted)]">{label}</p>
-      <p className="text-3xl font-semibold">{value}</p>
+      <div className="absolute -right-6 -top-6 h-20 w-20 rounded-full bg-primary/20 blur-2xl" />
+      <p className="ms-kicker">{label}</p>
+      <p className="font-display text-3xl font-semibold tracking-tight">{value}</p>
       {badge ? <Badge variant="accent">{badge}</Badge> : null}
     </Card>
   );

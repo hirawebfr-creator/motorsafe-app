@@ -1,4 +1,5 @@
 import type { TextareaHTMLAttributes } from "react";
+import { cn } from "@/lib/cn";
 
 type TextareaProps = TextareaHTMLAttributes<HTMLTextAreaElement> & {
   label?: string;
@@ -6,10 +7,10 @@ type TextareaProps = TextareaHTMLAttributes<HTMLTextAreaElement> & {
 
 export function Textarea({ className = "", label, ...props }: TextareaProps) {
   return (
-    <label className="grid gap-2 text-sm text-[color:var(--textMuted)]">
-      {label ? <span className="text-xs uppercase tracking-[0.2em]">{label}</span> : null}
+    <label className="grid gap-2 text-xs text-muted2">
+      {label ? <span className="ms-kicker">{label}</span> : null}
       <textarea
-        className={`min-h-[120px] w-full rounded-[var(--rInput)] border border-[color:var(--border)] bg-[color:var(--surface2)] px-3 py-3 text-sm text-[color:var(--text)] placeholder:text-[color:var(--textMuted)] outline-none transition focus:border-[rgba(255,255,255,0.12)] focus:ring-2 focus:ring-[rgba(139,92,246,0.45)] ${className}`}
+        className={cn("ms-input min-h-[120px] resize-y py-3 text-sm outline-none", className)}
         {...props}
       />
     </label>

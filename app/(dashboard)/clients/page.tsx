@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Plus, MoreHorizontal, Trash2, Pencil } from "lucide-react";
@@ -39,7 +39,8 @@ export default function ClientsPage() {
   const [garages, setGarages] = useState<GarageOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [query, setQuery] = useState("");
+  const qFromUrl = searchParams.get("q") || "";
+  const [query, setQuery] = useState(qFromUrl);
 
   const selectedFromUrl = Number(searchParams.get("selected") || "");
   const [selectedId, setSelectedId] = useState<number | null>(Number.isFinite(selectedFromUrl) ? selectedFromUrl : null);
@@ -60,7 +61,7 @@ export default function ClientsPage() {
     garageId: "",
   });
 
-  const loadClients = async () => {
+  const loadClients = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -71,29 +72,32 @@ export default function ClientsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const loadGarages = async () => {
-    if (user.role !== "ADMIN") return;
+  const loadGarages = useCallback(async () => {
+    if (user?.role !== "ADMIN") return;
     try {
       const data = await fetcher<GarageOption[]>("/api/admin/garages", { noStore: true });
       setGarages(data ?? []);
     } catch {
       setGarages([]);
     }
-  };
+  }, [user?.role]);
 
   useEffect(() => {
     loadClients();
     loadGarages();
-  }, []);
+  }, [loadClients, loadGarages]);
 
   useEffect(() => {
     // keep selectedId in sync if URL changes
     if (!Number.isFinite(selectedFromUrl)) return;
     setSelectedId(selectedFromUrl);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedFromUrl]);
+
+  useEffect(() => {
+    setQuery(qFromUrl);
+  }, [qFromUrl]);
 
   useEffect(() => {
     const loadDetail = async () => {
@@ -156,7 +160,7 @@ export default function ClientsPage() {
       );
       toast.push({
         title: editorMode === "edit" ? "Client mis à jour" : "Client créé",
-        description: "Les informations sont enregistrees.",
+        description: "Les informations sont enregistrées.",
         variant: "success",
       });
       setEditorOpen(false);
@@ -181,8 +185,8 @@ export default function ClientsPage() {
     try {
       await requestJson<boolean>(`/api/clients/${pendingDeleteId}`, { method: "DELETE" });
       toast.push({
-        title: "Client supprime",
-        description: "Le client a ete retire.",
+        title: "Client supprimé",
+        description: "Le client a été retiré.",
         variant: "success",
       });
       await loadClients();
@@ -218,14 +222,14 @@ export default function ClientsPage() {
       <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
         {/* Left: list */}
         <Card className="p-0 overflow-hidden">
-          <div className="border-b border-[color:var(--border)] p-4">
+          <div className="border-b border-border p-4">
             <Input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Rechercher par nom ou ID"
             />
             <div className="mt-3 flex items-center justify-between">
-              <p className="text-xs text-[color:var(--textMuted)]">
+              <p className="text-xs text-muted2">
                 {loading ? "Chargement…" : `${filtered.length} client(s)`}
               </p>
               {selectedId ? <Badge variant="accent">Sélectionné</Badge> : null}
@@ -234,7 +238,7 @@ export default function ClientsPage() {
 
           <div className="max-h-[calc(100vh-220px)] overflow-auto">
             {loading ? (
-              <div className="p-4 text-sm text-[color:var(--textMuted)]">Chargement…</div>
+              <div className="p-4 text-sm text-muted2">Chargement…</div>
             ) : filtered.length === 0 ? (
               <div className="p-4">
                 <EmptyState
@@ -260,8 +264,8 @@ export default function ClientsPage() {
                       }}
                       className={`flex items-center justify-between gap-3 rounded-xl px-3 py-3 text-sm transition ${
                         isActive
-                          ? "bg-[rgba(139,92,246,0.14)] text-white"
-                          : "text-[color:var(--text)] hover:bg-white/5"
+                          ? "bg-primaryWeak text-text border border-primary"
+                          : "text-text hover:bg-surface2 border border-transparent"
                       }`}
                     >
                       <div className="min-w-0">
@@ -269,14 +273,14 @@ export default function ClientsPage() {
                           {client.firstName} {client.lastName}
                         </p>
                         {user.role === "ADMIN" ? (
-                          <p className="truncate text-xs text-[color:var(--textMuted)]">
+                          <p className="truncate text-xs text-muted2">
                             {client.garage?.name ?? (client.garageId ? `Garage #${client.garageId}` : "-")}
                           </p>
                         ) : (
-                          <p className="text-xs text-[color:var(--textMuted)]">ID #{client.id}</p>
+                          <p className="text-xs text-muted2">ID #{client.id}</p>
                         )}
                       </div>
-                      <span className="text-xs text-[color:var(--textMuted)]">#{client.id}</span>
+                      <span className="text-xs text-muted2">#{client.id}</span>
                     </Link>
                   );
                 })}
@@ -287,10 +291,10 @@ export default function ClientsPage() {
 
         {/* Right: detail */}
         <Card className="p-0 overflow-hidden">
-          <div className="border-b border-[color:var(--border)] p-4 flex items-start justify-between gap-3">
+          <div className="border-b border-border p-4 flex items-start justify-between gap-3">
             <div>
               <p className="ms-kicker">Détail</p>
-              <p className="mt-1 text-sm text-[color:var(--textMuted)]">
+              <p className="mt-1 text-sm text-muted2">
                 {detail ? `Client #${detail.id}` : "Sélectionnez un client"}
               </p>
             </div>
@@ -300,7 +304,7 @@ export default function ClientsPage() {
                 trigger={
                   <button
                     type="button"
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] hover:bg-white/5"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-surface hover:bg-surface2"
                     aria-label="Actions"
                   >
                     <MoreHorizontal size={18} />
@@ -311,7 +315,7 @@ export default function ClientsPage() {
                   <span className="inline-flex items-center gap-2"><Pencil size={16} /> Modifier</span>
                 </DropdownItem>
                 <DropdownItem onClick={() => requestDelete(detail.id)}>
-                  <span className="inline-flex items-center gap-2 text-[color:var(--danger)]"><Trash2 size={16} /> Supprimer</span>
+                  <span className="inline-flex items-center gap-2 text-danger"><Trash2 size={16} /> Supprimer</span>
                 </DropdownItem>
               </DropdownMenu>
             ) : null}
@@ -319,7 +323,7 @@ export default function ClientsPage() {
 
           <div className="p-4">
             {detailLoading ? (
-              <div className="text-sm text-[color:var(--textMuted)]">Chargement du détail…</div>
+              <div className="text-sm text-muted2">Chargement du détail…</div>
             ) : !detail ? (
               <EmptyState
                 title="Aucun client sélectionné"
@@ -327,21 +331,21 @@ export default function ClientsPage() {
               />
             ) : (
               <div className="grid gap-4">
-                <div className="rounded-[var(--r)] border border-[color:var(--border)] bg-[color:var(--surface2)] p-4">
+                <div className="rounded-[var(--r)] border border-border bg-surface2 p-4">
                   <p className="text-sm font-semibold">
                     {detail.firstName} {detail.lastName}
                   </p>
-                  <p className="mt-1 text-xs text-[color:var(--textMuted)]">ID #{detail.id}</p>
+                  <p className="mt-1 text-xs text-muted2">ID #{detail.id}</p>
                   {user.role === "ADMIN" ? (
-                    <p className="mt-2 text-xs text-[color:var(--textMuted)]">
+                    <p className="mt-2 text-xs text-muted2">
                       Garage: {detail.garage?.name ?? (detail.garageId ? `#${detail.garageId}` : "-")}
                     </p>
                   ) : null}
                 </div>
 
-                <div className="rounded-[var(--r)] border border-[color:var(--border)] bg-[color:var(--surface)] p-4">
+                <div className="rounded-[var(--r)] border border-border bg-surface p-4">
                   <p className="text-sm font-semibold">Véhicules</p>
-                  <p className="mt-1 text-sm text-[color:var(--textMuted)]">
+                  <p className="mt-1 text-sm text-muted2">
                     Disponible dans le dossier client.
                   </p>
                   <div className="mt-3">

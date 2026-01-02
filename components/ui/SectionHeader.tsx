@@ -1,4 +1,5 @@
 import type { ReactNode, JSX } from "react";
+import { cn } from "@/lib/cn";
 
 export function SectionHeader({
   title,
@@ -13,16 +14,21 @@ export function SectionHeader({
 }) {
   const Tag = `h${level}` as keyof JSX.IntrinsicElements;
   return (
-    <div className="mb-6 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-      <div>
-        <Tag className="text-[color:var(--text)] font-semibold text-2xl md:text-3xl tracking-tight leading-tight">
+    <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+      <div className="min-w-0">
+        <Tag
+          className={cn(
+            "font-display text-text font-semibold tracking-tight leading-tight",
+            level <= 2 ? "text-2xl md:text-3xl" : "text-xl md:text-2xl"
+          )}
+        >
           {title}
         </Tag>
         {description ? (
-          <p className="mt-1 text-sm text-[color:var(--textMuted)] max-w-2xl">{description}</p>
+          <p className="mt-1 max-w-2xl text-sm text-muted2">{description}</p>
         ) : null}
       </div>
-      {action ? <div className="mt-4 md:mt-0">{action}</div> : null}
+      {action ? <div className="shrink-0 pt-1 md:pt-0">{action}</div> : null}
     </div>
   );
 }

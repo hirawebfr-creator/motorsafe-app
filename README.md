@@ -2,7 +2,7 @@
 
 Panel Next.js (App Router) + Prisma + SQLite avec dashboard pro, multi-garages et validation admin.
 
-## Fonctionnalites
+## Fonctionnalités
 
 - UI dashboard moderne (sidebar, topbar, cards, tables).
 - Multi-garages (chaque garage voit ses donnees).
@@ -10,15 +10,15 @@ Panel Next.js (App Router) + Prisma + SQLite avec dashboard pro, multi-garages e
 - PDF dossier intervention (hash + historique revisions).
 - Scripts utilitaires (creation admin, backfill garage).
 
-## Prerequis
+## Prérequis
 
-- Node.js 20+
+- Node.js 22 LTS (ou 20)
 - npm
 - SQLite (dev) ou DB configurable via Prisma
 
 ## Variables d'environnement
 
-Creer un fichier `.env` a la racine :
+Créer un fichier `.env` à la racine :
 
 ```
 DATABASE_URL="file:./prisma/dev.db"
@@ -36,6 +36,13 @@ npx prisma migrate dev -n init-multi-tenant
 npm run backfill:garage
 ADMIN_EMAIL="admin@domain.fr" ADMIN_PASSWORD="motdepassefort" npm run create:admin
 npm run dev
+
+## Développement (Windows / VS Code)
+
+- `npm run dev` lance Next **webpack** via un wrapper qui neutralise `NODE_OPTIONS` (utile quand l'environnement injecte des flags invalides).
+- Si ton terminal/runner coupe les process longs (ou si tu veux le lancer en arrière-plan):
+	- `npm run dev:daemon` (logs dans `.dev.log`)
+	- `npm run dev:stop`
 
 ## Note Windows (Turbopack)
 

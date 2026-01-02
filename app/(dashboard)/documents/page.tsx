@@ -85,62 +85,59 @@ export default function DocumentsPage() {
       {error ? <ErrorBanner message={error} /> : null}
 
       <Card className="p-0 overflow-hidden">
-        <div className="border-b border-[color:var(--border)] p-4">
+        <div className="border-b border-border p-4">
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Rechercher par plaque, client, type"
             className="max-w-md"
           />
-          <p className="mt-3 text-xs text-[color:var(--textMuted)]">
+          <p className="mt-3 text-xs text-muted2">
             {loading ? "Chargement…" : `${filtered.length} document(s)`}
           </p>
         </div>
 
-        <DataTable stickyHeader className="rounded-none border-0 shadow-none">
+        <DataTable stickyHeader variant="plain">
           <DataTableHead sticky>
             <tr>
-              <th className="px-5 py-4">Intervention</th>
-              <th className="px-5 py-4">Client</th>
-              <th className="px-5 py-4 text-right">PDF</th>
+              <th>Intervention</th>
+              <th>Client</th>
+              <th className="text-right">PDF</th>
             </tr>
           </DataTableHead>
           <tbody>
             {loading ? (
               Array.from({ length: 6 }).map((_, i) => (
-                <tr key={i} className="border-t border-[color:var(--border)]">
-                  <td className="px-5 py-6" colSpan={3}>
+                <tr key={i}>
+                  <td colSpan={3}>
                     <Skeleton className="h-10 w-full" />
                   </td>
                 </tr>
               ))
             ) : filtered.length === 0 ? (
-              <tr className="border-t border-[color:var(--border)]">
-                <td className="px-5 py-8" colSpan={3}>
+              <tr>
+                <td colSpan={3}>
                   <EmptyState title="Aucun document" description="Les PDFs seront disponibles ici." />
                 </td>
               </tr>
             ) : (
               visibleDocuments.map((doc) => (
-                <tr
-                  key={doc.id}
-                  className="border-t border-[color:var(--border)] transition hover:bg-[color:var(--surface2)]"
-                >
-                  <td className="px-5 py-4">
-                    <p className="font-semibold text-[color:var(--text)]">
+                <tr key={doc.id}>
+                  <td>
+                    <p className="font-semibold text-text">
                       {doc.vehicle.plate} · {doc.type}
                     </p>
-                    <p className="mt-1 text-xs text-[color:var(--textMuted)]">
+                    <p className="mt-1 text-xs text-muted2">
                       <span title={new Date(doc.createdAt).toLocaleString("fr-FR")}>{getRelativeDate(doc.createdAt)}</span>
                     </p>
                   </td>
-                  <td className="px-5 py-4 text-sm text-[color:var(--textMuted)]">
+                  <td className="text-sm text-muted2">
                     {doc.vehicle.client.firstName} {doc.vehicle.client.lastName}
                   </td>
-                  <td className="px-5 py-4 text-right">
+                  <td className="text-right">
                     <a
                       href={`/api/interventions/${doc.id}/pdf`}
-                      className="text-sm font-semibold text-[color:var(--accent)] hover:text-[color:var(--accentHover)]"
+                      className="text-sm font-semibold text-primary hover:text-primaryHover"
                     >
                       Télécharger
                     </a>
@@ -152,7 +149,7 @@ export default function DocumentsPage() {
         </DataTable>
 
         {filtered.length > visibleCount ? (
-          <div className="border-t border-[color:var(--border)] p-4 flex justify-center">
+          <div className="border-t border-border p-4 flex justify-center">
             <Button variant="ghost" onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}>
               Afficher plus
             </Button>

@@ -43,7 +43,8 @@ export default function VehiculesPage() {
   const [clients, setClients] = useState<ClientOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [query, setQuery] = useState("");
+  const qFromUrl = searchParams.get("q") || "";
+  const [query, setQuery] = useState(qFromUrl);
 
   const selectedFromUrl = searchParams.get("selected") || "";
   const [selectedId, setSelectedId] = useState<string | null>(selectedFromUrl || null);
@@ -95,8 +96,11 @@ export default function VehiculesPage() {
 
   useEffect(() => {
     setSelectedId(selectedFromUrl || null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedFromUrl]);
+
+  useEffect(() => {
+    setQuery(qFromUrl);
+  }, [qFromUrl]);
 
   useEffect(() => {
     const loadDetail = async () => {
@@ -165,7 +169,7 @@ export default function VehiculesPage() {
       }
       toast.push({
         title: editorMode === "edit" ? "Véhicule mis à jour" : "Véhicule créé",
-        description: "Les informations sont enregistrees.",
+        description: "Les informations sont enregistrées.",
         variant: "success",
       });
       setEditorOpen(false);
@@ -187,8 +191,8 @@ export default function VehiculesPage() {
     try {
       await requestJson(`/api/vehicules/${pendingDeleteId}`, { method: "DELETE" });
       toast.push({
-        title: "Vehicule supprime",
-        description: "Le vehicule a ete retire.",
+        title: "Véhicule supprimé",
+        description: "Le véhicule a été retiré.",
         variant: "success",
       });
       await loadVehicles();
@@ -223,20 +227,20 @@ export default function VehiculesPage() {
 
       <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
         <Card className="p-0 overflow-hidden">
-          <div className="border-b border-[color:var(--border)] p-4">
+          <div className="border-b border-border p-4">
             <Input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Rechercher par plaque, marque, client"
             />
-            <p className="mt-3 text-xs text-[color:var(--textMuted)]">
+            <p className="mt-3 text-xs text-muted2">
               {loading ? "Chargement…" : `${filtered.length} véhicule(s)`}
             </p>
           </div>
 
           <div className="max-h-[calc(100vh-220px)] overflow-auto">
             {loading ? (
-              <div className="p-4 text-sm text-[color:var(--textMuted)]">Chargement…</div>
+              <div className="p-4 text-sm text-muted2">Chargement…</div>
             ) : filtered.length === 0 ? (
               <div className="p-4">
                 <EmptyState
@@ -262,13 +266,13 @@ export default function VehiculesPage() {
                       }}
                       className={`flex items-center justify-between gap-3 rounded-xl px-3 py-3 text-sm transition ${
                         isActive
-                          ? "bg-[color:var(--surface2)] text-white border border-[color:var(--accent)]"
-                          : "text-[color:var(--text)] hover:bg-white/5 border border-transparent"
+                          ? "bg-surface2 text-text border border-primary"
+                          : "text-text hover:bg-surface2 border border-transparent"
                       }`}
                     >
                       <div className="min-w-0">
                         <p className="truncate font-medium">{vehicle.plate}</p>
-                        <p className="truncate text-xs text-[color:var(--textMuted)]">
+                        <p className="truncate text-xs text-muted2">
                           {vehicle.brand} {vehicle.model} · {vehicle.client.firstName} {vehicle.client.lastName}
                         </p>
                       </div>
@@ -282,10 +286,10 @@ export default function VehiculesPage() {
         </Card>
 
         <Card className="p-0 overflow-hidden">
-          <div className="border-b border-[color:var(--border)] p-4 flex items-start justify-between gap-3">
+          <div className="border-b border-border p-4 flex items-start justify-between gap-3">
             <div>
               <p className="ms-kicker">Détail</p>
-              <p className="mt-1 text-sm text-[color:var(--textMuted)]">
+              <p className="mt-1 text-sm text-muted2">
                 {detail ? detail.plate : "Sélectionnez un véhicule"}
               </p>
             </div>
@@ -295,7 +299,7 @@ export default function VehiculesPage() {
                 trigger={
                   <button
                     type="button"
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] hover:bg-white/5"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-surface hover:bg-surface2"
                     aria-label="Actions"
                   >
                     <MoreHorizontal size={18} />
@@ -306,7 +310,7 @@ export default function VehiculesPage() {
                   <span className="inline-flex items-center gap-2"><Pencil size={16} /> Modifier</span>
                 </DropdownItem>
                 <DropdownItem onClick={() => requestDelete(detail.id)}>
-                  <span className="inline-flex items-center gap-2 text-[color:var(--danger)]"><Trash2 size={16} /> Supprimer</span>
+                  <span className="inline-flex items-center gap-2 text-danger"><Trash2 size={16} /> Supprimer</span>
                 </DropdownItem>
               </DropdownMenu>
             ) : null}
@@ -314,7 +318,7 @@ export default function VehiculesPage() {
 
           <div className="p-4">
             {detailLoading ? (
-              <div className="text-sm text-[color:var(--textMuted)]">Chargement du détail…</div>
+              <div className="text-sm text-muted2">Chargement du détail…</div>
             ) : !detail ? (
               <EmptyState
                 title="Aucun véhicule sélectionné"
@@ -322,21 +326,21 @@ export default function VehiculesPage() {
               />
             ) : (
               <div className="grid gap-4">
-                <div className="rounded-[var(--r)] border border-[color:var(--border)] bg-[color:var(--surface2)] p-4">
+                <div className="rounded-[var(--r)] border border-border bg-surface2 p-4">
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-sm font-semibold">{detail.plate}</p>
-                      <p className="mt-1 text-xs text-[color:var(--textMuted)]">
+                      <p className="mt-1 text-xs text-muted2">
                         {detail.brand} {detail.model}
                       </p>
                     </div>
                     <Badge variant="accent">{detail.fuel ?? "-"}</Badge>
                   </div>
-                  <p className="mt-3 text-sm text-[color:var(--textMuted)]">
-                    Client: <span className="text-[color:var(--text)]">{detail.client.firstName} {detail.client.lastName}</span>
+                  <p className="mt-3 text-sm text-muted2">
+                    Client: <span className="text-text">{detail.client.firstName} {detail.client.lastName}</span>
                   </p>
                   {detail.vin ? (
-                    <p className="mt-1 text-xs text-[color:var(--textMuted)]">VIN: {detail.vin}</p>
+                    <p className="mt-1 text-xs text-muted2">VIN: {detail.vin}</p>
                   ) : null}
                   <div className="mt-4">
                     <Link href={`/vehicules/${detail.id}`}>
@@ -345,20 +349,20 @@ export default function VehiculesPage() {
                   </div>
                 </div>
 
-                <div className="rounded-[var(--r)] border border-[color:var(--border)] bg-[color:var(--surface)] p-4">
+                <div className="rounded-[var(--r)] border border-border bg-surface p-4">
                   <p className="text-sm font-semibold">Interventions récentes</p>
                   <div className="mt-3 grid gap-2">
                     {!detail.interventions || detail.interventions.length === 0 ? (
-                      <p className="text-sm text-[color:var(--textMuted)]">Aucune intervention.</p>
+                      <p className="text-sm text-muted2">Aucune intervention.</p>
                     ) : (
                       detail.interventions.slice(0, 5).map((i) => (
                         <Link
                           key={i.id}
                           href={`/interventions/${i.id}`}
-                          className="flex items-center justify-between rounded-xl border border-[color:var(--border)] bg-[color:var(--surface2)] px-3 py-2 text-sm hover:bg-white/5"
+                          className="flex items-center justify-between rounded-xl border border-border bg-surface2 px-3 py-2 text-sm hover:bg-surface"
                         >
                           <span className="font-medium">{i.type}</span>
-                          <span className="text-xs text-[color:var(--textMuted)]">
+                          <span className="text-xs text-muted2">
                             {new Date(i.createdAt).toLocaleDateString("fr-FR")}
                           </span>
                         </Link>

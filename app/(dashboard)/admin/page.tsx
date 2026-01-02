@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -30,16 +30,16 @@ type GarageItem = {
 
 export default function AdminPendingPage() {
   const user = useUser();
-  if (!user) return null;
+
   const [garages, setGarages] = useState<GarageItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [adminKey, setAdminKey] = useState("");
-  const [keyReady, setKeyReady] = useState(user.role === "ADMIN");
+  const [keyReady, setKeyReady] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [rejectTarget, setRejectTarget] = useState<GarageItem | null>(null);
-  const isAdmin = user.role === "ADMIN";
+  const isAdmin = user?.role === "ADMIN";
   const toast = useToast();
 
   useEffect(() => {
@@ -51,7 +51,7 @@ export default function AdminPendingPage() {
     }
   }, [isAdmin]);
 
-  const loadPending = async () => {
+  const loadPending = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -65,7 +65,7 @@ export default function AdminPendingPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [adminKey, isAdmin]);
 
   const approve = async (id: number) => {
     setError(null);
@@ -77,7 +77,7 @@ export default function AdminPendingPage() {
         headers: !isAdmin && adminKey ? { "x-admin-key": adminKey } : undefined,
       });
       toast.push({
-        title: "Garage approuve",
+        title: "Garage approuvé",
         description: "Le compte est maintenant actif.",
         variant: "success",
       });
@@ -106,8 +106,8 @@ export default function AdminPendingPage() {
         headers: !isAdmin && adminKey ? { "x-admin-key": adminKey } : undefined,
       });
       toast.push({
-        title: "Garage refuse",
-        description: "La demande a ete refusee.",
+        title: "Garage refusé",
+        description: "La demande a été refusée.",
         variant: "info",
       });
       await loadPending();
@@ -123,16 +123,23 @@ export default function AdminPendingPage() {
   };
 
   useEffect(() => {
-    if (keyReady) {
+    if (!user) return;
+    if (isAdmin) {
+      setKeyReady(true);
       loadPending();
+      return;
     }
-  }, [keyReady]);
+
+    if (keyReady) loadPending();
+  }, [isAdmin, keyReady, loadPending, user]);
+
+  if (!user) return null;
 
   if (!keyReady && !isAdmin) {
     return (
       <Card className="p-6">
-        <p className="text-sm text-[color:var(--textMuted)]">
-          Accès réservé à l'administration. Renseignez votre ADMIN_KEY pour continuer.
+        <p className="text-sm text-muted2">
+          Accès réservé à l’administration. Renseignez votre ADMIN_KEY pour continuer.
         </p>
         <div className="mt-4 grid gap-3 max-w-md">
           <Input
@@ -159,11 +166,11 @@ export default function AdminPendingPage() {
     <div className="grid gap-6">
       <SectionHeader
         title="Demandes en attente"
-        description="Gérez les demandes d'inscription des garages. Approvez ou refusez avec un motif."
+        description="Gérez les demandes d’inscription des garages. Approvez ou refusez avec un motif."
         action={
           <Link
             href="/admin/garages"
-            className="text-sm font-semibold text-[color:var(--accent)] hover:text-[color:var(--accentHover)]"
+            className="text-sm font-semibold text-primary hover:text-primaryHover"
           >
             Voir tous les garages
           </Link>
@@ -183,18 +190,18 @@ export default function AdminPendingPage() {
             <Card key={garage.id} className="grid gap-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p className="text-base font-semibold text-[color:var(--text)]">{garage.name}</p>
-                  <p className="text-xs text-[color:var(--textMuted)]">{garage.email}</p>
+                  <p className="text-base font-semibold text-text">{garage.name}</p>
+                  <p className="text-xs text-muted2">{garage.email}</p>
                 </div>
                 <Badge variant="warning">En attente</Badge>
               </div>
-              <div className="grid gap-2 text-sm text-[color:var(--textMuted)]">
+              <div className="grid gap-2 text-sm text-muted2">
                 <p>Téléphone : {garage.phone || "-"}</p>
                 <p>Adresse : {garage.address || "-"}</p>
                 <p>SIRET : {garage.siret || "-"}</p>
               </div>
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="text-xs text-[color:var(--textMuted)]">
+                <div className="text-xs text-muted2">
                   Responsable : {garage.users[0]?.email ?? "-"}
                 </div>
                 <div className="flex flex-wrap gap-2">

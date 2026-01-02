@@ -1,4 +1,5 @@
 import type { ButtonHTMLAttributes } from "react";
+import { cn } from "@/lib/cn";
 
 type ButtonVariant = "primary" | "secondary" | "ghost" | "outline" | "destructive";
 type ButtonSize = "sm" | "md" | "lg";
@@ -9,18 +10,18 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 const base =
-  "inline-flex items-center justify-center gap-2 rounded-[var(--rButton)] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)] focus-visible:ring-offset-0 disabled:opacity-50 disabled:cursor-not-allowed";
+  "inline-flex items-center justify-center gap-2 rounded-[var(--rButton)] font-semibold transition-all focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50";
 
 const variants: Record<ButtonVariant, string> = {
   primary:
-    "bg-[color:var(--accent)] text-white shadow-[var(--shCard)] hover:bg-[color:var(--accentHover)] active:translate-y-[1px]",
+    "bg-primary text-white shadow-[0_14px_34px_rgb(37_99_235/0.18)] hover:bg-primaryHover",
   secondary:
-    "bg-[color:var(--surface)] text-[color:var(--text)] border border-[color:var(--border)] hover:bg-[color:var(--surface2)] hover:border-[rgba(255,255,255,0.12)] active:translate-y-[1px]",
-  ghost: "bg-transparent text-[color:var(--text)] hover:bg-[color:var(--surface2)] active:translate-y-[1px]",
+    "bg-surface text-text border border-border shadow-sm hover:bg-surface2",
+  ghost: "bg-transparent text-text hover:bg-surface2/60",
   outline:
-    "bg-transparent text-[color:var(--text)] border border-[color:var(--border)] hover:bg-[color:var(--surface2)] hover:border-[rgba(255,255,255,0.12)] active:translate-y-[1px]",
+    "bg-transparent text-text border border-border hover:bg-surface2/70",
   destructive:
-    "bg-[rgba(239,68,68,0.14)] text-[color:var(--danger)] border border-[rgba(239,68,68,0.35)] hover:bg-[rgba(239,68,68,0.22)] active:translate-y-[1px]",
+    "bg-danger/12 text-danger border border-danger/35 hover:bg-danger/18",
 };
 
 const sizes: Record<ButtonSize, string> = {
@@ -36,6 +37,9 @@ export function Button({
   ...props
 }: ButtonProps) {
   return (
-    <button className={`${base} ${variants[variant]} ${sizes[size]} ${className}`} {...props} />
+    <button
+      className={cn(base, "active:translate-y-[1px] active:shadow-none", variants[variant], sizes[size], className)}
+      {...props}
+    />
   );
 }

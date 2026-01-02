@@ -1,0 +1,20 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Dev: start (daemon)",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "dev:daemon"],
+      "problemMatcher": [],
+      "group": "build"
+    },
+    {
+      "label": "Dev: stop (daemon)",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "dev:stop"],
+      "problemMatcher": []
+    }
+  ]
+}

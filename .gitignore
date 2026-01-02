@@ -32,6 +32,12 @@ yarn-error.log*
 
 # local debug artifacts
 next-panic.log
+.dev.log
+.next-dev.pid
+.next-dev.out.log
+.next-dev.err.log
+dev.out.log
+dev.err.log
 
 # local development DB (do not commit)
 prisma/prisma/dev.db

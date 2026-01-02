@@ -1,15 +1,26 @@
+import { cn } from "@/lib/cn";
+
 type DataTableProps = {
   stickyHeader?: boolean;
+  variant?: "card" | "plain";
   className?: string;
   children: React.ReactNode;
 };
 
-export function DataTable({ stickyHeader = false, className = "", children }: DataTableProps) {
+export function DataTable({
+  stickyHeader = false,
+  variant = "card",
+  className = "",
+  children,
+}: DataTableProps) {
   return (
     <div
-      className={`overflow-x-auto rounded-[var(--r)] border border-[color:var(--border)] bg-[color:var(--surface)] shadow-[var(--sh)] ${className}`}
+      className={cn(
+        variant === "card" ? "ms-card overflow-x-auto" : "overflow-x-auto",
+        className
+      )}
     >
-      <table className="w-full text-sm">{children}</table>
+      <table className="ms-table text-sm">{children}</table>
       {stickyHeader ? null : null}
     </div>
   );
@@ -24,9 +35,10 @@ export function DataTableHead({
 }) {
   return (
     <thead
-      className={`text-left text-xs uppercase tracking-[0.2em] text-[color:var(--textMuted)] ${
-        sticky ? "sticky top-0 bg-[color:var(--surface2)]/95 backdrop-blur" : ""
-      }`}
+      className={cn(
+        "text-left",
+        sticky ? "sticky top-0 z-10 border-b border-border/60 bg-surface/90 backdrop-blur" : ""
+      )}
     >
       {children}
     </thead>

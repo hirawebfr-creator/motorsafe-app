@@ -12,7 +12,22 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+
+    // MotorSafe: lint uniquement la surface UI.
+    "app/api/**",
+    "prisma/**",
+    "scripts/**",
+    "lib/**",
+    "types/**",
+    "docs/**",
   ]),
+
+  {
+    rules: {
+      // Trop agressif pour nos patterns (loading/error) et pénalise des useEffect légitimes.
+      "react-hooks/set-state-in-effect": "off",
+    },
+  },
 ]);
 
 export default eslintConfig;
