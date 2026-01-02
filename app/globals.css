@@ -8,17 +8,22 @@
   /* Design tokens (dark-first) */
   --bg: #0B0D12;
   --surface: #0F1320;
-  --surface2: #12182A;
-  --border: rgba(255, 255, 255, 0.08);
+  --surface2: #121A2A;
+  --border: rgba(255, 255, 255, 0.06);
   --text: rgba(255, 255, 255, 0.92);
   --textSecondary: rgba(255, 255, 255, 0.62);
   --textMuted: rgba(255, 255, 255, 0.40);
-  --accent: #7C5CFF;
-  --accentHover: #6A4DFF;
-  --accent2: #7C5CFF;
+  --accent: #8B5CF6;
+  --accentHover: #7C3AED;
+  --accent2: #8B5CF6;
+  --accentWeak: rgba(139, 92, 246, 0.18);
   --danger: #EF4444;
   --success: #22C55E;
   --warning: #F59E0B;
+
+  /* Friendly aliases for consistent naming */
+  --muted: var(--textSecondary);
+  --muted2: var(--textMuted);
 
   /* Radii */
   --rGlobal: 12px;
@@ -50,11 +55,11 @@ body {
 /* Focus ring (consistent everywhere) */
 :focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px rgba(124, 92, 255, 0.55);
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.55);
 }
 
 ::selection {
-  background: rgba(124, 92, 255, 0.22);
+  background: rgba(139, 92, 246, 0.22);
   color: rgba(255, 255, 255, 0.96);
 }
 
@@ -109,7 +114,7 @@ body {
   }
   .ms-input:focus {
     outline: none;
-    box-shadow: 0 0 0 2px rgba(124, 92, 255, 0.55);
+    box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.55);
   }
 
   .ms-kicker {
