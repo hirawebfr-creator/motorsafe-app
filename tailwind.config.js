@@ -8,33 +8,31 @@ module.exports = {
     extend: {
       colors: {
         bg: 'var(--bg)',
-        panel: 'var(--panel)',
-        'panel-2': 'var(--panel-2)',
-        border: 'var(--border)',
+        surface: 'var(--surface)',
+        surface2: 'var(--surface2)',
         text: 'var(--text)',
-        muted: 'var(--muted)',
-        accent: 'var(--accent)',
-        'accent-2': 'var(--accent-2)',
+        muted: 'var(--textSecondary)',
+        border: 'var(--border)',
+        primary: 'var(--accent)',
+        primary2: 'var(--accent2)',
+        primaryHover: 'var(--accentHover)',
+        danger: 'var(--danger)',
         success: 'var(--success)',
         warning: 'var(--warning)',
-        danger: 'var(--danger)',
       },
       borderRadius: {
-        DEFAULT: '1rem',
-        sm: '0.75rem',
-        lg: '1.25rem',
-        xl: '1.5rem',
+        xl: '18px',
+        '2xl': '22px',
       },
       fontFamily: {
         sans: ['Inter', 'var(--font-sans)', 'system-ui', 'sans-serif'],
       },
       boxShadow: {
-        card: '0 10px 40px rgba(0,0,0,0.45)',
-        soft: '0 6px 24px rgba(0,0,0,0.25)',
-        focus: '0 0 0 2px #8B5CF6, 0 0 8px #8B5CF6',
+        soft: 'var(--shCard)',
+        dropdown: 'var(--shDropdown)',
       },
     },
   },
   plugins: [],
-}
+};
 

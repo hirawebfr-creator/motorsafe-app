@@ -3,7 +3,6 @@ import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/Toast";
-import { AppShell } from "@/components/shell/AppShell";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -28,10 +27,10 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="fr" className="bg-[#0F0F14] text-[#F5F6FA]">
-      <body className={`${inter.variable} ${jetbrains.variable} flex min-h-screen`}>
+    <html lang="fr" className="h-full">
+      <body className={`${inter.variable} ${jetbrains.variable} min-h-screen`}>
         <ToastProvider>
-          <AppShell>{children}</AppShell>
+          {children}
         </ToastProvider>
       </body>
     </html>

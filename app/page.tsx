@@ -1,6 +1,8 @@
 import Head from "next/head";
 import Link from "next/link";
 import ResponsiveSidebar from "@/components/layout/responsive/ResponsiveSidebar";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 
 export default function LandingPage() {
   return (
@@ -16,81 +18,123 @@ export default function LandingPage() {
         <meta property="og:image" content="/og-motorsafe.png" />
         <link rel="canonical" href="https://motorsafe.fr" />
       </Head>
-      <div className="hidden md:flex min-h-screen w-full">
+      <div className="hidden md:flex min-h-screen w-full bg-[color:var(--bg)] text-[color:var(--text)]">
         <ResponsiveSidebar>
           <></>
         </ResponsiveSidebar>
-        <main className="flex-1 w-full bg-gradient-to-br from-[#1a1a2e] to-[#23234b] text-white flex flex-col items-center justify-center px-4">
-          <header className="w-full max-w-5xl mx-auto flex flex-col items-center py-16">
-            <h1 className="text-4xl md:text-6xl font-extrabold text-center mb-6 tracking-tight">MotorSafe Pro</h1>
-            <p className="text-xl md:text-2xl text-center max-w-2xl mb-8">La plateforme SaaS inspirée des meilleurs outils mondiaux (ex: Revolut, Notion, Stripe) pour gérer votre garage, vos clients, vos véhicules et vos interventions, en toute simplicité et conformité.</p>
-            <Link href="/auth/login" className="inline-block px-8 py-4 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 font-semibold text-lg shadow-lg hover:scale-105 transition">Démarrer maintenant</Link>
-          </header>
-          <section className="w-full max-w-5xl mx-auto grid md:grid-cols-3 gap-8 py-12">
-            <div className="bg-white/5 rounded-xl p-6 flex flex-col items-center text-center shadow-lg">
-              <h2 className="text-2xl font-bold mb-2">Gestion complète</h2>
-              <p>Clients, véhicules, interventions, documents, conformité : tout est centralisé, accessible partout.</p>
-            </div>
-            <div className="bg-white/5 rounded-xl p-6 flex flex-col items-center text-center shadow-lg">
-              <h2 className="text-2xl font-bold mb-2">Expérience premium</h2>
-              <p>Interface inspirée de Revolut, Notion, Stripe : rapide, fluide, responsive, dark mode, accessible.</p>
-            </div>
-            <div className="bg-white/5 rounded-xl p-6 flex flex-col items-center text-center shadow-lg">
-              <h2 className="text-2xl font-bold mb-2">Sécurité & conformité</h2>
-              <p>Données chiffrées, conformité RGPD, accès multi-profils, audit trail, hébergement France/EU.</p>
-            </div>
-          </section>
-          <section className="w-full max-w-5xl mx-auto py-12">
-            <h2 className="text-3xl font-bold mb-6 text-center">Pourquoi choisir MotorSafe ?</h2>
-            <ul className="grid md:grid-cols-2 gap-6 text-lg">
-              <li>✔️ Inspiré des leaders SaaS mondiaux (Revolut, Notion, Stripe, Salesforce, Zendesk)</li>
-              <li>✔️ 100% cloud, aucune installation, accès sécurisé partout</li>
-              <li>✔️ Support réactif, évolutif, API ouverte</li>
-              <li>✔️ Optimisé SEO, rapide, mobile-first, PWA</li>
-              <li>✔️ Mises à jour automatiques, conformité légale</li>
-              <li>✔️ Essai gratuit, sans engagement</li>
-            </ul>
-          </section>
-          <footer className="w-full max-w-5xl mx-auto py-8 text-center text-gray-400 text-sm">
-            © {new Date().getFullYear()} MotorSafe. Plateforme SaaS pour garages et pros. Inspiré par les meilleurs outils du monde.
-          </footer>
+        <main className="flex-1 w-full px-4">
+          <div className="mx-auto w-full max-w-5xl py-16">
+            <header className="grid gap-6">
+              <div className="grid gap-2">
+                <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--textMuted)]">MotorSafe</p>
+                <h1 className="text-4xl md:text-6xl font-semibold tracking-tight">MotorSafe Pro</h1>
+                <p className="text-base md:text-lg text-[color:var(--textMuted)] max-w-2xl">
+                  La plateforme SaaS tout-en-un pour gérer votre garage, vos clients, vos véhicules et vos interventions, en toute simplicité et conformité.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <Link href="/auth/login">
+                  <Button size="lg">Démarrer</Button>
+                </Link>
+                <Link href="/pro/inscription">
+                  <Button size="lg" variant="secondary">Demander un accès</Button>
+                </Link>
+              </div>
+            </header>
+
+            <section className="mt-12 grid gap-6 md:grid-cols-3">
+              <Card className="text-center">
+                <h2 className="text-lg font-semibold">Gestion complète</h2>
+                <p className="mt-2 text-sm text-[color:var(--textMuted)]">
+                  Clients, véhicules, interventions, documents, conformité : tout est centralisé.
+                </p>
+              </Card>
+              <Card className="text-center">
+                <h2 className="text-lg font-semibold">Expérience premium</h2>
+                <p className="mt-2 text-sm text-[color:var(--textMuted)]">
+                  Interface rapide, sobre, responsive et lisible, orientée productivité.
+                </p>
+              </Card>
+              <Card className="text-center">
+                <h2 className="text-lg font-semibold">Sécurité & conformité</h2>
+                <p className="mt-2 text-sm text-[color:var(--textMuted)]">
+                  Traçabilité, preuves, contrôle d’accès et génération de dossiers PDF.
+                </p>
+              </Card>
+            </section>
+
+            <section className="mt-12">
+              <h2 className="text-2xl font-semibold text-center">Pourquoi choisir MotorSafe ?</h2>
+              <div className="mt-6 grid gap-3 md:grid-cols-2 text-sm text-[color:var(--textMuted)]">
+                <Card>
+                  <p>Outil cloud, sécurisé, accessible partout.</p>
+                </Card>
+                <Card>
+                  <p>Workflow simple : clients → véhicules → interventions → PDF.</p>
+                </Card>
+                <Card>
+                  <p>Suivi des révisions et traçabilité des preuves.</p>
+                </Card>
+                <Card>
+                  <p>Interface claire, mobile-first, pensée pour les pros.</p>
+                </Card>
+              </div>
+            </section>
+
+            <footer className="mt-12 text-center text-xs text-[color:var(--textMuted)]">
+              © {new Date().getFullYear()} MotorSafe. Plateforme SaaS pour garages et pros.
+            </footer>
+          </div>
         </main>
       </div>
       {/* Mobile layout : landing page sans sidebar */}
-      <main className="flex flex-col md:hidden min-h-screen w-full bg-gradient-to-br from-[#1a1a2e] to-[#23234b] text-white items-center justify-center px-4">
-        <header className="w-full max-w-5xl mx-auto flex flex-col items-center py-16">
-          <h1 className="text-4xl md:text-6xl font-extrabold text-center mb-6 tracking-tight">MotorSafe Pro</h1>
-          <p className="text-xl md:text-2xl text-center max-w-2xl mb-8">La plateforme SaaS inspirée des meilleurs outils mondiaux (ex: Revolut, Notion, Stripe) pour gérer votre garage, vos clients, vos véhicules et vos interventions, en toute simplicité et conformité.</p>
-          <Link href="/auth/login" className="inline-block px-8 py-4 rounded-lg bg-gradient-to-r from-indigo-500 to-purple-600 font-semibold text-lg shadow-lg hover:scale-105 transition">Démarrer maintenant</Link>
-        </header>
-        <section className="w-full max-w-5xl mx-auto grid md:grid-cols-3 gap-8 py-12">
-          <div className="bg-white/5 rounded-xl p-6 flex flex-col items-center text-center shadow-lg">
-            <h2 className="text-2xl font-bold mb-2">Gestion complète</h2>
-            <p>Clients, véhicules, interventions, documents, conformité : tout est centralisé, accessible partout.</p>
-          </div>
-          <div className="bg-white/5 rounded-xl p-6 flex flex-col items-center text-center shadow-lg">
-            <h2 className="text-2xl font-bold mb-2">Expérience premium</h2>
-            <p>Interface inspirée de Revolut, Notion, Stripe : rapide, fluide, responsive, dark mode, accessible.</p>
-          </div>
-          <div className="bg-white/5 rounded-xl p-6 flex flex-col items-center text-center shadow-lg">
-            <h2 className="text-2xl font-bold mb-2">Sécurité & conformité</h2>
-            <p>Données chiffrées, conformité RGPD, accès multi-profils, audit trail, hébergement France/EU.</p>
-          </div>
-        </section>
-        <section className="w-full max-w-5xl mx-auto py-12">
-          <h2 className="text-3xl font-bold mb-6 text-center">Pourquoi choisir MotorSafe ?</h2>
-          <ul className="grid md:grid-cols-2 gap-6 text-lg">
-            <li>✔️ Inspiré des leaders SaaS mondiaux (Revolut, Notion, Stripe, Salesforce, Zendesk)</li>
-            <li>✔️ 100% cloud, aucune installation, accès sécurisé partout</li>
-            <li>✔️ Support réactif, évolutif, API ouverte</li>
-            <li>✔️ Optimisé SEO, rapide, mobile-first, PWA</li>
-            <li>✔️ Mises à jour automatiques, conformité légale</li>
-            <li>✔️ Essai gratuit, sans engagement</li>
-          </ul>
-        </section>
-        <footer className="w-full max-w-5xl mx-auto py-8 text-center text-gray-400 text-sm">
-          © {new Date().getFullYear()} MotorSafe. Plateforme SaaS pour garages et pros. Inspiré par les meilleurs outils du monde.
-        </footer>
+      <main className="md:hidden min-h-screen w-full bg-[color:var(--bg)] text-[color:var(--text)] px-4">
+        <div className="mx-auto w-full max-w-5xl py-16">
+          <header className="grid gap-6">
+            <div className="grid gap-2">
+              <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--textMuted)]">MotorSafe</p>
+              <h1 className="text-4xl font-semibold tracking-tight">MotorSafe Pro</h1>
+              <p className="text-base text-[color:var(--textMuted)] max-w-2xl">
+                La plateforme SaaS tout-en-un pour gérer votre garage, vos clients, vos véhicules et vos interventions.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <Link href="/auth/login">
+                <Button size="lg">Démarrer</Button>
+              </Link>
+              <Link href="/pro/inscription">
+                <Button size="lg" variant="secondary">Demander un accès</Button>
+              </Link>
+            </div>
+          </header>
+
+          <section className="mt-12 grid gap-6">
+            <Card className="text-center">
+              <h2 className="text-lg font-semibold">Gestion complète</h2>
+              <p className="mt-2 text-sm text-[color:var(--textMuted)]">
+                Clients, véhicules, interventions, documents, conformité : tout est centralisé.
+              </p>
+            </Card>
+            <Card className="text-center">
+              <h2 className="text-lg font-semibold">Expérience premium</h2>
+              <p className="mt-2 text-sm text-[color:var(--textMuted)]">
+                Interface rapide, sobre, responsive et lisible.
+              </p>
+            </Card>
+            <Card className="text-center">
+              <h2 className="text-lg font-semibold">Sécurité & conformité</h2>
+              <p className="mt-2 text-sm text-[color:var(--textMuted)]">
+                Traçabilité et génération de dossiers PDF.
+              </p>
+            </Card>
+          </section>
+
+          <footer className="mt-12 text-center text-xs text-[color:var(--textMuted)]">
+            © {new Date().getFullYear()} MotorSafe.
+          </footer>
+        </div>
       </main>
     </>
   );

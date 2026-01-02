@@ -18,9 +18,9 @@ type ToastContextValue = {
 const ToastContext = createContext<ToastContextValue | null>(null);
 
 const variantStyles: Record<ToastVariant, string> = {
-  success: "border-[rgba(34,197,94,0.45)] text-[#bbf7d0]",
-  error: "border-[rgba(239,68,68,0.5)] text-[#fecaca]",
-  info: "border-[rgba(96,165,250,0.45)] text-[#bfdbfe]",
+  success: "border-[rgba(34,197,94,0.35)]",
+  error: "border-[rgba(239,68,68,0.35)]",
+  info: "border-[rgba(124,92,255,0.30)]",
 };
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
@@ -44,11 +44,11 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className={`w-[280px] rounded-[var(--radius-sm)] border bg-[rgba(15,18,30,0.92)] px-4 py-3 shadow-[var(--shadow-soft)] ${variantStyles[toast.variant]}`}
+            className={`w-[300px] rounded-[var(--r)] border bg-[color:var(--surface2)] px-4 py-3 shadow-[var(--shDropdown)] ${variantStyles[toast.variant]}`}
           >
             <p className="text-sm font-semibold text-[var(--text)]">{toast.title}</p>
             {toast.description ? (
-              <p className="mt-1 text-xs text-[var(--muted)]">{toast.description}</p>
+              <p className="mt-1 text-xs text-[color:var(--textMuted)]">{toast.description}</p>
             ) : null}
           </div>
         ))}

@@ -1,11 +1,20 @@
 import { ReactNode } from "react";
+import { Card } from "@/components/ui/Card";
 
 export default function DataCards({ data, render }: { data: any[], render: (row: any) => ReactNode }) {
-  if (!data.length) return <div className="card p-8 text-center text-[var(--muted)]">Aucune donnée</div>;
+  if (!data.length) {
+    return (
+      <Card className="p-8 text-center text-[color:var(--textMuted)]">
+        Aucune donnée
+      </Card>
+    );
+  }
   return (
     <div className="flex flex-col gap-4">
       {data.map((row, i) => (
-        <div key={i} className="card p-4">{render(row)}</div>
+        <Card key={i} className="p-4">
+          {render(row)}
+        </Card>
       ))}
     </div>
   );

@@ -53,12 +53,12 @@ export default function ProInscriptionPage() {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-6xl items-center justify-center px-6 py-16">
-      <Card className="w-full max-w-3xl">
+      <Card className="w-full max-w-3xl p-8">
         <div className="grid gap-3">
-          <p className="text-xs uppercase tracking-[0.3em] text-[var(--muted)]">Inscription Pro</p>
-          <h1 className="text-3xl font-semibold">Demander un acces MotorSafe</h1>
-          <p className="text-sm text-[var(--muted)]">
-            Remplissez votre dossier, l'equipe MotorSafe valide les comptes avant activation.
+          <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--textMuted)]">Inscription</p>
+          <h1 className="text-3xl font-semibold tracking-tight text-[color:var(--text)]">Demander un accès MotorSafe</h1>
+          <p className="text-sm text-[color:var(--textMuted)]">
+            Remplissez votre dossier, l'équipe MotorSafe valide les comptes avant activation.
           </p>
         </div>
 
@@ -118,14 +118,17 @@ export default function ProInscriptionPage() {
             />
           </div>
 
-          {error ? <p className="text-sm text-[#fecaca]">{error}</p> : null}
+          {error ? <p className="text-sm text-[color:var(--danger)]">{error}</p> : null}
 
           <div className="flex flex-wrap items-center gap-3">
             <Button type="submit" disabled={loading}>
               {loading ? "Envoi..." : "Envoyer la demande"}
             </Button>
-            <Link href="/auth/login" className="text-sm text-[var(--accent-2)]">
-              Deja un compte ? Connexion
+            <Link
+              href="/auth/login"
+              className="text-sm font-semibold text-[color:var(--accent)] hover:text-[color:var(--accentHover)]"
+            >
+              Déjà un compte ? Connexion
             </Link>
           </div>
         </form>

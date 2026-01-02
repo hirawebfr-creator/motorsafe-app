@@ -1,20 +1,10 @@
 "use client";
 
-import Link from "next/link";
-import { X, ChevronsLeft, ChevronsRight } from "lucide-react";
-import { Badge } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
-import type { SessionUser } from "@/lib/auth";
+import type { ReactNode } from "react";
 
-type NavItem = {
-  label: string;
-  href: string;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
-};
-
-export function Sidebar({ children }: { children: React.ReactNode }) {
+export function Sidebar({ children }: { children: ReactNode }) {
   return (
-    <aside className="w-full h-full flex flex-col">
+    <aside className="w-full h-full flex flex-col p-4 rounded-[var(--rCard)] border border-[color:var(--border)] bg-[color:var(--surface)] shadow-[var(--shCard)]">
       {children}
     </aside>
   );

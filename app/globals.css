@@ -2,141 +2,76 @@
 @tailwind components;
 @tailwind utilities;
 
-
 :root {
   color-scheme: dark;
+
+  /* Design tokens (dark-first) */
   --bg: #0B0D12;
-  --panel: #0F1420;
-  --panel-2: #121A2A;
-  --border: rgba(255,255,255,0.07);
-  --text: #EAF0FF;
-  --muted: rgba(234,240,255,0.65);
-  --accent: #8B5CF6;
-  --accent-2: #A78BFA;
+  --surface: #0F1320;
+  --surface2: #12182A;
+  --border: rgba(255, 255, 255, 0.08);
+  --text: rgba(255, 255, 255, 0.92);
+  --textSecondary: rgba(255, 255, 255, 0.62);
+  --textMuted: rgba(255, 255, 255, 0.40);
+  --accent: #7C5CFF;
+  --accentHover: #6A4DFF;
+  --accent2: #7C5CFF;
+  --danger: #EF4444;
   --success: #22C55E;
   --warning: #F59E0B;
-  --danger: #EF4444;
-  --radius: 16px;
-  --radius-sm: 12px;
-  --radius-lg: 18px;
-  --shadow-card: 0 10px 40px rgba(0,0,0,0.45);
-  --shadow-soft: 0 6px 24px rgba(0,0,0,0.25);
-  --focus: 0 0 0 2px #8B5CF6, 0 0 8px #8B5CF6;
+
+  /* Radii */
+  --rGlobal: 12px;
+  --rButton: 10px;
+  --rInput: 10px;
+  --rCard: 14px;
+
+  /* Internal convenience aliases */
+  --r: var(--rCard);
+  --sh: var(--shCard);
+
+  /* Shadows */
+  --shCard: 0 10px 30px rgba(0, 0, 0, 0.35);
+  --shDropdown: 0 18px 40px rgba(0, 0, 0, 0.45);
+
+  /* Compatibility aliases removed: all components use canonical tokens */
 }
 
-html, body {
+html,
+body {
   height: 100%;
 }
 
 body {
-  min-height: 100%;
-  font-family: 'Inter', var(--font-sans), system-ui, sans-serif;
-  background:
-    radial-gradient(1200px 600px at 30% 0%, rgba(139,92,246,.18), transparent 55%),
-    radial-gradient(900px 500px at 80% 20%, rgba(167,139,250,.10), transparent 60%),
-    linear-gradient(160deg, #0B0D12 0%, #0F1420 100%);
+  background: var(--bg);
   color: var(--text);
-  position: relative;
-  scrollbar-color: var(--accent) var(--panel-2);
-  scrollbar-width: thin;
 }
 
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
-  background: var(--panel-2);
-}
-::-webkit-scrollbar-thumb {
-  background: var(--accent);
-  border-radius: 8px;
-}
-
-/* Micro-noise overlay (optional, subtle) */
-body::after {
-  content: "";
-  pointer-events: none;
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  opacity: 0.07;
-  background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII=');
-}
-
-/* Focus ring */
+/* Focus ring (consistent everywhere) */
 :focus-visible {
   outline: none;
-  box-shadow: var(--focus);
-  transition: box-shadow 0.18s;
+  box-shadow: 0 0 0 2px rgba(124, 92, 255, 0.55);
 }
 
-/* Selection */
 ::selection {
-  background: var(--accent-2);
-  color: #fff;
+  background: rgba(124, 92, 255, 0.22);
+  color: rgba(255, 255, 255, 0.96);
 }
 
-/* Utility classes for design system */
-.btn {
-  min-height: 44px;
-  border-radius: 1rem;
-  font-weight: 500;
-  font-size: 1rem;
-  padding: 0.5rem 1.25rem;
-  background: var(--accent);
-  color: #fff;
-  box-shadow: 0 0 0 1px rgba(255,255,255,.08), 0 10px 25px rgba(139,92,246,.25);
-  transition: background 0.18s, box-shadow 0.18s;
+/* Scrollbar (subtle) */
+::-webkit-scrollbar {
+  width: 10px;
 }
-.btn:hover, .btn:focus-visible {
-  background: var(--accent-2);
-  box-shadow: 0 0 0 2px var(--accent-2), 0 0 12px var(--accent-2);
+::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.04);
 }
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.10);
+  border-radius: 999px;
 }
-
-.card {
-  border-radius: 1.25rem;
-  border: 1px solid var(--border);
-  background: var(--panel)/0.90;
-  box-shadow: var(--shadow-card);
-  backdrop-filter: blur(8px);
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.16);
 }
-
-.input {
-  height: 44px;
-  width: 100%;
-  border-radius: 1rem;
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-  padding: 0 1rem;
-  font-size: 1rem;
-  color: var(--text);
-  transition: border 0.18s, box-shadow 0.18s;
-}
-.input:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-2);
-}
-.input:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-.badge {
-  display: inline-block;
-  border-radius: 0.75rem;
-  padding: 0.25em 0.75em;
-  font-size: 0.85em;
-  font-weight: 500;
-  background: var(--panel-2);
-  color: var(--accent);
-  border: 1px solid var(--border);
-}
-.badge-success { color: var(--success); }
-.badge-warning { color: var(--warning); }
-.badge-danger { color: var(--danger); }
 
 @layer base {
   *,
@@ -145,52 +80,44 @@ body::after {
     box-sizing: border-box;
   }
 
-  html {
-    height: 100%;
-  }
-
-  body {
-    min-height: 100%;
-    font-family: var(--font-sans), system-ui, sans-serif;
-    background:
-      radial-gradient(circle at 20% 10%, rgba(139, 92, 246, 0.16), transparent 45%),
-      radial-gradient(circle at 85% 15%, rgba(96, 165, 250, 0.12), transparent 40%),
-      linear-gradient(160deg, rgb(var(--bg-0)) 0%, rgb(var(--bg-1)) 100%);
-    color: var(--text);
-    position: relative;
-  }
-
-  body::before {
-    content: "";
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-    background:
-      radial-gradient(circle at 70% 20%, rgba(167, 139, 250, 0.16), transparent 38%),
-      radial-gradient(circle at 10% 80%, rgba(139, 92, 246, 0.12), transparent 42%);
-    opacity: 0.7;
-    z-index: -1;
-  }
-
   a {
     color: inherit;
     text-decoration: none;
   }
 }
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
+@layer components {
+  .ms-card {
+    @apply border;
+    border-color: var(--border);
+    background: var(--surface);
+    border-radius: var(--rCard);
+    box-shadow: var(--shCard);
   }
 
-  .glass-panel {
-    background: linear-gradient(
-      140deg,
-      rgba(17, 20, 31, 0.72),
-      rgba(17, 20, 31, 0.45)
-    );
-    border: 1px solid rgba(31, 41, 55, 0.7);
-    box-shadow: var(--shadow-card);
-    backdrop-filter: blur(14px);
+  .ms-input {
+    @apply w-full;
+    min-height: 44px;
+    border-radius: var(--rInput);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    padding: 0.5rem 0.75rem;
+    color: var(--text);
+  }
+  .ms-input::placeholder {
+    color: var(--textMuted);
+  }
+  .ms-input:focus {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(124, 92, 255, 0.55);
+  }
+
+  .ms-kicker {
+    font-size: 0.72rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--textMuted);
   }
 }
+
+

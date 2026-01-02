@@ -13,6 +13,7 @@ import { fetcher, requestJson } from "@/lib/fetcher";
 import { ErrorBanner } from "@/components/common/ErrorBanner";
 import { Loading } from "@/components/common/Loading";
 import { LegalReferencesPanel } from "@/components/common/LegalReferencesPanel";
+import { SectionHeader } from "@/components/ui/SectionHeader";
 
 type VehicleDetails = {
   id: string;
@@ -101,18 +102,20 @@ export default function VehiculeDetailPage() {
   };
 
   return (
-    <div className="grid gap-8">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-[var(--muted)]">Dossier vehicule</p>
-          <h1 className="mt-3 text-3xl font-semibold">
-            {vehicle ? vehicle.plate : "Vehicule"}
-          </h1>
-        </div>
-        <Link href="/vehicules" className="text-sm text-[var(--accent-2)]">
-          Retour vehicules
-        </Link>
-      </div>
+    <div className="grid gap-6">
+      <SectionHeader
+        title={vehicle ? vehicle.plate : "Véhicule"}
+        description="Dossier véhicule et historique des interventions."
+        action={
+          <Link
+            href="/vehicules"
+            className="text-sm font-semibold text-[color:var(--accent)] hover:text-[color:var(--accentHover)]"
+          >
+            Retour véhicules
+          </Link>
+        }
+        level={1}
+      />
 
       {error ? <ErrorBanner message={error} /> : null}
 
@@ -124,17 +127,17 @@ export default function VehiculeDetailPage() {
             <Card>
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">Vehicule</p>
-                  <h2 className="mt-2 text-xl font-semibold">
+                  <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--textMuted)]">Véhicule</p>
+                  <h2 className="mt-2 text-xl font-semibold text-[color:var(--text)]">
                     {vehicle.brand} {vehicle.model}
                   </h2>
-                  <p className="text-sm text-[var(--muted)]">
+                  <p className="text-sm text-[color:var(--textMuted)]">
                     Client: {vehicle.client.firstName} {vehicle.client.lastName}
                   </p>
                 </div>
                 <Badge variant="accent">{vehicle.plate}</Badge>
               </div>
-              <div className="mt-6 grid gap-3 text-sm text-[var(--muted)]">
+              <div className="mt-6 grid gap-3 text-sm text-[color:var(--textMuted)]">
                 <p>VIN: {vehicle.vin || "-"}</p>
                 <p>Carburant: {vehicle.fuel || "-"}</p>
               </div>
@@ -143,33 +146,36 @@ export default function VehiculeDetailPage() {
             <Card>
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">Interventions</p>
-                  <h2 className="mt-2 text-xl font-semibold">Historique</h2>
+                  <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--textMuted)]">Interventions</p>
+                  <h2 className="mt-2 text-xl font-semibold text-[color:var(--text)]">Historique</h2>
                 </div>
                 <Badge variant="accent">{vehicle.interventions.length}</Badge>
               </div>
               <div className="mt-6 grid gap-3">
                 {vehicle.interventions.length === 0 ? (
-                  <p className="text-sm text-[var(--muted)]">Aucune intervention.</p>
+                  <p className="text-sm text-[color:var(--textMuted)]">Aucune intervention.</p>
                 ) : (
                   vehicle.interventions.map((intervention) => (
                     <div
                       key={intervention.id}
-                      className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--border)] bg-[var(--panel)] px-4 py-3"
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--r)] border border-[color:var(--border)] bg-[color:var(--surface2)] px-4 py-3"
                     >
                       <div>
-                        <p className="text-sm font-semibold">{intervention.type}</p>
-                        <p className="text-xs text-[var(--muted)]">
+                        <p className="text-sm font-semibold text-[color:var(--text)]">{intervention.type}</p>
+                        <p className="text-xs text-[color:var(--textMuted)]">
                           {new Date(intervention.createdAt).toLocaleDateString("fr-FR")}
                         </p>
                       </div>
                       <div className="flex flex-wrap items-center gap-3 text-sm">
-                        <Link href={`/interventions/${intervention.id}`} className="text-[var(--accent-2)]">
-                          Details
+                        <Link
+                          href={`/interventions/${intervention.id}`}
+                          className="font-semibold text-[color:var(--accent)] hover:text-[color:var(--accentHover)]"
+                        >
+                          Détails
                         </Link>
                         <a
                           href={`/api/interventions/${intervention.id}/pdf`}
-                          className="text-[var(--accent-2)]"
+                          className="font-semibold text-[color:var(--accent)] hover:text-[color:var(--accentHover)]"
                         >
                           PDF
                         </a>
@@ -183,8 +189,8 @@ export default function VehiculeDetailPage() {
 
           <Card className="grid gap-5">
             <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">Nouvelle intervention</p>
-              <h2 className="mt-2 text-xl font-semibold">Ajouter un dossier</h2>
+              <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--textMuted)]">Nouvelle intervention</p>
+              <h2 className="mt-2 text-xl font-semibold text-[color:var(--text)]">Ajouter un dossier</h2>
             </div>
             <Select
               label="Type"
@@ -234,11 +240,11 @@ export default function VehiculeDetailPage() {
               placeholder="Details de l'intervention"
             />
             <LegalReferencesPanel type={form.type} />
-            <Button onClick={createIntervention}>Creer l'intervention</Button>
+            <Button onClick={createIntervention}>Créer l'intervention</Button>
           </Card>
         </div>
       ) : (
-        <p className="text-sm text-[var(--muted)]">Vehicule introuvable.</p>
+        <p className="text-sm text-[color:var(--textMuted)]">Véhicule introuvable.</p>
       )}
     </div>
   );

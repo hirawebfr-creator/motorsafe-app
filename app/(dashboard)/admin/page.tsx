@@ -10,7 +10,7 @@ import { fetcher, requestJson } from "@/lib/fetcher";
 import { ErrorBanner } from "@/components/common/ErrorBanner";
 import { Loading } from "@/components/common/Loading";
 import { EmptyState } from "@/components/common/EmptyState";
-// import { Input } from "@/components/ui/Input";
+import { Input } from "@/components/ui/Input";
 import { Dialog } from "@/components/ui/Dialog";
 import { Textarea } from "@/components/ui/Textarea";
 import { useToast } from "@/components/ui/Toast";
@@ -130,13 +130,13 @@ export default function AdminPendingPage() {
 
   if (!keyReady && !isAdmin) {
     return (
-      <Card>
-        <p className="text-sm text-[var(--muted)]">
-          Acces reserve a l'administration. Renseignez votre ADMIN_KEY pour continuer.
+      <Card className="p-6">
+        <p className="text-sm text-[color:var(--textMuted)]">
+          Accès réservé à l'administration. Renseignez votre ADMIN_KEY pour continuer.
         </p>
-        <div className="mt-4 grid gap-3">
-          <input
-            className="input"
+        <div className="mt-4 grid gap-3 max-w-md">
+          <Input
+            label="ADMIN_KEY"
             value={adminKey}
             onChange={(event) => setAdminKey(event.target.value)}
             placeholder="ADMIN_KEY"
@@ -156,12 +156,15 @@ export default function AdminPendingPage() {
   }
 
   return (
-    <div className="flex flex-col gap-10">
+    <div className="grid gap-6">
       <SectionHeader
         title="Demandes en attente"
         description="Gérez les demandes d'inscription des garages. Approvez ou refusez avec un motif."
         action={
-          <Link href="/admin/garages" className="text-sm text-[var(--accent-2)] hover:underline">
+          <Link
+            href="/admin/garages"
+            className="text-sm font-semibold text-[color:var(--accent)] hover:text-[color:var(--accentHover)]"
+          >
             Voir tous les garages
           </Link>
         }
@@ -180,18 +183,18 @@ export default function AdminPendingPage() {
             <Card key={garage.id} className="grid gap-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p className="text-base font-semibold text-[var(--text)]">{garage.name}</p>
-                  <p className="text-xs text-[var(--muted)]">{garage.email}</p>
+                  <p className="text-base font-semibold text-[color:var(--text)]">{garage.name}</p>
+                  <p className="text-xs text-[color:var(--textMuted)]">{garage.email}</p>
                 </div>
                 <Badge variant="warning">En attente</Badge>
               </div>
-              <div className="grid gap-2 text-sm text-[var(--muted)]">
+              <div className="grid gap-2 text-sm text-[color:var(--textMuted)]">
                 <p>Téléphone : {garage.phone || "-"}</p>
                 <p>Adresse : {garage.address || "-"}</p>
                 <p>SIRET : {garage.siret || "-"}</p>
               </div>
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="text-xs text-[var(--muted)]">
+                <div className="text-xs text-[color:var(--textMuted)]">
                   Responsable : {garage.users[0]?.email ?? "-"}
                 </div>
                 <div className="flex flex-wrap gap-2">

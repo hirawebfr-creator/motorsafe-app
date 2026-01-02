@@ -46,12 +46,12 @@ export default function LoginPage() {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-5xl items-center justify-center px-6 py-16">
-      <Card className="w-full max-w-lg">
+      <Card className="w-full max-w-lg p-8">
         <div className="grid gap-3">
-          <p className="text-xs uppercase tracking-[0.3em] text-[var(--muted)]">Connexion</p>
-          <h1 className="text-3xl font-semibold">Acces garage</h1>
-          <p className="text-sm text-[var(--muted)]">
-            Connectez-vous pour acceder a votre dashboard securise.
+          <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--textMuted)]">Connexion</p>
+          <h1 className="text-3xl font-semibold tracking-tight text-[color:var(--text)]">Accès garage</h1>
+          <p className="text-sm text-[color:var(--textMuted)]">
+            Connectez-vous pour accéder à votre dashboard sécurisé.
           </p>
         </div>
 
@@ -72,17 +72,20 @@ export default function LoginPage() {
             placeholder="********"
             required
           />
-          {error ? <p className="text-sm text-red-400">{error}</p> : null}
+          {error ? <p className="text-sm text-[color:var(--danger)]">{error}</p> : null}
           <Button type="submit" disabled={loading}>
             {loading ? "Connexion..." : "Se connecter"}
           </Button>
         </form>
 
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 text-sm text-[var(--muted)]">
-          <Link href="/auth/register-pro" className="text-[var(--accent-2)]">
-            Creer un compte pro
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 text-sm text-[color:var(--textMuted)]">
+          <Link
+            href="/auth/register-pro"
+            className="font-semibold text-[color:var(--accent)] hover:text-[color:var(--accentHover)]"
+          >
+            Créer un compte pro
           </Link>
-          <Link href="/" className="text-[var(--accent-2)]">
+          <Link href="/" className="font-semibold text-[color:var(--accent)] hover:text-[color:var(--accentHover)]">
             Retour site
           </Link>
         </div>

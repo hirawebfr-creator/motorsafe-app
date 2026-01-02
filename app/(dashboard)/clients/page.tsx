@@ -1,24 +1,23 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Tooltip } from "@/components/ui/Tooltip";
-import { Skeleton } from "@/components/ui/Skeleton";
-import { Plus } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
-import { fr } from "date-fns/locale";
-import { SectionHeader } from "@/components/ui/SectionHeader";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Plus, MoreHorizontal, Trash2, Pencil } from "lucide-react";
+
 import { useUser } from "@/components/user-context";
+import { fetcher, requestJson } from "@/lib/fetcher";
+
+import { SectionHeader } from "@/components/ui/SectionHeader";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
-import { DataTable, DataTableHead } from "@/components/ui/DataTable";
 import { Badge } from "@/components/ui/Badge";
 import { Dialog } from "@/components/ui/Dialog";
+import { DropdownMenu, DropdownItem } from "@/components/ui/DropdownMenu";
 import { useToast } from "@/components/ui/Toast";
-import { fetcher, requestJson } from "@/lib/fetcher";
 import { ErrorBanner } from "@/components/common/ErrorBanner";
-import { Loading } from "@/components/common/Loading";
 import { EmptyState } from "@/components/common/EmptyState";
 
 type GarageOption = { id: number; name: string; status: "PENDING" | "ACTIVE" | "REJECTED" };
@@ -33,15 +32,26 @@ type ClientItem = {
 
 export default function ClientsPage() {
   const user = useUser();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
   const [clients, setClients] = useState<ClientItem[]>([]);
   const [garages, setGarages] = useState<GarageOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const PAGE_SIZE = 10;
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  const selectedFromUrl = Number(searchParams.get("selected") || "");
+  const [selectedId, setSelectedId] = useState<number | null>(Number.isFinite(selectedFromUrl) ? selectedFromUrl : null);
+
+  const [detail, setDetail] = useState<ClientItem | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [pendingDeleteId, setPendingDeleteId] = useState<number | null>(null);
+
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorMode, setEditorMode] = useState<"create" | "edit">("create");
   const toast = useToast();
 
   const [form, setForm] = useState({
@@ -49,7 +59,6 @@ export default function ClientsPage() {
     lastName: "",
     garageId: "",
   });
-  const [editing, setEditing] = useState<ClientItem | null>(null);
 
   const loadClients = async () => {
     setLoading(true);
@@ -79,6 +88,33 @@ export default function ClientsPage() {
     loadGarages();
   }, []);
 
+  useEffect(() => {
+    // keep selectedId in sync if URL changes
+    if (!Number.isFinite(selectedFromUrl)) return;
+    setSelectedId(selectedFromUrl);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedFromUrl]);
+
+  useEffect(() => {
+    const loadDetail = async () => {
+      if (!selectedId) {
+        setDetail(null);
+        return;
+      }
+      setDetailLoading(true);
+      try {
+        const client = await fetcher<ClientItem>(`/api/clients/${selectedId}`, { noStore: true });
+        setDetail(client);
+      } catch (err) {
+        setDetail(null);
+        setError(err instanceof Error ? err.message : "Erreur serveur.");
+      } finally {
+        setDetailLoading(false);
+      }
+    };
+    loadDetail();
+  }, [selectedId]);
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return clients;
@@ -89,24 +125,20 @@ export default function ClientsPage() {
     });
   }, [clients, query]);
 
-  useEffect(() => {
-    setVisibleCount(PAGE_SIZE);
-  }, [query]);
+  const openCreate = () => {
+    setEditorMode("create");
+    setForm({ firstName: "", lastName: "", garageId: "" });
+    setEditorOpen(true);
+  };
 
-  const visibleClients = filtered.slice(0, visibleCount);
-
-  const startEdit = (client: ClientItem) => {
-    setEditing(client);
+  const openEdit = (client: ClientItem) => {
+    setEditorMode("edit");
     setForm({
       firstName: client.firstName,
       lastName: client.lastName,
       garageId: client.garageId ? String(client.garageId) : "",
     });
-  };
-
-  const resetForm = () => {
-    setEditing(null);
-    setForm({ firstName: "", lastName: "", garageId: "" });
+    setEditorOpen(true);
   };
 
   const submit = async () => {
@@ -119,16 +151,19 @@ export default function ClientsPage() {
       };
 
       await requestJson<ClientItem>(
-        editing ? `/api/clients/${editing.id}` : "/api/clients",
-        { method: editing ? "PUT" : "POST", body: payload }
+        editorMode === "edit" && detail ? `/api/clients/${detail.id}` : "/api/clients",
+        { method: editorMode === "edit" ? "PUT" : "POST", body: payload }
       );
       toast.push({
-        title: editing ? "Client mis a jour" : "Client cree",
+        title: editorMode === "edit" ? "Client mis à jour" : "Client créé",
         description: "Les informations sont enregistrees.",
         variant: "success",
       });
-      resetForm();
+      setEditorOpen(false);
       await loadClients();
+      if (editorMode === "edit" && detail) {
+        setSelectedId(detail.id);
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Erreur serveur.";
       setError(message);
@@ -151,6 +186,10 @@ export default function ClientsPage() {
         variant: "success",
       });
       await loadClients();
+      if (selectedId === pendingDeleteId) {
+        setSelectedId(null);
+        router.replace("/clients");
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Erreur serveur.";
       setError(message);
@@ -161,150 +200,208 @@ export default function ClientsPage() {
     }
   };
 
-  // Helper for relative date
-  const getRelativeDate = (date: Date | string) => {
-    const d = typeof date === "string" ? new Date(date) : date;
-    return formatDistanceToNow(d, { addSuffix: true, locale: fr });
-  };
-
   return (
-    <div className="flex flex-col gap-10">
-      {/* Header section premium */}
+    <div className="grid gap-6">
       <SectionHeader
-        title="Gestion des clients"
-        description="Suivi des particuliers et professionnels rattachés à votre garage. Chaque client est associé à ses véhicules et interventions."
+        title="Clients"
+        description="Liste, recherche et gestion des fiches clients."
+        action={
+          <Button onClick={openCreate}>
+            <Plus size={16} /> Créer
+          </Button>
+        }
         level={1}
       />
 
-      {/* Main content: Cards + Form */}
-      <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
-        {/* Clients list as cards */}
-        <div className="flex flex-col gap-5 relative">
-          <div className="flex flex-wrap items-center justify-between gap-4">
+      {error ? <ErrorBanner message={error} /> : null}
+
+      <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
+        {/* Left: list */}
+        <Card className="p-0 overflow-hidden">
+          <div className="border-b border-[color:var(--border)] p-4">
             <Input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Rechercher par nom ou ID"
-              className="w-full max-w-xs bg-[#15151f] border border-[#242433] text-white placeholder-gray-500 rounded-lg px-4 py-2"
             />
-            <Tooltip content="Nombre de clients filtrés">
-              <Badge variant="accent">{filtered.length} clients</Badge>
-            </Tooltip>
+            <div className="mt-3 flex items-center justify-between">
+              <p className="text-xs text-[color:var(--textMuted)]">
+                {loading ? "Chargement…" : `${filtered.length} client(s)`}
+              </p>
+              {selectedId ? <Badge variant="accent">Sélectionné</Badge> : null}
+            </div>
           </div>
-          {error ? <ErrorBanner message={error} /> : null}
-          {loading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <Skeleton key={i} className="h-32 w-full" />
-              ))}
+
+          <div className="max-h-[calc(100vh-220px)] overflow-auto">
+            {loading ? (
+              <div className="p-4 text-sm text-[color:var(--textMuted)]">Chargement…</div>
+            ) : filtered.length === 0 ? (
+              <div className="p-4">
+                <EmptyState
+                  title="Aucun client"
+                  description="Créez un client pour démarrer."
+                  action={<Button onClick={openCreate}>Créer un client</Button>}
+                />
+              </div>
+            ) : (
+              <div className="p-2">
+                {filtered.map((client) => {
+                  const isActive = selectedId === client.id;
+                  return (
+                    <Link
+                      key={client.id}
+                      href={`/clients/${client.id}`}
+                      onClick={(e) => {
+                        if (typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches) {
+                          e.preventDefault();
+                          setSelectedId(client.id);
+                          router.replace(`/clients?selected=${client.id}`);
+                        }
+                      }}
+                      className={`flex items-center justify-between gap-3 rounded-xl px-3 py-3 text-sm transition ${
+                        isActive
+                          ? "bg-[rgba(139,92,246,0.14)] text-white"
+                          : "text-[color:var(--text)] hover:bg-white/5"
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate font-medium">
+                          {client.firstName} {client.lastName}
+                        </p>
+                        {user.role === "ADMIN" ? (
+                          <p className="truncate text-xs text-[color:var(--textMuted)]">
+                            {client.garage?.name ?? (client.garageId ? `Garage #${client.garageId}` : "-")}
+                          </p>
+                        ) : (
+                          <p className="text-xs text-[color:var(--textMuted)]">ID #{client.id}</p>
+                        )}
+                      </div>
+                      <span className="text-xs text-[color:var(--textMuted)]">#{client.id}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </Card>
+
+        {/* Right: detail */}
+        <Card className="p-0 overflow-hidden">
+          <div className="border-b border-[color:var(--border)] p-4 flex items-start justify-between gap-3">
+            <div>
+              <p className="ms-kicker">Détail</p>
+              <p className="mt-1 text-sm text-[color:var(--textMuted)]">
+                {detail ? `Client #${detail.id}` : "Sélectionnez un client"}
+              </p>
             </div>
-          ) : filtered.length === 0 ? (
-            <div className="text-center py-16 text-gray-500">
-              <svg width="48" height="48" fill="none" className="mx-auto mb-4" viewBox="0 0 24 24"><path stroke="#A1A1AA" strokeWidth="1.5" d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10Zm0 2c-4.418 0-8 2.239-8 5v1a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-1c0-2.761-3.582-5-8-5Z"/></svg>
-              <p>Aucun client pour le moment</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 animate-fade-in">
-              {visibleClients.map((client) => (
-                <div
-                  key={client.id}
-                  className="bg-[#15151f] border border-[#242433] rounded-xl p-5 shadow-sm flex flex-col gap-2 hover:shadow-md transition animate-fade-in"
-                >
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-white font-semibold text-lg">
-                      {client.firstName} {client.lastName}
-                    </h3>
-                    <Tooltip content={`ID interne: ${client.id}`}>
-                      <Badge variant="accent">ID #{client.id}</Badge>
-                    </Tooltip>
-                  </div>
-                  {user.role === "ADMIN" && (
-                    <p className="text-xs text-gray-400 mb-1">Garage : <span className="font-medium text-gray-300">{client.garage?.name ?? client.garageId ?? "-"}</span></p>
-                  )}
-                  {/* Assuming client has a createdAt field of type string or Date */}
-                  <p className="text-xs text-gray-500">Ajouté <span title={client.createdAt}>{getRelativeDate(client.createdAt ?? "")}</span></p>
-                  <div className="flex gap-2 mt-2">
-                    <Button variant="ghost" size="sm" onClick={() => startEdit(client)}>
-                      Editer
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => requestDelete(client.id)}>
-                      Supprimer
-                    </Button>
+
+            {detail ? (
+              <DropdownMenu
+                trigger={
+                  <button
+                    type="button"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] hover:bg-white/5"
+                    aria-label="Actions"
+                  >
+                    <MoreHorizontal size={18} />
+                  </button>
+                }
+              >
+                <DropdownItem onClick={() => openEdit(detail)}>
+                  <span className="inline-flex items-center gap-2"><Pencil size={16} /> Modifier</span>
+                </DropdownItem>
+                <DropdownItem onClick={() => requestDelete(detail.id)}>
+                  <span className="inline-flex items-center gap-2 text-[color:var(--danger)]"><Trash2 size={16} /> Supprimer</span>
+                </DropdownItem>
+              </DropdownMenu>
+            ) : null}
+          </div>
+
+          <div className="p-4">
+            {detailLoading ? (
+              <div className="text-sm text-[color:var(--textMuted)]">Chargement du détail…</div>
+            ) : !detail ? (
+              <EmptyState
+                title="Aucun client sélectionné"
+                description="Choisissez un client dans la liste pour afficher sa fiche."
+              />
+            ) : (
+              <div className="grid gap-4">
+                <div className="rounded-[var(--r)] border border-[color:var(--border)] bg-[color:var(--surface2)] p-4">
+                  <p className="text-sm font-semibold">
+                    {detail.firstName} {detail.lastName}
+                  </p>
+                  <p className="mt-1 text-xs text-[color:var(--textMuted)]">ID #{detail.id}</p>
+                  {user.role === "ADMIN" ? (
+                    <p className="mt-2 text-xs text-[color:var(--textMuted)]">
+                      Garage: {detail.garage?.name ?? (detail.garageId ? `#${detail.garageId}` : "-")}
+                    </p>
+                  ) : null}
+                </div>
+
+                <div className="rounded-[var(--r)] border border-[color:var(--border)] bg-[color:var(--surface)] p-4">
+                  <p className="text-sm font-semibold">Véhicules</p>
+                  <p className="mt-1 text-sm text-[color:var(--textMuted)]">
+                    Disponible dans le dossier client.
+                  </p>
+                  <div className="mt-3">
+                    <Link href="/vehicules">
+                      <Button variant="secondary" size="sm">Voir les véhicules</Button>
+                    </Link>
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
-          {filtered.length > visibleCount ? (
-            <div className="flex justify-center mt-4">
-              <Button variant="ghost" onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}>
-                Afficher plus
-              </Button>
-            </div>
-          ) : null}
-          {/* Floating add button */}
-          <a href="#form" className="absolute bottom-6 right-6 bg-[var(--accent)] text-white rounded-full p-3 shadow-lg hover:scale-105 transition" title="Ajouter un client">
-            <Plus size={20} />
-          </a>
-        </div>
-
-        {/* Formulaire client */}
-        <div className="bg-[#15151f] border border-[#242433] rounded-xl p-6 shadow-sm flex flex-col gap-5">
-          <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-gray-500">
-              {editing ? "Edition" : "Nouveau client"}
-            </p>
-            <h2 className="mt-2 text-xl font-semibold text-white">
-              {editing ? "Modifier la fiche" : "Créer un client"}
-            </h2>
+              </div>
+            )}
           </div>
-          <div className="grid gap-4">
-            <Input
-              label="Prénom"
-              value={form.firstName}
-              onChange={(event) => setForm((prev) => ({ ...prev, firstName: event.target.value }))}
-              placeholder="Jean"
-              className="bg-[#23233a] border border-[#242433] text-white placeholder-gray-500 rounded-lg px-4 py-2"
-            />
-            <Input
-              label="Nom"
-              value={form.lastName}
-              onChange={(event) => setForm((prev) => ({ ...prev, lastName: event.target.value }))}
-              placeholder="Dupont"
-              className="bg-[#23233a] border border-[#242433] text-white placeholder-gray-500 rounded-lg px-4 py-2"
-            />
-            {user.role === "ADMIN" ? (
-              <Select
-                label="Garage"
-                value={form.garageId}
-                onChange={(event) => setForm((prev) => ({ ...prev, garageId: event.target.value }))}
-                className="bg-[#23233a] border border-[#242433] text-white rounded-lg px-4 py-2"
-              >
-                <option value="">Sélectionner un garage</option>
-                {garages.map((garage) => (
-                  <option key={garage.id} value={garage.id}>
-                    {garage.name} {garage.status === "ACTIVE" ? "" : "(en attente)"}
-                  </option>
-                ))}
-              </Select>
-            ) : null}
-          </div>
-          <div className="flex flex-wrap gap-2 mt-2">
-            <Button onClick={submit}>{editing ? "Mettre à jour" : "Créer"}</Button>
-            {editing ? (
-              <Button variant="ghost" onClick={resetForm}>
-                Annuler
-              </Button>
-            ) : null}
-          </div>
-        </div>
+        </Card>
       </div>
-      {/* Dialog de suppression */}
+
+      {/* Create/Edit dialog */}
+      <Dialog
+        open={editorOpen}
+        onOpenChange={setEditorOpen}
+        title={editorMode === "edit" ? "Modifier le client" : "Créer un client"}
+        description={editorMode === "edit" ? "Mettez à jour les informations du client." : "Renseignez les informations du client."}
+        confirmLabel={editorMode === "edit" ? "Mettre à jour" : "Créer"}
+        confirmVariant="primary"
+        onConfirm={submit}
+      >
+        <div className="grid gap-4">
+          <Input
+            label="Prénom"
+            value={form.firstName}
+            onChange={(event) => setForm((prev) => ({ ...prev, firstName: event.target.value }))}
+            placeholder="Jean"
+          />
+          <Input
+            label="Nom"
+            value={form.lastName}
+            onChange={(event) => setForm((prev) => ({ ...prev, lastName: event.target.value }))}
+            placeholder="Dupont"
+          />
+          {user.role === "ADMIN" ? (
+            <Select
+              label="Garage"
+              value={form.garageId}
+              onChange={(event) => setForm((prev) => ({ ...prev, garageId: event.target.value }))}
+            >
+              <option value="">Sélectionner un garage</option>
+              {garages.map((garage) => (
+                <option key={garage.id} value={garage.id}>
+                  {garage.name} {garage.status === "ACTIVE" ? "" : "(en attente)"}
+                </option>
+              ))}
+            </Select>
+          ) : null}
+        </div>
+      </Dialog>
+
+      {/* Delete dialog */}
       <Dialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
         title="Supprimer ce client"
-        description="Cette action est définitive. Le client et ses données associées seront supprimés."
+        description="Cette action est définitive."
         confirmLabel="Supprimer"
         confirmVariant="destructive"
         onConfirm={removeClient}

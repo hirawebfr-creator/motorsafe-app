@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-// import { Input } from "@/components/ui/Input";
+import { Input } from "@/components/ui/Input";
 import { DataTable, DataTableHead } from "@/components/ui/DataTable";
 import { Badge } from "@/components/ui/Badge";
 import { SectionHeader } from "@/components/ui/SectionHeader";
@@ -66,13 +66,13 @@ export default function AdminGaragesPage() {
 
   if (!keyReady && !isAdmin) {
     return (
-      <Card>
-        <p className="text-sm text-[var(--muted)]">
-          Acces reserve a l'administration. Renseignez votre ADMIN_KEY pour continuer.
+      <Card className="p-6">
+        <p className="text-sm text-[color:var(--textMuted)]">
+          Accès réservé à l'administration. Renseignez votre ADMIN_KEY pour continuer.
         </p>
-        <div className="mt-4 grid gap-3">
-          <input
-            className="input"
+        <div className="mt-4 grid gap-3 max-w-md">
+          <Input
+            label="ADMIN_KEY"
             value={adminKey}
             onChange={(event) => setAdminKey(event.target.value)}
             placeholder="ADMIN_KEY"
@@ -92,12 +92,15 @@ export default function AdminGaragesPage() {
   }
 
   return (
-    <div className="flex flex-col gap-10">
+    <div className="grid gap-6">
       <SectionHeader
         title="Tous les garages"
         description="Liste complète des garages inscrits sur la plateforme."
         action={
-          <Link href="/admin" className="text-sm text-[var(--accent-2)] hover:underline">
+          <Link
+            href="/admin"
+            className="text-sm font-semibold text-[color:var(--accent)] hover:text-[color:var(--accentHover)]"
+          >
             Retour validations
           </Link>
         }
@@ -106,8 +109,8 @@ export default function AdminGaragesPage() {
 
       {error ? <ErrorBanner message={error} /> : null}
 
-      <Card className="grid gap-6">
-        <DataTable stickyHeader>
+      <Card className="p-0 overflow-hidden">
+        <DataTable stickyHeader className="rounded-none border-0 shadow-none">
           <DataTableHead sticky>
             <tr>
               <th className="px-5 py-4">Garage</th>
@@ -133,11 +136,11 @@ export default function AdminGaragesPage() {
               garages.map((garage) => (
                 <tr
                   key={garage.id}
-                  className="border-t border-[rgba(31,41,55,0.7)] transition hover:bg-[rgba(139,92,246,0.06)]"
+                  className="border-t border-[color:var(--border)] transition hover:bg-[color:var(--surface2)]"
                 >
                   <td className="px-5 py-4">
-                    <p className="font-semibold text-[var(--text)]">{garage.name}</p>
-                    <p className="text-xs text-[var(--muted)]">{garage.email}</p>
+                    <p className="font-semibold text-[color:var(--text)]">{garage.name}</p>
+                    <p className="text-xs text-[color:var(--textMuted)]">{garage.email}</p>
                   </td>
                   <td className="px-5 py-4">
                     <Badge
@@ -156,10 +159,10 @@ export default function AdminGaragesPage() {
                         : "En attente"}
                     </Badge>
                   </td>
-                  <td className="px-5 py-4 text-sm text-[var(--muted)]">
+                  <td className="px-5 py-4 text-sm text-[color:var(--textMuted)]">
                     {garage.users[0]?.email ?? "-"}
                   </td>
-                  <td className="px-5 py-4 text-right text-sm text-[var(--muted)]">
+                  <td className="px-5 py-4 text-right text-sm text-[color:var(--textMuted)]">
                     {new Date(garage.createdAt).toLocaleDateString("fr-FR")}
                   </td>
                 </tr>

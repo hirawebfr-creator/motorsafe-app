@@ -5,12 +5,12 @@ import { Button } from "@/components/ui/Button";
 export default function ProLandingPage() {
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-4xl items-center justify-center px-6 py-16">
-      <Card className="grid gap-6 text-center">
-        <div>
-          <p className="text-xs uppercase tracking-[0.3em] text-[var(--muted)]">Espace pro</p>
-          <h1 className="mt-3 text-3xl font-semibold">Connexion garages</h1>
-          <p className="mt-2 text-sm text-[var(--muted)]">
-            Connectez-vous ou demandez un compte pro. Chaque demande est validee par l'administration.
+      <Card className="grid gap-6 text-center p-8">
+        <div className="flex flex-col gap-2">
+          <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--textMuted)]">Espace pro</p>
+          <h1 className="text-3xl font-semibold tracking-tight text-[color:var(--text)]">Connexion garages</h1>
+          <p className="text-sm text-[color:var(--textMuted)]">
+            Connectez-vous ou demandez un compte pro. Chaque demande est validée par l'administration.
           </p>
         </div>
         <div className="flex flex-wrap justify-center gap-3">
@@ -18,7 +18,7 @@ export default function ProLandingPage() {
             <Button>Connexion Pro</Button>
           </Link>
           <Link href="/pro/inscription">
-            <Button variant="secondary">Creer compte pro</Button>
+            <Button variant="secondary">Créer compte pro</Button>
           </Link>
         </div>
       </Card>

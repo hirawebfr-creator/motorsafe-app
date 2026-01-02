@@ -1,20 +1,18 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Tooltip } from "@/components/ui/Tooltip";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { Plus } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
-import { fr } from "date-fns/locale";
+import { formatDistance } from "date-fns/formatDistance";
+import { fr } from "date-fns/locale/fr";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { DataTable, DataTableHead } from "@/components/ui/DataTable";
-import { Badge } from "@/components/ui/Badge";
 import { fetcher } from "@/lib/fetcher";
 import { ErrorBanner } from "@/components/common/ErrorBanner";
-import { Loading } from "@/components/common/Loading";
 import { EmptyState } from "@/components/common/EmptyState";
+import { SectionHeader } from "@/components/ui/SectionHeader";
+import { useRouter } from "next/navigation";
 
 type DocumentItem = {
   id: string;
@@ -29,6 +27,7 @@ type DocumentItem = {
 };
 
 export default function DocumentsPage() {
+  const router = useRouter();
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -71,34 +70,34 @@ export default function DocumentsPage() {
   // Helper for relative date
   const getRelativeDate = (date: Date | string) => {
     const d = typeof date === "string" ? new Date(date) : date;
-    return formatDistanceToNow(d, { addSuffix: true, locale: fr });
+    return formatDistance(d, new Date(), { addSuffix: true, locale: fr });
   };
 
   return (
-    <div className="grid gap-8">
-      <div>
-        <p className="text-xs uppercase tracking-[0.3em] text-[var(--muted)]">Documents</p>
-        <h1 className="mt-3 text-3xl font-semibold">Dossiers PDF</h1>
-        <p className="mt-2 text-sm text-[var(--muted)]">
-          Telechargez les dossiers d'intervention generes a la demande. Chaque PDF reprend les preuves, hashes et revisions.
-        </p>
-      </div>
+    <div className="grid gap-6">
+      <SectionHeader
+        title="Documents"
+        description="Téléchargez les dossiers PDF générés depuis les interventions."
+        action={<Button onClick={() => router.push("/interventions")}>Ouvrir interventions</Button>}
+        level={1}
+      />
 
-      <Card className="grid gap-6 relative">
-        <div className="flex flex-wrap items-center justify-between gap-4">
+      {error ? <ErrorBanner message={error} /> : null}
+
+      <Card className="p-0 overflow-hidden">
+        <div className="border-b border-[color:var(--border)] p-4">
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Rechercher par plaque, client, type"
+            className="max-w-md"
           />
-          <Tooltip content="Nombre de documents filtrés">
-            <Badge variant="accent">{filtered.length} documents</Badge>
-          </Tooltip>
+          <p className="mt-3 text-xs text-[color:var(--textMuted)]">
+            {loading ? "Chargement…" : `${filtered.length} document(s)`}
+          </p>
         </div>
 
-        {error ? <ErrorBanner message={error} /> : null}
-
-        <DataTable stickyHeader>
+        <DataTable stickyHeader className="rounded-none border-0 shadow-none">
           <DataTableHead sticky>
             <tr>
               <th className="px-5 py-4">Intervention</th>
@@ -109,15 +108,15 @@ export default function DocumentsPage() {
           <tbody>
             {loading ? (
               Array.from({ length: 6 }).map((_, i) => (
-                <tr key={i}>
+                <tr key={i} className="border-t border-[color:var(--border)]">
                   <td className="px-5 py-6" colSpan={3}>
                     <Skeleton className="h-10 w-full" />
                   </td>
                 </tr>
               ))
             ) : filtered.length === 0 ? (
-              <tr>
-                <td className="px-5 py-6" colSpan={3}>
+              <tr className="border-t border-[color:var(--border)]">
+                <td className="px-5 py-8" colSpan={3}>
                   <EmptyState title="Aucun document" description="Les PDFs seront disponibles ici." />
                 </td>
               </tr>
@@ -125,22 +124,25 @@ export default function DocumentsPage() {
               visibleDocuments.map((doc) => (
                 <tr
                   key={doc.id}
-                  className="border-t border-[rgba(31,41,55,0.7)] transition hover:bg-[rgba(139,92,246,0.06)] animate-fade-in"
+                  className="border-t border-[color:var(--border)] transition hover:bg-[color:var(--surface2)]"
                 >
                   <td className="px-5 py-4">
-                    <p className="font-semibold">
-                      {doc.vehicle.plate} - {doc.type}
+                    <p className="font-semibold text-[color:var(--text)]">
+                      {doc.vehicle.plate} · {doc.type}
                     </p>
-                    <p className="text-xs text-[var(--muted)]">
+                    <p className="mt-1 text-xs text-[color:var(--textMuted)]">
                       <span title={new Date(doc.createdAt).toLocaleString("fr-FR")}>{getRelativeDate(doc.createdAt)}</span>
                     </p>
                   </td>
-                  <td className="px-5 py-4 text-sm text-[var(--muted)]">
+                  <td className="px-5 py-4 text-sm text-[color:var(--textMuted)]">
                     {doc.vehicle.client.firstName} {doc.vehicle.client.lastName}
                   </td>
                   <td className="px-5 py-4 text-right">
-                    <a href={`/api/interventions/${doc.id}/pdf`} className="text-[var(--accent-2)]">
-                      Telecharger
+                    <a
+                      href={`/api/interventions/${doc.id}/pdf`}
+                      className="text-sm font-semibold text-[color:var(--accent)] hover:text-[color:var(--accentHover)]"
+                    >
+                      Télécharger
                     </a>
                   </td>
                 </tr>
@@ -148,17 +150,14 @@ export default function DocumentsPage() {
             )}
           </tbody>
         </DataTable>
+
         {filtered.length > visibleCount ? (
-          <div className="flex justify-center">
+          <div className="border-t border-[color:var(--border)] p-4 flex justify-center">
             <Button variant="ghost" onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}>
               Afficher plus
             </Button>
           </div>
         ) : null}
-        {/* Floating add button (could link to interventions or upload) */}
-        <a href="/interventions" className="absolute bottom-6 right-6 bg-[var(--accent)] text-white rounded-full p-3 shadow-lg hover:scale-105 transition" title="Nouvelle intervention">
-          <Plus size={20} />
-        </a>
       </Card>
     </div>
   );

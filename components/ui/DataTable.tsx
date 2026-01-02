@@ -7,7 +7,7 @@ type DataTableProps = {
 export function DataTable({ stickyHeader = false, className = "", children }: DataTableProps) {
   return (
     <div
-      className={`overflow-x-auto rounded-[var(--radius)] border border-[rgba(31,41,55,0.7)] bg-[var(--card)] shadow-[var(--shadow-soft)] ${className}`}
+      className={`overflow-x-auto rounded-[var(--r)] border border-[color:var(--border)] bg-[color:var(--surface)] shadow-[var(--sh)] ${className}`}
     >
       <table className="w-full text-sm">{children}</table>
       {stickyHeader ? null : null}
@@ -24,8 +24,8 @@ export function DataTableHead({
 }) {
   return (
     <thead
-      className={`text-left text-xs uppercase tracking-[0.2em] text-[var(--muted)] ${
-        sticky ? "sticky top-0 bg-[var(--card-strong)]/95 backdrop-blur" : ""
+      className={`text-left text-xs uppercase tracking-[0.2em] text-[color:var(--textMuted)] ${
+        sticky ? "sticky top-0 bg-[color:var(--surface2)]/95 backdrop-blur" : ""
       }`}
     >
       {children}

@@ -5,7 +5,7 @@ type TableProps = HTMLAttributes<HTMLDivElement>;
 export function Table({ className = "", ...props }: TableProps) {
   return (
     <div
-      className={`overflow-x-auto rounded-[var(--radius)] border border-[rgba(31,41,55,0.7)] bg-[var(--card)] shadow-[var(--shadow-soft)] ${className}`}
+      className={`overflow-x-auto rounded-[var(--r)] border border-[color:var(--border)] bg-[color:var(--surface)] shadow-[var(--sh)] ${className}`}
       {...props}
     />
   );

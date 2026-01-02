@@ -41,10 +41,10 @@ export function Dialog({
         aria-label="Fermer"
         onClick={() => onOpenChange(false)}
       />
-      <div className="relative w-full max-w-lg rounded-[var(--radius)] border border-[rgba(31,41,55,0.7)] bg-[var(--card-strong)] p-6 shadow-[var(--shadow-card)]">
+      <div className="relative w-full max-w-lg rounded-[var(--r)] border border-[color:var(--border)] bg-[color:var(--surface2)] p-6 shadow-[var(--sh)]">
         <div className="grid gap-2">
           <h3 className="text-lg font-semibold">{title}</h3>
-          {description ? <p className="text-sm text-[var(--muted)]">{description}</p> : null}
+          {description ? <p className="text-sm text-[color:var(--textMuted)]">{description}</p> : null}
         </div>
         {children ? <div className="mt-4">{children}</div> : null}
         <div className="mt-6 flex flex-wrap justify-end gap-3">

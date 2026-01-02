@@ -52,9 +52,7 @@ export function LegalReferencesPanel({ type }: { type: string }) {
   return (
     <Card className="grid gap-4">
       <div>
-        <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
-          References & conformite
-        </p>
+        <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--textMuted)]">References & conformite</p>
         <h3 className="mt-2 text-lg font-semibold">Cadre legal associe</h3>
       </div>
       {loading ? (
@@ -65,30 +63,48 @@ export function LegalReferencesPanel({ type }: { type: string }) {
           description="L'administration pourra ajouter des references legales liees a ce type."
         />
       ) : (
-        <div className="grid gap-3">
+        <div className="grid gap-2">
           {items.map((item) => (
-            <div
+            <details
               key={item.id}
-              className="rounded-[var(--radius-sm)] border border-[rgba(31,41,55,0.7)] bg-[rgba(15,18,30,0.8)] p-4 text-sm"
+              className="rounded-[var(--r)] border border-[color:var(--border)] bg-[color:var(--surface)]"
             >
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="font-semibold text-[var(--text)]">{item.title}</p>
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-[color:var(--text)]">{item.title}</p>
+                  <p className="mt-0.5 truncate text-xs text-[color:var(--textMuted)]">
+                    {item.code || item.articleRef || item.tags ? "Voir le détail" : ""}
+                  </p>
+                </div>
                 <Badge variant={severityVariant[item.severity]}>
                   {item.severity === "CRITICAL" ? "Critique" : item.severity === "WARNING" ? "Attention" : "Info"}
                 </Badge>
+              </summary>
+
+              <div className="border-t border-[color:var(--border)] px-4 py-3 text-sm">
+                {item.summary ? (
+                  <p className="text-sm text-[color:var(--textMuted)]">{item.summary}</p>
+                ) : (
+                  <p className="text-sm text-[color:var(--textMuted)]">Aucun résumé.</p>
+                )}
+
+                <div className="mt-3 flex flex-wrap gap-2 text-xs text-[color:var(--textMuted)]">
+                  {item.code ? <span>{item.code}</span> : null}
+                  {item.articleRef ? <span>{item.articleRef}</span> : null}
+                  {item.tags ? <span>Tags: {item.tags}</span> : null}
+                  {item.sourceUrl ? (
+                    <a
+                      href={item.sourceUrl}
+                      className="font-semibold text-[color:var(--accent)] hover:text-[color:var(--accentHover)]"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Source
+                    </a>
+                  ) : null}
+                </div>
               </div>
-              {item.summary ? <p className="mt-2 text-xs text-[var(--muted)]">{item.summary}</p> : null}
-              <div className="mt-3 flex flex-wrap gap-2 text-xs text-[var(--muted)]">
-                {item.code ? <span>{item.code}</span> : null}
-                {item.articleRef ? <span>{item.articleRef}</span> : null}
-                {item.tags ? <span>Tags: {item.tags}</span> : null}
-                {item.sourceUrl ? (
-                  <a href={item.sourceUrl} className="text-[var(--accent-2)]" target="_blank" rel="noreferrer">
-                    Source
-                  </a>
-                ) : null}
-              </div>
-            </div>
+            </details>
           ))}
         </div>
       )}

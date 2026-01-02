@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
-import { NAV_ITEMS, NavItem } from "@/components/layout/nav-config";
+import { NAV_ITEMS } from "@/components/layout/nav-config";
 import { UserProvider } from "@/components/user-context";
 import { AppShell } from "@/components/layout/AppShell";
 import type { SessionUser } from "@/lib/auth";

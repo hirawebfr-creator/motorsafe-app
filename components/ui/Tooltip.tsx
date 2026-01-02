@@ -8,6 +8,7 @@ type TooltipProps = {
 };
 
 export function Tooltip({ content, children, side = "top", disabled }: TooltipProps) {
+  void side;
   // Simple fallback: show content as title if not disabled
   if (disabled || !content) return <>{children}</>;
   return (

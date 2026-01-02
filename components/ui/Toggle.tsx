@@ -8,15 +8,15 @@ type ToggleProps = {
 
 export function Toggle({ checked, onChange, label }: ToggleProps) {
   return (
-    <label className="flex items-center gap-3 text-sm text-[var(--muted)]">
+    <label className="flex items-center gap-3 text-sm text-[color:var(--textMuted)]">
       <button
         type="button"
         aria-pressed={checked}
         onClick={() => onChange(!checked)}
-        className={`relative h-7 w-12 rounded-full border transition ${
+        className={`relative h-7 w-12 rounded-full border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)] ${
           checked
-            ? "border-[rgba(139,92,246,0.7)] bg-[rgba(139,92,246,0.45)]"
-            : "border-[rgba(31,41,55,0.7)] bg-[rgba(15,18,30,0.8)]"
+            ? "border-[rgba(124,92,255,0.55)] bg-[rgba(124,92,255,0.35)]"
+            : "border-[color:var(--border)] bg-[color:var(--surface2)]"
         }`}
       >
         <span

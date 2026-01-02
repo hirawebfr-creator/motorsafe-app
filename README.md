@@ -35,7 +35,14 @@ npm install
 npx prisma migrate dev -n init-multi-tenant
 npm run backfill:garage
 ADMIN_EMAIL="admin@domain.fr" ADMIN_PASSWORD="motdepassefort" npm run create:admin
-npm run dev --webpack
+npm run dev
+
+## Note Windows (Turbopack)
+
+Sur Windows, `next dev` (Turbopack) peut tenter de creer des symlinks (ex: vers `@prisma/client`) et echouer avec `os error 1314` si les droits symlink ne sont pas disponibles.
+
+- Par defaut, `npm run dev` lance **webpack** (compatible sans droits symlink).
+- Si vous voulez essayer Turbopack: activez le mode Developpeur Windows ou lancez VS Code en admin, puis utilisez `npm run dev:turbo`.
 ```
 
 ## Deploiement VPS (resume)

@@ -143,13 +143,13 @@ export default function AdminReferencesPage() {
   if (!isAdmin) {
     return (
       <Card>
-        <p className="text-sm text-[var(--muted)]">Accès réservé à l'administration.</p>
+        <p className="text-sm text-[color:var(--textMuted)]">Accès réservé à l'administration.</p>
       </Card>
     );
   }
 
   return (
-    <div className="flex flex-col gap-10">
+    <div className="grid gap-6">
       <SectionHeader
         title="Références légales"
         description="Gérez les références applicables aux interventions. Elles seront visibles dans les dossiers."
@@ -159,7 +159,7 @@ export default function AdminReferencesPage() {
       {error ? <ErrorBanner message={error} /> : null}
 
       <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-        <Card className="grid gap-4">
+        <Card className="grid gap-4 p-0 overflow-hidden">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">Références actives</h2>
             <Badge variant="accent">{activeCount} actives</Badge>
@@ -176,24 +176,24 @@ export default function AdminReferencesPage() {
               {items.length === 0 ? (
                 <tr>
                   <td className="px-5 py-6" colSpan={3}>
-                    <p className="text-sm text-[var(--muted)]">Aucune référence.</p>
+                    <p className="text-sm text-[color:var(--textMuted)]">Aucune référence.</p>
                   </td>
                 </tr>
               ) : (
                 items.map((item) => (
                   <tr
                     key={item.id}
-                    className="border-t border-[rgba(31,41,55,0.7)] transition hover:bg-[rgba(139,92,246,0.06)]"
+                    className="border-t border-[color:var(--border)] transition hover:bg-[color:var(--surface2)]"
                   >
                     <td className="px-5 py-4">
-                      <p className="font-semibold text-[var(--text)]">{item.title}</p>
-                      <p className="text-xs text-[var(--muted)]">{item.summary || "-"}</p>
-                      <div className="mt-2 flex flex-wrap gap-2 text-xs text-[var(--muted)]">
+                      <p className="font-semibold text-[color:var(--text)]">{item.title}</p>
+                      <p className="text-xs text-[color:var(--textMuted)]">{item.summary || "-"}</p>
+                      <div className="mt-2 flex flex-wrap gap-2 text-xs text-[color:var(--textMuted)]">
                         {item.code ? <span>{item.code}</span> : null}
                         {item.articleRef ? <span>{item.articleRef}</span> : null}
                       </div>
                     </td>
-                    <td className="px-5 py-4 text-xs text-[var(--muted)]">
+                    <td className="px-5 py-4 text-xs text-[color:var(--textMuted)]">
                       {item.assignments.map((entry) => entry.interventionType).join(", ") || "-"}
                     </td>
                     <td className="px-5 py-4 text-right">
@@ -215,9 +215,7 @@ export default function AdminReferencesPage() {
 
         <Card className="grid gap-4">
           <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
-              Nouvelle référence
-            </p>
+            <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--textMuted)]">Nouvelle référence</p>
             <h2 className="mt-2 text-xl font-semibold">Ajouter une référence</h2>
           </div>
           <Input
@@ -267,18 +265,18 @@ export default function AdminReferencesPage() {
             <option value="WARNING">Attention</option>
             <option value="CRITICAL">Critique</option>
           </Select>
-          <div className="grid gap-2 text-xs text-[var(--muted)]">
-            <p className="text-[var(--text)]">Types d'intervention associés</p>
+          <div className="grid gap-2 text-xs text-[color:var(--textMuted)]">
+            <p className="text-[color:var(--text)]">Types d'intervention associés</p>
             <div className="flex flex-wrap gap-2">
               {TYPES.map((type) => (
                 <button
                   key={type}
                   type="button"
                   onClick={() => toggleType(type)}
-                  className={`rounded-[var(--radius-sm)] border px-3 py-2 text-xs transition ${
+                  className={`rounded-[var(--rButton)] border px-3 py-2 text-xs font-semibold transition ${
                     form.types.includes(type)
-                      ? "border-[rgba(139,92,246,0.6)] bg-[rgba(139,92,246,0.2)] text-white"
-                      : "border-[rgba(31,41,55,0.7)] text-[var(--muted)]"
+                      ? "border-[color:var(--accent)] bg-[rgba(124,92,255,0.16)] text-[color:var(--text)]"
+                      : "border-[color:var(--border)] text-[color:var(--textMuted)] hover:bg-[color:var(--surface2)]"
                   }`}
                 >
                   {type}

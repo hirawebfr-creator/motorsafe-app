@@ -4,11 +4,10 @@ import { ReactNode, useState } from "react";
 import ResponsiveSidebar from "@/components/layout/responsive/ResponsiveSidebar";
 import ResponsiveTopbar from "@/components/layout/responsive/ResponsiveTopbar";
 import Container from "@/components/ui/container/Container";
-import Drawer from "@/components/ui/navigation/Drawer";
 import BottomNav from "@/components/ui/navigation/BottomNav";
 
 export function AppShell({ children }: { children: ReactNode }) {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  useState(false);
   // Responsive layout: desktop/tablet (md+) vs mobile (<md)
   return (
     <div className="min-h-screen w-full bg-background text-foreground dark:bg-background-dark dark:text-foreground-dark pt-safe pb-safe">
