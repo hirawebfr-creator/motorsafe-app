@@ -2,6 +2,9 @@
   "name": "motorsafe",
   "version": "0.1.0",
   "private": true,
+  "prisma": {
+    "seed": "node prisma/seed.js"
+  },
   "engines": {
     "node": ">=20 <23",
     "npm": ">=10"
@@ -10,6 +13,7 @@
     "dev": "node scripts/next-dev.js",
     "dev:daemon": "node scripts/next-dev-daemon.js",
     "dev:stop": "node scripts/next-dev-stop.js",
+    "dev:stop:fg": "node scripts/next-dev-stop-fg.js",
     "dev:webpack": "node scripts/next-dev.js",
     "dev:turbo": "next dev",
     "build": "node scripts/next-build.js",
@@ -17,6 +21,7 @@
     "postinstall": "prisma generate",
     "lint": "node scripts/eslint-run.js",
     "typecheck": "tsc --noEmit",
+    "test:quote-invoice": "tsx scripts/quote-invoice-tests.ts",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
     "prisma:migrate:dev": "prisma migrate dev",
@@ -28,30 +33,38 @@
     "create:admin": "node scripts/create-admin.js"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.962.0",
+    "@aws-sdk/s3-request-presigner": "^3.962.0",
     "@prisma/client": "^6.19.1",
     "bcryptjs": "^2.4.3",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "framer-motion": "^12.24.2",
     "lucide-react": "^0.542.0",
     "next": "16.1.0",
+    "pdf-lib": "^1.17.1",
     "pdfkit": "^0.17.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "tailwind-merge": "^3.4.0"
+    "stripe": "^20.1.0",
+    "tailwind-merge": "^3.4.0",
+    "zod": "^4.3.5"
   },
   "devDependencies": {
-    "eslint": "^9.18.0",
-    "eslint-config-next": "16.1.0",
     "@tailwindcss/postcss": "^4.1.18",
     "@types/bcryptjs": "^2.4.6",
     "@types/date-fns": "^2.5.3",
     "@types/node": "25.0.3",
     "@types/pdfkit": "^0.17.4",
     "@types/react": "19.2.7",
+    "@types/react-dom": "^19.2.3",
     "autoprefixer": "^10.4.23",
+    "eslint": "^9.18.0",
+    "eslint-config-next": "16.1.0",
     "postcss": "^8.5.6",
     "prisma": "^6.19.1",
     "tailwindcss": "^4.1.18",
+    "tsx": "^4.20.6",
     "typescript": "^5"
   }
 }
