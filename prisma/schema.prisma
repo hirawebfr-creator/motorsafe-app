@@ -10,6 +10,37 @@ datasource db {
 enum UserRole {
   ADMIN
   GARAGE
+  OWNER
+  STAFF
+}
+
+enum Plan {
+  FREE
+  PRO
+}
+
+enum SubscriptionStatus {
+  INCOMPLETE
+  INCOMPLETE_EXPIRED
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  UNPAID
+}
+
+enum InterventionStatus {
+  DRAFT
+  OPEN
+  DONE
+  CANCELED
+}
+
+enum DocumentType {
+  INTERVENTION_REPORT
+  UPLOAD
+  QUOTE_PDF
+  INVOICE_PDF
 }
 
 enum GarageStatus {
@@ -27,6 +58,7 @@ enum LegalSeverity {
 model Garage {
   id         Int       @id @default(autoincrement())
   name       String
+  slug       String?   @unique
   email      String    @unique
   phone      String?
   address    String?
@@ -35,11 +67,36 @@ model Garage {
   reviewNote String?
   reviewedAt DateTime?
   createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @default(now()) @updatedAt
+
+  // Organisation settings (quotes/invoices)
+  defaultVatRate  Float  @default(0.20)
+  defaultVatMode  String @default("EXCL")
+  vatRatesAllowed Json   @default("[0,0.055,0.10,0.20]")
+  quotePrefix     String @default("DEV")
+  invoicePrefix   String @default("FAC")
+  numberPadding   Int    @default(4)
+
+  plan                Plan               @default(FREE)
+  stripeCustomerId    String?            @unique
+  stripeSubscriptionId String?           @unique
+  subscriptionStatus  SubscriptionStatus @default(INCOMPLETE)
+  currentPeriodEnd    DateTime?
 
   users         User[]
   clients       Client[]
   vehicles      Vehicle[]
   interventions Intervention[]
+
+  documents     Document[]
+  notifications Notification[]
+  auditLogs     AuditLog[]
+  stripeEvents  StripeEvent[]
+
+  numberSequences NumberSequence[]
+  quotes          Quote[]
+  invoices        Invoice[]
+  payments        Payment[]
 }
 
 model User {
@@ -52,6 +109,9 @@ model User {
 
   garage   Garage?   @relation(fields: [garageId], references: [id], onDelete: Cascade)
   sessions Session[]
+
+  notifications Notification[]
+  auditLogs      AuditLog[]
 
   @@index([garageId])
 }
@@ -75,11 +135,26 @@ model Client {
   firstName String
   lastName  String
   createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  deletedAt DateTime?
+
+  vatProfile  String @default("PARTICULIER")
+  vatNumber   String?
+  countryCode String @default("FR")
+
+  email   String?
+  phone   String?
+  address String?
+  notes   String?
 
   garage   Garage?  @relation(fields: [garageId], references: [id], onDelete: Cascade)
   vehicles Vehicle[]
 
+  quotes   Quote[]
+  invoices Invoice[]
+
   @@index([garageId])
+  @@index([garageId, deletedAt])
 }
 
 model Vehicle {
@@ -88,16 +163,30 @@ model Vehicle {
   clientId  Int
   brand     String
   model     String
-  plate     String   @unique
-  vin       String?  @unique
+  plate     String
+  vin       String?
   fuel      String?
   createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  deletedAt DateTime?
+
+  year   Int?
+  engine String?
 
   garage        Garage?        @relation(fields: [garageId], references: [id], onDelete: Cascade)
   client        Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
   interventions Intervention[]
 
+  quotes   Quote[]
+  invoices Invoice[]
+
+  documents Document[]
+
   @@index([garageId])
+  @@index([clientId])
+  @@index([garageId, deletedAt])
+  @@unique([garageId, plate])
+  @@unique([garageId, vin])
 }
 
 model Intervention {
@@ -107,6 +196,13 @@ model Intervention {
   type      String
   notes     String?
   createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  deletedAt DateTime?
+
+  status InterventionStatus @default(OPEN)
+
+  title   String?
+  amountCents Int?
   // traceability
   createdBy String?
   clientIp  String?
@@ -129,10 +225,245 @@ model Intervention {
   // revisions store immutable snapshots when interventions are created/edited
   revisions InterventionRevision[]
 
+  documents Document[]
+
   garage  Garage? @relation(fields: [garageId], references: [id], onDelete: Cascade)
   vehicle Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
 
   @@index([garageId])
+  @@index([vehicleId])
+  @@index([garageId, deletedAt])
+}
+
+model Document {
+  id             String   @id @default(cuid())
+  garageId       Int?
+  vehicleId      String?
+  interventionId String?
+
+  type     DocumentType
+  fileUrl  String
+  fileName String
+  mime     String
+  size     Int
+
+  createdAt DateTime @default(now())
+  deletedAt DateTime?
+
+  garage       Garage?       @relation(fields: [garageId], references: [id], onDelete: Cascade)
+  vehicle      Vehicle?      @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  intervention Intervention? @relation(fields: [interventionId], references: [id], onDelete: SetNull)
+
+  @@index([garageId])
+  @@index([vehicleId])
+  @@index([interventionId])
+  @@index([garageId, deletedAt])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  garageId  Int?
+  userId    String?
+  type      String
+  content   String
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+
+  garage Garage? @relation(fields: [garageId], references: [id], onDelete: Cascade)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([garageId])
+  @@index([userId])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  garageId   Int?
+  userId     String?
+  action     String
+  entityType String
+  entityId   String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  garage Garage? @relation(fields: [garageId], references: [id], onDelete: Cascade)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([garageId])
+  @@index([userId])
+  @@index([entityType, entityId])
+}
+
+model StripeEvent {
+  id            String   @id
+  garageId      Int?
+  type          String
+  apiVersion    String?
+  created       Int
+  livemode      Boolean
+  processedAt   DateTime?
+  lastError     String?
+  receivedAt    DateTime @default(now())
+
+  garage Garage? @relation(fields: [garageId], references: [id], onDelete: SetNull)
+
+  @@index([garageId])
+  @@index([type])
+  @@index([processedAt])
+}
+
+model NumberSequence {
+  id             String @id @default(cuid())
+  organisationId Int
+  type           String
+  year           Int
+  nextNumber     Int    @default(1)
+
+  organisation Garage @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  @@unique([organisationId, type, year])
+  @@index([organisationId, type, year])
+}
+
+model Quote {
+  id             String   @id @default(cuid())
+  organisationId Int
+  clientId       Int
+  vehicleId      String?
+
+  status      String  @default("DRAFT")
+  quoteNumber String?
+  quoteYear   Int?
+  quoteSeq    Int?
+
+  currency     String @default("EUR")
+  vatMode      String
+  subtotalExcl Float  @default(0)
+  totalVat     Float  @default(0)
+  totalIncl    Float  @default(0)
+
+  sentAt     DateTime?
+  acceptedAt DateTime?
+  rejectedAt DateTime?
+  invoicedAt DateTime?
+  invoiceId  String?
+
+  invoice Invoice? @relation("QuoteToInvoice")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  deletedAt DateTime?
+
+  organisation Garage   @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  client       Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  vehicle      Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  lines        QuoteLine[]
+
+  @@index([organisationId])
+  @@index([organisationId, deletedAt])
+  @@index([organisationId, clientId])
+  @@index([organisationId, vehicleId])
+  @@index([organisationId, status])
+  @@index([organisationId, quoteNumber])
+}
+
+model QuoteLine {
+  id            String   @id @default(cuid())
+  quoteId       String
+  description   String
+  qty           Float    @default(1)
+  unitPriceExcl Float
+  vatRate       Float    @default(0.20)
+  lineTotalExcl Float    @default(0)
+  lineVatAmount Float    @default(0)
+  lineTotalIncl Float    @default(0)
+  createdAt     DateTime @default(now())
+  deletedAt     DateTime?
+
+  quote Quote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  @@index([quoteId])
+  @@index([quoteId, deletedAt])
+}
+
+model Invoice {
+  id             String   @id @default(cuid())
+  organisationId Int
+  clientId       Int
+  vehicleId      String?
+  quoteId        String? @unique
+
+  status        String  @default("DRAFT")
+  invoiceNumber String?
+  invoiceYear   Int?
+  invoiceSeq    Int?
+
+  currency     String @default("EUR")
+  vatMode      String
+  subtotalExcl Float  @default(0)
+  totalVat     Float  @default(0)
+  totalIncl    Float  @default(0)
+  amountPaid   Float  @default(0)
+
+  issuedAt DateTime?
+  dueAt    DateTime?
+  paidAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  deletedAt DateTime?
+
+  organisation Garage   @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  client       Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  vehicle      Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  quote        Quote?   @relation("QuoteToInvoice", fields: [quoteId], references: [id], onDelete: SetNull)
+
+  lines    InvoiceLine[]
+  payments Payment[]
+
+  @@index([organisationId])
+  @@index([organisationId, deletedAt])
+  @@index([organisationId, clientId])
+  @@index([organisationId, vehicleId])
+  @@index([organisationId, status])
+  @@index([organisationId, invoiceNumber])
+}
+
+model InvoiceLine {
+  id            String   @id @default(cuid())
+  invoiceId     String
+  description   String
+  qty           Float    @default(1)
+  unitPriceExcl Float
+  vatRate       Float    @default(0.20)
+  lineTotalExcl Float    @default(0)
+  lineVatAmount Float    @default(0)
+  lineTotalIncl Float    @default(0)
+  createdAt     DateTime @default(now())
+  deletedAt     DateTime?
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@index([invoiceId, deletedAt])
+}
+
+model Payment {
+  id             String   @id @default(cuid())
+  organisationId Int
+  invoiceId      String
+  amount         Float
+  method         String
+  status         String   @default("SUCCEEDED")
+  paidAt         DateTime @default(now())
+  createdAt      DateTime @default(now())
+
+  organisation Garage  @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  invoice      Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([organisationId])
+  @@index([invoiceId])
+  @@index([organisationId, invoiceId])
 }
 
 model InterventionRevision {
