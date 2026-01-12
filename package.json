@@ -20,6 +20,8 @@
     "build": "node scripts/next-build.js",
     "start": "next start",
     "postinstall": "prisma generate",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate:deploy": "prisma migrate deploy",
     "lint": "node scripts/eslint-run.js",
     "typecheck": "tsc --noEmit",
     "test:quote-invoice": "tsx scripts/quote-invoice-tests.ts",
