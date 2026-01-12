@@ -17,6 +17,7 @@ type ClientVat = {
   vatProfile: string;
   vatNumber: string | null;
   countryCode: string;
+  vatRateOverride?: number | null;
 };
 
 export function normalizeVatMode(mode: unknown, fallback: string): VatMode {
@@ -32,7 +33,7 @@ export function ensureEditableQuoteStatus(status: string) {
 
 export function computeLinesWithTotals(params: {
   org: Pick<OrgSettings, "defaultVatRate">;
-  client: Pick<ClientVat, "vatProfile" | "vatNumber" | "countryCode">;
+  client: Pick<ClientVat, "vatProfile" | "vatNumber" | "countryCode" | "vatRateOverride">;
   lines: Array<{ description: string; qty: number; unitPriceExcl: number; vatRate?: number | null }>;
 }): {
   lines: Array<{

@@ -26,6 +26,18 @@ export async function POST(req: Request, { params }: Ctx) {
     const garage = await prisma.garage.update({
       where: { id: garageId },
       data: { status: "ACTIVE" },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        address: true,
+        siret: true,
+        status: true,
+        reviewNote: true,
+        reviewedAt: true,
+        createdAt: true,
+      },
     });
 
     return NextResponse.json(success(garage));

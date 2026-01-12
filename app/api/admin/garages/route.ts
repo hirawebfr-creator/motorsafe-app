@@ -31,7 +31,17 @@ export async function GET(req: Request) {
     const garages = await prisma.garage.findMany({
       where,
       orderBy: { createdAt: "desc" },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        address: true,
+        siret: true,
+        status: true,
+        reviewNote: true,
+        reviewedAt: true,
+        createdAt: true,
         users: {
           select: { id: true, email: true, role: true, createdAt: true },
         },

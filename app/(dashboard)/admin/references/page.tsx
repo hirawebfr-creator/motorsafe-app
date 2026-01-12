@@ -144,14 +144,20 @@ export default function AdminReferencesPage() {
 
   if (!isAdmin) {
     return (
-      <Card>
-        <p className="text-sm text-muted2">Accès réservé à l’administration.</p>
+      <Card className="p-0 overflow-hidden">
+        <div className="ms-cardHeader">
+          <p className="ms-kicker">Administration</p>
+          <p className="mt-2 text-lg font-semibold text-text">Accès restreint</p>
+        </div>
+        <div className="ms-cardBody">
+          <p className="text-sm text-muted2">Accès réservé à l’administration.</p>
+        </div>
       </Card>
     );
   }
 
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-8">
       <SectionHeader
         title="Références légales"
         description="Gérez les références applicables aux interventions. Elles seront visibles dans les dossiers."
@@ -161,8 +167,8 @@ export default function AdminReferencesPage() {
       {error ? <ErrorBanner message={error} /> : null}
 
       <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-        <Card className="grid gap-4 p-0 overflow-hidden">
-          <div className="flex items-center justify-between border-b border-border p-4">
+        <Card className="grid gap-6 p-0 overflow-hidden">
+          <div className="ms-cardHeader flex items-center justify-between">
             <h2 className="text-lg font-semibold">Références actives</h2>
             <Badge variant="accent">{activeCount} actives</Badge>
           </div>
@@ -178,7 +184,7 @@ export default function AdminReferencesPage() {
               {items.length === 0 ? (
                 <tr>
                   <td colSpan={3}>
-                    <p className="text-sm text-muted2">Aucune référence.</p>
+                    <div className="p-6 text-sm text-muted2">Aucune référence.</div>
                   </td>
                 </tr>
               ) : (
@@ -212,7 +218,7 @@ export default function AdminReferencesPage() {
           </DataTable>
         </Card>
 
-        <Card className="grid gap-4">
+        <Card className="grid gap-5">
           <div>
             <p className="ms-kicker">Nouvelle référence</p>
             <h2 className="mt-2 text-xl font-semibold">Ajouter une référence</h2>

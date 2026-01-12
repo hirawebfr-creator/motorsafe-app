@@ -1,131 +1,178 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { success, failure } from "@/lib/api";
-import { getSessionUser, isApprovedGarage } from "@/lib/auth";
+import { success } from "@/lib/api";
+import { requireApprovedTenant, requireUser } from "@/lib/guards";
+import { toErrorResponse } from "@/lib/routeErrors";
+import { z } from "zod";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function normalizeText(value: unknown) {
-  return String(value ?? "").trim();
+const QuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).default(20),
+  q: z.string().trim().min(1).max(120).optional(),
+  clientId: z.coerce.number().int().positive().optional(),
+});
+
+const CreateSchema = z.object({
+  clientId: z.coerce.number().int().positive(),
+  brand: z.string().trim().min(2).max(60),
+  model: z.string().trim().min(2).max(60),
+  plate: z.string().trim().min(2).max(12),
+  vin: z.string().trim().toUpperCase().regex(/^[A-Z0-9]{17}$/).optional().or(z.literal("")),
+  fuel: z.string().trim().max(40).optional().or(z.literal("")),
+  year: z.coerce.number().int().min(1900).max(2100).optional(),
+  engine: z.string().trim().max(80).optional().or(z.literal("")),
+  garageId: z.coerce.number().int().positive().optional(),
+});
+
+function cleanOptional(value: string | undefined) {
+  const v = (value ?? "").trim();
+  return v.length ? v : null;
 }
 
 export async function GET(req: Request) {
   try {
-    const user = await getSessionUser(req);
-    if (!user) return NextResponse.json(failure("Non autorise"), { status: 401 });
-    if (!isApprovedGarage(user)) {
-      return NextResponse.json(failure("Compte en attente de validation."), { status: 403 });
+    const user = requireApprovedTenant(await requireUser(req));
+    const url = new URL(req.url);
+    const parsed = QuerySchema.safeParse({
+      page: url.searchParams.get("page") ?? undefined,
+      pageSize: url.searchParams.get("pageSize") ?? undefined,
+      q: url.searchParams.get("q") ?? undefined,
+      clientId: url.searchParams.get("clientId") ?? undefined,
+    });
+    if (!parsed.success) {
+      return NextResponse.json(
+        { ok: false, error: { code: "BAD_REQUEST", message: "Query invalide", details: parsed.error.flatten() } },
+        { status: 400 }
+      );
     }
 
-    const where = user.role === "ADMIN" ? {} : { garageId: user.garageId ?? -1 };
-    const vehicles = await prisma.vehicle.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      include: { client: true },
-    });
+    const { page, q, clientId } = parsed.data;
+    const pageSize = Math.min(parsed.data.pageSize, 100);
 
-    const normalized = vehicles.map((v) => ({ ...v, id: v.id ? String(v.id) : undefined }));
+    const where: any = {
+      deletedAt: null,
+      ...(user.role === "ADMIN" ? {} : { garageId: user.garageId ?? -1 }),
+      ...(clientId ? { clientId } : {}),
+    };
 
-    return NextResponse.json(success(normalized), { status: 200 });
+    if (q) {
+      const qUpper = q.toUpperCase();
+      where.OR = [
+        { plate: { contains: qUpper } },
+        { brand: { contains: q } },
+        { model: { contains: q } },
+      ];
+    }
+
+    const [total, items] = await Promise.all([
+      prisma.vehicle.count({ where }),
+      prisma.vehicle.findMany({
+        where,
+        orderBy: [{ createdAt: "desc" }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: { client: true },
+      }),
+    ]);
+
+    return NextResponse.json(success({ items, page, pageSize, total }), { status: 200 });
   } catch (err) {
     console.error("Erreur API GET /api/vehicules :", err);
-    return NextResponse.json(failure("Erreur serveur"), { status: 500 });
+    return toErrorResponse(err);
   }
 }
 
 export async function POST(req: Request) {
   try {
-    const user = await getSessionUser(req);
-    if (!user) return NextResponse.json(failure("Non autorise"), { status: 401 });
-    if (!isApprovedGarage(user)) {
-      return NextResponse.json(failure("Compte en attente de validation."), { status: 403 });
-    }
-
-    const body = await req.json();
-
-    const clientId = Number(body.clientId);
-    const brand = normalizeText(body.brand);
-    const model = normalizeText(body.model);
-    const plate = normalizeText(body.plate).toUpperCase();
-    const vin = body.vin ? normalizeText(body.vin).toUpperCase() : null;
-    const fuel = body.fuel ? normalizeText(body.fuel) : null;
-
-    if (!Number.isFinite(clientId) || clientId <= 0) {
-      return NextResponse.json(failure("Client invalide."), { status: 400 });
-    }
-
-    if (!brand || !model || !plate) {
+    const user = requireApprovedTenant(await requireUser(req));
+    const body = await req.json().catch(() => null);
+    const parsed = CreateSchema.safeParse(body);
+    if (!parsed.success) {
       return NextResponse.json(
-        failure("Champs obligatoires: clientId, brand, model, plate."),
+        { ok: false, error: { code: "BAD_REQUEST", message: "Body invalide", details: parsed.error.flatten() } },
         { status: 400 }
       );
     }
 
-    if (brand.length < 2 || model.length < 2) {
-      return NextResponse.json(failure("Marque et modele doivent faire au moins 2 caracteres."), {
-        status: 400,
-      });
-    }
-
-    if (brand.length > 60 || model.length > 60) {
-      return NextResponse.json(failure("Marque et modele doivent faire moins de 60 caracteres."), {
-        status: 400,
-      });
-    }
-
-    if (plate.length < 2 || plate.length > 12) {
-      return NextResponse.json(failure("Immatriculation invalide."), { status: 400 });
-    }
-
-    if (vin && !/^[A-Z0-9]{17}$/.test(vin)) {
-      return NextResponse.json(
-        failure("VIN invalide (17 caracteres alphanumeriques)."),
-        { status: 400 }
-      );
-    }
-
-    if (fuel && fuel.length > 40) {
-      return NextResponse.json(failure("Carburant trop long."), { status: 400 });
-    }
+    const input = parsed.data;
+    const plate = input.plate.toUpperCase();
+    const vin = cleanOptional(input.vin)?.toUpperCase() ?? null;
 
     const client = await prisma.client.findFirst({
-      where: user.role === "ADMIN"
-        ? { id: clientId }
-        : { id: clientId, garageId: user.garageId ?? -1 },
+      where:
+        user.role === "ADMIN"
+          ? { id: input.clientId, deletedAt: null }
+          : { id: input.clientId, garageId: user.garageId ?? -1, deletedAt: null },
       select: { id: true, garageId: true },
     });
-
     if (!client) {
-      return NextResponse.json(failure("Client introuvable."), { status: 404 });
+      return NextResponse.json(
+        { ok: false, error: { code: "NOT_FOUND", message: "Client introuvable." } },
+        { status: 404 }
+      );
     }
 
-    const providedGarageId = Number(body.garageId);
-    const targetGarageId =
-      user.role === "ADMIN"
-        ? (Number.isFinite(providedGarageId) ? providedGarageId : client.garageId)
-        : user.garageId;
-
+    const targetGarageId = user.role === "ADMIN" ? (input.garageId ?? client.garageId) : user.garageId;
     if (!targetGarageId) {
-      return NextResponse.json(failure("Garage invalide."), { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: { code: "TENANT_REQUIRED", message: "Garage invalide." } },
+        { status: 400 }
+      );
     }
 
-    const vehicle = await prisma.vehicle.create({
-      data: {
-        clientId,
-        brand,
-        model,
-        plate,
-        vin,
-        fuel,
-        garageId: targetGarageId,
-      },
-      include: { client: true },
+    // FREE plan limits (backend-enforced).
+    if (user.role !== "ADMIN" && user.garage?.plan !== "PRO") {
+      const limit = Number(process.env.FREE_VEHICLE_LIMIT ?? 10);
+      const count = await prisma.vehicle.count({ where: { garageId: targetGarageId, deletedAt: null } });
+      if (count >= limit) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: {
+              code: "LIMIT_REACHED",
+              message: `Limite FREE atteinte (${limit} vehicules). Passez Pro pour continuer.`,
+            },
+          },
+          { status: 403 }
+        );
+      }
+    }
+
+    const vehicle = await prisma.$transaction(async (tx) => {
+      const created = await tx.vehicle.create({
+        data: {
+          garageId: targetGarageId,
+          clientId: input.clientId,
+          brand: input.brand,
+          model: input.model,
+          plate,
+          vin,
+          fuel: cleanOptional(input.fuel),
+          year: input.year ?? undefined,
+          engine: cleanOptional(input.engine),
+        },
+        include: { client: true },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          garageId: targetGarageId,
+          userId: user.id,
+          action: "VEHICLE_CREATE",
+          entityType: "Vehicle",
+          entityId: created.id,
+        },
+      });
+
+      return created;
     });
 
     return NextResponse.json(success(vehicle), { status: 201 });
   } catch (err) {
     console.error("Erreur API POST /api/vehicules :", err);
-    return NextResponse.json(failure("Erreur serveur lors de l'enregistrement."), { status: 500 });
+    return toErrorResponse(err);
   }
 }

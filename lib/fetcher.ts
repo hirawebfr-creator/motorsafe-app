@@ -11,9 +11,16 @@ export async function fetcher<T>(input: RequestInfo | URL, init: FetcherOptions 
 
   const json = await res.json().catch(() => null);
   if (!res.ok || !json?.ok) {
-    const message = json?.error || "Erreur serveur.";
+    const message =
+      typeof json?.error === "string"
+        ? json.error
+        : json?.error?.message || "Erreur serveur.";
     const error = new Error(message);
-    (error as { details?: unknown }).details = json?.details;
+    const details =
+      typeof json?.error === "object" && json?.error
+        ? json.error.details
+        : json?.details;
+    (error as { details?: unknown }).details = details;
     throw error;
   }
 

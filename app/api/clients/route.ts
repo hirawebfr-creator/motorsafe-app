@@ -1,78 +1,223 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { success, failure } from "@/lib/api";
-import { getSessionUser, isApprovedGarage } from "@/lib/auth";
+import { success } from "@/lib/api";
+import { requireApprovedTenant, requireUser } from "@/lib/guards";
+import { toErrorResponse } from "@/lib/routeErrors";
+import { z } from "zod";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function normalizeName(value: unknown) {
-  return String(value ?? "").trim();
+const QuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  q: z.string().trim().min(1).max(120).optional(),
+});
+
+const CreateSchema = z.union([
+  z.object({
+    firstName: z.string().trim().min(2).max(60),
+    lastName: z.string().trim().min(2).max(60),
+    email: z.string().trim().toLowerCase().email().optional().or(z.literal("")),
+    phone: z.string().trim().min(2).max(40).optional().or(z.literal("")),
+    address: z.string().trim().min(2).max(200).optional().or(z.literal("")),
+    notes: z.string().trim().max(2000).optional().or(z.literal("")),
+    garageId: z.coerce.number().int().positive().optional(),
+    vatMode: z.enum(["STANDARD", "REDUCED_10", "REDUCED_55", "EXEMPT", "CUSTOM"]).optional(),
+    vatRate: z.coerce.number().min(0).max(1).optional(),
+  }),
+  z.object({
+    name: z.string().trim().min(2).max(120),
+    email: z.string().trim().toLowerCase().email().optional().or(z.literal("")),
+    phone: z.string().trim().min(2).max(40).optional().or(z.literal("")),
+    garageId: z.coerce.number().int().positive().optional(),
+    vatMode: z.enum(["STANDARD", "REDUCED_10", "REDUCED_55", "EXEMPT", "CUSTOM"]).optional(),
+    vatRate: z.coerce.number().min(0).max(1).optional(),
+  }),
+]);
+
+function parseNameToFirstLast(name: string) {
+  const parts = name
+    .trim()
+    .split(/\s+/g)
+    .map((p) => p.trim())
+    .filter(Boolean);
+  if (parts.length < 2) return null;
+  const firstName = parts[0];
+  const lastName = parts.slice(1).join(" ");
+  if (firstName.length < 2 || lastName.length < 2) return null;
+  return { firstName, lastName };
+}
+
+function cleanOptional(value: string | undefined) {
+  const v = (value ?? "").trim();
+  return v.length ? v : null;
+}
+
+function resolveClientVat(input: { vatMode?: unknown; vatRate?: unknown } | null | undefined): {
+  vatProfile: string;
+  vatRateOverride: number | null;
+} {
+  const mode = String(input?.vatMode ?? "STANDARD").toUpperCase();
+  if (mode === "EXEMPT") return { vatProfile: "EXONERE", vatRateOverride: 0 };
+  if (mode === "REDUCED_10") return { vatProfile: "PARTICULIER", vatRateOverride: 0.1 };
+  if (mode === "REDUCED_55") return { vatProfile: "PARTICULIER", vatRateOverride: 0.055 };
+  if (mode === "CUSTOM") {
+    const rate = Number(input?.vatRate);
+    const safe = Number.isFinite(rate) ? Math.min(1, Math.max(0, rate)) : 0;
+    return { vatProfile: "PARTICULIER", vatRateOverride: safe };
+  }
+  // STANDARD
+  return { vatProfile: "PARTICULIER", vatRateOverride: 0.2 };
 }
 
 export async function GET(req: Request) {
   try {
-    const user = await getSessionUser(req);
-    if (!user) return NextResponse.json(failure("Non autorise"), { status: 401 });
-    if (!isApprovedGarage(user)) {
-      return NextResponse.json(failure("Compte en attente de validation."), { status: 403 });
+    const user = requireApprovedTenant(await requireUser(req));
+
+    const url = new URL(req.url);
+
+    const getNonEmpty = (key: string) => {
+      const v = url.searchParams.get(key);
+      if (v === null) return undefined;
+      const trimmed = v.trim();
+      return trimmed.length ? trimmed : undefined;
+    };
+
+    const parsed = QuerySchema.safeParse({
+      page: getNonEmpty("page"),
+      pageSize: getNonEmpty("pageSize"),
+      q: getNonEmpty("q"),
+    });
+    if (!parsed.success) {
+      return NextResponse.json(
+        { ok: false, error: { code: "BAD_REQUEST", message: "Query invalide", details: parsed.error.flatten() } },
+        { status: 400 }
+      );
     }
 
-    const where = user.role === "ADMIN" ? {} : { garageId: user.garageId ?? -1 };
-    const clients = await prisma.client.findMany({
-      where,
-      orderBy: { id: "desc" },
-      include: { garage: { select: { id: true, name: true } } },
-    });
-    return NextResponse.json(success(clients));
+    const { page, pageSize, q } = parsed.data;
+
+    const baseWhere: any = {
+      deletedAt: null,
+      ...(user.role === "ADMIN" ? {} : { garageId: user.garageId ?? -1 }),
+    };
+
+    if (q) {
+      baseWhere.OR = [
+        { firstName: { contains: q } },
+        { lastName: { contains: q } },
+        { email: { contains: q } },
+        { phone: { contains: q } },
+      ];
+    }
+
+    const [total, items] = await Promise.all([
+      prisma.client.count({ where: baseWhere }),
+      prisma.client.findMany({
+        where: baseWhere,
+        orderBy: [{ lastName: "asc" }, { firstName: "asc" }, { id: "desc" }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: { garage: { select: { id: true, name: true } } },
+      }),
+    ]);
+
+    return NextResponse.json(success({ items, page, pageSize, total }));
   } catch (err) {
     console.error("Erreur API GET /api/clients :", err);
-    return NextResponse.json(failure("Erreur serveur"), { status: 500 });
+    return toErrorResponse(err);
   }
 }
 
 export async function POST(req: Request) {
   try {
-    const user = await getSessionUser(req);
-    if (!user) return NextResponse.json(failure("Non autorise"), { status: 401 });
-    if (!isApprovedGarage(user)) {
-      return NextResponse.json(failure("Compte en attente de validation."), { status: 403 });
+    const user = requireApprovedTenant(await requireUser(req));
+    const json = await req.json().catch(() => null);
+    const parsed = CreateSchema.safeParse(json);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { ok: false, error: { code: "BAD_REQUEST", message: "Body invalide", details: parsed.error.flatten() } },
+        { status: 400 }
+      );
     }
 
-    const body = await req.json();
-    const firstName = normalizeName(body.firstName);
-    const lastName = normalizeName(body.lastName);
-
-    if (!firstName || !lastName) {
-      return NextResponse.json(failure("Prenom et nom obligatoires."), { status: 400 });
-    }
-
-    if (firstName.length < 2 || lastName.length < 2) {
-      return NextResponse.json(failure("Prenom et nom doivent faire au moins 2 caracteres."), {
-        status: 400,
-      });
-    }
-
-    if (firstName.length > 60 || lastName.length > 60) {
-      return NextResponse.json(failure("Prenom et nom doivent faire moins de 60 caracteres."), {
-        status: 400,
-      });
-    }
-
-    const targetGarageId = user.role === "ADMIN" ? Number(body.garageId) : user.garageId;
-    if (user.role === "ADMIN" && !Number.isFinite(targetGarageId)) {
-      return NextResponse.json(failure("Garage invalide."), { status: 400 });
-    }
+    const input = parsed.data as any;
+    const targetGarageId = user.role === "ADMIN" ? input.garageId : user.garageId;
     if (!targetGarageId) {
-      return NextResponse.json(failure("Garage invalide."), { status: 400 });
+      return NextResponse.json(
+        { ok: false, error: { code: "TENANT_REQUIRED", message: "Garage invalide." } },
+        { status: 400 }
+      );
     }
 
-    const client = await prisma.client.create({
-      data: { firstName, lastName, garageId: targetGarageId },
+    const vat = resolveClientVat(input);
+
+    const nameMode = typeof input?.name === "string" && input.name.trim().length > 0;
+    const firstLast = nameMode ? parseNameToFirstLast(String(input.name)) : null;
+    if (nameMode && !firstLast) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: {
+            code: "BAD_REQUEST",
+            message: "Nom invalide. Saisissez au minimum 'Prénom Nom'.",
+          },
+        },
+        { status: 400 }
+      );
+    }
+
+    // FREE plan limits (backend-enforced).
+    if (user.role !== "ADMIN" && user.garage?.plan !== "PRO") {
+      const limit = Number(process.env.FREE_CLIENT_LIMIT ?? 10);
+      const count = await prisma.client.count({ where: { garageId: targetGarageId, deletedAt: null } });
+      if (count >= limit) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: {
+              code: "LIMIT_REACHED",
+              message: `Limite FREE atteinte (${limit} clients). Passez Pro pour continuer.`,
+            },
+          },
+          { status: 403 }
+        );
+      }
+    }
+
+    const client = await prisma.$transaction(async (tx) => {
+      const created = await tx.client.create({
+        data: {
+          garageId: targetGarageId,
+          firstName: nameMode ? firstLast!.firstName : input.firstName,
+          lastName: nameMode ? firstLast!.lastName : input.lastName,
+          email: cleanOptional(input.email),
+          phone: cleanOptional(input.phone),
+          address: cleanOptional(input.address),
+          notes: cleanOptional(input.notes),
+          vatProfile: vat.vatProfile,
+          vatRateOverride: vat.vatRateOverride,
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          garageId: targetGarageId,
+          userId: user.id,
+          action: "CLIENT_CREATE",
+          entityType: "Client",
+          entityId: String(created.id),
+          metadata: { email: created.email ?? null },
+        },
+      });
+
+      return created;
     });
+
     return NextResponse.json(success(client), { status: 201 });
   } catch (err) {
     console.error("Erreur API POST /api/clients :", err);
-    return NextResponse.json(failure("Erreur serveur"), { status: 500 });
+    return toErrorResponse(err);
   }
 }

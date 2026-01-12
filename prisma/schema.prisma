@@ -139,6 +139,7 @@ model Client {
   deletedAt DateTime?
 
   vatProfile  String @default("PARTICULIER")
+  vatRateOverride Float?
   vatNumber   String?
   countryCode String @default("FR")
 

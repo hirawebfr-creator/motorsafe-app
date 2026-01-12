@@ -5,7 +5,7 @@ type SkeletonProps = {
 export function Skeleton({ className = "" }: SkeletonProps) {
   return (
     <div
-      className={`animate-pulse rounded-[var(--rGlobal)] bg-border/30 ${className}`}
+      className={`animate-pulse rounded-[var(--rGlobal)] bg-surface2/70 ${className}`}
     />
   );
 }

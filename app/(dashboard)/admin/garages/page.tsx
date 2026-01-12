@@ -73,33 +73,39 @@ export default function AdminGaragesPage() {
 
   if (!keyReady && !isAdmin) {
     return (
-      <Card className="p-6">
-        <p className="text-sm text-muted2">
-          Accès réservé à l’administration. Renseignez votre ADMIN_KEY pour continuer.
-        </p>
-        <div className="mt-4 grid gap-3 max-w-md">
-          <Input
-            label="ADMIN_KEY"
-            value={adminKey}
-            onChange={(event) => setAdminKey(event.target.value)}
-            placeholder="ADMIN_KEY"
-          />
-          <Button
-            onClick={() => {
-              if (!adminKey.trim()) return;
-              window.localStorage.setItem("ms_admin_key", adminKey.trim());
-              setKeyReady(true);
-            }}
-          >
-            Deverrouiller
-          </Button>
+      <Card className="p-0 overflow-hidden">
+        <div className="ms-cardHeader">
+          <p className="ms-kicker">Administration</p>
+          <p className="mt-2 text-lg font-semibold text-text">Accès réservé</p>
+          <p className="mt-2 text-sm text-muted2">
+            Renseignez votre ADMIN_KEY pour continuer.
+          </p>
+        </div>
+        <div className="ms-cardBody">
+          <div className="grid max-w-md gap-3">
+            <Input
+              label="ADMIN_KEY"
+              value={adminKey}
+              onChange={(event) => setAdminKey(event.target.value)}
+              placeholder="ADMIN_KEY"
+            />
+            <Button
+              onClick={() => {
+                if (!adminKey.trim()) return;
+                window.localStorage.setItem("ms_admin_key", adminKey.trim());
+                setKeyReady(true);
+              }}
+            >
+              Déverrouiller
+            </Button>
+          </div>
         </div>
       </Card>
     );
   }
 
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-8">
       <SectionHeader
         title="Tous les garages"
         description="Liste complète des garages inscrits sur la plateforme."
@@ -114,6 +120,10 @@ export default function AdminGaragesPage() {
       {error ? <ErrorBanner message={error} /> : null}
 
       <Card className="p-0 overflow-hidden">
+        <div className="ms-cardHeader">
+          <p className="ms-kicker">Administration</p>
+          <p className="mt-2 text-lg font-semibold text-text">Liste des garages</p>
+        </div>
         <DataTable stickyHeader variant="plain">
           <DataTableHead sticky>
             <tr>

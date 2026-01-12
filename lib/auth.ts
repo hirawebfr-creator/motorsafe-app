@@ -10,13 +10,23 @@ const SESSION_TTL_DAYS = 30;
 export type SessionUser = {
   id: string;
   email: string;
-  role: "ADMIN" | "GARAGE";
+  role: "ADMIN" | "GARAGE" | "OWNER" | "STAFF";
   garageId: number | null;
   garage?: {
     id: number;
     name: string;
     email: string;
     status: "PENDING" | "ACTIVE" | "REJECTED";
+    plan?: "FREE" | "PRO";
+    subscriptionStatus?:
+      | "INCOMPLETE"
+      | "INCOMPLETE_EXPIRED"
+      | "TRIALING"
+      | "ACTIVE"
+      | "PAST_DUE"
+      | "CANCELED"
+      | "UNPAID";
+    currentPeriodEnd?: string | null;
   } | null;
 };
 
@@ -101,7 +111,15 @@ async function getSessionByToken(token: string | undefined | null) {
       user: {
         include: {
           garage: {
-            select: { id: true, name: true, email: true, status: true },
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              status: true,
+              plan: true,
+              subscriptionStatus: true,
+              currentPeriodEnd: true,
+            },
           },
         },
       },

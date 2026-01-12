@@ -46,21 +46,33 @@ export default function LoginPage() {
 
   return (
     <main className="min-h-screen w-full bg-bg text-text">
-      <div className="mx-auto grid w-full max-w-6xl gap-10 px-6 py-16 lg:grid-cols-[1fr_420px] lg:items-center">
-        <div className="hidden lg:flex flex-col gap-8">
+      <header className="border-b border-border bg-bg/60 backdrop-blur-xl">
+        <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between gap-4 px-6">
           <Link href="/" className="flex items-center gap-3">
-            <div className="grid h-11 w-11 place-items-center rounded-[14px] bg-gradient-to-br from-primary to-primary2 text-white shadow-sm">
-              <span className="text-sm font-semibold">MS</span>
+            <div className="grid h-11 w-11 place-items-center rounded-2xl border border-border bg-surface2">
+              <span className="text-sm font-extrabold tracking-tight text-primary2">MS</span>
             </div>
             <div className="leading-tight">
-              <div className="text-sm font-semibold">MotorSafe</div>
+              <div className="text-sm font-semibold text-text">MotorSafe</div>
               <div className="text-xs text-muted2">Espace pro</div>
             </div>
           </Link>
+          <div className="flex items-center gap-2">
+            <Link href="/pro/inscription" className="hidden sm:block">
+              <Button variant="ghost">Créer un compte</Button>
+            </Link>
+            <Link href="/">
+              <Button variant="secondary">Retour site</Button>
+            </Link>
+          </div>
+        </div>
+      </header>
 
+      <div className="mx-auto grid w-full max-w-[1200px] gap-10 px-6 py-16 lg:grid-cols-[1fr_440px] lg:items-start">
+        <div className="hidden lg:flex flex-col gap-8">
           <div>
             <p className="ms-kicker">Connexion</p>
-            <h1 className="mt-3 text-4xl font-semibold tracking-tight">Accédez à votre atelier</h1>
+            <h1 className="mt-3 text-4xl font-semibold tracking-tight text-text">Accédez à votre atelier</h1>
             <p className="mt-3 text-base text-muted2">
               Retrouvez vos dossiers, vos interventions et vos documents en un seul endroit sécurisé.
             </p>
@@ -69,14 +81,14 @@ export default function LoginPage() {
           <div className="grid gap-4">
             <Card className="p-4">
               <p className="ms-kicker">Sécurité</p>
-              <p className="mt-2 text-sm font-semibold">Accès sécurisé et conformité intégrée</p>
+              <p className="mt-2 text-sm font-semibold text-text">Accès sécurisé et conformité intégrée</p>
               <p className="mt-1 text-xs text-muted2">
                 Chaque action est tracée pour garantir la qualité de vos dossiers.
               </p>
             </Card>
             <Card className="p-4">
               <p className="ms-kicker">Performance</p>
-              <p className="mt-2 text-sm font-semibold">Une interface rapide, pensée terrain</p>
+              <p className="mt-2 text-sm font-semibold text-text">Une interface rapide, pensée terrain</p>
               <p className="mt-1 text-xs text-muted2">
                 Pas de surcharge : juste l&apos;essentiel pour l&apos;atelier.
               </p>
@@ -123,8 +135,8 @@ export default function LoginPage() {
             >
               Créer un compte pro
             </Link>
-            <Link href="/" className="font-semibold text-primary hover:text-primaryHover">
-              Retour site
+            <Link href="/pro" className="font-semibold text-primary hover:text-primaryHover">
+              Infos espace pro
             </Link>
           </div>
         </Card>

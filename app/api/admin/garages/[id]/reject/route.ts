@@ -33,6 +33,18 @@ export async function POST(req: Request, { params }: Ctx) {
         reviewNote: reviewNote || null,
         reviewedAt: new Date(),
       },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        address: true,
+        siret: true,
+        status: true,
+        reviewNote: true,
+        reviewedAt: true,
+        createdAt: true,
+      },
     });
 
     return NextResponse.json(success(garage));

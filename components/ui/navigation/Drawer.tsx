@@ -1,4 +1,9 @@
-import React from "react";
+"use client";
+
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
+import { X } from "lucide-react";
+import { lockBodyScroll } from "@/lib/scrollLock";
 
 type DrawerSide = "left" | "right" | "bottom";
 
@@ -20,44 +25,97 @@ export default function Drawer({
   title?: string;
   children: React.ReactNode;
 }) {
-  if (!open) return null;
+  const [mounted, setMounted] = useState(false);
 
-  const panelClass =
+  useEffect(() => setMounted(true), []);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open, onClose]);
+
+  useEffect(() => {
+    if (!open) return;
+    return lockBodyScroll();
+  }, [open]);
+
+  if (!mounted || !open) return null;
+
+  const Z_OVERLAY = 2147483000;
+  const Z_PANEL = Z_OVERLAY + 1;
+
+  const panelClass = [
+    "bg-bg border border-border shadow-xl backdrop-blur outline-none",
+    "transform transition-transform duration-200 ease-out",
+  ].join(" ");
+
+  const overlayClass = "bg-black/45 transition-opacity duration-200 opacity-100";
+
+  const panelStyle: React.CSSProperties =
     side === "bottom"
-      ? "fixed inset-x-0 bottom-0 w-full max-h-[85vh] rounded-t-[var(--r)] border-t"
-      : side === "right"
-      ? "fixed inset-y-0 right-0 h-full w-[88vw] max-w-[320px] border-l"
-      : "fixed inset-y-0 left-0 h-full w-[88vw] max-w-[320px] border-r";
+      ? {
+          position: "fixed",
+          zIndex: Z_PANEL,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          width: "100%",
+          maxHeight: "85dvh",
+          borderTopLeftRadius: "var(--r)",
+          borderTopRightRadius: "var(--r)",
+        }
+      : {
+          position: "fixed",
+          zIndex: Z_PANEL,
+          top: 0,
+          bottom: 0,
+          height: "100dvh",
+          width: "min(92vw, 380px)",
+          left: side === "left" ? 0 : undefined,
+          right: side === "right" ? 0 : undefined,
+        };
 
-  return (
-    <div className="fixed inset-0 z-50">
-      <button
-        type="button"
-        className="absolute inset-0 bg-black/45 backdrop-blur-sm"
-        aria-label="Fermer"
-        onClick={onClose}
-      />
-      <aside
-        className={`relative ${panelClass} border-border bg-surface/95 shadow-[var(--shDropdown)]`}
+  const overlayStyle: React.CSSProperties = {
+    position: "fixed",
+    zIndex: Z_OVERLAY,
+    inset: 0,
+  };
+
+  const contentClass =
+    side === "bottom"
+      ? "max-h-[calc(85dvh-56px)] overflow-y-auto p-4"
+      : "max-h-[calc(100dvh-56px)] overflow-y-auto p-4";
+
+  const root = (
+    <>
+      <div className={overlayClass} style={overlayStyle} onClick={onClose} aria-hidden="true" />
+      <div
+        className={panelClass}
+        style={panelStyle}
         role="dialog"
         aria-modal="true"
+        aria-label={title ?? "Drawer"}
       >
-        {title ? (
-          <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-            <p className="text-sm font-semibold text-text">{title}</p>
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-xl border border-border bg-transparent px-3 py-1.5 text-xs text-muted2 hover:bg-surface2"
-            >
-              Fermer
-            </button>
-          </div>
-        ) : null}
-        <div className="h-full overflow-auto px-4 py-4 pb-[calc(env(safe-area-inset-bottom,0px)+16px)]">
-          {children}
+        <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+          <div className="text-sm font-semibold text-text">{title ?? "Navigation"}</div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-border bg-surface text-muted2 transition hover:bg-surface2 focus:outline-none focus:ring-2 focus:ring-primary/40"
+            aria-label="Fermer"
+          >
+            <X size={18} />
+          </button>
         </div>
-      </aside>
-    </div>
+
+        <div className={contentClass}>{children}</div>
+      </div>
+    </>
   );
+
+  return createPortal(root, document.body);
 }

@@ -1,212 +1,211 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
 import { usePathname } from "next/navigation";
 import type { SessionUser } from "@/lib/auth";
-import { Badge } from "@/components/ui/Badge";
-import { Tooltip } from "@/components/ui/Tooltip";
-import { LogOut, ChevronLeft, ChevronRight } from "lucide-react";
+import type { NavItem } from "@/components/layout/nav-config";
+import {
+  LayoutDashboard,
+  Users,
+  Car,
+  Wrench,
+  FileText,
+  Settings,
+  CreditCard,
+  LogOut,
+  Sparkles,
+  ChevronRight,
+  Crown,
+  Zap,
+  CheckCircle,
+  ArrowRight,
+} from "lucide-react";
 
-export type DesktopNavItem = {
-  label: string;
-  href: string;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
-  adminOnly?: boolean;
-  group?: "main" | "admin";
+type SidebarIcon = React.ComponentType<{ size?: number; className?: string }>;
+
+const ICONS_BY_HREF: Record<string, SidebarIcon> = {
+  "/dashboard": LayoutDashboard,
+  "/clients": Users,
+  "/vehicules": Car,
+  "/interventions": Wrench,
+  "/documents": FileText,
+  "/parametres": Settings,
+  "/billing": CreditCard,
 };
-
-function cx(...cls: Array<string | false | null | undefined>) {
-  return cls.filter(Boolean).join(" ");
-}
-
-function NavLink({
-  item,
-  active,
-  collapsed,
-}: {
-  item: DesktopNavItem;
-  active: boolean;
-  collapsed: boolean;
-}) {
-  const Icon = item.icon;
-
-  const link = (
-    <Link
-      href={item.href}
-      aria-current={active ? "page" : undefined}
-      className={cx(
-        "group relative flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-semibold transition",
-        "focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)]/40",
-        active
-          ? "bg-[color:var(--accentWeak)] text-[color:var(--text)]"
-          : "text-[color:var(--textMuted)] hover:bg-[color:var(--surface2)] hover:text-[color:var(--text)]"
-      )}
-    >
-      <span
-        className={cx(
-          "grid h-9 w-9 shrink-0 place-items-center rounded-xl border transition",
-          active
-            ? "border-[color:var(--accent)]/25 bg-[color:var(--accent)]/10"
-            : "border-[color:var(--border)] bg-[color:var(--surface)] group-hover:bg-[color:var(--surface2)]"
-        )}
-      >
-        <Icon
-          size={18}
-          className={cx(
-            "transition",
-            active
-              ? "text-[color:var(--accent2)]"
-              : "text-[color:var(--textMuted)] group-hover:text-[color:var(--text)]"
-          )}
-        />
-      </span>
-
-      {!collapsed ? <span className="min-w-0 truncate">{item.label}</span> : null}
-
-      {active ? (
-        <span className="absolute right-3 top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-[color:var(--accent2)]" />
-      ) : null}
-    </Link>
-  );
-
-  return (
-    <Tooltip content={item.label} disabled={!collapsed}>
-      {link}
-    </Tooltip>
-  );
-}
 
 export function DesktopSidebar({
   user,
-  navItems,
-  collapsed,
-  onToggleCollapse,
-  onLogout,
+  navItems = [],
+  onLogout = () => {},
 }: {
   user?: SessionUser;
-  navItems: DesktopNavItem[];
-  collapsed: boolean;
-  onToggleCollapse: () => void;
-  onLogout: () => void;
+  navItems?: NavItem[];
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
+  onLogout?: () => void;
 }) {
-  const pathname = usePathname();
+  const pathname = (usePathname() || "/").split("?")[0];
 
-  const grouped = useMemo(() => {
-    const main = navItems.filter((n) => (n.group ?? "main") === "main");
-    const admin = navItems.filter((n) => (n.group ?? "main") === "admin");
-    return { main, admin };
-  }, [navItems]);
+  // Check plan from user's garage info if available
+  // Show CTA for FREE plan or if plan is undefined (treat as FREE)
+  const garagePlan = user?.garage?.plan ?? "FREE";
+  const isPro = garagePlan === "PRO";
+  const isAdmin = user?.role === "ADMIN";
+  const showUpgradeCTA = !isPro && !isAdmin;
+
+  const order = [
+    "/dashboard",
+    "/clients",
+    "/vehicules",
+    "/interventions",
+    "/documents",
+    "/parametres",
+    "/billing",
+  ];
+
+  const items = order
+    .map((href) => navItems.find((n) => n.href === href))
+    .filter(Boolean) as NavItem[];
 
   return (
-    <aside
-      className={cx(
-        "sticky top-16 hidden h-[calc(100vh-64px)] shrink-0 border-r border-[color:var(--border)] bg-[color:var(--bg)] lg:block",
-        collapsed ? "w-[84px]" : "w-[280px]"
-      )}
-      aria-label="Navigation principale"
-    >
-      <div className={cx("flex h-full flex-col px-3 py-4", collapsed && "px-2")}>
-        {/* Brand */}
-        <div className={cx("mb-4 flex items-center gap-3", collapsed && "justify-center")}
-        >
-          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface2)]">
-            <span className="text-sm font-extrabold text-[color:var(--accent2)]">MS</span>
-          </div>
-
-          {!collapsed ? (
-            <div className="min-w-0 leading-tight">
-              <div className="truncate text-sm font-semibold text-[color:var(--text)]">MotorSafe</div>
-              <div className="truncate text-xs text-[color:var(--textMuted)]">Panel garages</div>
-            </div>
-          ) : null}
-
-          <button
-            type="button"
-            onClick={onToggleCollapse}
-            className={cx(
-              "ml-auto inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--textMuted)] transition hover:bg-[color:var(--surface2)]",
-              "focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)]/40",
-              collapsed && "ml-0"
-            )}
-            aria-label={collapsed ? "Déplier le menu" : "Réduire le menu"}
-            title={collapsed ? "Déplier" : "Réduire"}
-          >
-            {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
-          </button>
+    <aside className="fixed left-0 top-0 z-40 flex h-screen w-[260px] flex-col border-r border-[var(--ms-border)] bg-white">
+      {/* Brand */}
+      <div className="flex items-center gap-3 px-6 py-6">
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--ms-primary)] to-[#8B5CF6]">
+          <Car size={20} className="text-white" />
         </div>
+        <div>
+          <div className="text-lg font-bold text-[var(--ms-text)]">MotorSafe</div>
+          <div className="text-xs text-[var(--ms-text-muted)]">Garage Management</div>
+        </div>
+      </div>
 
-        {/* Nav */}
-        <nav className="flex-1 space-y-3">
-          <div className="space-y-1">
-            {!collapsed ? (
-              <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--textMuted)]">
-                Menu
-              </p>
-            ) : null}
+      {/* Navigation */}
+      <nav className="flex-1 overflow-y-auto px-3 py-4">
+        <div className="space-y-1">
+          {items.map((item) => {
+            const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+            const Icon = item.icon ?? ICONS_BY_HREF[item.href] ?? LayoutDashboard;
 
-            {grouped.main.map((item) => {
-              const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
-              return <NavLink key={item.href} item={item} active={active} collapsed={collapsed} />;
-            })}
-          </div>
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150 ${
+                  isActive
+                    ? "bg-gradient-to-r from-[var(--ms-primary)] to-[#8B5CF6] text-white shadow-lg shadow-[var(--ms-primary)]/25"
+                    : "text-[var(--ms-text-secondary)] hover:bg-[var(--ms-bg-subtle)] hover:text-[var(--ms-text)]"
+                }`}
+              >
+                <Icon
+                  size={20}
+                  className={`transition-colors ${
+                    isActive ? "text-white" : "text-[var(--ms-text-muted)] group-hover:text-[var(--ms-text-secondary)]"
+                  }`}
+                />
+                <span>{item.label}</span>
+                {isActive && (
+                  <ChevronRight size={16} className="ml-auto text-white/80" />
+                )}
+              </Link>
+            );
+          })}
+        </div>
+      </nav>
 
-          {grouped.admin.length ? (
-            <div className="pt-2">
-              <div className={cx("my-2 h-px bg-[color:var(--border)]/70", collapsed && "mx-2")} />
-              {!collapsed ? (
-                <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[color:var(--textMuted)]">
-                  Admin
+      {/* Upgrade Card - Always show for non-Pro, non-Admin users */}
+      {showUpgradeCTA && (
+        <div className="mx-3 mb-4">
+          <Link href="/billing" className="block group">
+            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#6366F1] via-[#8B5CF6] to-[#A855F7] p-5 shadow-lg shadow-purple-500/20 transition-all duration-300 group-hover:shadow-xl group-hover:shadow-purple-500/30 group-hover:scale-[1.02]">
+              {/* Animated background elements */}
+              <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-white/20 blur-2xl transition-transform duration-500 group-hover:scale-150" />
+              <div className="absolute -bottom-6 -left-6 h-20 w-20 rounded-full bg-white/15 blur-xl" />
+              <div className="absolute top-1/2 right-1/4 h-8 w-8 rounded-full bg-yellow-400/30 blur-lg" />
+              
+              <div className="relative z-10">
+                {/* Animated sparkle */}
+                <div className="absolute -top-1 -right-1 flex h-6 w-6 items-center justify-center">
+                  <Sparkles size={16} className="text-yellow-300 animate-pulse" />
+                </div>
+                
+                {/* Content */}
+                <div className="mb-3">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white/25 backdrop-blur-sm px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white">
+                    <Zap size={10} className="fill-current" />
+                    Offre limitée
+                  </span>
+                </div>
+                
+                <h3 className="text-xl font-bold text-white mb-1.5 tracking-tight">
+                  Passez Pro 🚀
+                </h3>
+                
+                <p className="text-sm text-white/80 leading-snug mb-4">
+                  Véhicules illimités<br />
+                  + fonctionnalités avancées
                 </p>
-              ) : null}
-              <div className="space-y-1">
-                {grouped.admin.map((item) => {
-                  const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
-                  return <NavLink key={item.href} item={item} active={active} collapsed={collapsed} />;
-                })}
+                
+                {/* Price */}
+                <div className="flex items-end gap-1 mb-4">
+                  <span className="text-3xl font-extrabold text-white">29€</span>
+                  <span className="text-white/70 text-sm mb-1">/mois</span>
+                </div>
+                
+                {/* CTA Button */}
+                <div className="flex items-center justify-center gap-2 h-11 rounded-xl bg-white font-bold text-[var(--ms-primary)] text-sm shadow-lg transition-transform group-hover:scale-[1.02]">
+                  Essai gratuit 14j
+                  <ArrowRight size={16} className="transition-transform group-hover:translate-x-0.5" />
+                </div>
               </div>
             </div>
-          ) : null}
-        </nav>
+          </Link>
+        </div>
+      )}
 
-        {/* Footer user */}
-        <div
-          className={cx(
-            "mt-4 rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)] p-3",
-            collapsed && "p-2"
-          )}
-        >
-          <div className={cx("flex items-center gap-3", collapsed && "justify-center")}
-          >
-            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface2)]">
-              <span className="text-xs font-bold text-[color:var(--accent2)]">U</span>
-            </div>
-
-            {!collapsed ? (
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold text-[color:var(--text)]">{user?.email ?? ""}</p>
-                <p className="text-xs text-[color:var(--textMuted)]">Compte</p>
+      {/* Pro Badge for Pro users */}
+      {isPro && !isAdmin && (
+        <div className="mx-3 mb-4">
+          <Link href="/billing" className="block">
+            <div className="flex items-center gap-3 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 p-4 transition-all hover:border-emerald-300 hover:shadow-md">
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 shadow-lg shadow-emerald-500/30">
+                <Crown size={22} className="text-white" />
               </div>
-            ) : null}
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-emerald-700">Plan Pro</span>
+                  <CheckCircle size={16} className="text-emerald-500 fill-emerald-100" />
+                </div>
+                <span className="text-xs text-emerald-600/80">Abonnement actif</span>
+              </div>
+            </div>
+          </Link>
+        </div>
+      )}
 
-            {!collapsed ? (
-              <Badge variant="accent">{user?.role === "ADMIN" ? "Admin" : "Pro"}</Badge>
-            ) : null}
+      {/* User Profile */}
+      <div className="border-t border-[var(--ms-border)] p-3">
+        <div className="flex items-center gap-3 rounded-xl p-2.5 hover:bg-[var(--ms-bg-subtle)] transition-colors">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#F472B6] to-[#EC4899] shadow-md">
+            <span className="text-sm font-bold text-white">
+              {user?.email ? user.email.charAt(0).toUpperCase() : "U"}
+            </span>
           </div>
-
+          <div className="flex-1 min-w-0">
+            <div className="truncate text-sm font-semibold text-[var(--ms-text)]">
+              {user?.email ? user.email.split("@")[0] : "Utilisateur"}
+            </div>
+            <div className="text-xs text-[var(--ms-text-muted)]">
+              {user?.role === "ADMIN" ? "Administrateur" : isPro ? "Plan Pro" : "Plan Gratuit"}
+            </div>
+          </div>
           <button
             type="button"
             onClick={onLogout}
-            className={cx(
-              "mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-[color:var(--border)] bg-transparent px-3 py-2 text-sm font-semibold text-[color:var(--textMuted)] transition hover:bg-[color:var(--surface2)]",
-              "focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)]/40",
-              collapsed && "mt-2 h-10 px-0"
-            )}
-            aria-label="Quitter"
-            title={collapsed ? "Quitter" : undefined}
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-[var(--ms-text-muted)] hover:bg-red-50 hover:text-red-500 transition-colors"
+            title="Déconnexion"
           >
-            <LogOut size={16} />
-            {!collapsed ? "Quitter" : null}
+            <LogOut size={18} />
           </button>
         </div>
       </div>

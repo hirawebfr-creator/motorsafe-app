@@ -1,29 +1,30 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
-    "./app/**/*.{js,ts,jsx,tsx}",
-    "./components/**/*.{js,ts,jsx,tsx}",
+    "./app/**/*.{js,ts,jsx,tsx,mdx}",
+    "./components/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   theme: {
     extend: {
       colors: {
-        bg: ({ opacityValue }) => `rgb(var(--bg) / ${opacityValue ?? 1})`,
-        surface: ({ opacityValue }) => `rgb(var(--surface) / ${opacityValue ?? 1})`,
-        surface2: ({ opacityValue }) => `rgb(var(--surface2) / ${opacityValue ?? 1})`,
+        bg: "rgb(var(--bg) / <alpha-value>)",
+        surface: "rgb(var(--surface) / <alpha-value>)",
+        surface2: "rgb(var(--surface2) / <alpha-value>)",
 
-        text: ({ opacityValue }) => `rgb(var(--text) / ${opacityValue ?? 'var(--textA)'})`,
-        muted: ({ opacityValue }) => `rgb(var(--muted) / ${opacityValue ?? 'var(--textSecondaryA)'})`,
-        muted2: ({ opacityValue }) => `rgb(var(--muted2) / ${opacityValue ?? 'var(--textMutedA)'})`,
-        border: ({ opacityValue }) => `rgb(var(--border) / ${opacityValue ?? 'var(--borderA)'})`,
+        // Defaults match globals.css opacities; /xx still works when Tailwind sets --tw-*-opacity
+        text: "rgb(var(--text) / var(--tw-text-opacity, var(--textA)))",
+        muted: "rgb(var(--muted) / var(--tw-text-opacity, var(--textSecondaryA)))",
+        muted2: "rgb(var(--muted2) / var(--tw-text-opacity, var(--textMutedA)))",
+        border: "rgb(var(--border) / var(--tw-border-opacity, var(--borderA)))",
 
-        primary: ({ opacityValue }) => `rgb(var(--accent) / ${opacityValue ?? 1})`,
-        primary2: ({ opacityValue }) => `rgb(var(--accent2) / ${opacityValue ?? 1})`,
-        primaryHover: ({ opacityValue }) => `rgb(var(--accentHover) / ${opacityValue ?? 1})`,
-        primaryWeak: ({ opacityValue }) => `rgb(var(--accentWeak) / ${opacityValue ?? 'var(--accentWeakA)'})`,
+        primary: "rgb(var(--accent) / <alpha-value>)",
+        primary2: "rgb(var(--accent2) / <alpha-value>)",
+        primaryHover: "rgb(var(--accentHover) / <alpha-value>)",
+        primaryWeak: "rgb(var(--accentWeak) / var(--tw-bg-opacity, var(--accentWeakA)))",
 
-        danger: ({ opacityValue }) => `rgb(var(--danger) / ${opacityValue ?? 1})`,
-        success: ({ opacityValue }) => `rgb(var(--success) / ${opacityValue ?? 1})`,
-        warning: ({ opacityValue }) => `rgb(var(--warning) / ${opacityValue ?? 1})`,
+        danger: "rgb(var(--danger) / <alpha-value>)",
+        success: "rgb(var(--success) / <alpha-value>)",
+        warning: "rgb(var(--warning) / <alpha-value>)",
       },
       borderRadius: {
         xl: '18px',

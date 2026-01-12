@@ -8,6 +8,7 @@ Ce fichier est généré automatiquement.
 
 ## Index
 
+- [app/_ui-debug/page.tsx](#app-_ui-debug-pagetsx)
 - [app/(dashboard)/admin/garages/page.tsx](#app-dashboard-admin-garages-pagetsx)
 - [app/(dashboard)/admin/page.tsx](#app-dashboard-admin-pagetsx)
 - [app/(dashboard)/admin/pro-demandes/page.tsx](#app-dashboard-admin-pro-demandes-pagetsx)
@@ -36,21 +37,19 @@ Ce fichier est généré automatiquement.
 - [app/pro/page.tsx](#app-pro-pagetsx)
 - [app/pro/pending/page.tsx](#app-pro-pending-pagetsx)
 - [app/pro/signup/page.tsx](#app-pro-signup-pagetsx)
-- [components/common/BadgeStatus.tsx](#components-common-badgestatustsx)
-- [components/common/DataCards.tsx](#components-common-datacardstsx)
-- [components/common/DataTable.tsx](#components-common-datatabletsx)
+- [app/ui-debug/page.tsx](#app-ui-debug-pagetsx)
 - [components/common/EmptyState.tsx](#components-common-emptystatetsx)
 - [components/common/ErrorBanner.tsx](#components-common-errorbannertsx)
 - [components/common/LegalReferencesConfig.ts](#components-common-legalreferencesconfigts)
 - [components/common/LegalReferencesPanel.tsx](#components-common-legalreferencespaneltsx)
 - [components/common/Loading.tsx](#components-common-loadingtsx)
-- [components/common/PageHeader.tsx](#components-common-pageheadertsx)
-- [components/common/Skeleton.tsx](#components-common-skeletontsx)
 - [components/common/StatCard.tsx](#components-common-statcardtsx)
 - [components/dashboard-shell.tsx](#components-dashboard-shelltsx)
 - [components/layout/AppShell.tsx](#components-layout-appshelltsx)
+- [components/layout/DesktopSidebar.tsx](#components-layout-desktopsidebartsx)
 - [components/layout/MobileNav.tsx](#components-layout-mobilenavtsx)
 - [components/layout/nav-config.ts](#components-layout-nav-configts)
+- [components/layout/responsive/ProSidebarMenu.tsx](#components-layout-responsive-prosidebarmenutsx)
 - [components/layout/Sidebar.tsx](#components-layout-sidebartsx)
 - [components/layout/Topbar.tsx](#components-layout-topbartsx)
 - [components/parametres/ComplianceToggles.tsx](#components-parametres-compliancetogglestsx)
@@ -62,7 +61,6 @@ Ce fichier est généré automatiquement.
 - [components/ui/Dialog.tsx](#components-ui-dialogtsx)
 - [components/ui/DropdownMenu.tsx](#components-ui-dropdownmenutsx)
 - [components/ui/Input.tsx](#components-ui-inputtsx)
-- [components/ui/KpiCard.tsx](#components-ui-kpicardtsx)
 - [components/ui/navigation/Drawer.tsx](#components-ui-navigation-drawertsx)
 - [components/ui/SectionHeader.tsx](#components-ui-sectionheadertsx)
 - [components/ui/Select.tsx](#components-ui-selecttsx)
@@ -77,13 +75,30 @@ Ce fichier est généré automatiquement.
 
 ---
 
+## app/_ui-debug/page.tsx
+<a id="app-_ui-debug-pagetsx"></a>
+
+```tsx
+export default function UIDebug() {
+  return (
+    <main style={{ padding: 40 }}>
+      <h1>UI DEBUG PAGE</h1>
+      <div className="p-6 rounded-xl bg-blue-600 text-white font-bold">
+        If you see blue, Tailwind works.
+      </div>
+    </main>
+  );
+}
+
+```
+
 ## app/(dashboard)/admin/garages/page.tsx
 <a id="app-dashboard-admin-garages-pagetsx"></a>
 
 ```tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -108,13 +123,13 @@ type GarageItem = {
 
 export default function AdminGaragesPage() {
   const user = useUser();
-  if (!user) return null;
+
   const [garages, setGarages] = useState<GarageItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [adminKey, setAdminKey] = useState("");
-  const [keyReady, setKeyReady] = useState(user.role === "ADMIN");
-  const isAdmin = user.role === "ADMIN";
+  const [keyReady, setKeyReady] = useState(false);
+  const isAdmin = user?.role === "ADMIN";
 
   useEffect(() => {
     if (isAdmin) return;
@@ -125,7 +140,7 @@ export default function AdminGaragesPage() {
     }
   }, [isAdmin]);
 
-  const loadGarages = async () => {
+  const loadGarages = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -139,52 +154,62 @@ export default function AdminGaragesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [adminKey, isAdmin]);
 
   useEffect(() => {
-    if (keyReady) {
+    if (!user) return;
+    if (isAdmin) {
+      setKeyReady(true);
       loadGarages();
+      return;
     }
-  }, [keyReady]);
+
+    if (keyReady) loadGarages();
+  }, [isAdmin, keyReady, loadGarages, user]);
+
+  if (!user) return null;
 
   if (!keyReady && !isAdmin) {
     return (
-      <Card className="p-6">
-        <p className="text-sm text-[color:var(--textMuted)]">
-          Accès réservé à l'administration. Renseignez votre ADMIN_KEY pour continuer.
-        </p>
-        <div className="mt-4 grid gap-3 max-w-md">
-          <Input
-            label="ADMIN_KEY"
-            value={adminKey}
-            onChange={(event) => setAdminKey(event.target.value)}
-            placeholder="ADMIN_KEY"
-          />
-          <Button
-            onClick={() => {
-              if (!adminKey.trim()) return;
-              window.localStorage.setItem("ms_admin_key", adminKey.trim());
-              setKeyReady(true);
-            }}
-          >
-            Deverrouiller
-          </Button>
+      <Card className="p-0 overflow-hidden">
+        <div className="ms-cardHeader">
+          <p className="ms-kicker">Administration</p>
+          <p className="mt-2 text-lg font-semibold text-text">Accès réservé</p>
+          <p className="mt-2 text-sm text-muted2">
+            Renseignez votre ADMIN_KEY pour continuer.
+          </p>
+        </div>
+        <div className="ms-cardBody">
+          <div className="grid max-w-md gap-3">
+            <Input
+              label="ADMIN_KEY"
+              value={adminKey}
+              onChange={(event) => setAdminKey(event.target.value)}
+              placeholder="ADMIN_KEY"
+            />
+            <Button
+              onClick={() => {
+                if (!adminKey.trim()) return;
+                window.localStorage.setItem("ms_admin_key", adminKey.trim());
+                setKeyReady(true);
+              }}
+            >
+              Déverrouiller
+            </Button>
+          </div>
         </div>
       </Card>
     );
   }
 
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-8">
       <SectionHeader
         title="Tous les garages"
         description="Liste complète des garages inscrits sur la plateforme."
         action={
-          <Link
-            href="/admin"
-            className="text-sm font-semibold text-[color:var(--accent)] hover:text-[color:var(--accentHover)]"
-          >
-            Retour validations
+          <Link href="/admin">
+            <Button variant="secondary" size="sm">Retour validations</Button>
           </Link>
         }
         level={1}
@@ -193,39 +218,40 @@ export default function AdminGaragesPage() {
       {error ? <ErrorBanner message={error} /> : null}
 
       <Card className="p-0 overflow-hidden">
-        <DataTable stickyHeader className="rounded-none border-0 shadow-none">
+        <div className="ms-cardHeader">
+          <p className="ms-kicker">Administration</p>
+          <p className="mt-2 text-lg font-semibold text-text">Liste des garages</p>
+        </div>
+        <DataTable stickyHeader variant="plain">
           <DataTableHead sticky>
             <tr>
-              <th className="px-5 py-4">Garage</th>
-              <th className="px-5 py-4">Statut</th>
-              <th className="px-5 py-4">Responsable</th>
-              <th className="px-5 py-4 text-right">Création</th>
+              <th>Garage</th>
+              <th>Statut</th>
+              <th>Responsable</th>
+              <th className="text-right">Création</th>
             </tr>
           </DataTableHead>
           <tbody>
             {loading ? (
               <tr>
-                <td className="px-5 py-6" colSpan={4}>
+                <td colSpan={4}>
                   <Loading />
                 </td>
               </tr>
             ) : garages.length === 0 ? (
               <tr>
-                <td className="px-5 py-6" colSpan={4}>
+                <td colSpan={4}>
                   <EmptyState title="Aucun garage" description="Les garages apparaitront ici." />
                 </td>
               </tr>
             ) : (
               garages.map((garage) => (
-                <tr
-                  key={garage.id}
-                  className="border-t border-[color:var(--border)] transition hover:bg-[color:var(--surface2)]"
-                >
-                  <td className="px-5 py-4">
-                    <p className="font-semibold text-[color:var(--text)]">{garage.name}</p>
-                    <p className="text-xs text-[color:var(--textMuted)]">{garage.email}</p>
+                <tr key={garage.id}>
+                  <td>
+                    <p className="font-semibold text-text">{garage.name}</p>
+                    <p className="text-xs text-muted2">{garage.email}</p>
                   </td>
-                  <td className="px-5 py-4">
+                  <td>
                     <Badge
                       variant={
                         garage.status === "ACTIVE"
@@ -242,10 +268,10 @@ export default function AdminGaragesPage() {
                         : "En attente"}
                     </Badge>
                   </td>
-                  <td className="px-5 py-4 text-sm text-[color:var(--textMuted)]">
+                  <td className="text-sm text-muted2">
                     {garage.users[0]?.email ?? "-"}
                   </td>
-                  <td className="px-5 py-4 text-right text-sm text-[color:var(--textMuted)]">
+                  <td className="text-right text-sm text-muted2">
                     {new Date(garage.createdAt).toLocaleDateString("fr-FR")}
                   </td>
                 </tr>
@@ -266,7 +292,7 @@ export default function AdminGaragesPage() {
 ```tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -296,16 +322,16 @@ type GarageItem = {
 
 export default function AdminPendingPage() {
   const user = useUser();
-  if (!user) return null;
+
   const [garages, setGarages] = useState<GarageItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [adminKey, setAdminKey] = useState("");
-  const [keyReady, setKeyReady] = useState(user.role === "ADMIN");
+  const [keyReady, setKeyReady] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [rejectTarget, setRejectTarget] = useState<GarageItem | null>(null);
-  const isAdmin = user.role === "ADMIN";
+  const isAdmin = user?.role === "ADMIN";
   const toast = useToast();
 
   useEffect(() => {
@@ -317,7 +343,7 @@ export default function AdminPendingPage() {
     }
   }, [isAdmin]);
 
-  const loadPending = async () => {
+  const loadPending = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -331,7 +357,7 @@ export default function AdminPendingPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [adminKey, isAdmin]);
 
   const approve = async (id: number) => {
     setError(null);
@@ -343,7 +369,7 @@ export default function AdminPendingPage() {
         headers: !isAdmin && adminKey ? { "x-admin-key": adminKey } : undefined,
       });
       toast.push({
-        title: "Garage approuve",
+        title: "Garage approuvé",
         description: "Le compte est maintenant actif.",
         variant: "success",
       });
@@ -372,8 +398,8 @@ export default function AdminPendingPage() {
         headers: !isAdmin && adminKey ? { "x-admin-key": adminKey } : undefined,
       });
       toast.push({
-        title: "Garage refuse",
-        description: "La demande a ete refusee.",
+        title: "Garage refusé",
+        description: "La demande a été refusée.",
         variant: "info",
       });
       await loadPending();
@@ -389,49 +415,59 @@ export default function AdminPendingPage() {
   };
 
   useEffect(() => {
-    if (keyReady) {
+    if (!user) return;
+    if (isAdmin) {
+      setKeyReady(true);
       loadPending();
+      return;
     }
-  }, [keyReady]);
+
+    if (keyReady) loadPending();
+  }, [isAdmin, keyReady, loadPending, user]);
+
+  if (!user) return null;
 
   if (!keyReady && !isAdmin) {
     return (
-      <Card className="p-6">
-        <p className="text-sm text-[color:var(--textMuted)]">
-          Accès réservé à l'administration. Renseignez votre ADMIN_KEY pour continuer.
-        </p>
-        <div className="mt-4 grid gap-3 max-w-md">
-          <Input
-            label="ADMIN_KEY"
-            value={adminKey}
-            onChange={(event) => setAdminKey(event.target.value)}
-            placeholder="ADMIN_KEY"
-          />
-          <Button
-            onClick={() => {
-              if (!adminKey.trim()) return;
-              window.localStorage.setItem("ms_admin_key", adminKey.trim());
-              setKeyReady(true);
-            }}
-          >
-            Deverrouiller
-          </Button>
+      <Card className="p-0 overflow-hidden">
+        <div className="ms-cardHeader">
+          <p className="ms-kicker">Administration</p>
+          <p className="mt-2 text-lg font-semibold text-text">Accès réservé</p>
+          <p className="mt-2 text-sm text-muted2">
+            Renseignez votre ADMIN_KEY pour continuer.
+          </p>
+        </div>
+        <div className="ms-cardBody">
+          <div className="grid max-w-md gap-3">
+            <Input
+              label="ADMIN_KEY"
+              value={adminKey}
+              onChange={(event) => setAdminKey(event.target.value)}
+              placeholder="ADMIN_KEY"
+            />
+            <Button
+              onClick={() => {
+                if (!adminKey.trim()) return;
+                window.localStorage.setItem("ms_admin_key", adminKey.trim());
+                setKeyReady(true);
+              }}
+            >
+              Déverrouiller
+            </Button>
+          </div>
         </div>
       </Card>
     );
   }
 
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-8">
       <SectionHeader
         title="Demandes en attente"
-        description="Gérez les demandes d'inscription des garages. Approvez ou refusez avec un motif."
+        description="Gérez les demandes d’inscription des garages. Approvez ou refusez avec un motif."
         action={
-          <Link
-            href="/admin/garages"
-            className="text-sm font-semibold text-[color:var(--accent)] hover:text-[color:var(--accentHover)]"
-          >
-            Voir tous les garages
+          <Link href="/admin/garages">
+            <Button variant="secondary" size="sm">Voir tous les garages</Button>
           </Link>
         }
         level={1}
@@ -444,30 +480,32 @@ export default function AdminPendingPage() {
       ) : garages.length === 0 ? (
         <EmptyState title="Aucune demande" description="Les demandes en attente apparaitront ici." />
       ) : (
-        <div className="grid gap-4">
+        <div className="grid gap-6">
           {garages.map((garage) => (
-            <Card key={garage.id} className="grid gap-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
+            <Card key={garage.id} className="p-0 overflow-hidden">
+              <div className="ms-cardHeader flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p className="text-base font-semibold text-[color:var(--text)]">{garage.name}</p>
-                  <p className="text-xs text-[color:var(--textMuted)]">{garage.email}</p>
+                  <p className="text-base font-semibold text-text">{garage.name}</p>
+                  <p className="text-xs text-muted2">{garage.email}</p>
                 </div>
                 <Badge variant="warning">En attente</Badge>
               </div>
-              <div className="grid gap-2 text-sm text-[color:var(--textMuted)]">
+              <div className="ms-cardBody grid gap-2 text-sm text-muted2">
                 <p>Téléphone : {garage.phone || "-"}</p>
                 <p>Adresse : {garage.address || "-"}</p>
                 <p>SIRET : {garage.siret || "-"}</p>
               </div>
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="text-xs text-[color:var(--textMuted)]">
+              <div className="ms-cardFooter flex flex-wrap items-center justify-between gap-3">
+                <div className="text-xs text-muted2">
                   Responsable : {garage.users[0]?.email ?? "-"}
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Button variant="ghost" onClick={() => openReject(garage)}>
+                  <Button variant="ghost" size="sm" onClick={() => openReject(garage)}>
                     Refuser
                   </Button>
-                  <Button onClick={() => approve(garage.id)}>Approuver</Button>
+                  <Button size="sm" onClick={() => approve(garage.id)}>
+                    Approuver
+                  </Button>
                 </div>
               </div>
             </Card>
@@ -512,7 +550,7 @@ export default AdminPendingPage;
 ```tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -543,7 +581,7 @@ const TYPES = ["E85", "Reprog", "Diag", "Autre"];
 
 export default function AdminReferencesPage() {
   const user = useUser();
-  if (!user) return null;
+
   const [items, setItems] = useState<LegalReference[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({
@@ -558,7 +596,7 @@ export default function AdminReferencesPage() {
   });
   const toast = useToast();
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setError(null);
     try {
       const data = await fetcher<LegalReference[]>("/api/legal-references", { noStore: true });
@@ -568,11 +606,11 @@ export default function AdminReferencesPage() {
       setError(message);
       toast.push({ title: "Erreur", description: message, variant: "error" });
     }
-  };
+  }, [toast]);
 
   useEffect(() => {
     load();
-  }, []);
+  }, [load]);
 
   const toggleType = (type: string) => {
     setForm((prev) => ({
@@ -600,8 +638,8 @@ export default function AdminReferencesPage() {
         },
       });
       toast.push({
-        title: "Reference ajoutee",
-        description: "La reference est maintenant disponible.",
+        title: "Référence ajoutée",
+        description: "La référence est maintenant disponible.",
         variant: "success",
       });
       setForm({
@@ -637,7 +675,7 @@ export default function AdminReferencesPage() {
   };
 
   const deleteReference = async (reference: LegalReference) => {
-    if (!confirm("Supprimer cette reference ?")) return;
+    if (!confirm("Supprimer cette référence ?")) return;
     try {
       await requestJson(`/api/legal-references/${reference.id}`, { method: "DELETE" });
       await load();
@@ -652,16 +690,24 @@ export default function AdminReferencesPage() {
 
   const activeCount = useMemo(() => items.filter((item) => item.isActive).length, [items]);
 
+  if (!user) return null;
+
   if (!isAdmin) {
     return (
-      <Card>
-        <p className="text-sm text-[color:var(--textMuted)]">Accès réservé à l'administration.</p>
+      <Card className="p-0 overflow-hidden">
+        <div className="ms-cardHeader">
+          <p className="ms-kicker">Administration</p>
+          <p className="mt-2 text-lg font-semibold text-text">Accès restreint</p>
+        </div>
+        <div className="ms-cardBody">
+          <p className="text-sm text-muted2">Accès réservé à l’administration.</p>
+        </div>
       </Card>
     );
   }
 
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-8">
       <SectionHeader
         title="Références légales"
         description="Gérez les références applicables aux interventions. Elles seront visibles dans les dossiers."
@@ -671,44 +717,41 @@ export default function AdminReferencesPage() {
       {error ? <ErrorBanner message={error} /> : null}
 
       <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-        <Card className="grid gap-4 p-0 overflow-hidden">
-          <div className="flex items-center justify-between">
+        <Card className="grid gap-6 p-0 overflow-hidden">
+          <div className="ms-cardHeader flex items-center justify-between">
             <h2 className="text-lg font-semibold">Références actives</h2>
             <Badge variant="accent">{activeCount} actives</Badge>
           </div>
-          <DataTable stickyHeader>
+          <DataTable stickyHeader variant="plain">
             <DataTableHead sticky>
               <tr>
-                <th className="px-5 py-4">Référence</th>
-                <th className="px-5 py-4">Types</th>
-                <th className="px-5 py-4 text-right">Actions</th>
+                <th>Référence</th>
+                <th>Types</th>
+                <th className="text-right">Actions</th>
               </tr>
             </DataTableHead>
             <tbody>
               {items.length === 0 ? (
                 <tr>
-                  <td className="px-5 py-6" colSpan={3}>
-                    <p className="text-sm text-[color:var(--textMuted)]">Aucune référence.</p>
+                  <td colSpan={3}>
+                    <div className="p-6 text-sm text-muted2">Aucune référence.</div>
                   </td>
                 </tr>
               ) : (
                 items.map((item) => (
-                  <tr
-                    key={item.id}
-                    className="border-t border-[color:var(--border)] transition hover:bg-[color:var(--surface2)]"
-                  >
-                    <td className="px-5 py-4">
-                      <p className="font-semibold text-[color:var(--text)]">{item.title}</p>
-                      <p className="text-xs text-[color:var(--textMuted)]">{item.summary || "-"}</p>
-                      <div className="mt-2 flex flex-wrap gap-2 text-xs text-[color:var(--textMuted)]">
+                  <tr key={item.id}>
+                    <td>
+                      <p className="font-semibold text-text">{item.title}</p>
+                      <p className="text-xs text-muted2">{item.summary || "-"}</p>
+                      <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted2">
                         {item.code ? <span>{item.code}</span> : null}
                         {item.articleRef ? <span>{item.articleRef}</span> : null}
                       </div>
                     </td>
-                    <td className="px-5 py-4 text-xs text-[color:var(--textMuted)]">
+                    <td className="text-xs text-muted2">
                       {item.assignments.map((entry) => entry.interventionType).join(", ") || "-"}
                     </td>
-                    <td className="px-5 py-4 text-right">
+                    <td className="text-right">
                       <div className="flex justify-end gap-2">
                         <Button variant="ghost" size="sm" onClick={() => toggleActive(item)}>
                           {item.isActive ? "Désactiver" : "Activer"}
@@ -725,9 +768,9 @@ export default function AdminReferencesPage() {
           </DataTable>
         </Card>
 
-        <Card className="grid gap-4">
+        <Card className="grid gap-5">
           <div>
-            <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--textMuted)]">Nouvelle référence</p>
+            <p className="ms-kicker">Nouvelle référence</p>
             <h2 className="mt-2 text-xl font-semibold">Ajouter une référence</h2>
           </div>
           <Input
@@ -777,8 +820,8 @@ export default function AdminReferencesPage() {
             <option value="WARNING">Attention</option>
             <option value="CRITICAL">Critique</option>
           </Select>
-          <div className="grid gap-2 text-xs text-[color:var(--textMuted)]">
-            <p className="text-[color:var(--text)]">Types d'intervention associés</p>
+          <div className="grid gap-2 text-xs text-muted2">
+            <p className="text-text">Types d’intervention associés</p>
             <div className="flex flex-wrap gap-2">
               {TYPES.map((type) => (
                 <button
@@ -787,8 +830,8 @@ export default function AdminReferencesPage() {
                   onClick={() => toggleType(type)}
                   className={`rounded-[var(--rButton)] border px-3 py-2 text-xs font-semibold transition ${
                     form.types.includes(type)
-                      ? "border-[color:var(--accent)] bg-[color:var(--accentWeak)] text-[color:var(--text)]"
-                      : "border-[color:var(--border)] text-[color:var(--textMuted)] hover:bg-[color:var(--surface2)]"
+                      ? "border-primary bg-primaryWeak text-text"
+                      : "border-border text-muted2 hover:bg-surface2"
                   }`}
                 >
                   {type}
@@ -911,7 +954,7 @@ export default function ClientDetailPage() {
   const fullName = `${client.firstName} ${client.lastName}`;
 
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-8">
       <SectionHeader
         title={fullName}
         description={`Fiche client #${client.id}`}
@@ -923,31 +966,41 @@ export default function ClientDetailPage() {
         level={1}
       />
 
-      <Card>
-        <div className="flex items-start justify-between gap-3">
+      <div className="-mt-4 flex flex-wrap items-center gap-2">
+        <Badge variant="accent">Client</Badge>
+        {client.garage?.name ? <Badge variant="neutral">{client.garage.name}</Badge> : null}
+        <Badge variant="neutral">{vehicles.length} véhicule(s)</Badge>
+        <Badge variant="neutral">{interventions.length} intervention(s)</Badge>
+      </div>
+
+      <Card className="p-0 overflow-hidden">
+        <div className="ms-cardHeader flex items-start justify-between gap-3">
           <div>
-            <p className="text-sm font-semibold">Informations</p>
-            <p className="mt-1 text-sm text-[color:var(--textMuted)]">Client #{client.id}</p>
+            <p className="ms-kicker">Informations</p>
+            <p className="mt-2 text-lg font-semibold text-text">{fullName}</p>
+            <p className="mt-1 text-sm text-muted2">Client #{client.id}</p>
           </div>
-          <Badge variant="accent">Client</Badge>
+          <span className="hidden sm:block">
+            <Badge variant="accent">Fiche</Badge>
+          </span>
         </div>
 
-        <div className="mt-4 grid gap-2 text-sm text-[color:var(--textMuted)]">
+        <div className="ms-cardBody grid gap-2 text-sm text-muted2">
           <p>
-            Nom: <span className="text-[color:var(--text)]">{client.firstName} {client.lastName}</span>
+            Nom: <span className="text-text">{client.firstName} {client.lastName}</span>
           </p>
           <p>
-            Garage: <span className="text-[color:var(--text)]">{client.garage?.name ?? (client.garageId ? `#${client.garageId}` : "-")}</span>
+            Garage: <span className="text-text">{client.garage?.name ?? (client.garageId ? `#${client.garageId}` : "-")}</span>
           </p>
         </div>
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2">
         <Card className="p-0 overflow-hidden">
-          <div className="flex items-center justify-between gap-3 border-b border-[color:var(--border)] px-5 py-4">
+          <div className="ms-cardHeader flex items-center justify-between gap-4">
             <div>
               <p className="ms-kicker">Véhicules</p>
-              <p className="mt-1 text-sm text-[color:var(--textMuted)]">
+              <p className="mt-1 text-sm text-muted2">
                 {vehicles.length} véhicule(s)
               </p>
             </div>
@@ -957,7 +1010,7 @@ export default function ClientDetailPage() {
           </div>
 
           {vehicles.length === 0 ? (
-            <div className="px-5 py-4">
+            <div className="ms-cardBody">
               <EmptyState
                 title="Aucun véhicule"
                 description="Ce client n'a pas encore de véhicule."
@@ -969,23 +1022,23 @@ export default function ClientDetailPage() {
               />
             </div>
           ) : (
-            <DataTable className="rounded-none border-0 bg-transparent shadow-none">
+            <DataTable variant="plain">
               <DataTableHead>
                 <tr>
-                  <th className="px-5 py-3">Plaque</th>
-                  <th className="px-5 py-3">Modèle</th>
-                  <th className="px-5 py-3">Dossier</th>
+                  <th>Plaque</th>
+                  <th>Modèle</th>
+                  <th>Dossier</th>
                 </tr>
               </DataTableHead>
-              <tbody className="divide-y divide-[color:var(--border)]">
+              <tbody>
                 {vehicles.slice(0, 8).map((v) => (
-                  <tr key={v.id} className="transition hover:bg-[color:var(--surface2)]">
-                    <td className="px-5 py-3 text-sm font-medium">{v.plate}</td>
-                    <td className="px-5 py-3 text-sm text-[color:var(--textMuted)]">
+                  <tr key={v.id}>
+                    <td className="text-sm font-medium">{v.plate}</td>
+                    <td className="text-sm text-muted2">
                       {v.brand} {v.model}
                     </td>
-                    <td className="px-5 py-3">
-                      <Link href={`/vehicules?selected=${encodeURIComponent(v.id)}`} className="text-sm font-semibold text-[color:var(--accent)] hover:text-[color:var(--accentHover)]">
+                    <td>
+                      <Link href={`/vehicules?selected=${encodeURIComponent(v.id)}`} className="text-sm font-semibold text-primary hover:text-primaryHover">
                         Ouvrir
                       </Link>
                     </td>
@@ -997,10 +1050,10 @@ export default function ClientDetailPage() {
         </Card>
 
         <Card className="p-0 overflow-hidden">
-          <div className="flex items-center justify-between gap-3 border-b border-[color:var(--border)] px-5 py-4">
+          <div className="ms-cardHeader flex items-center justify-between gap-4">
             <div>
               <p className="ms-kicker">Interventions</p>
-              <p className="mt-1 text-sm text-[color:var(--textMuted)]">
+              <p className="mt-1 text-sm text-muted2">
                 {interventions.length} intervention(s)
               </p>
             </div>
@@ -1010,7 +1063,7 @@ export default function ClientDetailPage() {
           </div>
 
           {interventions.length === 0 ? (
-            <div className="px-5 py-4">
+            <div className="ms-cardBody">
               <EmptyState
                 title="Aucune intervention"
                 description="Les interventions de ce client apparaîtront ici."
@@ -1022,25 +1075,25 @@ export default function ClientDetailPage() {
               />
             </div>
           ) : (
-            <DataTable className="rounded-none border-0 bg-transparent shadow-none">
+            <DataTable variant="plain">
               <DataTableHead>
                 <tr>
-                  <th className="px-5 py-3">Véhicule</th>
-                  <th className="px-5 py-3">Type</th>
-                  <th className="px-5 py-3">Créée</th>
-                  <th className="px-5 py-3">Dossier</th>
+                  <th>Véhicule</th>
+                  <th>Type</th>
+                  <th>Créée</th>
+                  <th>Dossier</th>
                 </tr>
               </DataTableHead>
-              <tbody className="divide-y divide-[color:var(--border)]">
+              <tbody>
                 {interventions.slice(0, 8).map((i) => (
-                  <tr key={i.id} className="transition hover:bg-[color:var(--surface2)]">
-                    <td className="px-5 py-3 text-sm font-medium">{i.vehicle.plate}</td>
-                    <td className="px-5 py-3 text-sm text-[color:var(--textMuted)]">{i.type}</td>
-                    <td className="px-5 py-3 text-xs text-[color:var(--textMuted)]">
+                  <tr key={i.id}>
+                    <td className="text-sm font-medium">{i.vehicle.plate}</td>
+                    <td className="text-sm text-muted2">{i.type}</td>
+                    <td className="text-xs text-muted2">
                       {new Date(i.createdAt).toLocaleDateString("fr-FR")}
                     </td>
-                    <td className="px-5 py-3">
-                      <Link href={`/interventions?selected=${encodeURIComponent(i.id)}`} className="text-sm font-semibold text-[color:var(--accent)] hover:text-[color:var(--accentHover)]">
+                    <td>
+                      <Link href={`/interventions?selected=${encodeURIComponent(i.id)}`} className="text-sm font-semibold text-primary hover:text-primaryHover">
                         Ouvrir
                       </Link>
                     </td>
@@ -1063,7 +1116,7 @@ export default function ClientDetailPage() {
 ```tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Plus, MoreHorizontal, Trash2, Pencil } from "lucide-react";
@@ -1102,10 +1155,13 @@ export default function ClientsPage() {
   const [garages, setGarages] = useState<GarageOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [query, setQuery] = useState("");
+  const qFromUrl = searchParams.get("q") || "";
+  const [query, setQuery] = useState(qFromUrl);
 
-  const selectedFromUrl = Number(searchParams.get("selected") || "");
-  const [selectedId, setSelectedId] = useState<number | null>(Number.isFinite(selectedFromUrl) ? selectedFromUrl : null);
+  const selectedParam = searchParams.get("selected");
+  const selectedFromUrl = selectedParam ? Number(selectedParam) : NaN;
+  const initialSelectedId = Number.isFinite(selectedFromUrl) && selectedFromUrl > 0 ? selectedFromUrl : null;
+  const [selectedId, setSelectedId] = useState<number | null>(initialSelectedId);
 
   const [detail, setDetail] = useState<ClientItem | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -1123,7 +1179,7 @@ export default function ClientsPage() {
     garageId: "",
   });
 
-  const loadClients = async () => {
+  const loadClients = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -1134,29 +1190,36 @@ export default function ClientsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const loadGarages = async () => {
-    if (user.role !== "ADMIN") return;
+  const loadGarages = useCallback(async () => {
+    if (user?.role !== "ADMIN") return;
     try {
       const data = await fetcher<GarageOption[]>("/api/admin/garages", { noStore: true });
       setGarages(data ?? []);
     } catch {
       setGarages([]);
     }
-  };
+  }, [user?.role]);
 
   useEffect(() => {
     loadClients();
     loadGarages();
-  }, []);
+  }, [loadClients, loadGarages]);
 
   useEffect(() => {
     // keep selectedId in sync if URL changes
-    if (!Number.isFinite(selectedFromUrl)) return;
+    if (!selectedParam) {
+      setSelectedId(null);
+      return;
+    }
+    if (!Number.isFinite(selectedFromUrl) || selectedFromUrl <= 0) return;
     setSelectedId(selectedFromUrl);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedFromUrl]);
+  }, [selectedFromUrl, selectedParam]);
+
+  useEffect(() => {
+    setQuery(qFromUrl);
+  }, [qFromUrl]);
 
   useEffect(() => {
     const loadDetail = async () => {
@@ -1219,7 +1282,7 @@ export default function ClientsPage() {
       );
       toast.push({
         title: editorMode === "edit" ? "Client mis à jour" : "Client créé",
-        description: "Les informations sont enregistrees.",
+        description: "Les informations sont enregistrées.",
         variant: "success",
       });
       setEditorOpen(false);
@@ -1244,8 +1307,8 @@ export default function ClientsPage() {
     try {
       await requestJson<boolean>(`/api/clients/${pendingDeleteId}`, { method: "DELETE" });
       toast.push({
-        title: "Client supprime",
-        description: "Le client a ete retire.",
+        title: "Client supprimé",
+        description: "Le client a été retiré.",
         variant: "success",
       });
       await loadClients();
@@ -1264,12 +1327,12 @@ export default function ClientsPage() {
   };
 
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-8">
       <SectionHeader
         title="Clients"
         description="Liste, recherche et gestion des fiches clients."
         action={
-          <Button onClick={openCreate}>
+          <Button onClick={openCreate} size="sm">
             <Plus size={16} /> Créer
           </Button>
         }
@@ -1278,17 +1341,18 @@ export default function ClientsPage() {
 
       {error ? <ErrorBanner message={error} /> : null}
 
-      <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
+      <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
         {/* Left: list */}
         <Card className="p-0 overflow-hidden">
-          <div className="border-b border-[color:var(--border)] p-4">
+          <div className="ms-cardHeader">
             <Input
+              label="Recherche"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Rechercher par nom ou ID"
             />
             <div className="mt-3 flex items-center justify-between">
-              <p className="text-xs text-[color:var(--textMuted)]">
+              <p className="text-xs text-muted2">
                 {loading ? "Chargement…" : `${filtered.length} client(s)`}
               </p>
               {selectedId ? <Badge variant="accent">Sélectionné</Badge> : null}
@@ -1297,9 +1361,9 @@ export default function ClientsPage() {
 
           <div className="max-h-[calc(100vh-220px)] overflow-auto">
             {loading ? (
-              <div className="p-4 text-sm text-[color:var(--textMuted)]">Chargement…</div>
+              <div className="ms-cardBody text-sm text-muted2">Chargement…</div>
             ) : filtered.length === 0 ? (
-              <div className="p-4">
+              <div className="ms-cardBody">
                 <EmptyState
                   title="Aucun client"
                   description="Créez un client pour démarrer."
@@ -1307,7 +1371,7 @@ export default function ClientsPage() {
                 />
               </div>
             ) : (
-              <div className="p-2">
+              <div className="p-3 sm:p-4">
                 {filtered.map((client) => {
                   const isActive = selectedId === client.id;
                   return (
@@ -1321,25 +1385,25 @@ export default function ClientsPage() {
                           router.replace(`/clients?selected=${client.id}`);
                         }
                       }}
-                      className={`flex items-center justify-between gap-3 rounded-xl px-3 py-3 text-sm transition ${
+                      className={`flex items-center justify-between gap-4 rounded-2xl px-4 py-3.5 text-sm transition ${
                         isActive
-                          ? "bg-[color:var(--accentWeak)] text-[color:var(--text)] border border-[color:var(--accent)]"
-                          : "text-[color:var(--text)] hover:bg-[color:var(--surface2)] border border-transparent"
+                          ? "bg-primaryWeak text-text border border-primary/25"
+                          : "text-text hover:bg-surface2/80 border border-transparent"
                       }`}
                     >
                       <div className="min-w-0">
-                        <p className="truncate font-medium">
+                        <p className="truncate font-semibold">
                           {client.firstName} {client.lastName}
                         </p>
                         {user.role === "ADMIN" ? (
-                          <p className="truncate text-xs text-[color:var(--textMuted)]">
+                          <p className="truncate text-xs text-muted2">
                             {client.garage?.name ?? (client.garageId ? `Garage #${client.garageId}` : "-")}
                           </p>
                         ) : (
-                          <p className="text-xs text-[color:var(--textMuted)]">ID #{client.id}</p>
+                          <p className="text-xs text-muted2">ID #{client.id}</p>
                         )}
                       </div>
-                      <span className="text-xs text-[color:var(--textMuted)]">#{client.id}</span>
+                      <span className="text-xs text-muted2">#{client.id}</span>
                     </Link>
                   );
                 })}
@@ -1350,10 +1414,10 @@ export default function ClientsPage() {
 
         {/* Right: detail */}
         <Card className="p-0 overflow-hidden">
-          <div className="border-b border-[color:var(--border)] p-4 flex items-start justify-between gap-3">
+          <div className="ms-cardHeader flex items-start justify-between gap-4">
             <div>
               <p className="ms-kicker">Détail</p>
-              <p className="mt-1 text-sm text-[color:var(--textMuted)]">
+              <p className="mt-1 text-sm text-muted2">
                 {detail ? `Client #${detail.id}` : "Sélectionnez un client"}
               </p>
             </div>
@@ -1363,7 +1427,7 @@ export default function ClientsPage() {
                 trigger={
                   <button
                     type="button"
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] hover:bg-[color:var(--surface2)]"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-surface hover:bg-surface2"
                     aria-label="Actions"
                   >
                     <MoreHorizontal size={18} />
@@ -1374,37 +1438,37 @@ export default function ClientsPage() {
                   <span className="inline-flex items-center gap-2"><Pencil size={16} /> Modifier</span>
                 </DropdownItem>
                 <DropdownItem onClick={() => requestDelete(detail.id)}>
-                  <span className="inline-flex items-center gap-2 text-[color:var(--danger)]"><Trash2 size={16} /> Supprimer</span>
+                  <span className="inline-flex items-center gap-2 text-danger"><Trash2 size={16} /> Supprimer</span>
                 </DropdownItem>
               </DropdownMenu>
             ) : null}
           </div>
 
-          <div className="p-4">
+          <div className="ms-cardBody">
             {detailLoading ? (
-              <div className="text-sm text-[color:var(--textMuted)]">Chargement du détail…</div>
+              <div className="text-sm text-muted2">Chargement du détail…</div>
             ) : !detail ? (
               <EmptyState
                 title="Aucun client sélectionné"
                 description="Choisissez un client dans la liste pour afficher sa fiche."
               />
             ) : (
-              <div className="grid gap-4">
-                <div className="rounded-[var(--r)] border border-[color:var(--border)] bg-[color:var(--surface2)] p-4">
+              <div className="grid gap-6">
+                <div className="rounded-[var(--r)] border border-border bg-surface2 p-5 sm:p-6">
                   <p className="text-sm font-semibold">
                     {detail.firstName} {detail.lastName}
                   </p>
-                  <p className="mt-1 text-xs text-[color:var(--textMuted)]">ID #{detail.id}</p>
+                  <p className="mt-1 text-xs text-muted2">ID #{detail.id}</p>
                   {user.role === "ADMIN" ? (
-                    <p className="mt-2 text-xs text-[color:var(--textMuted)]">
+                    <p className="mt-2 text-xs text-muted2">
                       Garage: {detail.garage?.name ?? (detail.garageId ? `#${detail.garageId}` : "-")}
                     </p>
                   ) : null}
                 </div>
 
-                <div className="rounded-[var(--r)] border border-[color:var(--border)] bg-[color:var(--surface)] p-4">
+                <div className="rounded-[var(--r)] border border-border bg-surface p-5 sm:p-6">
                   <p className="text-sm font-semibold">Véhicules</p>
-                  <p className="mt-1 text-sm text-[color:var(--textMuted)]">
+                  <p className="mt-1 text-sm text-muted2">
                     Disponible dans le dossier client.
                   </p>
                   <div className="mt-3">
@@ -1488,6 +1552,7 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { SectionHeader } from "@/components/ui/SectionHeader";
+import { Badge } from "@/components/ui/Badge";
 import { DataTable, DataTableHead } from "@/components/ui/DataTable";
 import { formatDistance } from "date-fns/formatDistance";
 import { fr } from "date-fns/locale/fr";
@@ -1499,6 +1564,9 @@ export default async function DashboardPage() {
   const user = await getSessionUser();
   if (!user) redirect("/auth/login");
   if (!isApprovedGarage(user)) redirect("/pro/en-attente");
+
+  const scopeLabel = user.role === "ADMIN" ? "Admin" : "Garage";
+  const garageName = user.role === "GARAGE" ? user.garage?.name : undefined;
 
   const baseWhere = user.role === "ADMIN" ? {} : { garageId: user.garageId ?? -1 };
   const weekSince = new Date();
@@ -1536,7 +1604,7 @@ export default async function DashboardPage() {
   };
 
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-8">
       <SectionHeader
         title="Tableau de bord"
         description="Vue d’ensemble de votre activité : clients, véhicules et interventions."
@@ -1557,26 +1625,34 @@ export default async function DashboardPage() {
         }
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="-mt-4 flex flex-wrap items-center gap-2">
+        <Badge variant={user.role === "ADMIN" ? "accent" : "neutral"}>{scopeLabel}</Badge>
+        {garageName ? <Badge variant="neutral">{garageName}</Badge> : null}
+        {user.role === "GARAGE" ? (
+          <Badge variant="neutral">ID garage #{user.garageId ?? "—"}</Badge>
+        ) : null}
+      </div>
+
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Clients actifs" value={clientsCount} />
         <StatCard label="Véhicules suivis" value={vehiclesCount} />
         <StatCard label="Interventions totales" value={interventionsCount} />
         <StatCard label="Aujourd’hui" value={interventionsToday} badge={`7j: ${interventionsWeek}`} />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2">
         <Card className="p-0">
-          <div className="flex items-center justify-between gap-3 border-b border-[color:var(--border)] px-5 py-4">
+          <div className="ms-cardHeader flex items-center justify-between gap-4">
             <div>
               <p className="ms-kicker">Derniers clients</p>
-              <p className="mt-1 text-sm text-[color:var(--textMuted)]">Ajouts récents</p>
+              <p className="mt-1 text-sm text-muted2">Ajouts récents</p>
             </div>
             <Link href="/clients">
               <Button variant="secondary" size="sm">Voir tout</Button>
             </Link>
           </div>
           {recentClients.length === 0 ? (
-            <div className="px-5 py-4">
+            <div className="ms-cardBody">
               <EmptyState
                 title="Aucun client"
                 description="Créez votre premier client pour démarrer."
@@ -1588,17 +1664,17 @@ export default async function DashboardPage() {
               />
             </div>
           ) : (
-            <DataTable className="rounded-none border-0 bg-transparent shadow-none">
+            <DataTable variant="plain">
               <DataTableHead>
                 <tr>
-                  <th className="px-5 py-3">Client</th>
-                  <th className="px-5 py-3">Créé</th>
+                  <th>Client</th>
+                  <th>Créé</th>
                 </tr>
               </DataTableHead>
-              <tbody className="divide-y divide-[color:var(--border)]">
+              <tbody>
                 {recentClients.map((client) => (
-                  <tr key={client.id} className="transition hover:bg-[color:var(--surface2)]">
-                    <td className="px-5 py-3">
+                  <tr key={client.id}>
+                    <td>
                       <Link
                         href={`/clients?selected=${client.id}`}
                         className="block min-w-0"
@@ -1606,10 +1682,10 @@ export default async function DashboardPage() {
                         <p className="truncate text-sm font-medium">
                           {client.firstName} {client.lastName}
                         </p>
-                        <p className="text-xs text-[color:var(--textMuted)]">ID #{client.id}</p>
+                        <p className="text-xs text-muted2">ID #{client.id}</p>
                       </Link>
                     </td>
-                    <td className="px-5 py-3 text-xs text-[color:var(--textMuted)]" title={new Date(client.createdAt).toLocaleString("fr-FR")}>
+                    <td className="text-xs text-muted2" title={new Date(client.createdAt).toLocaleString("fr-FR")}>
                       {getRelativeDate(client.createdAt)}
                     </td>
                   </tr>
@@ -1620,33 +1696,33 @@ export default async function DashboardPage() {
         </Card>
 
         <Card className="p-0">
-          <div className="flex items-center justify-between gap-3 border-b border-[color:var(--border)] px-5 py-4">
+          <div className="ms-cardHeader flex items-center justify-between gap-4">
             <div>
               <p className="ms-kicker">Dernières interventions</p>
-              <p className="mt-1 text-sm text-[color:var(--textMuted)]">Trafic atelier</p>
+              <p className="mt-1 text-sm text-muted2">Trafic atelier</p>
             </div>
             <Link href="/interventions">
               <Button variant="secondary" size="sm">Voir tout</Button>
             </Link>
           </div>
           {recentInterventions.length === 0 ? (
-            <div className="px-5 py-4">
+            <div className="ms-cardBody">
               <EmptyState title="Aucune intervention" description="Les interventions récentes apparaîtront ici." />
             </div>
           ) : (
-            <DataTable className="rounded-none border-0 bg-transparent shadow-none">
+            <DataTable variant="plain">
               <DataTableHead>
                 <tr>
-                  <th className="px-5 py-3">Véhicule</th>
-                  <th className="px-5 py-3">Client</th>
-                  <th className="px-5 py-3">Type</th>
-                  <th className="px-5 py-3">Créée</th>
+                  <th>Véhicule</th>
+                  <th>Client</th>
+                  <th>Type</th>
+                  <th>Créée</th>
                 </tr>
               </DataTableHead>
-              <tbody className="divide-y divide-[color:var(--border)]">
+              <tbody>
                 {recentInterventions.map((intervention) => (
-                  <tr key={intervention.id} className="transition hover:bg-[color:var(--surface2)]">
-                    <td className="px-5 py-3">
+                  <tr key={intervention.id}>
+                    <td>
                       <Link
                         href={`/interventions/${intervention.id}`}
                         className="text-sm font-medium"
@@ -1654,13 +1730,13 @@ export default async function DashboardPage() {
                         {intervention.vehicle.plate}
                       </Link>
                     </td>
-                    <td className="px-5 py-3 text-sm text-[color:var(--textMuted)]">
+                    <td className="text-sm text-muted2">
                       {intervention.vehicle.client.firstName} {intervention.vehicle.client.lastName}
                     </td>
-                    <td className="px-5 py-3 text-sm">
+                    <td className="text-sm">
                       {intervention.type}
                     </td>
-                    <td className="px-5 py-3 text-xs text-[color:var(--textMuted)]" title={new Date(intervention.createdAt).toLocaleString("fr-FR")}>
+                    <td className="text-xs text-muted2" title={new Date(intervention.createdAt).toLocaleString("fr-FR")}>
                       {getRelativeDate(intervention.createdAt)}
                     </td>
                   </tr>
@@ -1695,6 +1771,7 @@ import { ErrorBanner } from "@/components/common/ErrorBanner";
 import { EmptyState } from "@/components/common/EmptyState";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { useRouter } from "next/navigation";
+import { StatCard } from "@/components/common/StatCard";
 
 type DocumentItem = {
   id: string;
@@ -1749,6 +1826,14 @@ export default function DocumentsPage() {
 
   const visibleDocuments = filtered.slice(0, visibleCount);
 
+  const latestCreatedAt = useMemo(() => {
+    if (filtered.length === 0) return null;
+    const latest = filtered.reduce((acc, current) => {
+      return new Date(current.createdAt).getTime() > new Date(acc.createdAt).getTime() ? current : acc;
+    }, filtered[0]);
+    return latest.createdAt;
+  }, [filtered]);
+
   // Helper for relative date
   const getRelativeDate = (date: Date | string) => {
     const d = typeof date === "string" ? new Date(date) : date;
@@ -1756,7 +1841,7 @@ export default function DocumentsPage() {
   };
 
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-8">
       <SectionHeader
         title="Documents"
         description="Téléchargez les dossiers PDF générés depuis les interventions."
@@ -1764,67 +1849,80 @@ export default function DocumentsPage() {
         level={1}
       />
 
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <StatCard label="Documents" value={loading ? "…" : filtered.length} badge={loading ? undefined : "PDF"} />
+        <StatCard
+          label="Affichés"
+          value={loading ? "…" : Math.min(visibleCount, filtered.length)}
+          badge={loading ? undefined : `Sur ${filtered.length}`}
+        />
+        <StatCard
+          label="Dernière génération"
+          value={loading ? "…" : latestCreatedAt ? getRelativeDate(latestCreatedAt) : "—"}
+          badge={loading ? undefined : latestCreatedAt ? new Date(latestCreatedAt).toLocaleDateString("fr-FR") : undefined}
+        />
+      </div>
+
       {error ? <ErrorBanner message={error} /> : null}
 
       <Card className="p-0 overflow-hidden">
-        <div className="border-b border-[color:var(--border)] p-4">
-          <Input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Rechercher par plaque, client, type"
-            className="max-w-md"
-          />
-          <p className="mt-3 text-xs text-[color:var(--textMuted)]">
-            {loading ? "Chargement…" : `${filtered.length} document(s)`}
-          </p>
+        <div className="ms-cardHeader">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div className="w-full max-w-xl">
+              <p className="ms-kicker">Recherche</p>
+              <Input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Plaque, client, type…"
+                className="mt-2"
+              />
+            </div>
+            <div className="text-xs text-muted2">
+              {loading ? "Chargement…" : `${filtered.length} document(s)`}
+            </div>
+          </div>
         </div>
 
-        <DataTable stickyHeader className="rounded-none border-0 shadow-none">
+        <DataTable stickyHeader variant="plain">
           <DataTableHead sticky>
             <tr>
-              <th className="px-5 py-4">Intervention</th>
-              <th className="px-5 py-4">Client</th>
-              <th className="px-5 py-4 text-right">PDF</th>
+              <th>Intervention</th>
+              <th>Client</th>
+              <th className="text-right">PDF</th>
             </tr>
           </DataTableHead>
           <tbody>
             {loading ? (
               Array.from({ length: 6 }).map((_, i) => (
-                <tr key={i} className="border-t border-[color:var(--border)]">
-                  <td className="px-5 py-6" colSpan={3}>
+                <tr key={i}>
+                  <td colSpan={3}>
                     <Skeleton className="h-10 w-full" />
                   </td>
                 </tr>
               ))
             ) : filtered.length === 0 ? (
-              <tr className="border-t border-[color:var(--border)]">
-                <td className="px-5 py-8" colSpan={3}>
+              <tr>
+                <td colSpan={3}>
                   <EmptyState title="Aucun document" description="Les PDFs seront disponibles ici." />
                 </td>
               </tr>
             ) : (
               visibleDocuments.map((doc) => (
-                <tr
-                  key={doc.id}
-                  className="border-t border-[color:var(--border)] transition hover:bg-[color:var(--surface2)]"
-                >
-                  <td className="px-5 py-4">
-                    <p className="font-semibold text-[color:var(--text)]">
+                <tr key={doc.id}>
+                  <td>
+                    <p className="font-semibold text-text">
                       {doc.vehicle.plate} · {doc.type}
                     </p>
-                    <p className="mt-1 text-xs text-[color:var(--textMuted)]">
+                    <p className="mt-1 text-xs text-muted2">
                       <span title={new Date(doc.createdAt).toLocaleString("fr-FR")}>{getRelativeDate(doc.createdAt)}</span>
                     </p>
                   </td>
-                  <td className="px-5 py-4 text-sm text-[color:var(--textMuted)]">
+                  <td className="text-sm text-muted2">
                     {doc.vehicle.client.firstName} {doc.vehicle.client.lastName}
                   </td>
-                  <td className="px-5 py-4 text-right">
-                    <a
-                      href={`/api/interventions/${doc.id}/pdf`}
-                      className="text-sm font-semibold text-[color:var(--accent)] hover:text-[color:var(--accentHover)]"
-                    >
-                      Télécharger
+                  <td className="text-right">
+                    <a href={`/api/interventions/${doc.id}/pdf`} className="inline-flex">
+                      <Button variant="outline" size="sm">Télécharger</Button>
                     </a>
                   </td>
                 </tr>
@@ -1834,7 +1932,7 @@ export default function DocumentsPage() {
         </DataTable>
 
         {filtered.length > visibleCount ? (
-          <div className="border-t border-[color:var(--border)] p-4 flex justify-center">
+          <div className="ms-cardFooter flex justify-center">
             <Button variant="ghost" onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}>
               Afficher plus
             </Button>
@@ -1854,10 +1952,12 @@ export default function DocumentsPage() {
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
 import { ErrorBanner } from "@/components/common/ErrorBanner";
 import { Loading } from "@/components/common/Loading";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -1883,7 +1983,7 @@ type Intervention = {
   softwareVersion?: string | null;
   checksum?: string | null;
   vehicle: Vehicle;
-  revisions?: Array<any>;
+  revisions?: Array<{ id?: string; createdAt?: string; hash?: string | null }>;
 };
 
 export default function InterventionDetailPage() {
@@ -1911,18 +2011,18 @@ export default function InterventionDetailPage() {
   }, [id]);
 
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-8">
       <SectionHeader
         title={intervention ? `Dossier ${intervention.vehicle.plate}` : "Dossier intervention"}
         description="Détail complet de l'intervention, traçabilité et conformité."
         level={1}
         action={
           <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-            <a href="/interventions" className="w-full sm:w-auto">
+            <Link href="/interventions" className="w-full sm:w-auto">
               <Button variant="secondary" size="sm" className="w-full sm:w-auto">
                 Retour
               </Button>
-            </a>
+            </Link>
             {intervention ? (
               <a
                 href={`/api/interventions/${intervention.id}/pdf`}
@@ -1936,6 +2036,20 @@ export default function InterventionDetailPage() {
           </div>
         }
       />
+
+      {intervention ? (
+        <div className="-mt-4 flex flex-wrap items-center gap-2">
+          <Badge variant="accent">{intervention.type}</Badge>
+          <Badge variant="neutral">{intervention.vehicle.brand} {intervention.vehicle.model}</Badge>
+          <Badge variant="neutral">Client: {intervention.vehicle.client.firstName} {intervention.vehicle.client.lastName}</Badge>
+          {intervention.revisions?.length ? (
+            <Badge variant="neutral">{intervention.revisions.length} révision(s)</Badge>
+          ) : (
+            <Badge variant="neutral">Aucune révision</Badge>
+          )}
+        </div>
+      ) : null}
+
       {loading ? (
         <div className="flex justify-center py-12"><Loading /></div>
       ) : error ? (
@@ -1944,65 +2058,74 @@ export default function InterventionDetailPage() {
         <EmptyState title="Intervention introuvable" description="Ce dossier n'existe pas ou n'est plus accessible." />
       ) : (
         <div className="grid gap-8 lg:grid-cols-2">
-          <Card className="flex flex-col gap-4">
-            <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+          <Card className="p-0 overflow-hidden">
+            <div className="ms-cardHeader flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="ms-kicker">Véhicule</p>
                 <h2 className="mt-2 text-xl font-semibold tracking-tight">
                   {intervention.vehicle.plate}{" "}
-                  <span className="text-[color:var(--textMuted)] font-normal">· {intervention.type}</span>
+                  <span className="font-normal text-muted2">· {intervention.type}</span>
                 </h2>
-                <p className="mt-1 text-xs text-[color:var(--textMuted)]">
+                <p className="mt-1 text-xs text-muted2">
                   {intervention.vehicle.brand} {intervention.vehicle.model}
                 </p>
-                <p className="text-xs text-[color:var(--textMuted)]">
+                <p className="text-xs text-muted2">
                   Client :{" "}
-                  <span className="font-medium text-[color:var(--text)]">
+                  <span className="font-medium text-text">
                     {intervention.vehicle.client.firstName} {intervention.vehicle.client.lastName}
                   </span>
                 </p>
               </div>
-              <div className="flex flex-col gap-2 items-end">
-                <span className="text-xs text-[color:var(--textMuted)]">Créée le {new Date(intervention.createdAt).toLocaleDateString("fr-FR")}</span>
-                {intervention.performedAt && <span className="text-xs text-[color:var(--textMuted)]">Réalisée le {new Date(intervention.performedAt).toLocaleDateString("fr-FR")}</span>}
+              <div className="flex flex-col items-end gap-2">
+                <span className="text-xs text-muted2">
+                  Créée le {new Date(intervention.createdAt).toLocaleDateString("fr-FR")}
+                </span>
+                {intervention.performedAt ? (
+                  <span className="text-xs text-muted2">
+                    Réalisée le {new Date(intervention.performedAt).toLocaleDateString("fr-FR")}
+                  </span>
+                ) : null}
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4 mt-2">
-              <div>
-                <p className="text-xs text-[color:var(--textMuted)] mb-1">Kilométrage</p>
-                <p className="text-[color:var(--text)] font-medium">{intervention.odometerKm ?? "-"}</p>
+            <div className="ms-cardBody grid gap-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="mb-1 text-xs text-muted2">Kilométrage</p>
+                  <p className="font-medium text-text">{intervention.odometerKm ?? "-"}</p>
+                </div>
+                <div>
+                  <p className="mb-1 text-xs text-muted2">ECU</p>
+                  <p className="font-medium text-text">{intervention.ecuType ?? "-"}</p>
+                </div>
+                <div>
+                  <p className="mb-1 text-xs text-muted2">Version logicielle</p>
+                  <p className="font-medium text-text">{intervention.softwareVersion ?? "-"}</p>
+                </div>
+                <div>
+                  <p className="mb-1 text-xs text-muted2">Checksum</p>
+                  <p className="font-medium text-text">{intervention.checksum ?? "-"}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-xs text-[color:var(--textMuted)] mb-1">ECU</p>
-                <p className="text-[color:var(--text)] font-medium">{intervention.ecuType ?? "-"}</p>
-              </div>
-              <div>
-                <p className="text-xs text-[color:var(--textMuted)] mb-1">Version logicielle</p>
-                <p className="text-[color:var(--text)] font-medium">{intervention.softwareVersion ?? "-"}</p>
-              </div>
-              <div>
-                <p className="text-xs text-[color:var(--textMuted)] mb-1">Checksum</p>
-                <p className="text-[color:var(--text)] font-medium">{intervention.checksum ?? "-"}</p>
-              </div>
+
+              {intervention.notes ? (
+                <div>
+                  <p className="mb-1 text-xs text-muted2">Notes</p>
+                  <p className="whitespace-pre-line text-text">{intervention.notes}</p>
+                </div>
+              ) : null}
             </div>
-            {intervention.notes && (
-              <div className="mt-4">
-                <p className="text-xs text-[color:var(--textMuted)] mb-1">Notes</p>
-                <p className="text-[color:var(--text)] whitespace-pre-line">{intervention.notes}</p>
-              </div>
-            )}
           </Card>
           <div className="flex flex-col gap-6">
             <LegalReferencesPanel type={intervention.type} />
             {/* Historique des révisions, si présent */}
             {intervention.revisions && intervention.revisions.length > 0 && (
-              <Card className="p-4">
-                <h3 className="text-lg font-semibold mb-2">Historique des révisions</h3>
+              <Card className="p-5 sm:p-6">
+                <h3 className="mb-3 text-lg font-semibold">Historique des révisions</h3>
                 <ul className="space-y-2">
                   {intervention.revisions.map((rev, idx) => (
-                    <li key={rev.id || idx} className="text-xs text-[color:var(--textMuted)]">
-                      <span className="font-medium text-[color:var(--text)]">Révision {idx + 1}</span> – {rev.createdAt ? new Date(rev.createdAt).toLocaleDateString("fr-FR") : ""}
-                      {rev.hash && <span className="ml-2 text-[color:var(--textMuted)]">HASH: {rev.hash}</span>}
+                    <li key={rev.id || idx} className="text-xs text-muted2">
+                      <span className="font-medium text-text">Révision {idx + 1}</span> – {rev.createdAt ? new Date(rev.createdAt).toLocaleDateString("fr-FR") : ""}
+                      {rev.hash && <span className="ml-2 text-muted2">HASH: {rev.hash}</span>}
                     </li>
                   ))}
                 </ul>
@@ -2078,7 +2201,8 @@ export default function InterventionsPage() {
   const [vehicles, setVehicles] = useState<VehicleOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [query, setQuery] = useState("");
+  const qFromUrl = searchParams.get("q") || "";
+  const [query, setQuery] = useState(qFromUrl);
   const toast = useToast();
 
   const selectedFromUrl = searchParams.get("selected") || "";
@@ -2122,7 +2246,7 @@ export default function InterventionsPage() {
       if (!res.ok) throw new Error("Erreur lors du chargement des véhicules.");
       const data = await res.json();
       setVehicles(data?.data ?? []);
-    } catch (err) {
+    } catch {
       setVehicles([]);
     }
   };
@@ -2134,8 +2258,11 @@ export default function InterventionsPage() {
 
   useEffect(() => {
     setSelectedId(selectedFromUrl || null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedFromUrl]);
+
+  useEffect(() => {
+    setQuery(qFromUrl);
+  }, [qFromUrl]);
 
   useEffect(() => {
     const loadDetail = async () => {
@@ -2223,12 +2350,12 @@ export default function InterventionsPage() {
   };
 
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-8">
       <SectionHeader
         title="Interventions"
         description="Suivi, dossiers et génération PDF."
         action={
-          <Button onClick={() => setCreateOpen(true)}>
+          <Button onClick={() => setCreateOpen(true)} size="sm">
             <Plus size={16} /> Créer
           </Button>
         }
@@ -2237,24 +2364,28 @@ export default function InterventionsPage() {
 
       {error ? <ErrorBanner message={error} /> : null}
 
-      <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
+      <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
         <Card className="p-0 overflow-hidden">
-          <div className="border-b border-[color:var(--border)] p-4">
+          <div className="ms-cardHeader">
             <Input
+              label="Recherche"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Rechercher par plaque, client, type"
             />
-            <p className="mt-3 text-xs text-[color:var(--textMuted)]">
-              {loading ? "Chargement…" : `${filtered.length} intervention(s)`}
-            </p>
+            <div className="mt-3 flex items-center justify-between">
+              <p className="text-xs text-muted2">
+                {loading ? "Chargement…" : `${filtered.length} intervention(s)`}
+              </p>
+              {selectedId ? <Badge variant="accent">Sélectionnée</Badge> : null}
+            </div>
           </div>
 
           <div className="max-h-[calc(100vh-220px)] overflow-auto">
             {loading ? (
-              <div className="p-4 text-sm text-[color:var(--textMuted)]">Chargement…</div>
+              <div className="ms-cardBody text-sm text-muted2">Chargement…</div>
             ) : filtered.length === 0 ? (
-              <div className="p-4">
+              <div className="ms-cardBody">
                 <EmptyState
                   title="Aucune intervention"
                   description="Créez une intervention pour démarrer."
@@ -2262,7 +2393,7 @@ export default function InterventionsPage() {
                 />
               </div>
             ) : (
-              <div className="p-2">
+              <div className="p-3 sm:p-4">
                 {filtered.map((item) => {
                   const isActive = selectedId === item.id;
                   return (
@@ -2276,21 +2407,21 @@ export default function InterventionsPage() {
                           router.replace(`/interventions?selected=${item.id}`);
                         }
                       }}
-                      className={`flex items-center justify-between gap-3 rounded-xl px-3 py-3 text-sm transition ${
+                      className={`flex items-center justify-between gap-4 rounded-2xl px-4 py-3.5 text-sm transition ${
                         isActive
-                          ? "bg-[color:var(--surface2)] text-[color:var(--text)] border border-[color:var(--accent)]"
-                          : "text-[color:var(--text)] hover:bg-[color:var(--surface2)] border border-transparent"
+                          ? "bg-primaryWeak text-text border border-primary/25"
+                          : "text-text hover:bg-surface2/80 border border-transparent"
                       }`}
                     >
                       <div className="min-w-0">
-                        <p className="truncate font-medium">
-                          {item.vehicle.plate} <span className="text-[color:var(--textMuted)]">· {item.type}</span>
+                        <p className="truncate font-semibold">
+                          {item.vehicle.plate} <span className="text-muted2">· {item.type}</span>
                         </p>
-                        <p className="truncate text-xs text-[color:var(--textMuted)]">
+                        <p className="truncate text-xs text-muted2">
                           {item.vehicle.client.firstName} {item.vehicle.client.lastName} · {new Date(item.createdAt).toLocaleDateString("fr-FR")}
                         </p>
                       </div>
-                      <Badge variant="accent">Dossier</Badge>
+                      <span className="text-xs text-muted2">#{item.id}</span>
                     </Link>
                   );
                 })}
@@ -2300,10 +2431,10 @@ export default function InterventionsPage() {
         </Card>
 
         <Card className="p-0 overflow-hidden">
-          <div className="border-b border-[color:var(--border)] p-4 flex items-start justify-between gap-3">
+          <div className="ms-cardHeader flex items-start justify-between gap-4">
             <div>
               <p className="ms-kicker">Détail</p>
-              <p className="mt-1 text-sm text-[color:var(--textMuted)]">
+              <p className="mt-1 text-sm text-muted2">
                 {detail ? `${detail.vehicle.plate} · ${detail.type}` : "Sélectionnez une intervention"}
               </p>
             </div>
@@ -2313,46 +2444,46 @@ export default function InterventionsPage() {
                 trigger={
                   <button
                     type="button"
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] hover:bg-[color:var(--surface2)]"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-surface hover:bg-surface2"
                     aria-label="Actions"
                   >
                     <MoreHorizontal size={18} />
                   </button>
                 }
               >
-                <DropdownItem>
-                  <a className="block" href={`/api/interventions/${detail.id}/pdf`} target="_blank" rel="noreferrer">
+                <DropdownItem asChild>
+                  <a href={`/api/interventions/${detail.id}/pdf`} target="_blank" rel="noreferrer">
                     Télécharger PDF
                   </a>
                 </DropdownItem>
-                <DropdownItem>
+                <DropdownItem asChild>
                   <Link href={`/interventions/${detail.id}`}>Ouvrir le dossier complet</Link>
                 </DropdownItem>
               </DropdownMenu>
             ) : null}
           </div>
 
-          <div className="p-4">
+          <div className="ms-cardBody">
             {detailLoading ? (
-              <div className="text-sm text-[color:var(--textMuted)]">Chargement du détail…</div>
+              <div className="text-sm text-muted2">Chargement du détail…</div>
             ) : !detail ? (
               <EmptyState
                 title="Aucune intervention sélectionnée"
                 description="Choisissez une intervention dans la liste pour afficher son dossier."
               />
             ) : (
-              <div className="grid gap-4">
-                <div className="rounded-[var(--r)] border border-[color:var(--border)] bg-[color:var(--surface2)] p-4">
+              <div className="grid gap-6">
+                <div className="rounded-[var(--r)] border border-border bg-surface2 p-5 sm:p-6">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-sm font-semibold">{detail.vehicle.plate}</p>
-                      <p className="mt-1 text-xs text-[color:var(--textMuted)]">
+                      <p className="mt-1 text-xs text-muted2">
                         {detail.vehicle.brand} {detail.vehicle.model} · {detail.vehicle.client.firstName} {detail.vehicle.client.lastName}
                       </p>
                     </div>
                     <Badge variant="accent">{detail.type}</Badge>
                   </div>
-                  <div className="mt-3 grid gap-1 text-sm text-[color:var(--textMuted)]">
+                  <div className="mt-3 grid gap-1 text-sm text-muted2">
                     <p>Créée le {new Date(detail.createdAt).toLocaleString("fr-FR")}</p>
                     {detail.performedAt ? (
                       <p>Réalisée le {new Date(detail.performedAt).toLocaleString("fr-FR")}</p>
@@ -2360,16 +2491,16 @@ export default function InterventionsPage() {
                   </div>
                 </div>
 
-                <div className="rounded-[var(--r)] border border-[color:var(--border)] bg-[color:var(--surface)] p-4">
+                <div className="rounded-[var(--r)] border border-border bg-surface p-5 sm:p-6">
                   <p className="text-sm font-semibold">Conformité</p>
                   <div className="mt-3">
                     <LegalReferencesPanel type={detail.type} />
                   </div>
                 </div>
 
-                <div className="rounded-[var(--r)] border border-[color:var(--border)] bg-[color:var(--surface)] p-4">
+                <div className="rounded-[var(--r)] border border-border bg-surface p-5 sm:p-6">
                   <p className="text-sm font-semibold">Révisions</p>
-                  <p className="mt-2 text-sm text-[color:var(--textMuted)]">
+                  <p className="mt-2 text-sm text-muted2">
                     {detail.revisions && detail.revisions.length > 0
                       ? `${detail.revisions.length} révision(s) enregistrée(s).`
                       : "Aucune révision."}
@@ -2466,7 +2597,6 @@ export default function InterventionsPage() {
     </div>
   );
 }
-
 
 ```
 
@@ -2569,16 +2699,16 @@ export function ParametresClient({
   const tabButtonClass = (active: boolean) => {
     return `inline-flex h-10 items-center justify-center rounded-xl border px-3 text-sm font-semibold transition ${
       active
-        ? "border-[color:var(--accent)] bg-[color:var(--surface2)] text-[color:var(--text)]"
-        : "border-[color:var(--border)] bg-transparent text-[color:var(--textMuted)] hover:bg-[color:var(--surface2)] hover:text-[color:var(--text)]"
+        ? "border-primary bg-surface2 text-text"
+        : "border-border/70 bg-transparent text-muted2 hover:bg-surface2/80 hover:text-text"
     }`;
   };
 
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-8">
       <SectionHeader
         title="Paramètres"
-        description="Identité, conformité et préférences de l’atelier."
+        description="Identité, conformité et préférences de l'atelier."
         level={1}
       />
 
@@ -2602,38 +2732,38 @@ export function ParametresClient({
       </div>
 
       {tab === "garage" ? (
-        <div className="grid gap-4 lg:grid-cols-2">
-          <Card className="grid gap-4">
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Card className="grid gap-5">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--textMuted)]">Profil</p>
-                <h2 className="mt-2 text-lg font-semibold text-[color:var(--text)]">
+                <p className="ms-kicker">Profil</p>
+                <h2 className="mt-2 text-lg font-semibold text-text">
                   {role === "ADMIN" ? "Administration" : garage?.name ?? "Garage"}
                 </h2>
               </div>
               <Badge variant="accent">{roleLabel}</Badge>
             </div>
 
-            <div className="grid gap-2 text-sm text-[color:var(--textMuted)]">
+            <div className="grid gap-2 text-sm text-muted2">
               <div className="flex items-center justify-between gap-4">
                 <span>Email</span>
-                <span className="text-[color:var(--text)]">{garage?.email ?? userEmail}</span>
+                <span className="text-text">{garage?.email ?? userEmail}</span>
               </div>
               <div className="flex items-center justify-between gap-4">
                 <span>Téléphone</span>
-                <span className="text-[color:var(--text)]">{garage?.phone || "-"}</span>
+                <span className="text-text">{garage?.phone || "-"}</span>
               </div>
               <div className="flex items-center justify-between gap-4">
                 <span>Adresse</span>
-                <span className="text-[color:var(--text)]">{garage?.address || "-"}</span>
+                <span className="text-text">{garage?.address || "-"}</span>
               </div>
               <div className="flex items-center justify-between gap-4">
                 <span>SIRET</span>
-                <span className="text-[color:var(--text)]">{garage?.siret || "-"}</span>
+                <span className="text-text">{garage?.siret || "-"}</span>
               </div>
               <div className="flex items-center justify-between gap-4">
                 <span>Statut</span>
-                <span className="text-[color:var(--text)]">{statusLabel}</span>
+                <span className="text-text">{statusLabel}</span>
               </div>
             </div>
 
@@ -2642,12 +2772,12 @@ export function ParametresClient({
             </div>
           </Card>
 
-          <Card className="grid gap-3">
+          <Card className="grid gap-4">
             <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--textMuted)]">Résumé</p>
-              <h3 className="mt-2 text-lg font-semibold text-[color:var(--text)]">Conformité</h3>
+              <p className="ms-kicker">Résumé</p>
+              <h3 className="mt-2 text-lg font-semibold text-text">Conformité</h3>
             </div>
-            <p className="text-sm text-[color:var(--textMuted)]">
+            <p className="text-sm text-muted2">
               Les paramètres de sécurité contrôlent la traçabilité et la génération des preuves.
             </p>
             <Badge variant="success">Conformité active</Badge>
@@ -2665,25 +2795,25 @@ export function ParametresClient({
       ) : null}
 
       {tab === "security" ? (
-        <div className="grid gap-4 lg:grid-cols-2">
-          <Card className="grid gap-4">
+        <div className="grid gap-6 lg:grid-cols-2">
+          <Card className="grid gap-5">
             <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--textMuted)]">Sécurité</p>
-              <h3 className="mt-2 text-lg font-semibold text-[color:var(--text)]">Assurance & traçabilité</h3>
+              <p className="ms-kicker">Sécurité</p>
+              <h3 className="mt-2 text-lg font-semibold text-text">Assurance & traçabilité</h3>
             </div>
             <ComplianceToggles />
             <Badge variant="success">Conformité active</Badge>
           </Card>
 
-          <Card className="grid gap-3">
+          <Card className="grid gap-4">
             <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--textMuted)]">Bonnes pratiques</p>
-              <h3 className="mt-2 text-lg font-semibold text-[color:var(--text)]">Recommandations</h3>
+              <p className="ms-kicker">Bonnes pratiques</p>
+              <h3 className="mt-2 text-lg font-semibold text-text">Recommandations</h3>
             </div>
-            <div className="grid gap-2 text-sm text-[color:var(--textMuted)]">
-              <p>• Conservez les preuves et révisions pour chaque dossier.</p>
-              <p>• Générez un PDF après validation du client.</p>
-              <p>• Activez les alertes pour les dossiers critiques.</p>
+            <div className="grid gap-2 text-sm text-muted2">
+              <p>- Conservez les preuves et révisions pour chaque dossier.</p>
+              <p>- Générez un PDF après validation du client.</p>
+              <p>- Activez les alertes pour les dossiers critiques.</p>
             </div>
           </Card>
         </div>
@@ -2704,15 +2834,15 @@ function NotificationsPanel() {
   return (
     <Card className="grid gap-4">
       <div>
-        <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--textMuted)]">Notifications</p>
-        <h3 className="mt-2 text-lg font-semibold text-[color:var(--text)]">Préférences email</h3>
+        <p className="ms-kicker">Notifications</p>
+        <h3 className="mt-2 text-lg font-semibold text-text">Préférences email</h3>
       </div>
       <div className="grid gap-3">
         <Toggle checked={mailOnCritical} onChange={setMailOnCritical} label="Alertes sur dossier critique" />
         <Toggle checked={mailOnPdf} onChange={setMailOnPdf} label="Confirmation lors de génération PDF" />
         <Toggle checked={digest} onChange={setDigest} label="Récapitulatif hebdomadaire" />
       </div>
-      <p className="text-xs text-[color:var(--textMuted)]">
+      <p className="text-xs text-muted2">
         Ces préférences sont locales pour le moment.
       </p>
     </Card>
@@ -2739,7 +2869,7 @@ export default function SettingsRedirect() {
 ```tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Card } from "@/components/ui/Card";
@@ -2790,7 +2920,7 @@ export default function VehiculeDetailPage() {
     checksum: "",
   });
 
-  const loadVehicle = async () => {
+  const loadVehicle = useCallback(async () => {
     if (!vehicleId) return;
     setLoading(true);
     setError(null);
@@ -2804,11 +2934,11 @@ export default function VehiculeDetailPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [vehicleId]);
 
   useEffect(() => {
     loadVehicle();
-  }, [vehicleId]);
+  }, [loadVehicle]);
 
   const createIntervention = async () => {
     if (!vehicleId) return;
@@ -2841,80 +2971,86 @@ export default function VehiculeDetailPage() {
   };
 
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-8">
       <SectionHeader
         title={vehicle ? vehicle.plate : "Véhicule"}
         description="Dossier véhicule et historique des interventions."
         action={
-          <Link
-            href="/vehicules"
-            className="text-sm font-semibold text-[color:var(--accent)] hover:text-[color:var(--accentHover)]"
-          >
-            Retour véhicules
+          <Link href="/vehicules">
+            <Button variant="secondary" size="sm">Retour</Button>
           </Link>
         }
         level={1}
       />
+
+      {vehicle ? (
+        <div className="-mt-4 flex flex-wrap items-center gap-2">
+          <Badge variant="accent">{vehicle.brand} {vehicle.model}</Badge>
+          <Badge variant="neutral">Client: {vehicle.client.firstName} {vehicle.client.lastName}</Badge>
+          <Badge variant="neutral">{vehicle.interventions.length} intervention(s)</Badge>
+          <Badge variant="neutral">Carburant: {vehicle.fuel || "-"}</Badge>
+        </div>
+      ) : null}
 
       {error ? <ErrorBanner message={error} /> : null}
 
       {loading ? (
         <Loading />
       ) : vehicle ? (
-        <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-          <div className="grid gap-6">
-            <Card>
-              <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
+          <div className="grid gap-8">
+            <Card className="p-0 overflow-hidden">
+              <div className="ms-cardHeader flex flex-wrap items-center justify-between gap-4">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--textMuted)]">Véhicule</p>
-                  <h2 className="mt-2 text-xl font-semibold text-[color:var(--text)]">
+                  <p className="ms-kicker">Véhicule</p>
+                  <h2 className="mt-2 text-xl font-semibold text-text">
                     {vehicle.brand} {vehicle.model}
                   </h2>
-                  <p className="text-sm text-[color:var(--textMuted)]">
+                  <p className="text-sm text-muted2">
                     Client: {vehicle.client.firstName} {vehicle.client.lastName}
                   </p>
                 </div>
                 <Badge variant="accent">{vehicle.plate}</Badge>
               </div>
-              <div className="mt-6 grid gap-3 text-sm text-[color:var(--textMuted)]">
+              <div className="ms-cardBody grid gap-3 text-sm text-muted2">
                 <p>VIN: {vehicle.vin || "-"}</p>
                 <p>Carburant: {vehicle.fuel || "-"}</p>
               </div>
             </Card>
 
-            <Card>
-              <div className="flex items-center justify-between">
+            <Card className="p-0 overflow-hidden">
+              <div className="ms-cardHeader flex items-center justify-between">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--textMuted)]">Interventions</p>
-                  <h2 className="mt-2 text-xl font-semibold text-[color:var(--text)]">Historique</h2>
+                  <p className="ms-kicker">Interventions</p>
+                  <h2 className="mt-2 text-xl font-semibold text-text">Historique</h2>
                 </div>
                 <Badge variant="accent">{vehicle.interventions.length}</Badge>
               </div>
-              <div className="mt-6 grid gap-3">
+              <div className="ms-cardBody grid gap-4">
                 {vehicle.interventions.length === 0 ? (
-                  <p className="text-sm text-[color:var(--textMuted)]">Aucune intervention.</p>
+                  <p className="text-sm text-muted2">Aucune intervention.</p>
                 ) : (
                   vehicle.interventions.map((intervention) => (
                     <div
                       key={intervention.id}
-                      className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--r)] border border-[color:var(--border)] bg-[color:var(--surface2)] px-4 py-3"
+                      className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border bg-surface2 px-5 py-4"
                     >
                       <div>
-                        <p className="text-sm font-semibold text-[color:var(--text)]">{intervention.type}</p>
-                        <p className="text-xs text-[color:var(--textMuted)]">
+                        <p className="text-sm font-semibold text-text">{intervention.type}</p>
+                        <p className="text-xs text-muted2">
                           {new Date(intervention.createdAt).toLocaleDateString("fr-FR")}
                         </p>
                       </div>
                       <div className="flex flex-wrap items-center gap-3 text-sm">
                         <Link
                           href={`/interventions/${intervention.id}`}
-                          className="font-semibold text-[color:var(--accent)] hover:text-[color:var(--accentHover)]"
+                          className="font-semibold text-primary hover:text-primaryHover"
                         >
                           Détails
                         </Link>
                         <a
                           href={`/api/interventions/${intervention.id}/pdf`}
-                          className="font-semibold text-[color:var(--accent)] hover:text-[color:var(--accentHover)]"
+                          className="font-semibold text-primary hover:text-primaryHover"
                         >
                           PDF
                         </a>
@@ -2928,8 +3064,8 @@ export default function VehiculeDetailPage() {
 
           <Card className="grid gap-5">
             <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--textMuted)]">Nouvelle intervention</p>
-              <h2 className="mt-2 text-xl font-semibold text-[color:var(--text)]">Ajouter un dossier</h2>
+              <p className="ms-kicker">Nouvelle intervention</p>
+              <h2 className="mt-2 text-xl font-semibold text-text">Ajouter un dossier</h2>
             </div>
             <Select
               label="Type"
@@ -2943,13 +3079,13 @@ export default function VehiculeDetailPage() {
               ))}
             </Select>
             <Input
-              label="Date realisee"
+              label="Date réalisée"
               type="datetime-local"
               value={form.performedAt}
               onChange={(event) => setForm((prev) => ({ ...prev, performedAt: event.target.value }))}
             />
             <Input
-              label="Kilometrage"
+              label="Kilométrage"
               value={form.odometerKm}
               onChange={(event) => setForm((prev) => ({ ...prev, odometerKm: event.target.value }))}
               placeholder="120000"
@@ -2976,14 +3112,14 @@ export default function VehiculeDetailPage() {
               label="Notes"
               value={form.notes}
               onChange={(event) => setForm((prev) => ({ ...prev, notes: event.target.value }))}
-              placeholder="Details de l'intervention"
+              placeholder="Détails de l'intervention"
             />
             <LegalReferencesPanel type={form.type} />
-            <Button onClick={createIntervention}>Créer l'intervention</Button>
+            <Button onClick={createIntervention}>Créer l’intervention</Button>
           </Card>
         </div>
       ) : (
-        <p className="text-sm text-[color:var(--textMuted)]">Véhicule introuvable.</p>
+        <p className="text-sm text-muted2">Véhicule introuvable.</p>
       )}
     </div>
   );
@@ -3040,7 +3176,8 @@ export default function VehiculesPage() {
   const [clients, setClients] = useState<ClientOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [query, setQuery] = useState("");
+  const qFromUrl = searchParams.get("q") || "";
+  const [query, setQuery] = useState(qFromUrl);
 
   const selectedFromUrl = searchParams.get("selected") || "";
   const [selectedId, setSelectedId] = useState<string | null>(selectedFromUrl || null);
@@ -3092,8 +3229,11 @@ export default function VehiculesPage() {
 
   useEffect(() => {
     setSelectedId(selectedFromUrl || null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedFromUrl]);
+
+  useEffect(() => {
+    setQuery(qFromUrl);
+  }, [qFromUrl]);
 
   useEffect(() => {
     const loadDetail = async () => {
@@ -3162,7 +3302,7 @@ export default function VehiculesPage() {
       }
       toast.push({
         title: editorMode === "edit" ? "Véhicule mis à jour" : "Véhicule créé",
-        description: "Les informations sont enregistrees.",
+        description: "Les informations sont enregistrées.",
         variant: "success",
       });
       setEditorOpen(false);
@@ -3184,8 +3324,8 @@ export default function VehiculesPage() {
     try {
       await requestJson(`/api/vehicules/${pendingDeleteId}`, { method: "DELETE" });
       toast.push({
-        title: "Vehicule supprime",
-        description: "Le vehicule a ete retire.",
+        title: "Véhicule supprimé",
+        description: "Le véhicule a été retiré.",
         variant: "success",
       });
       await loadVehicles();
@@ -3204,12 +3344,12 @@ export default function VehiculesPage() {
   };
 
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-8">
       <SectionHeader
         title="Véhicules"
         description="Parc véhicule, recherche et accès aux dossiers."
         action={
-          <Button onClick={openCreate}>
+          <Button onClick={openCreate} size="sm">
             <Plus size={16} /> Créer
           </Button>
         }
@@ -3218,24 +3358,28 @@ export default function VehiculesPage() {
 
       {error ? <ErrorBanner message={error} /> : null}
 
-      <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
+      <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
         <Card className="p-0 overflow-hidden">
-          <div className="border-b border-[color:var(--border)] p-4">
+          <div className="ms-cardHeader">
             <Input
+              label="Recherche"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Rechercher par plaque, marque, client"
             />
-            <p className="mt-3 text-xs text-[color:var(--textMuted)]">
-              {loading ? "Chargement…" : `${filtered.length} véhicule(s)`}
-            </p>
+            <div className="mt-3 flex items-center justify-between">
+              <p className="text-xs text-muted2">
+                {loading ? "Chargement…" : `${filtered.length} véhicule(s)`}
+              </p>
+              {selectedId ? <Badge variant="accent">Sélectionné</Badge> : null}
+            </div>
           </div>
 
           <div className="max-h-[calc(100vh-220px)] overflow-auto">
             {loading ? (
-              <div className="p-4 text-sm text-[color:var(--textMuted)]">Chargement…</div>
+              <div className="ms-cardBody text-sm text-muted2">Chargement…</div>
             ) : filtered.length === 0 ? (
-              <div className="p-4">
+              <div className="ms-cardBody">
                 <EmptyState
                   title="Aucun véhicule"
                   description="Créez un véhicule pour démarrer."
@@ -3243,7 +3387,7 @@ export default function VehiculesPage() {
                 />
               </div>
             ) : (
-              <div className="p-2">
+              <div className="p-3 sm:p-4">
                 {filtered.map((vehicle) => {
                   const isActive = selectedId === vehicle.id;
                   return (
@@ -3257,19 +3401,19 @@ export default function VehiculesPage() {
                           router.replace(`/vehicules?selected=${vehicle.id}`);
                         }
                       }}
-                      className={`flex items-center justify-between gap-3 rounded-xl px-3 py-3 text-sm transition ${
+                      className={`flex items-center justify-between gap-4 rounded-2xl px-4 py-3.5 text-sm transition ${
                         isActive
-                          ? "bg-[color:var(--surface2)] text-[color:var(--text)] border border-[color:var(--accent)]"
-                          : "text-[color:var(--text)] hover:bg-[color:var(--surface2)] border border-transparent"
+                          ? "bg-primaryWeak text-text border border-primary/25"
+                          : "text-text hover:bg-surface2/80 border border-transparent"
                       }`}
                     >
                       <div className="min-w-0">
-                        <p className="truncate font-medium">{vehicle.plate}</p>
-                        <p className="truncate text-xs text-[color:var(--textMuted)]">
+                        <p className="truncate font-semibold">{vehicle.plate}</p>
+                        <p className="truncate text-xs text-muted2">
                           {vehicle.brand} {vehicle.model} · {vehicle.client.firstName} {vehicle.client.lastName}
                         </p>
                       </div>
-                      <Badge variant="accent">Dossier</Badge>
+                      <span className="text-xs text-muted2">#{vehicle.id}</span>
                     </Link>
                   );
                 })}
@@ -3279,10 +3423,10 @@ export default function VehiculesPage() {
         </Card>
 
         <Card className="p-0 overflow-hidden">
-          <div className="border-b border-[color:var(--border)] p-4 flex items-start justify-between gap-3">
+          <div className="ms-cardHeader flex items-start justify-between gap-4">
             <div>
               <p className="ms-kicker">Détail</p>
-              <p className="mt-1 text-sm text-[color:var(--textMuted)]">
+              <p className="mt-1 text-sm text-muted2">
                 {detail ? detail.plate : "Sélectionnez un véhicule"}
               </p>
             </div>
@@ -3292,7 +3436,7 @@ export default function VehiculesPage() {
                 trigger={
                   <button
                     type="button"
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] hover:bg-[color:var(--surface2)]"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-surface hover:bg-surface2"
                     aria-label="Actions"
                   >
                     <MoreHorizontal size={18} />
@@ -3303,37 +3447,37 @@ export default function VehiculesPage() {
                   <span className="inline-flex items-center gap-2"><Pencil size={16} /> Modifier</span>
                 </DropdownItem>
                 <DropdownItem onClick={() => requestDelete(detail.id)}>
-                  <span className="inline-flex items-center gap-2 text-[color:var(--danger)]"><Trash2 size={16} /> Supprimer</span>
+                  <span className="inline-flex items-center gap-2 text-danger"><Trash2 size={16} /> Supprimer</span>
                 </DropdownItem>
               </DropdownMenu>
             ) : null}
           </div>
 
-          <div className="p-4">
+          <div className="ms-cardBody">
             {detailLoading ? (
-              <div className="text-sm text-[color:var(--textMuted)]">Chargement du détail…</div>
+              <div className="text-sm text-muted2">Chargement du détail…</div>
             ) : !detail ? (
               <EmptyState
                 title="Aucun véhicule sélectionné"
                 description="Choisissez un véhicule dans la liste pour afficher son dossier."
               />
             ) : (
-              <div className="grid gap-4">
-                <div className="rounded-[var(--r)] border border-[color:var(--border)] bg-[color:var(--surface2)] p-4">
+              <div className="grid gap-6">
+                <div className="rounded-[var(--r)] border border-border bg-surface2 p-5 sm:p-6">
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-sm font-semibold">{detail.plate}</p>
-                      <p className="mt-1 text-xs text-[color:var(--textMuted)]">
+                      <p className="mt-1 text-xs text-muted2">
                         {detail.brand} {detail.model}
                       </p>
                     </div>
                     <Badge variant="accent">{detail.fuel ?? "-"}</Badge>
                   </div>
-                  <p className="mt-3 text-sm text-[color:var(--textMuted)]">
-                    Client: <span className="text-[color:var(--text)]">{detail.client.firstName} {detail.client.lastName}</span>
+                  <p className="mt-3 text-sm text-muted2">
+                    Client: <span className="text-text">{detail.client.firstName} {detail.client.lastName}</span>
                   </p>
                   {detail.vin ? (
-                    <p className="mt-1 text-xs text-[color:var(--textMuted)]">VIN: {detail.vin}</p>
+                    <p className="mt-1 text-xs text-muted2">VIN: {detail.vin}</p>
                   ) : null}
                   <div className="mt-4">
                     <Link href={`/vehicules/${detail.id}`}>
@@ -3342,20 +3486,20 @@ export default function VehiculesPage() {
                   </div>
                 </div>
 
-                <div className="rounded-[var(--r)] border border-[color:var(--border)] bg-[color:var(--surface)] p-4">
+                <div className="rounded-[var(--r)] border border-border bg-surface p-5 sm:p-6">
                   <p className="text-sm font-semibold">Interventions récentes</p>
-                  <div className="mt-3 grid gap-2">
+                  <div className="mt-4 grid gap-2">
                     {!detail.interventions || detail.interventions.length === 0 ? (
-                      <p className="text-sm text-[color:var(--textMuted)]">Aucune intervention.</p>
+                      <p className="text-sm text-muted2">Aucune intervention.</p>
                     ) : (
                       detail.interventions.slice(0, 5).map((i) => (
                         <Link
                           key={i.id}
                           href={`/interventions/${i.id}`}
-                          className="flex items-center justify-between rounded-xl border border-[color:var(--border)] bg-[color:var(--surface2)] px-3 py-2 text-sm hover:bg-[color:var(--surface)]"
+                          className="flex items-center justify-between rounded-2xl border border-border bg-surface2 px-4 py-2.5 text-sm hover:bg-surface"
                         >
                           <span className="font-medium">{i.type}</span>
-                          <span className="text-xs text-[color:var(--textMuted)]">
+                          <span className="text-xs text-muted2">
                             {new Date(i.createdAt).toLocaleDateString("fr-FR")}
                           </span>
                         </Link>
@@ -3482,7 +3626,7 @@ export default function LoginPage() {
         }
         throw new Error(json?.error || "Erreur serveur.");
       }
-      toast.push({ title: "Connexion reussie", description: "Bienvenue sur votre panel.", variant: "success" });
+      toast.push({ title: "Connexion réussie", description: "Bienvenue sur votre panel.", variant: "success" });
       window.location.href = "/dashboard";
     } catch (err) {
       const message = err instanceof Error ? err.message : "Erreur serveur.";
@@ -3494,51 +3638,102 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-5xl items-center justify-center px-6 py-16">
-      <Card className="w-full max-w-lg p-8">
-        <div className="grid gap-3">
-          <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--textMuted)]">Connexion</p>
-          <h1 className="text-3xl font-semibold tracking-tight text-[color:var(--text)]">Accès garage</h1>
-          <p className="text-sm text-[color:var(--textMuted)]">
-            Connectez-vous pour accéder à votre dashboard sécurisé.
-          </p>
+    <main className="min-h-screen w-full bg-bg text-text">
+      <header className="border-b border-border bg-bg/60 backdrop-blur-xl">
+        <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between gap-4 px-6">
+          <Link href="/" className="flex items-center gap-3">
+            <div className="grid h-11 w-11 place-items-center rounded-2xl border border-border bg-surface2">
+              <span className="text-sm font-extrabold tracking-tight text-primary2">MS</span>
+            </div>
+            <div className="leading-tight">
+              <div className="text-sm font-semibold text-text">MotorSafe</div>
+              <div className="text-xs text-muted2">Espace pro</div>
+            </div>
+          </Link>
+          <div className="flex items-center gap-2">
+            <Link href="/pro/inscription" className="hidden sm:block">
+              <Button variant="ghost">Créer un compte</Button>
+            </Link>
+            <Link href="/">
+              <Button variant="secondary">Retour site</Button>
+            </Link>
+          </div>
+        </div>
+      </header>
+
+      <div className="mx-auto grid w-full max-w-[1200px] gap-10 px-6 py-16 lg:grid-cols-[1fr_440px] lg:items-start">
+        <div className="hidden lg:flex flex-col gap-8">
+          <div>
+            <p className="ms-kicker">Connexion</p>
+            <h1 className="mt-3 text-4xl font-semibold tracking-tight text-text">Accédez à votre atelier</h1>
+            <p className="mt-3 text-base text-muted2">
+              Retrouvez vos dossiers, vos interventions et vos documents en un seul endroit sécurisé.
+            </p>
+          </div>
+
+          <div className="grid gap-4">
+            <Card className="p-4">
+              <p className="ms-kicker">Sécurité</p>
+              <p className="mt-2 text-sm font-semibold text-text">Accès sécurisé et conformité intégrée</p>
+              <p className="mt-1 text-xs text-muted2">
+                Chaque action est tracée pour garantir la qualité de vos dossiers.
+              </p>
+            </Card>
+            <Card className="p-4">
+              <p className="ms-kicker">Performance</p>
+              <p className="mt-2 text-sm font-semibold text-text">Une interface rapide, pensée terrain</p>
+              <p className="mt-1 text-xs text-muted2">
+                Pas de surcharge : juste l&apos;essentiel pour l&apos;atelier.
+              </p>
+            </Card>
+          </div>
         </div>
 
-        <form onSubmit={submit} className="mt-8 grid gap-4">
-          <Input
-            label="Email"
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            placeholder="contact@garage.fr"
-            required
-          />
-          <Input
-            label="Mot de passe"
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            placeholder="********"
-            required
-          />
-          {error ? <p className="text-sm text-[color:var(--danger)]">{error}</p> : null}
-          <Button type="submit" disabled={loading}>
-            {loading ? "Connexion..." : "Se connecter"}
-          </Button>
-        </form>
+        <Card className="w-full p-8">
+          <div className="grid gap-3">
+            <p className="ms-kicker">Connexion</p>
+            <h1 className="text-2xl font-semibold tracking-tight text-text">Accès garage</h1>
+            <p className="text-sm text-muted2">
+              Connectez-vous pour accéder à votre dashboard sécurisé.
+            </p>
+          </div>
 
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 text-sm text-[color:var(--textMuted)]">
-          <Link
-            href="/auth/register-pro"
-            className="font-semibold text-[color:var(--accent)] hover:text-[color:var(--accentHover)]"
-          >
-            Créer un compte pro
-          </Link>
-          <Link href="/" className="font-semibold text-[color:var(--accent)] hover:text-[color:var(--accentHover)]">
-            Retour site
-          </Link>
-        </div>
-      </Card>
+          <form onSubmit={submit} className="mt-8 grid gap-4">
+            <Input
+              label="Email"
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="contact@garage.fr"
+              required
+            />
+            <Input
+              label="Mot de passe"
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder="********"
+              required
+            />
+            {error ? <p className="text-sm text-danger">{error}</p> : null}
+            <Button type="submit" disabled={loading}>
+              {loading ? "Connexion..." : "Se connecter"}
+            </Button>
+          </form>
+
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 text-sm text-muted2">
+            <Link
+              href="/auth/register-pro"
+              className="font-semibold text-primary hover:text-primaryHover"
+            >
+              Créer un compte pro
+            </Link>
+            <Link href="/pro" className="font-semibold text-primary hover:text-primaryHover">
+              Infos espace pro
+            </Link>
+          </div>
+        </Card>
+      </div>
     </main>
   );
 }
@@ -3573,6 +3768,8 @@ export default function RegisterProPage() {
 <a id="app-globalscss"></a>
 
 ```css
+@config "../tailwind.config.js";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -3580,41 +3777,45 @@ export default function RegisterProPage() {
 :root {
   color-scheme: dark;
 
-  /* Design tokens (dark-first) */
-  --bg: #0B0D12;
-  --surface: #0F1320;
-  --surface2: #121A2A;
-  --border: rgba(255, 255, 255, 0.06);
-  --text: rgba(255, 255, 255, 0.92);
-  --textSecondary: rgba(255, 255, 255, 0.62);
-  --textMuted: rgba(255, 255, 255, 0.40);
-  --accent: #8B5CF6;
-  --accentHover: #7C3AED;
-  --accent2: #8B5CF6;
-  --accentWeak: rgba(139, 92, 246, 0.18);
-  --danger: #EF4444;
-  --success: #22C55E;
-  --warning: #F59E0B;
+  /* Core tokens (RGB triples used by Tailwind config via rgb(var(--token)) ) */
+  --bg: 11 15 23;
+  --surface: 15 22 36;
+  --surface2: 19 29 46;
 
-  /* Friendly aliases for consistent naming */
-  --muted: var(--textSecondary);
-  --muted2: var(--textMuted);
+  --text: 231 238 252;
+  --muted: 231 238 252;
+  --muted2: 231 238 252;
+  --border: 231 238 252;
 
-  /* Radii */
-  --rGlobal: 12px;
-  --rButton: 10px;
-  --rInput: 10px;
-  --rCard: 14px;
+  --accent: 79 140 255;
+  --accentHover: 120 167 255;
+  --accent2: 34 197 94;
+  --accentWeak: 79 140 255;
 
-  /* Internal convenience aliases */
+  --danger: 239 68 68;
+  --warning: 245 158 11;
+  --success: 34 197 94;
+
+  /* Opacities (0..1) */
+  --borderA: 0.10;
+  --textA: 0.95;
+  --textSecondaryA: 0.78;
+  --textMutedA: 0.65;
+  --accentWeakA: 0.18;
+  --ringA: 0.55;
+
+  /* Radii (12/16/20) */
+  --rGlobal: 16px;
+  --rButton: 16px;
+  --rInput: 16px;
+  --rCard: 20px;
   --r: var(--rCard);
-  --sh: var(--shCard);
 
-  /* Shadows */
-  --shCard: 0 10px 30px rgba(0, 0, 0, 0.35);
-  --shDropdown: 0 18px 40px rgba(0, 0, 0, 0.45);
-
-  /* Compatibility aliases removed: all components use canonical tokens */
+  /* Shadows (soft) */
+  --shadow: 0 10px 30px rgb(0 0 0 / 0.35);
+  --shadow2: 0 1px 0 rgb(255 255 255 / 0.05), 0 12px 30px rgb(0 0 0 / 0.35);
+  --shCard: var(--shadow2);
+  --shDropdown: 0 18px 58px rgb(0 0 0 / 0.52);
 }
 
 html,
@@ -3623,34 +3824,30 @@ body {
 }
 
 body {
-  background: var(--bg);
-  color: var(--text);
-}
-
-/* Focus ring (consistent everywhere) */
-:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.55);
+  margin: 0;
+  background:
+    radial-gradient(900px 600px at 15% -10%, rgb(var(--accent) / 0.22), transparent 60%),
+    radial-gradient(900px 600px at 85% 0%, rgb(var(--success) / 0.14), transparent 55%),
+    rgb(var(--bg));
+  color: rgb(var(--text) / var(--textA));
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 ::selection {
-  background: rgba(139, 92, 246, 0.22);
-  color: rgba(255, 255, 255, 0.96);
+  background: rgb(var(--accent) / 0.22);
+  color: rgb(var(--text) / 0.98);
 }
 
-/* Scrollbar (subtle) */
-::-webkit-scrollbar {
-  width: 10px;
+* {
+  outline-color: transparent;
 }
-::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.04);
-}
-::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.10);
-  border-radius: 999px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.16);
+
+:focus-visible {
+  outline: 2px solid rgb(var(--accent) / var(--ringA));
+  outline-offset: 2px;
+  border-radius: 12px;
 }
 
 @layer base {
@@ -3668,39 +3865,132 @@ body {
 
 @layer components {
   .ms-card {
-    @apply border;
-    border-color: var(--border);
-    background: var(--surface);
     border-radius: var(--rCard);
-    box-shadow: var(--shCard);
+    border: 1px solid rgb(var(--border) / var(--borderA));
+    background: rgb(var(--surface));
+    box-shadow: var(--shadow2);
   }
 
-  .ms-input {
-    @apply w-full;
-    min-height: 44px;
-    border-radius: var(--rInput);
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    padding: 0.5rem 0.75rem;
-    color: var(--text);
+  .ms-cardHeader {
+    border-bottom: 1px solid rgb(var(--border) / 0.12);
+    padding: 1rem 1.25rem;
   }
-  .ms-input::placeholder {
-    color: var(--textMuted);
+
+  .ms-cardBody {
+    padding: 1.25rem;
   }
-  .ms-input:focus {
-    outline: none;
-    box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.55);
+
+  .ms-cardFooter {
+    border-top: 1px solid rgb(var(--border) / 0.12);
+    padding: 1rem 1.25rem;
+  }
+
+  @media (min-width: 640px) {
+    .ms-cardHeader {
+      padding: 1.25rem 1.5rem;
+    }
+    .ms-cardBody {
+      padding: 1.5rem;
+    }
+    .ms-cardFooter {
+      padding: 1.25rem 1.5rem;
+    }
   }
 
   .ms-kicker {
     font-size: 0.72rem;
-    letter-spacing: 0.22em;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: var(--textMuted);
+    font-weight: 600;
+    color: rgb(var(--muted2) / var(--textMutedA));
+  }
+
+  .ms-input {
+    width: 100%;
+    min-height: 44px;
+    border-radius: var(--rInput);
+    background: rgb(var(--surface2));
+    border: 1px solid rgb(var(--border) / 0.14);
+    padding: 0.55rem 0.8rem;
+    color: rgb(var(--text) / var(--textA));
+    box-shadow: 0 1px 0 rgb(255 255 255 / 0.04);
+    transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+  }
+
+  .ms-input::placeholder {
+    color: rgb(var(--muted2) / var(--textMutedA));
+  }
+
+  .ms-input:focus-visible {
+    outline: none;
+    border-color: rgb(var(--accent) / 0.55);
+    box-shadow:
+      0 0 0 2px rgb(var(--accent) / 0.22),
+      0 18px 44px rgb(var(--accent) / 0.10);
+  }
+
+  .ms-focus-within:focus-within {
+    outline: none;
+    box-shadow: 0 0 0 2px rgb(var(--accent) / 0.22);
+  }
+
+  .ms-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  .ms-table th {
+    padding: 0.85rem 1.25rem;
+    border-bottom: 1px solid rgb(var(--border) / 0.12);
+    color: rgb(var(--muted2) / var(--textMutedA));
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 700;
+  }
+
+  .ms-table td {
+    padding: 0.9rem 1.25rem;
+    border-bottom: 1px solid rgb(var(--border) / 0.10);
+    color: rgb(var(--text) / var(--textA));
+  }
+
+  .ms-table tbody tr:hover {
+    background: rgb(var(--accentWeak) / 0.10);
   }
 }
 
+@keyframes ms-fade-up {
+  0% {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
 
+@layer utilities {
+  .ms-fade-up {
+    opacity: 0;
+    transform: translateY(16px);
+    animation: ms-fade-up 0.7s ease forwards;
+  }
+
+  .ms-delay-1 {
+    animation-delay: 120ms;
+  }
+
+  .ms-delay-2 {
+    animation-delay: 240ms;
+  }
+
+  .ms-delay-3 {
+    animation-delay: 360ms;
+  }
+}
 
 ```
 
@@ -3710,18 +4000,20 @@ body {
 ```tsx
 
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { IBM_Plex_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/Toast";
 
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-sans",
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
-const jetbrains = JetBrains_Mono({
+const plexMono = IBM_Plex_Mono({
   subsets: ["latin"],
+  weight: ["400", "500", "600"],
   variable: "--font-mono",
   display: "swap",
 });
@@ -3731,6 +4023,7 @@ export const metadata: Metadata = {
     default: "MotorSafe",
     template: "%s | MotorSafe",
   },
+  metadataBase: new URL("https://motorsafe.fr"),
   description: "Panel professionnel pour garages, interventions et conformite.",
   applicationName: "MotorSafe",
 };
@@ -3738,10 +4031,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr" className="h-full">
-      <body className={`${inter.variable} ${jetbrains.variable} min-h-screen`}>
-        <ToastProvider>
-          {children}
-        </ToastProvider>
+      <body
+        className={`${inter.variable} ${inter.variable} ${plexMono.variable} min-h-screen font-sans antialiased`}
+      >
+        <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
   );
@@ -3755,21 +4048,42 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 ```tsx
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
 
 export default function LegalPage() {
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-4xl items-center justify-center px-6 py-16">
-      <Card className="grid gap-4">
-        <p className="text-xs uppercase tracking-[0.3em] text-[color:var(--textMuted)]">Légal</p>
-        <h1 className="text-3xl font-semibold text-[color:var(--text)]">Informations légales</h1>
-        <p className="text-sm text-[color:var(--textMuted)]">
-          Cette page sera completee avec les mentions legales, la politique de confidentialite et les
-          conditions d'utilisation.
-        </p>
-        <Link href="/" className="text-sm font-semibold text-[color:var(--accent)] hover:text-[color:var(--accentHover)]">
-          Retour au site
-        </Link>
-      </Card>
+    <main className="min-h-screen w-full bg-bg text-text">
+      <div className="mx-auto flex w-full max-w-4xl items-center justify-center px-6 py-16">
+        <Card className="p-0 overflow-hidden">
+          <div className="ms-cardHeader">
+            <p className="ms-kicker">Légal</p>
+            <h1 className="mt-3 text-3xl font-semibold text-text">Informations légales</h1>
+            <p className="mt-2 text-sm text-muted2">
+              Cette page sera complétée avec les mentions légales, la politique de confidentialité et les conditions d&apos;utilisation.
+            </p>
+          </div>
+
+          <div className="ms-cardBody">
+            <div className="grid gap-3 text-sm text-muted2">
+              {[
+                "Mentions légales et identité de l&apos;éditeur.",
+                "Politique de confidentialité et gestion des données.",
+                "Conditions générales d&apos;utilisation.",
+              ].map((item) => (
+                <div key={item} className="rounded-xl border border-border/60 bg-surface2/80 px-4 py-3">
+                  {item}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="ms-cardFooter flex justify-end">
+            <Link href="/">
+              <Button variant="secondary" size="sm">Retour au site</Button>
+            </Link>
+          </div>
+        </Card>
+      </div>
     </main>
   );
 }
@@ -3780,128 +4094,132 @@ export default function LegalPage() {
 <a id="app-pagetsx"></a>
 
 ```tsx
-import Link from "next/link";
 import type { Metadata } from "next";
-import { Button } from "@/components/ui/Button";
+import Link from "next/link";
 import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
 
 export const metadata: Metadata = {
-  title: "MotorSafe Pro – Gestion de garages et interventions",
-  description:
-    "La plateforme SaaS tout-en-un pour les garages, pros et flottes. Gérez clients, véhicules, interventions, documents et conformité.",
-  keywords: [
-    "garage",
-    "SaaS",
-    "gestion",
-    "flotte",
-    "automobile",
-    "interventions",
-    "MotorSafe",
-    "logiciel garage",
-    "cloud",
-    "maintenance",
-    "conformité",
-  ],
-  alternates: { canonical: "https://motorsafe.fr" },
-  openGraph: {
-    title: "MotorSafe Pro – Gestion de garages et interventions",
-    description:
-      "La plateforme SaaS tout-en-un pour les garages, pros et flottes. Gérez clients, véhicules, interventions, documents et conformité.",
-    url: "https://motorsafe.fr",
-    type: "website",
-    images: ["/og-motorsafe.png"],
-  },
+  title: "MotorSafe",
+  description: "Espace pro garages : dossiers, interventions et documents PDF, avec conformité intégrée.",
 };
 
 export default function LandingPage() {
   return (
-    <main className="min-h-screen w-full bg-[color:var(--bg)] text-[color:var(--text)]">
-      <div className="mx-auto w-full max-w-6xl px-4 py-14 md:px-8">
-        <header className="flex flex-col gap-10">
-          <div className="flex items-center justify-between gap-4">
-            <Link href="/" className="flex items-center gap-3">
-              <div className="grid h-10 w-10 place-items-center rounded-[14px] border border-[color:var(--border)] bg-[color:var(--surface2)]">
-                <span className="text-sm font-semibold text-[color:var(--accent)]">MS</span>
-              </div>
-              <div className="leading-tight">
-                <div className="text-sm font-semibold">MotorSafe</div>
-                <div className="text-xs text-[color:var(--textMuted)]">SaaS pour garages & pros</div>
-              </div>
-            </Link>
+    <main className="min-h-screen w-full bg-bg text-text">
+      <header className="border-b border-border bg-bg/60 backdrop-blur-xl">
+        <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between gap-4 px-6">
+          <Link href="/" className="flex items-center gap-3">
+            <div className="grid h-11 w-11 place-items-center rounded-2xl border border-border bg-surface2">
+              <span className="text-sm font-extrabold tracking-tight text-primary2">MS</span>
+            </div>
+            <div className="leading-tight">
+              <div className="text-sm font-semibold text-text">MotorSafe</div>
+              <div className="text-xs text-muted2">Espace pro</div>
+            </div>
+          </Link>
 
-            <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
+            <Link href="/pro" className="hidden sm:block">
+              <Button variant="ghost">Espace pro</Button>
+            </Link>
+            <Link href="/auth/login">
+              <Button>Connexion</Button>
+            </Link>
+          </div>
+        </div>
+      </header>
+
+      <section className="relative">
+        <div className="pointer-events-none absolute inset-x-0 -top-24 mx-auto h-64 max-w-[1200px] rounded-full bg-primaryWeak blur-3xl opacity-50" />
+        <div className="mx-auto grid w-full max-w-[1200px] gap-10 px-6 py-16 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
+          <div className="grid gap-6">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="accent">Garages & pros de l’auto</Badge>
+              <Badge variant="warning">Validation des comptes</Badge>
+            </div>
+
+            <div>
+              <p className="ms-kicker">MotorSafe</p>
+              <h1 className="mt-3 text-4xl font-semibold tracking-tight text-text md:text-5xl">
+                Le panel premium pour gérer vos dossiers atelier.
+              </h1>
+              <p className="mt-4 max-w-[60ch] text-base text-muted2">
+                Clients, véhicules, interventions et documents PDF — avec conformité intégrée et une interface rapide,
+                pensée terrain.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
               <Link href="/auth/login">
-                <Button variant="secondary" size="sm">
-                  Connexion
-                </Button>
+                <Button>Accéder au dashboard</Button>
               </Link>
               <Link href="/pro/inscription">
-                <Button variant="primary" size="sm">
-                  Demander un accès
-                </Button>
+                <Button variant="secondary">Demander un compte pro</Button>
               </Link>
             </div>
-          </div>
 
-          <div className="grid gap-4 md:grid-cols-[1.3fr_0.7fr] md:items-start">
-            <div className="grid gap-3">
-              <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--textMuted)]">MotorSafe Pro</p>
-              <h1 className="text-4xl font-semibold tracking-tight md:text-6xl">
-                Une interface premium pour piloter votre activité.
-              </h1>
-              <p className="max-w-2xl text-base text-[color:var(--textSecondary)] md:text-lg">
-                Clients, véhicules, interventions, documents et conformité : tout est centralisé dans un panel clair, rapide et
-                responsive.
-              </p>
-
-              <div className="mt-2 flex flex-wrap items-center gap-3">
-                <Link href="/auth/login">
-                  <Button size="lg">Démarrer</Button>
-                </Link>
-                <Link href="/legal">
-                  <Button size="lg" variant="ghost">
-                    Mentions légales
-                  </Button>
-                </Link>
-              </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              {[
+                {
+                  title: "Traçabilité",
+                  desc: "Historique clair et actions sécurisées.",
+                },
+                {
+                  title: "Documents",
+                  desc: "Générez et retrouvez vos PDF rapidement.",
+                },
+                {
+                  title: "Conformité",
+                  desc: "Références légales intégrées au flux.",
+                },
+              ].map((item) => (
+                <Card key={item.title} className="p-4">
+                  <p className="text-sm font-semibold text-text">{item.title}</p>
+                  <p className="mt-1 text-xs text-muted2">{item.desc}</p>
+                </Card>
+              ))}
             </div>
-
-            <Card className="p-6">
-              <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--textMuted)]">En bref</p>
-              <ul className="mt-3 grid gap-2 text-sm text-[color:var(--textSecondary)]">
-                <li>• Workflow simple : clients → véhicules → interventions → PDF</li>
-                <li>• Traçabilité et conformité intégrées</li>
-                <li>• Mobile, tablette, desktop</li>
-              </ul>
-            </Card>
           </div>
-        </header>
 
-        <section className="mt-12 grid gap-6 md:grid-cols-3">
-          <Card className="p-6">
-            <h2 className="text-lg font-semibold">Gestion complète</h2>
-            <p className="mt-2 text-sm text-[color:var(--textSecondary)]">
-              Clients, véhicules, interventions, documents et conformité : tout est au même endroit.
+          <Card className="p-8">
+            <p className="ms-kicker">Démarrage</p>
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight">Accès professionnel</h2>
+            <p className="mt-2 text-sm text-muted2">
+              Les comptes sont validés pour garantir un environnement pro.
             </p>
-          </Card>
-          <Card className="p-6">
-            <h2 className="text-lg font-semibold">Lisible & cohérent</h2>
-            <p className="mt-2 text-sm text-[color:var(--textSecondary)]">
-              Surfaces nettes, typographie claire, espace : une UI sobre, premium et productive.
-            </p>
-          </Card>
-          <Card className="p-6">
-            <h2 className="text-lg font-semibold">Sécurisé</h2>
-            <p className="mt-2 text-sm text-[color:var(--textSecondary)]">
-              Accès, preuves et historique : la conformité sans complexité.
-            </p>
-          </Card>
-        </section>
 
-        <footer className="mt-14 border-t border-[color:var(--border)] pt-8 text-center text-xs text-[color:var(--textMuted)]">
-          © {new Date().getFullYear()} MotorSafe.
-        </footer>
-      </div>
+            <div className="mt-6 grid gap-3">
+              <Link href="/auth/login">
+                <Button className="w-full">Connexion</Button>
+              </Link>
+              <Link href="/pro/inscription">
+                <Button variant="secondary" className="w-full">
+                  Créer un compte pro
+                </Button>
+              </Link>
+              <Link href="/legal" className="text-center text-sm font-semibold text-primary hover:text-primaryHover">
+                Mentions légales
+              </Link>
+            </div>
+          </Card>
+        </div>
+      </section>
+
+      <footer className="border-t border-border/70">
+        <div className="mx-auto flex max-w-[1200px] flex-col gap-2 px-6 py-10 text-sm text-muted2 sm:flex-row sm:items-center sm:justify-between">
+          <p>© {new Date().getFullYear()} MotorSafe</p>
+          <div className="flex items-center gap-4">
+            <Link href="/legal" className="font-semibold text-primary hover:text-primaryHover">
+              Légal
+            </Link>
+            <Link href="/pro" className="font-semibold text-primary hover:text-primaryHover">
+              Espace pro
+            </Link>
+          </div>
+        </div>
+      </footer>
     </main>
   );
 }
@@ -3915,26 +4233,48 @@ export default function LandingPage() {
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
 
 export default function ProPendingPage() {
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-5xl items-center justify-center px-6 py-16">
-      <Card className="w-full max-w-xl text-center p-8">
-        <Badge variant="warning">Validation en cours</Badge>
-        <h1 className="mt-4 text-3xl font-semibold text-[color:var(--text)]">Compte en validation</h1>
-        <p className="mt-3 text-sm text-[color:var(--textMuted)]">
-          Votre dossier est en cours d'analyse par MotorSafe. Nous revenons vers vous dès que la
-          validation est terminée.
-        </p>
-        <div className="mt-6 flex flex-wrap justify-center gap-3 text-sm">
-          <Link href="/auth/login" className="font-semibold text-[color:var(--accent)] hover:text-[color:var(--accentHover)]">
-            Revenir à la connexion
-          </Link>
-          <Link href="/" className="font-semibold text-[color:var(--accent)] hover:text-[color:var(--accentHover)]">
-            Retour site
-          </Link>
-        </div>
-      </Card>
+    <main className="min-h-screen w-full bg-bg text-text">
+      <div className="mx-auto flex w-full max-w-5xl items-center justify-center px-6 py-16">
+        <Card className="w-full max-w-2xl p-8 text-center">
+          <div className="flex flex-col items-center gap-3">
+            <Badge variant="warning">Validation en cours</Badge>
+            <h1 className="text-3xl font-semibold text-text">Compte en validation</h1>
+            <p className="text-sm text-muted2">
+              Votre dossier est en cours d&apos;analyse par MotorSafe. Nous revenons vers vous dès que la validation est
+              terminée.
+            </p>
+          </div>
+
+          <div className="mt-8 grid gap-3 text-left">
+            {[
+              "Vérification des informations atelier.",
+              "Contrôle des justificatifs et du SIRET.",
+              "Activation des accès au dashboard.",
+            ].map((step) => (
+              <div key={step} className="rounded-xl border border-border/60 bg-surface2/80 px-4 py-3 text-sm text-muted2">
+                {step}
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-8 flex flex-wrap justify-center gap-3 text-sm">
+            <Link href="/auth/login">
+              <Button variant="secondary" size="sm">
+                Revenir à la connexion
+              </Button>
+            </Link>
+            <Link href="/">
+              <Button variant="ghost" size="sm">
+                Retour site
+              </Button>
+            </Link>
+          </div>
+        </Card>
+      </div>
     </main>
   );
 }
@@ -3984,7 +4324,7 @@ export default function ProInscriptionPage() {
         throw new Error(json?.error || "Erreur serveur.");
       }
       toast.push({
-        title: "Demande envoyee",
+        title: "Demande envoyée",
         description: "Votre compte pro est en attente de validation.",
         variant: "success",
       });
@@ -3999,87 +4339,126 @@ export default function ProInscriptionPage() {
   };
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-6xl items-center justify-center px-6 py-16">
-      <Card className="w-full max-w-3xl p-8">
-        <div className="grid gap-3">
-          <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--textMuted)]">Inscription</p>
-          <h1 className="text-3xl font-semibold tracking-tight text-[color:var(--text)]">Demander un accès MotorSafe</h1>
-          <p className="text-sm text-[color:var(--textMuted)]">
-            Remplissez votre dossier, l'équipe MotorSafe valide les comptes avant activation.
-          </p>
+    <main className="min-h-screen w-full bg-bg text-text">
+      <div className="mx-auto grid w-full max-w-6xl gap-10 px-6 py-16 lg:grid-cols-[1fr_520px] lg:items-start">
+        <div className="hidden lg:flex flex-col gap-8">
+          <Link href="/" className="flex items-center gap-3">
+            <div className="grid h-11 w-11 place-items-center rounded-[14px] bg-gradient-to-br from-primary to-primary2 text-white shadow-sm">
+              <span className="text-sm font-semibold">MS</span>
+            </div>
+            <div className="leading-tight">
+              <div className="text-sm font-semibold">MotorSafe</div>
+              <div className="text-xs text-muted2">Accès pro</div>
+            </div>
+          </Link>
+
+          <div>
+            <p className="ms-kicker">Inscription</p>
+            <h1 className="mt-3 text-4xl font-semibold tracking-tight">Demandez votre accès MotorSafe</h1>
+            <p className="mt-3 text-base text-muted2">
+              L&apos;équipe MotorSafe valide les comptes pour garantir une communauté professionnelle fiable.
+            </p>
+          </div>
+
+          <Card className="p-4">
+            <p className="ms-kicker">Process</p>
+            <ol className="mt-3 grid gap-2 text-sm text-muted2">
+              <li>1. Déposez vos informations atelier.</li>
+              <li>2. Vérification administrative rapide.</li>
+              <li>3. Activation et accès au dashboard.</li>
+            </ol>
+          </Card>
+
+          <Card className="p-4">
+            <p className="ms-kicker">Support</p>
+            <p className="mt-2 text-sm font-semibold">Un accompagnement dédié</p>
+            <p className="mt-1 text-xs text-muted2">
+              Nos équipes répondent en moins de 24h pour les demandes urgentes.
+            </p>
+          </Card>
         </div>
 
-        <form onSubmit={submit} className="mt-8 grid gap-5">
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Input
-              label="Nom du garage"
-              value={form.garageName}
-              onChange={(event) => setForm((prev) => ({ ...prev, garageName: event.target.value }))}
-              placeholder="Garage Horizon"
-              required
-            />
-            <Input
-              label="Email garage"
-              type="email"
-              value={form.garageEmail}
-              onChange={(event) => setForm((prev) => ({ ...prev, garageEmail: event.target.value }))}
-              placeholder="garage@horizon.fr"
-              required
-            />
-            <Input
-              label="Telephone"
-              value={form.phone}
-              onChange={(event) => setForm((prev) => ({ ...prev, phone: event.target.value }))}
-              placeholder="+33 6 00 00 00 00"
-            />
-            <Input
-              label="Adresse"
-              value={form.address}
-              onChange={(event) => setForm((prev) => ({ ...prev, address: event.target.value }))}
-              placeholder="12 rue des Ateliers, Lyon"
-            />
-            <Input
-              label="SIRET"
-              value={form.siret}
-              onChange={(event) => setForm((prev) => ({ ...prev, siret: event.target.value }))}
-              placeholder="123 456 789 00010"
-            />
+        <Card className="w-full p-8">
+          <div className="grid gap-3">
+            <p className="ms-kicker">Inscription</p>
+            <h1 className="text-2xl font-semibold tracking-tight text-text">Créer un compte pro</h1>
+            <p className="text-sm text-muted2">
+              Renseignez vos informations, nous reviendrons vers vous rapidement.
+            </p>
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Input
-              label="Email responsable"
-              type="email"
-              value={form.email}
-              onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
-              placeholder="responsable@garage.fr"
-              required
-            />
-            <Input
-              label="Mot de passe"
-              type="password"
-              value={form.password}
-              onChange={(event) => setForm((prev) => ({ ...prev, password: event.target.value }))}
-              placeholder="********"
-              required
-            />
-          </div>
+          <form onSubmit={submit} className="mt-8 grid gap-5">
+            <div className="grid gap-4 lg:grid-cols-2">
+              <Input
+                label="Nom du garage"
+                value={form.garageName}
+                onChange={(event) => setForm((prev) => ({ ...prev, garageName: event.target.value }))}
+                placeholder="Garage Horizon"
+                required
+              />
+              <Input
+                label="Email garage"
+                type="email"
+                value={form.garageEmail}
+                onChange={(event) => setForm((prev) => ({ ...prev, garageEmail: event.target.value }))}
+                placeholder="garage@horizon.fr"
+                required
+              />
+              <Input
+                label="Téléphone"
+                value={form.phone}
+                onChange={(event) => setForm((prev) => ({ ...prev, phone: event.target.value }))}
+                placeholder="+33 6 00 00 00 00"
+              />
+              <Input
+                label="Adresse"
+                value={form.address}
+                onChange={(event) => setForm((prev) => ({ ...prev, address: event.target.value }))}
+                placeholder="12 rue des Ateliers, Lyon"
+              />
+              <Input
+                label="SIRET"
+                value={form.siret}
+                onChange={(event) => setForm((prev) => ({ ...prev, siret: event.target.value }))}
+                placeholder="123 456 789 00010"
+              />
+            </div>
 
-          {error ? <p className="text-sm text-[color:var(--danger)]">{error}</p> : null}
+            <div className="grid gap-4 lg:grid-cols-2">
+              <Input
+                label="Email responsable"
+                type="email"
+                value={form.email}
+                onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
+                placeholder="responsable@garage.fr"
+                required
+              />
+              <Input
+                label="Mot de passe"
+                type="password"
+                value={form.password}
+                onChange={(event) => setForm((prev) => ({ ...prev, password: event.target.value }))}
+                placeholder="********"
+                required
+              />
+            </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <Button type="submit" disabled={loading}>
-              {loading ? "Envoi..." : "Envoyer la demande"}
-            </Button>
-            <Link
-              href="/auth/login"
-              className="text-sm font-semibold text-[color:var(--accent)] hover:text-[color:var(--accentHover)]"
-            >
-              Déjà un compte ? Connexion
-            </Link>
-          </div>
-        </form>
-      </Card>
+            {error ? <p className="text-sm text-danger">{error}</p> : null}
+
+            <div className="flex flex-wrap items-center gap-3">
+              <Button type="submit" disabled={loading}>
+                {loading ? "Envoi..." : "Envoyer la demande"}
+              </Button>
+              <Link
+                href="/auth/login"
+                className="text-sm font-semibold text-primary hover:text-primaryHover"
+              >
+                Déjà un compte ? Connexion
+              </Link>
+            </div>
+          </form>
+        </Card>
+      </div>
     </main>
   );
 }
@@ -4093,27 +4472,95 @@ export default function ProInscriptionPage() {
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
 
 export default function ProLandingPage() {
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-4xl items-center justify-center px-6 py-16">
-      <Card className="grid gap-6 text-center p-8">
-        <div className="flex flex-col gap-2">
-          <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--textMuted)]">Espace pro</p>
-          <h1 className="text-3xl font-semibold tracking-tight text-[color:var(--text)]">Connexion garages</h1>
-          <p className="text-sm text-[color:var(--textMuted)]">
-            Connectez-vous ou demandez un compte pro. Chaque demande est validée par l'administration.
-          </p>
-        </div>
-        <div className="flex flex-wrap justify-center gap-3">
-          <Link href="/auth/login">
-            <Button>Connexion Pro</Button>
+    <main className="min-h-screen w-full bg-bg text-text">
+      <header className="border-b border-border bg-bg/60 backdrop-blur-xl">
+        <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between gap-4 px-6">
+          <Link href="/" className="flex items-center gap-3">
+            <div className="grid h-11 w-11 place-items-center rounded-2xl border border-border bg-surface2">
+              <span className="text-sm font-extrabold tracking-tight text-primary2">MS</span>
+            </div>
+            <div className="leading-tight">
+              <div className="text-sm font-semibold text-text">MotorSafe</div>
+              <div className="text-xs text-muted2">Espace pro</div>
+            </div>
           </Link>
-          <Link href="/pro/inscription">
-            <Button variant="secondary">Créer compte pro</Button>
-          </Link>
+
+          <div className="flex items-center gap-2">
+            <Link href="/auth/login">
+              <Button>Connexion</Button>
+            </Link>
+          </div>
         </div>
-      </Card>
+      </header>
+
+      <div className="mx-auto grid w-full max-w-[1200px] gap-10 px-6 py-16 lg:grid-cols-[1.2fr_0.8fr] lg:items-start">
+        <div className="grid gap-6">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="accent">Garages & pros</Badge>
+            <Badge variant="warning">Comptes validés</Badge>
+          </div>
+
+          <div>
+            <p className="ms-kicker">Espace pro</p>
+            <h1 className="mt-3 text-4xl font-semibold tracking-tight text-text">
+              Un accès dédié pour les garages et pros de l&apos;auto
+            </h1>
+            <p className="mt-3 text-base text-muted2">
+              Connectez-vous ou demandez un compte pro. Chaque demande est validée par l&apos;administration.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            <Link href="/auth/login">
+              <Button>Connexion pro</Button>
+            </Link>
+            <Link href="/pro/inscription">
+              <Button variant="secondary">Demander un compte</Button>
+            </Link>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            {[
+              { title: "Validation", desc: "Dossier vérifié avant activation." },
+              { title: "Dossiers", desc: "Clients, véhicules, interventions." },
+              { title: "PDF", desc: "Documents générés et accessibles." },
+            ].map((item) => (
+              <Card key={item.title} className="p-4">
+                <p className="text-sm font-semibold text-text">{item.title}</p>
+                <p className="mt-1 text-xs text-muted2">{item.desc}</p>
+              </Card>
+            ))}
+          </div>
+        </div>
+
+        <Card className="p-8">
+          <p className="ms-kicker">Onboarding</p>
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-text">Process simple</h2>
+          <p className="mt-2 text-sm text-muted2">Trois étapes, sans friction.</p>
+
+          <ol className="mt-5 grid gap-3 text-sm text-muted2">
+            <li className="rounded-xl border border-border/60 bg-surface2/80 px-4 py-3">1. Informations atelier</li>
+            <li className="rounded-xl border border-border/60 bg-surface2/80 px-4 py-3">2. Validation</li>
+            <li className="rounded-xl border border-border/60 bg-surface2/80 px-4 py-3">3. Accès dashboard</li>
+          </ol>
+
+          <div className="mt-6 grid gap-3">
+            <Link href="/pro/inscription">
+              <Button className="w-full">Créer un compte pro</Button>
+            </Link>
+            <Link href="/auth/login">
+              <Button variant="secondary" className="w-full">Déjà un compte ? Connexion</Button>
+            </Link>
+            <Link href="/" className="text-center text-sm font-semibold text-primary hover:text-primaryHover">
+              Retour site
+            </Link>
+          </div>
+        </Card>
+      </div>
     </main>
   );
 }
@@ -4144,86 +4591,18 @@ export default function ProSignupRedirect() {
 
 ```
 
-## components/common/BadgeStatus.tsx
-<a id="components-common-badgestatustsx"></a>
+## app/ui-debug/page.tsx
+<a id="app-ui-debug-pagetsx"></a>
 
 ```tsx
-export default function BadgeStatus({ status }: { status: string }) {
-  let color = "";
-  switch (status) {
-    case "Brouillon": color = "badge badge-warning"; break;
-    case "En cours": color = "badge badge-accent"; break;
-    case "Terminé": color = "badge badge-success"; break;
-    case "Facturé": color = "badge badge-accent-2"; break;
-    default: color = "badge";
-  }
-  return <span className={color}>{status}</span>;
-}
-
-```
-
-## components/common/DataCards.tsx
-<a id="components-common-datacardstsx"></a>
-
-```tsx
-import { ReactNode } from "react";
-import { Card } from "@/components/ui/Card";
-
-export default function DataCards({ data, render }: { data: any[], render: (row: any) => ReactNode }) {
-  if (!data.length) {
-    return (
-      <Card className="p-8 text-center text-[color:var(--textMuted)]">
-        Aucune donnée
-      </Card>
-    );
-  }
+export default function UIDebug() {
   return (
-    <div className="flex flex-col gap-4">
-      {data.map((row, i) => (
-        <Card key={i} className="p-4">
-          {render(row)}
-        </Card>
-      ))}
-    </div>
-  );
-}
-
-```
-
-## components/common/DataTable.tsx
-<a id="components-common-datatabletsx"></a>
-
-```tsx
-import { ReactNode } from "react";
-
-export default function DataTable({ columns, data }: { columns: { key: string, label: string, render?: (row: any) => ReactNode }[], data: any[] }) {
-  return (
-    <div className="overflow-x-auto rounded-[var(--rCard)] border border-border bg-surface shadow-soft">
-      <table className="min-w-full text-[var(--text)]">
-        <thead>
-          <tr>
-            {columns.map(col => (
-              <th key={col.key} className="px-4 py-3 text-left text-sm font-semibold text-[color:var(--textMuted)] border-b border-border">{col.label}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {data.length === 0 ? (
-            <tr><td colSpan={columns.length} className="py-8 text-center text-[color:var(--textMuted)]">Aucune donnée</td></tr>
-          ) : (
-            data.map((row, i) => (
-              <tr key={i} className="hover:bg-surface2/60 transition">
-                {columns.map(col => (
-                  <td key={col.key} className="px-4 py-3 border-b border-border text-sm">
-                    {col.render ? col.render(row) : row[col.key]}
-                  </td>
-                ))}
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
-    </div>
+    <main style={{ padding: 40 }}>
+      <h1>UI DEBUG PAGE</h1>
+      <div className="p-6 rounded-xl bg-blue-600 text-white font-bold">
+        If you see blue, Tailwind works.
+      </div>
+    </main>
   );
 }
 
@@ -4234,20 +4613,26 @@ export default function DataTable({ columns, data }: { columns: { key: string, l
 
 ```tsx
 import { Card } from "@/components/ui/Card";
+import { Inbox } from "lucide-react";
 
 export function EmptyState({
   title,
   description,
   action,
+  icon,
 }: {
   title: string;
   description?: string;
   action?: React.ReactNode;
+  icon?: React.ReactNode;
 }) {
   return (
     <Card className="text-center">
-      <p className="text-sm font-semibold">{title}</p>
-      {description ? <p className="mt-2 text-sm text-[color:var(--textMuted)]">{description}</p> : null}
+      <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl border border-border/70 bg-surface2">
+        {icon ?? <Inbox size={20} className="text-primary2" />}
+      </div>
+      <p className="mt-4 text-sm font-semibold">{title}</p>
+      {description ? <p className="mt-2 text-sm text-muted2">{description}</p> : null}
       {action ? <div className="mt-4 flex justify-center">{action}</div> : null}
     </Card>
   );
@@ -4260,11 +4645,17 @@ export function EmptyState({
 
 ```tsx
 import { Card } from "@/components/ui/Card";
+import { AlertTriangle } from "lucide-react";
 
 export function ErrorBanner({ message }: { message: string }) {
   return (
-    <Card className="border border-[rgba(239,68,68,0.35)] bg-[rgba(239,68,68,0.08)]">
-      <p className="text-sm text-[#fecaca]">{message}</p>
+    <Card className="border border-danger/35 bg-danger/8">
+      <div className="flex items-start gap-3">
+        <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-xl border border-danger/35 bg-danger/10">
+          <AlertTriangle size={18} className="text-danger" />
+        </span>
+        <p className="text-sm text-danger/90">{message}</p>
+      </div>
     </Card>
   );
 }
@@ -4357,27 +4748,27 @@ export function LegalReferencesPanel({ type }: { type: string }) {
   return (
     <Card className="grid gap-4">
       <div>
-        <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--textMuted)]">References & conformite</p>
-        <h3 className="mt-2 text-lg font-semibold">Cadre legal associe</h3>
+        <p className="ms-kicker">Références & conformité</p>
+        <h3 className="mt-2 text-lg font-semibold">Cadre légal associé</h3>
       </div>
       {loading ? (
         <Loading />
       ) : items.length === 0 ? (
         <EmptyState
-          title="Aucune reference associee"
-          description="L'administration pourra ajouter des references legales liees a ce type."
+          title="Aucune référence associée"
+          description="L'administration pourra ajouter des références légales liées à ce type."
         />
       ) : (
         <div className="grid gap-2">
           {items.map((item) => (
             <details
               key={item.id}
-              className="rounded-[var(--r)] border border-[color:var(--border)] bg-[color:var(--surface)]"
+              className="rounded-[var(--r)] border border-border/60 bg-surface"
             >
               <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-[color:var(--text)]">{item.title}</p>
-                  <p className="mt-0.5 truncate text-xs text-[color:var(--textMuted)]">
+                  <p className="truncate text-sm font-semibold text-text">{item.title}</p>
+                  <p className="mt-0.5 truncate text-xs text-muted2">
                     {item.code || item.articleRef || item.tags ? "Voir le détail" : ""}
                   </p>
                 </div>
@@ -4386,21 +4777,21 @@ export function LegalReferencesPanel({ type }: { type: string }) {
                 </Badge>
               </summary>
 
-              <div className="border-t border-[color:var(--border)] px-4 py-3 text-sm">
+              <div className="border-t border-border/60 px-4 py-3 text-sm">
                 {item.summary ? (
-                  <p className="text-sm text-[color:var(--textMuted)]">{item.summary}</p>
+                  <p className="text-sm text-muted2">{item.summary}</p>
                 ) : (
-                  <p className="text-sm text-[color:var(--textMuted)]">Aucun résumé.</p>
+                  <p className="text-sm text-muted2">Aucun résumé.</p>
                 )}
 
-                <div className="mt-3 flex flex-wrap gap-2 text-xs text-[color:var(--textMuted)]">
+                <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted2">
                   {item.code ? <span>{item.code}</span> : null}
                   {item.articleRef ? <span>{item.articleRef}</span> : null}
                   {item.tags ? <span>Tags: {item.tags}</span> : null}
                   {item.sourceUrl ? (
                     <a
                       href={item.sourceUrl}
-                      className="font-semibold text-[color:var(--accent)] hover:text-[color:var(--accentHover)]"
+                      className="font-semibold text-primary hover:text-primaryHover"
                       target="_blank"
                       rel="noreferrer"
                     >
@@ -4430,34 +4821,9 @@ export function Loading({ label = "Chargement..." }: { label?: string }) {
     <div className="grid gap-3">
       <Skeleton className="h-4 w-24" />
       <Skeleton className="h-4 w-full" />
-      <p className="text-xs text-[color:var(--textMuted)]">{label}</p>
+      <p className="text-xs text-muted2">{label}</p>
     </div>
   );
-}
-
-```
-
-## components/common/PageHeader.tsx
-<a id="components-common-pageheadertsx"></a>
-
-```tsx
-export default function PageHeader({ title, children }: { title: string, children?: React.ReactNode }) {
-  return (
-    <div className="flex items-center justify-between mb-6">
-      <h1 className="text-2xl font-semibold tracking-tight text-[var(--text)]">{title}</h1>
-      {children}
-    </div>
-  );
-}
-
-```
-
-## components/common/Skeleton.tsx
-<a id="components-common-skeletontsx"></a>
-
-```tsx
-export default function Skeleton({ className = "" }) {
-  return <div className={`animate-pulse bg-surface2 rounded-[var(--rGlobal)] ${className}`} />;
 }
 
 ```
@@ -4480,9 +4846,9 @@ export function StatCard({
 }) {
   return (
     <Card className="relative flex flex-col gap-3 overflow-hidden">
-      <div className="absolute right-0 top-0 h-16 w-16 rounded-full bg-[color:var(--accentWeak)] blur-2xl" />
-      <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--textMuted)]">{label}</p>
-      <p className="text-3xl font-semibold">{value}</p>
+      <div className="absolute -right-6 -top-6 h-20 w-20 rounded-full bg-primary/20 blur-2xl" />
+      <p className="ms-kicker">{label}</p>
+      <p className="font-display text-3xl font-semibold tracking-tight">{value}</p>
       {badge ? <Badge variant="accent">{badge}</Badge> : null}
     </Card>
   );
@@ -4514,7 +4880,6 @@ export default function DashboardShell({
 }) {
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [createOpen, setCreateOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
@@ -4553,8 +4918,6 @@ export default function DashboardShell({
         collapsed={collapsed}
         onToggleCollapse={toggleCollapse}
         onMenu={() => setSidebarOpen(true)}
-        onToggleCreate={() => setCreateOpen((open) => !open)}
-        createOpen={createOpen}
         onLogout={handleLogout}
       >
         {children}
@@ -4571,36 +4934,18 @@ export default function DashboardShell({
 ```tsx
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { SessionUser } from "@/lib/auth";
+import type { NavItem } from "@/components/layout/nav-config";
+import { TopBar } from "@/components/layout/Topbar";
+import { DesktopSidebar } from "@/components/layout/DesktopSidebar";
 import Drawer from "@/components/ui/navigation/Drawer";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Input } from "@/components/ui/Input";
-import { DropdownMenu } from "@/components/ui/DropdownMenu";
-import {
-  LayoutGrid,
-  Users,
-  Car,
-  Wrench,
-  FileText,
-  Settings,
-  ShieldCheck,
-  Menu,
-  Plus,
-  Search,
-  MoreHorizontal,
-  LogOut,
-  UserCircle2,
-} from "lucide-react";
-
-type NavItem = {
-  label: string;
-  href: string;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
-};
+import { LayoutGrid, Users, Car, Wrench, FileText, Settings, ShieldCheck, MoreHorizontal } from "lucide-react";
 
 type AppShellProps = {
   children: React.ReactNode;
@@ -4612,8 +4957,6 @@ type AppShellProps = {
   collapsed?: boolean;
   onToggleCollapse?: () => void;
   onMenu?: () => void;
-  onToggleCreate?: () => void;
-  createOpen?: boolean;
   onLogout?: () => void;
 };
 
@@ -4624,170 +4967,100 @@ export function AppShell({
   activePath,
   sidebarOpen = false,
   onSidebarClose = () => {},
-  collapsed: _collapsed = false,
-  onToggleCollapse: _onToggleCollapse = () => {},
+  collapsed = false,
+  onToggleCollapse = () => {},
   onMenu = () => {},
-  onToggleCreate = () => {},
-  createOpen: _createOpen = false,
   onLogout = () => {},
 }: AppShellProps) {
-  const pathname = usePathname?.() || activePath || "/";
-
-  const bottomItems = [
-    { label: "Dashboard", href: "/dashboard", icon: LayoutGrid },
-    { label: "Clients", href: "/clients", icon: Users },
-    { label: "Véhicules", href: "/vehicules", icon: Car },
-    { label: "Interventions", href: "/interventions", icon: Wrench },
-  ] as const;
-
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const pathname = (usePathname() || activePath || "/").split("?")[0] || "/";
+  const qFromUrl = searchParams?.get("q") ?? "";
+  const [globalQuery, setGlobalQuery] = useState(qFromUrl);
   const [plusOpen, setPlusOpen] = useState(false);
 
+  useEffect(() => {
+    setGlobalQuery(qFromUrl);
+  }, [qFromUrl]);
+
+  // Prevent stacked overlays: close mobile sheets on navigation.
+  useEffect(() => {
+    onSidebarClose();
+    setPlusOpen(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
+
+  const visibleNavItems = useMemo(
+    () => navItems.filter((n) => !n.adminOnly || user?.role === "ADMIN"),
+    [navItems, user?.role]
+  );
+
+  const applyGlobalSearch = () => {
+    const next = globalQuery.trim();
+    const params = new URLSearchParams(searchParams ? Array.from(searchParams.entries()) : []);
+    if (next) params.set("q", next);
+    else params.delete("q");
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname);
+  };
+
+  const bottomItems = useMemo(
+    () =>
+      [
+        { label: "Dashboard", href: "/dashboard", icon: LayoutGrid },
+        { label: "Clients", href: "/clients", icon: Users },
+        { label: "Véhicules", href: "/vehicules", icon: Car },
+        { label: "Interventions", href: "/interventions", icon: Wrench },
+      ] as const,
+    []
+  );
+
   return (
-    <div className="min-h-screen bg-[color:var(--bg)] text-[color:var(--text)]">
-      {/* TopBar (fixed) */}
-      <header className="fixed inset-x-0 top-0 z-50 border-b border-[color:var(--border)] bg-[color:var(--bg)]/70 backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-[1280px] items-center gap-3 px-4 lg:px-8">
-          <button
-            type="button"
-            onClick={onMenu}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[color:var(--border)] bg-transparent text-[color:var(--textMuted)] hover:bg-white/5 lg:hidden"
-            aria-label="Ouvrir le menu"
-          >
-            <Menu size={18} />
-          </button>
+    <div className="min-h-screen bg-bg text-text">
+      <TopBar
+        user={user}
+        query={globalQuery}
+        onQueryChange={setGlobalQuery}
+        onSearch={applyGlobalSearch}
+        onMenu={() => {
+          onMenu();
+        }}
+        onLogout={onLogout}
+      />
 
-          <Link href="/dashboard" className="flex items-center gap-3">
-            <div className="grid h-10 w-10 place-items-center rounded-[14px] border border-[color:var(--border)] bg-[color:var(--surface2)]">
-              <span className="text-sm font-semibold text-[color:var(--accent2)]">MS</span>
-            </div>
-            <div className="hidden sm:block leading-tight">
-              <div className="text-sm font-semibold">MotorSafe</div>
-              <div className="text-xs text-[color:var(--textMuted)]">Panel garages</div>
-            </div>
-          </Link>
-
-          <div className="hidden flex-1 items-center gap-2 rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 md:flex">
-            <Search size={16} className="text-[color:var(--textMuted)]" />
-            <input
-              className="h-10 w-full bg-transparent text-sm text-[color:var(--text)] placeholder:text-[color:var(--textMuted)] outline-none"
-              placeholder="Rechercher un client, une plaque, un dossier…"
-              aria-label="Recherche globale"
-            />
-          </div>
-
-          <div className="ml-auto flex items-center gap-2">
-            <button
-              type="button"
-              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-[color:var(--border)] bg-transparent text-[color:var(--textMuted)] hover:bg-white/5 md:hidden"
-              aria-label="Recherche"
-            >
-              <Search size={18} />
-            </button>
-
-            <DropdownMenu
-              trigger={
-                <Button variant="primary" size="sm" onClick={onToggleCreate}>
-                  <Plus size={16} /> Nouveau
-                </Button>
-              }
-            >
-              <Link className="block" href="/clients">
-                <div className="rounded-xl px-3 py-2 text-sm hover:bg-white/5">Client</div>
-              </Link>
-              <Link className="block" href="/vehicules">
-                <div className="rounded-xl px-3 py-2 text-sm hover:bg-white/5">Véhicule</div>
-              </Link>
-              <Link className="block" href="/interventions">
-                <div className="rounded-xl px-3 py-2 text-sm hover:bg-white/5">Intervention</div>
-              </Link>
-              <Link className="block" href="/documents">
-                <div className="rounded-xl px-3 py-2 text-sm hover:bg-white/5">PDF</div>
-              </Link>
-            </DropdownMenu>
-
-            <DropdownMenu
-              trigger={
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-2 rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm hover:bg-white/5"
-                >
-                  <UserCircle2 size={18} className="text-[color:var(--textMuted)]" />
-                  <span className="hidden sm:block max-w-[180px] truncate">{user?.email ?? "Profil"}</span>
-                </button>
-              }
-            >
-              <Link className="block" href="/parametres">
-                <div className="rounded-xl px-3 py-2 text-sm hover:bg-white/5">Paramètres</div>
-              </Link>
-              <button
-                type="button"
-                className="w-full rounded-xl px-3 py-2 text-left text-sm text-[color:var(--text)] hover:bg-white/5"
-                onClick={onLogout}
-              >
-                Quitter
-              </button>
-            </DropdownMenu>
-          </div>
-        </div>
-      </header>
-
-      {/* Desktop layout */}
+      {/* Layout */}
       <div className="mx-auto flex max-w-[1440px]">
-        <aside className="sticky top-16 hidden h-[calc(100vh-64px)] w-[260px] shrink-0 border-r border-[color:var(--border)] bg-[color:var(--bg)] lg:block">
-          <div className="flex h-full flex-col px-3 py-4">
-            <nav className="flex-1 space-y-1">
-              {navItems.map((item) => {
-                const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
-                const Icon = item.icon;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={`flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition ${
-                      isActive
-                        ? "bg-[color:var(--accentWeak)] text-white"
-                        : "text-[color:var(--textMuted)] hover:bg-white/5 hover:text-white"
-                    }`}
-                  >
-                    <Icon size={18} className={isActive ? "text-[color:var(--accent2)]" : "text-[color:var(--textMuted)]"} />
-                    <span className="font-medium">{item.label}</span>
-                  </Link>
-                );
-              })}
-            </nav>
-
-            <div className="mt-4 rounded-[var(--r)] border border-[color:var(--border)] bg-[color:var(--surface)] p-3">
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{user?.email ?? ""}</p>
-                  <p className="text-xs text-[color:var(--textMuted)]">Profil</p>
-                </div>
-                <Badge variant="accent">{user?.role === "ADMIN" ? "Admin" : "Pro"}</Badge>
-              </div>
-              <button
-                type="button"
-                onClick={onLogout}
-                className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[color:var(--border)] bg-transparent px-3 py-2 text-sm text-[color:var(--textMuted)] hover:bg-white/5"
-              >
-                <LogOut size={16} /> Quitter
-              </button>
-            </div>
-          </div>
-        </aside>
-
-        <main className="min-w-0 flex-1 pt-16">
-          <div className="mx-auto max-w-[1280px] px-4 py-6 lg:px-8">{children}</div>
-          <div className="h-20 md:hidden" />
+        <DesktopSidebar
+          user={user}
+          navItems={navItems}
+          collapsed={collapsed}
+          onToggleCollapse={onToggleCollapse}
+          onLogout={onLogout}
+        />
+        <main className="min-w-0 flex-1 pt-16 pb-10 lg:pb-24">
+          <div className="mx-auto max-w-[1280px] px-4 py-8 sm:px-6 lg:px-10">{children}</div>
+          <div className="h-20 md:hidden [@media(pointer:fine)]:hidden" />
         </main>
       </div>
 
       {/* Mobile Drawer (sidebar) */}
       <Drawer open={sidebarOpen} onClose={onSidebarClose} side="left" title="Navigation">
         <div className="mb-4">
-          <Input placeholder="Rechercher…" />
+          <Input
+            label="Rechercher"
+            value={globalQuery}
+            onChange={(e) => setGlobalQuery(e.target.value)}
+            placeholder="Rechercher…"
+          />
+          <div className="mt-2">
+            <Button onClick={applyGlobalSearch} className="w-full">
+              Rechercher
+            </Button>
+          </div>
         </div>
+
         <nav className="space-y-1">
-          {navItems.map((item) => {
+          {visibleNavItems.map((item) => {
             const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
             const Icon = item.icon;
             return (
@@ -4797,27 +5070,33 @@ export function AppShell({
                 onClick={onSidebarClose}
                 className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm transition ${
                   isActive
-                    ? "bg-[color:var(--accentWeak)] text-white"
-                    : "text-[color:var(--textMuted)] hover:bg-white/5 hover:text-white"
+                    ? "bg-primary/12 text-text"
+                    : "text-muted2 hover:bg-surface2/80 hover:text-text"
                 }`}
               >
-                <Icon size={18} className={isActive ? "text-[color:var(--accent2)]" : "text-[color:var(--textMuted)]"} />
+                <Icon size={18} className={isActive ? "text-primary" : "text-muted2"} />
                 <span className="font-medium">{item.label}</span>
               </Link>
             );
           })}
         </nav>
 
-        <div className="mt-6 rounded-[var(--r)] border border-[color:var(--border)] bg-[color:var(--surface2)] p-3">
+        <div className="mt-6 grid gap-3 rounded-[var(--r)] border border-border bg-surface/80 p-3">
           <div className="flex items-center justify-between gap-3">
             <p className="truncate text-sm">{user?.email ?? ""}</p>
             <Badge variant="accent">{user?.role === "ADMIN" ? "Admin" : "Pro"}</Badge>
+          </div>
+          <div className="flex gap-2">
+            <Link href="/parametres" onClick={onSidebarClose} className="flex-1">
+              <Button variant="secondary" size="sm" className="w-full">Paramètres</Button>
+            </Link>
+            <Button variant="ghost" size="sm" className="flex-1" onClick={onLogout}>Quitter</Button>
           </div>
         </div>
       </Drawer>
 
       {/* Mobile BottomNav */}
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[color:var(--border)] bg-[color:var(--bg)]/80 backdrop-blur md:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border/70 bg-bg/80 backdrop-blur md:hidden [@media(pointer:fine)]:hidden">
         <div className="mx-auto flex h-16 max-w-[1280px] items-center justify-around px-2 pb-[env(safe-area-inset-bottom,0px)]">
           {bottomItems.map((item) => {
             const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -4827,10 +5106,10 @@ export function AppShell({
                 key={item.href}
                 href={item.href}
                 className={`flex flex-col items-center gap-1 px-2 py-2 text-xs ${
-                  isActive ? "text-white" : "text-[color:var(--textMuted)]"
+                  isActive ? "text-text" : "text-muted2"
                 }`}
               >
-                <Icon size={18} className={isActive ? "text-[color:var(--accent2)]" : "text-[color:var(--textMuted)]"} />
+                <Icon size={18} className={isActive ? "text-primary2" : "text-muted2"} />
                 <span>{item.label}</span>
               </Link>
             );
@@ -4839,22 +5118,27 @@ export function AppShell({
           <button
             type="button"
             onClick={() => setPlusOpen(true)}
-            className="flex flex-col items-center gap-1 px-2 py-2 text-xs text-[color:var(--textMuted)]"
+            className="flex flex-col items-center gap-1 px-2 py-2 text-xs text-muted2"
             aria-label="Plus"
           >
-            <MoreHorizontal size={18} className="text-[color:var(--textMuted)]" />
+            <MoreHorizontal size={18} className="text-muted2" />
             <span>Plus</span>
           </button>
         </div>
       </nav>
 
+      {/* Mobile “Plus” drawer */}
       <Drawer open={plusOpen} onClose={() => setPlusOpen(false)} side="bottom" title="Plus">
         <div className="grid gap-2">
           {[
             { label: "Documents PDF", href: "/documents", icon: FileText },
             { label: "Paramètres", href: "/parametres", icon: Settings },
-            { label: "Pro demandes", href: "/admin/pro-demandes", icon: ShieldCheck },
-            { label: "Références légales", href: "/admin/references", icon: ShieldCheck },
+            ...(user?.role === "ADMIN"
+              ? [
+                  { label: "Demandes pro", href: "/admin/pro-demandes", icon: ShieldCheck },
+                  { label: "Références légales", href: "/admin/references", icon: ShieldCheck },
+                ]
+              : []),
           ].map((item) => {
             const Icon = item.icon;
             return (
@@ -4862,9 +5146,11 @@ export function AppShell({
                 key={item.href}
                 href={item.href}
                 onClick={() => setPlusOpen(false)}
-                className="flex items-center gap-3 rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] px-4 py-3 text-sm hover:bg-white/5"
+                className="flex items-center gap-3 rounded-2xl border border-border/70 bg-surface px-4 py-3 text-sm transition hover:bg-surface2/80"
               >
-                <Icon size={18} className="text-[color:var(--accent2)]" />
+                <span className="grid h-9 w-9 place-items-center rounded-xl border border-border/70 bg-surface2">
+                  <Icon size={18} className="text-primary2" />
+                </span>
                 <span className="font-medium">{item.label}</span>
               </Link>
             );
@@ -4872,6 +5158,217 @@ export function AppShell({
         </div>
       </Drawer>
     </div>
+  );
+}
+
+```
+
+## components/layout/DesktopSidebar.tsx
+<a id="components-layout-desktopsidebartsx"></a>
+
+```tsx
+"use client";
+
+import type { ReactNode } from "react";
+import Link from "next/link";
+import { useMemo } from "react";
+import { usePathname } from "next/navigation";
+import type { SessionUser } from "@/lib/auth";
+import type { NavItem } from "@/components/layout/nav-config";
+import { Badge } from "@/components/ui/Badge";
+import { ChevronLeft, ChevronRight, LogOut } from "lucide-react";
+
+function cx(...cls: Array<string | false | null | undefined>) {
+  return cls.filter(Boolean).join(" ");
+}
+
+function isActivePath(pathname: string, href: string) {
+  if (href === "/dashboard") return pathname === "/dashboard";
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function SectionLabel({ collapsed, children }: { collapsed: boolean; children: ReactNode }) {
+  if (collapsed) return null;
+  return (
+    <p className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted2">
+      {children}
+    </p>
+  );
+}
+
+function NavLink({ item, active, collapsed }: { item: NavItem; active: boolean; collapsed: boolean }) {
+  const Icon = item.icon;
+
+  return (
+    <Link
+      href={item.href}
+      aria-current={active ? "page" : undefined}
+      title={collapsed ? item.label : undefined}
+      className={cx(
+        "group relative flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-medium transition",
+        "focus:outline-none focus:ring-2 focus:ring-primary/40",
+        active
+          ? "bg-primaryWeak text-text"
+          : "text-muted2 hover:bg-surface2 hover:text-text"
+      )}
+    >
+      <span
+        className={cx(
+          "grid h-9 w-9 place-items-center rounded-xl border transition",
+          active
+            ? "border-primary/20 bg-surface2"
+            : "border-border bg-surface group-hover:bg-surface2"
+        )}
+      >
+        <Icon
+          size={18}
+          className={cx(
+            "transition",
+            active
+              ? "text-primary2"
+              : "text-muted2 group-hover:text-text"
+          )}
+        />
+      </span>
+
+      {!collapsed ? <span className="truncate">{item.label}</span> : null}
+
+      {active ? (
+        <span className="absolute right-3 top-1/2 h-2 w-2 -translate-y-1/2 rounded-full bg-primary2" />
+      ) : null}
+    </Link>
+  );
+}
+
+export function DesktopSidebar({
+  user,
+  navItems,
+  collapsed,
+  onToggleCollapse,
+  onLogout,
+}: {
+  user?: SessionUser;
+  navItems: NavItem[];
+  collapsed: boolean;
+  onToggleCollapse: () => void;
+  onLogout: () => void;
+}) {
+  const pathname = usePathname();
+
+  const grouped = useMemo(() => {
+    const visible = navItems.filter((n) => !n.adminOnly || user?.role === "ADMIN");
+    const main = visible.filter((n) => (n.group ?? "main") === "main");
+    const admin = visible.filter((n) => (n.group ?? "main") === "admin");
+    return { main, admin };
+  }, [navItems, user?.role]);
+
+  return (
+    <aside
+      className={cx(
+        "sticky top-16 hidden h-[calc(100vh-64px)] shrink-0 border-r border-border bg-bg lg:block [@media(pointer:fine)]:block",
+        collapsed ? "w-[88px]" : "w-[260px]"
+      )}
+      aria-label="Navigation"
+      data-ui="desktop-sidebar-premium"
+    >
+      <div className={cx("relative flex h-full flex-col px-3 py-4", collapsed && "px-2")}>
+        <div className="pointer-events-none absolute -top-12 left-6 h-40 w-40 rounded-full bg-primaryWeak blur-3xl opacity-40" />
+
+        <div className={cx("mb-3 flex items-center gap-3", collapsed && "justify-center")}>
+          <Link href="/dashboard" className="flex items-center gap-3">
+            <div className="grid h-11 w-11 place-items-center rounded-2xl border border-border bg-surface2">
+              <span className="text-sm font-extrabold text-primary2">MS</span>
+            </div>
+
+            {!collapsed ? (
+              <div className="min-w-0 leading-tight">
+                <div className="truncate text-sm font-semibold text-text">MotorSafe</div>
+                <div className="truncate text-xs text-muted2">Panel garages</div>
+              </div>
+            ) : null}
+          </Link>
+
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            className={cx(
+              "ml-auto inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-border bg-surface text-muted2 transition hover:bg-surface2",
+              collapsed && "ml-0"
+            )}
+            aria-label={collapsed ? "Déplier le menu" : "Réduire le menu"}
+          >
+            {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+          </button>
+        </div>
+
+        <nav className="flex-1 space-y-1">
+          <SectionLabel collapsed={collapsed}>Menu</SectionLabel>
+          <div className="space-y-1">
+            {grouped.main.map((item) => (
+              <NavLink
+                key={item.href}
+                item={item}
+                active={isActivePath(pathname, item.href)}
+                collapsed={collapsed}
+              />
+            ))}
+          </div>
+
+          {grouped.admin.length ? (
+            <>
+              <SectionLabel collapsed={collapsed}>Admin</SectionLabel>
+              <div className="space-y-1">
+                {grouped.admin.map((item) => (
+                  <NavLink
+                    key={item.href}
+                    item={item}
+                    active={isActivePath(pathname, item.href)}
+                    collapsed={collapsed}
+                  />
+                ))}
+              </div>
+            </>
+          ) : null}
+        </nav>
+
+        <div
+          className={cx(
+            "mt-4 rounded-2xl border border-border bg-surface p-3",
+            collapsed && "p-2"
+          )}
+        >
+          <div className={cx("flex items-center gap-3", collapsed && "justify-center")}>
+            <div className="grid h-10 w-10 place-items-center rounded-2xl border border-border bg-surface2">
+              <span className="text-xs font-bold text-primary2">U</span>
+            </div>
+
+            {!collapsed ? (
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium text-text">{user?.email ?? ""}</p>
+                <p className="text-xs text-muted2">Profil</p>
+              </div>
+            ) : null}
+
+            {!collapsed ? <Badge variant="accent">{user?.role === "ADMIN" ? "Admin" : "Pro"}</Badge> : null}
+          </div>
+
+          <button
+            type="button"
+            onClick={onLogout}
+            className={cx(
+              "mt-3 inline-flex w-full items-center justify-center gap-2 rounded-2xl border border-border bg-transparent px-3 py-2 text-sm text-muted2 transition hover:bg-surface2",
+              "focus:outline-none focus:ring-2 focus:ring-primary/40",
+              collapsed && "mt-2 h-10 px-0"
+            )}
+            aria-label="Quitter"
+            title={collapsed ? "Quitter" : undefined}
+          >
+            <LogOut size={16} />
+            {!collapsed ? "Quitter" : null}
+          </button>
+        </div>
+      </div>
+    </aside>
   );
 }
 
@@ -4889,7 +5386,7 @@ import { NAV_ITEMS } from "@/components/layout/nav-config";
 
 export default function MobileNav({ activePath }: { activePath: string }) {
   return (
-    <nav className="fixed bottom-4 left-1/2 z-40 w-[92%] -translate-x-1/2 rounded-[var(--r)] border border-[color:var(--border)] bg-[color:var(--surface)] px-4 py-3 pb-[calc(env(safe-area-inset-bottom,0px)+12px)] shadow-[var(--shDropdown)] lg:hidden">
+    <nav className="fixed bottom-4 left-1/2 z-40 w-[92%] -translate-x-1/2 rounded-[var(--r)] border border-border bg-surface/90 px-4 py-3 pb-[calc(env(safe-area-inset-bottom,0px)+12px)] shadow-[var(--shDropdown)] backdrop-blur lg:hidden [@media(pointer:fine)]:hidden">
       <div className="flex items-center justify-between gap-3">
         {NAV_ITEMS.slice(0, 5).map((item) => {
           const isActive = activePath === item.href || activePath.startsWith(`${item.href}/`);
@@ -4899,10 +5396,10 @@ export default function MobileNav({ activePath }: { activePath: string }) {
               key={item.href}
               href={item.href}
               className={`flex flex-1 flex-col items-center gap-1 text-xs ${
-                isActive ? "text-white" : "text-[color:var(--textMuted)]"
+                isActive ? "text-text" : "text-muted2"
               }`}
             >
-              <Icon size={16} />
+              <Icon size={16} className={isActive ? "text-primary" : "text-muted2"} />
               <span>{item.label}</span>
             </Link>
           );
@@ -4927,25 +5424,122 @@ import {
   Settings,
   ShieldCheck,
 } from "lucide-react";
-import type { ComponentType } from "react";
+import type React from "react";
+
+export type NavGroup = "main" | "admin";
 
 export type NavItem = {
   label: string;
   href: string;
-  icon: ComponentType<{ size?: number; className?: string }>;
+  icon: React.ComponentType<{ size?: number; className?: string }>;
   adminOnly?: boolean;
+  group?: NavGroup;
 };
 
 export const NAV_ITEMS: NavItem[] = [
-  { label: "Dashboard", href: "/dashboard", icon: LayoutGrid },
-  { label: "Clients", href: "/clients", icon: Users },
-  { label: "Véhicules", href: "/vehicules", icon: Car },
-  { label: "Interventions", href: "/interventions", icon: Wrench },
-  { label: "Documents PDF", href: "/documents", icon: FileText },
-  { label: "Paramètres", href: "/parametres", icon: Settings },
-  { label: "Demandes pro", href: "/admin/pro-demandes", icon: ShieldCheck, adminOnly: true },
-  { label: "Références légales", href: "/admin/references", icon: ShieldCheck, adminOnly: true },
+  { label: "Dashboard", href: "/dashboard", icon: LayoutGrid, group: "main" },
+  { label: "Clients", href: "/clients", icon: Users, group: "main" },
+  { label: "Véhicules", href: "/vehicules", icon: Car, group: "main" },
+  { label: "Interventions", href: "/interventions", icon: Wrench, group: "main" },
+  { label: "Documents PDF", href: "/documents", icon: FileText, group: "main" },
+  { label: "Paramètres", href: "/parametres", icon: Settings, group: "main" },
+  { label: "Demandes pro", href: "/admin/pro-demandes", icon: ShieldCheck, adminOnly: true, group: "admin" },
+  { label: "Références légales", href: "/admin/references", icon: ShieldCheck, adminOnly: true, group: "admin" },
 ];
+
+```
+
+## components/layout/responsive/ProSidebarMenu.tsx
+<a id="components-layout-responsive-prosidebarmenutsx"></a>
+
+```tsx
+import React from "react";
+import Link from "next/link";
+import { LogOut } from "lucide-react";
+import { NAV_ITEMS, type NavItem } from "../nav-config";
+import { Tooltip } from "../../ui/Tooltip";
+import { usePathname } from "next/navigation";
+
+export function ProSidebarMenu() {
+  // Group nav items: main, admin
+  const mainNav = NAV_ITEMS.filter((item: NavItem) => !item.adminOnly);
+  const adminNav = NAV_ITEMS.filter((item: NavItem) => item.adminOnly);
+  // TODO: get collapsed state from context/prop if needed
+  const collapsed = false;
+  const activePath = usePathname();
+  return (
+    <nav className="flex flex-col gap-2 w-full h-full py-6" aria-label="Navigation principale">
+      <div className="flex items-center gap-3 px-6 mb-8">
+        <div className="h-10 w-10 rounded-[var(--rCard)] bg-primary/15 border border-primary/25 grid place-items-center">
+          <span className="text-primary font-bold">M</span>
+        </div>
+        {!collapsed && (
+          <div>
+            <div className="text-sm tracking-[0.32em] uppercase text-muted">Motorsafe</div>
+            <div className="text-xs text-muted/80">Panel garages</div>
+          </div>
+        )}
+      </div>
+      <ul className="flex-1 flex flex-col gap-1 px-2" role="list">
+        {mainNav.map((item) => {
+          const { label, href, icon: Icon } = item;
+          return (
+          <li key={href} role="listitem">
+            <Tooltip content={collapsed ? label : undefined} side="right" disabled={!collapsed}>
+              <Link
+                href={href}
+                className={`flex items-center gap-3 px-3 py-2 rounded-[var(--rButton)] border transition duration-200 ${
+                  activePath.startsWith(href)
+                    ? "bg-primary/12 border-primary/25 text-text shadow-soft"
+                    : "bg-transparent border-transparent text-text/85 hover:bg-white/5 hover:border-border"
+                }`}
+                aria-current={activePath.startsWith(href) ? "page" : undefined}
+                tabIndex={0}
+              >
+                <Icon className="h-4 w-4 text-primary opacity-90" />
+                {!collapsed && <span className="text-sm font-medium">{label}</span>}
+              </Link>
+            </Tooltip>
+          </li>
+          );
+        })}
+        {adminNav.length > 0 && (
+          <React.Fragment>
+            <li className="my-2 border-t border-border" aria-hidden />
+            {adminNav.map((item) => {
+              const { label, href, icon: Icon } = item;
+              return (
+              <li key={href} role="listitem">
+                <Tooltip content={collapsed ? label : undefined} side="right" disabled={!collapsed}>
+                  <Link
+                    href={href}
+                    className={`flex items-center gap-3 px-3 py-2 rounded-[var(--rButton)] border transition duration-200 ${
+                      activePath.startsWith(href)
+                        ? "bg-primary/12 border-primary/25 text-text shadow-soft"
+                        : "bg-transparent border-transparent text-text/85 hover:bg-white/5 hover:border-border"
+                    }`}
+                    aria-current={activePath.startsWith(href) ? "page" : undefined}
+                    tabIndex={0}
+                  >
+                    <Icon className="h-4 w-4 text-primary opacity-90" />
+                    {!collapsed && <span className="text-sm font-medium">{label}</span>}
+                  </Link>
+                </Tooltip>
+              </li>
+              );
+            })}
+          </React.Fragment>
+        )}
+      </ul>
+      <div className="px-6 mt-8">
+        <button className="flex items-center gap-2 text-sm text-muted hover:text-white">
+          <LogOut className="h-4 w-4" /> Quitter
+        </button>
+      </div>
+    </nav>
+  );
+}
+
 ```
 
 ## components/layout/Sidebar.tsx
@@ -4958,7 +5552,7 @@ import type { ReactNode } from "react";
 
 export function Sidebar({ children }: { children: ReactNode }) {
   return (
-    <aside className="w-full h-full flex flex-col p-4 rounded-[var(--rCard)] border border-[color:var(--border)] bg-[color:var(--surface)] shadow-[var(--shCard)]">
+    <aside className="ms-card w-full h-full flex flex-col p-4">
       {children}
     </aside>
   );
@@ -4973,64 +5567,133 @@ export function Sidebar({ children }: { children: ReactNode }) {
 "use client";
 
 import Link from "next/link";
-import { Menu, Plus, Search, LogOut } from "lucide-react";
+import { useEffect, useId, useRef } from "react";
+import type { SessionUser } from "@/lib/auth";
 import { Button } from "@/components/ui/Button";
+import { DropdownMenu, DropdownItem } from "@/components/ui/DropdownMenu";
+import { Menu, Plus, Search, UserCircle2 } from "lucide-react";
 
-export function Topbar({
+export function TopBar({
+  user,
+  query,
+  onQueryChange,
+  onSearch,
   onMenu,
-  onToggleCreate,
-  createOpen,
   onLogout,
 }: {
+  user?: SessionUser;
+  query?: string;
+  onQueryChange?: (value: string) => void;
+  onSearch?: () => void;
   onMenu: () => void;
-  onToggleCreate: () => void;
-  createOpen: boolean;
   onLogout: () => void;
 }) {
+  const searchId = useId();
+  const searchRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!e.ctrlKey) return;
+      if (e.key.toLowerCase() !== "k") return;
+      e.preventDefault();
+      searchRef.current?.focus();
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   return (
-    <header className="sticky top-0 z-40 border-b border-border bg-bg/70 backdrop-blur-md">
-      <div className="max-w-[1200px] mx-auto px-4 lg:px-8 h-16 flex items-center gap-3">
+    <header
+      className="fixed inset-x-0 top-0 z-50 border-b border-border bg-bg/60 backdrop-blur-xl"
+      data-ui="topbar-2026-01-02-premium"
+    >
+      <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-4 px-4 sm:px-6 lg:px-10">
         <button
+          type="button"
           onClick={onMenu}
-          className="rounded-[var(--rButton)] border border-border p-2 text-muted lg:hidden"
-          aria-label="Menu"
+          className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-border bg-surface text-muted2 transition hover:bg-surface2 focus:outline-none focus:ring-2 focus:ring-primary/40 md:hidden [@media(pointer:fine)]:hidden"
+          aria-label="Ouvrir le menu"
         >
           <Menu size={18} />
         </button>
-        <div className="flex flex-1 items-center gap-2 rounded-[var(--rInput)] border border-border bg-surface px-4 py-2">
-          <Search size={16} className="text-[color:var(--textMuted)]" />
+
+        <Link href="/dashboard" className="flex items-center gap-3">
+          <div className="grid h-11 w-11 place-items-center rounded-2xl border border-border bg-surface2">
+            <span className="text-sm font-extrabold tracking-tight text-primary2">MS</span>
+          </div>
+          <div className="hidden sm:block leading-tight">
+            <div className="text-sm font-semibold text-text">MotorSafe</div>
+            <div className="text-xs text-muted2">Panel garages</div>
+          </div>
+        </Link>
+
+        <div
+          className="ms-focus-within hidden flex-1 items-center gap-2 rounded-2xl border border-border bg-surface px-3 shadow-sm lg:flex"
+          role="search"
+          aria-label="Recherche"
+        >
+          <Search size={16} className="text-muted2" />
+          <label htmlFor={searchId} className="sr-only">
+            Recherche globale
+          </label>
           <input
-            placeholder="Rechercher un client, une plaque, un dossier..."
-            className="w-full bg-transparent text-sm text-[var(--text)] outline-none"
-            aria-label="Recherche globale"
+            id={searchId}
+            ref={searchRef}
+            className="h-11 w-full bg-transparent text-sm text-text placeholder:text-muted2 outline-none"
+            placeholder="Rechercher un client, une plaque, un dossier…"
+            value={query ?? ""}
+            onChange={(e) => onQueryChange?.(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") onSearch?.();
+            }}
           />
+          <kbd className="hidden rounded-lg border border-border bg-surface2 px-2 py-1 text-[11px] text-muted2 sm:inline-flex">
+            Ctrl K
+          </kbd>
         </div>
-        <div className="relative">
-          <Button variant="primary" size="sm" onClick={onToggleCreate}>
-            <Plus size={16} /> Nouveau
-          </Button>
-          {createOpen ? (
-            <div className="absolute right-0 mt-3 w-56 rounded-[var(--rCard)] border border-border bg-surface p-2 shadow-dropdown">
-              {[
-                { label: "Nouveau client", href: "/clients" },
-                { label: "Nouveau vehicule", href: "/vehicules" },
-                { label: "Nouvelle intervention", href: "/interventions" },
-              ].map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className="block rounded-[var(--rButton)] px-3 py-2 text-sm text-muted hover:bg-primary/10 hover:text-text"
-                  onClick={onToggleCreate}
-                >
-                  {item.label}
-                </Link>
-              ))}
-            </div>
-          ) : null}
+
+        <div className="flex-1 md:hidden" />
+
+        <div className="ml-auto flex items-center gap-2">
+          <DropdownMenu
+            trigger={
+              <Button variant="primary" size="md">
+                <Plus size={16} /> Nouveau
+              </Button>
+            }
+          >
+            <DropdownItem asChild>
+              <Link href="/clients">Client</Link>
+            </DropdownItem>
+            <DropdownItem asChild>
+              <Link href="/vehicules">Véhicule</Link>
+            </DropdownItem>
+            <DropdownItem asChild>
+              <Link href="/interventions">Intervention</Link>
+            </DropdownItem>
+            <DropdownItem asChild>
+              <Link href="/documents">PDF</Link>
+            </DropdownItem>
+          </DropdownMenu>
+
+          <DropdownMenu
+            trigger={
+              <button
+                type="button"
+                className="inline-flex h-11 items-center gap-2 rounded-2xl border border-border bg-surface px-3.5 text-sm font-semibold text-text transition hover:bg-surface2 focus:outline-none focus:ring-2 focus:ring-primary/40"
+              >
+                <UserCircle2 size={18} className="text-muted2" />
+                <span className="hidden max-w-[220px] truncate sm:block">{user?.email ?? "Profil"}</span>
+              </button>
+            }
+          >
+            <DropdownItem asChild>
+              <Link href="/parametres">Paramètres</Link>
+            </DropdownItem>
+            <DropdownItem onClick={onLogout}>Quitter</DropdownItem>
+          </DropdownMenu>
         </div>
-        <Button variant="ghost" size="sm" onClick={onLogout}>
-          <LogOut size={16} /> Quitter
-        </Button>
       </div>
     </header>
   );
@@ -5063,7 +5726,7 @@ export function ComplianceToggles({
   const [alertsEnabled, setAlertsEnabled] = useState(initialAlerts);
 
   return (
-    <div className="grid gap-3 text-sm text-[color:var(--textMuted)]">
+    <div className="grid gap-3 text-sm text-muted2">
       <Toggle checked={hashEnabled} onChange={setHashEnabled} label="Activer le hash de preuve" />
       <Toggle checked={historyEnabled} onChange={setHistoryEnabled} label="Historique des révisions obligatoire" />
       <Toggle checked={alertsEnabled} onChange={setAlertsEnabled} label="Alertes email sur dossier critique" />
@@ -5078,6 +5741,7 @@ export function ComplianceToggles({
 
 ```tsx
 import type { HTMLAttributes } from "react";
+import { cn } from "@/lib/cn";
 
 type BadgeVariant = "success" | "warning" | "neutral" | "accent";
 
@@ -5086,16 +5750,20 @@ type BadgeProps = HTMLAttributes<HTMLSpanElement> & {
 };
 
 const variants: Record<BadgeVariant, string> = {
-  success: "bg-[rgba(34,197,94,0.16)] text-[color:var(--success)]",
-  warning: "bg-[rgba(251,191,36,0.14)] text-[rgba(251,191,36,0.92)]",
-  neutral: "bg-[rgba(255,255,255,0.06)] text-[color:var(--textMuted)]",
-  accent: "bg-[color:var(--accentWeak)] text-[color:var(--accent)]",
+  success: "bg-success/12 text-success border-success/25",
+  warning: "bg-warning/12 text-warning border-warning/25",
+  neutral: "bg-surface2/60 text-muted2 border-border",
+  accent: "bg-primary/14 text-primary border-primary/30",
 };
 
 export function Badge({ className = "", variant = "neutral", ...props }: BadgeProps) {
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${variants[variant]} ${className}`}
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold tracking-tight",
+        variants[variant],
+        className
+      )}
       {...props}
     />
   );
@@ -5108,8 +5776,9 @@ export function Badge({ className = "", variant = "neutral", ...props }: BadgePr
 
 ```tsx
 import type { ButtonHTMLAttributes } from "react";
+import { cn } from "@/lib/cn";
 
-type ButtonVariant = "primary" | "secondary" | "ghost" | "outline" | "destructive";
+type ButtonVariant = "primary" | "secondary" | "ghost" | "outline" | "danger" | "destructive";
 type ButtonSize = "sm" | "md" | "lg";
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -5118,18 +5787,20 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 const base =
-  "inline-flex items-center justify-center gap-2 rounded-[var(--rButton)] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)] focus-visible:ring-offset-0 disabled:opacity-50 disabled:cursor-not-allowed";
+  "inline-flex items-center justify-center gap-2 rounded-[var(--rButton)] font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25 focus-visible:ring-offset-0 disabled:pointer-events-none disabled:opacity-50";
 
 const variants: Record<ButtonVariant, string> = {
   primary:
-    "bg-[color:var(--accent)] text-white shadow-[var(--shCard)] hover:bg-[color:var(--accentHover)] active:translate-y-[1px]",
+    "bg-primary text-bg shadow-[0_16px_40px_rgb(var(--accent)/0.14)] hover:bg-primaryHover",
   secondary:
-    "bg-[color:var(--surface)] text-[color:var(--text)] border border-[color:var(--border)] hover:bg-[color:var(--surface2)] hover:border-[rgba(255,255,255,0.12)] active:translate-y-[1px]",
-  ghost: "bg-transparent text-[color:var(--text)] hover:bg-[color:var(--surface2)] active:translate-y-[1px]",
+    "bg-surface text-text border border-border/70 hover:bg-surface2",
+  ghost: "bg-transparent text-text hover:bg-surface2/60",
   outline:
-    "bg-transparent text-[color:var(--text)] border border-[color:var(--border)] hover:bg-[color:var(--surface2)] hover:border-[rgba(255,255,255,0.12)] active:translate-y-[1px]",
+    "bg-transparent text-text border border-border hover:bg-surface2/70",
+  danger:
+    "bg-danger/12 text-danger border border-danger/35 hover:bg-danger/18",
   destructive:
-    "bg-[rgba(239,68,68,0.14)] text-[color:var(--danger)] border border-[rgba(239,68,68,0.35)] hover:bg-[rgba(239,68,68,0.22)] active:translate-y-[1px]",
+    "bg-danger/12 text-danger border border-danger/35 hover:bg-danger/18",
 };
 
 const sizes: Record<ButtonSize, string> = {
@@ -5145,7 +5816,10 @@ export function Button({
   ...props
 }: ButtonProps) {
   return (
-    <button className={`${base} ${variants[variant]} ${sizes[size]} ${className}`} {...props} />
+    <button
+      className={cn(base, "active:translate-y-[1px] active:shadow-none", variants[variant], sizes[size], className)}
+      {...props}
+    />
   );
 }
 
@@ -5156,13 +5830,17 @@ export function Button({
 
 ```tsx
 import type { HTMLAttributes } from "react";
+import { cn } from "@/lib/cn";
 
 type CardProps = HTMLAttributes<HTMLDivElement>;
 
 export function Card({ className = "", ...props }: CardProps) {
   return (
     <div
-      className={`rounded-[var(--r)] border border-[color:var(--border)] bg-[color:var(--surface)] p-5 shadow-[var(--sh)] ${className}`}
+      className={cn(
+        "rounded-[var(--r)] border border-border bg-surface shadow-soft p-5 sm:p-6",
+        className
+      )}
       {...props}
     />
   );
@@ -5193,18 +5871,33 @@ export default function Container({ children }: { children: React.ReactNode }) {
 <a id="components-ui-datatabletsx"></a>
 
 ```tsx
+import { cn } from "@/lib/cn";
+
 type DataTableProps = {
   stickyHeader?: boolean;
+  variant?: "card" | "plain";
   className?: string;
   children: React.ReactNode;
 };
 
-export function DataTable({ stickyHeader = false, className = "", children }: DataTableProps) {
+export function DataTable({
+  stickyHeader = false,
+  variant = "card",
+  className = "",
+  children,
+}: DataTableProps) {
   return (
     <div
-      className={`overflow-x-auto rounded-[var(--r)] border border-[color:var(--border)] bg-[color:var(--surface)] shadow-[var(--sh)] ${className}`}
+      className={cn(
+        variant === "card"
+          ? "rounded-[var(--r)] border border-border bg-surface shadow-soft overflow-hidden"
+          : "",
+        className
+      )}
     >
-      <table className="w-full text-sm">{children}</table>
+      <div className={cn("overflow-x-auto", variant === "card" ? "" : "rounded-[var(--r)] border border-border bg-surface shadow-soft")}>
+        <table className="ms-table min-w-[720px] text-sm">{children}</table>
+      </div>
       {stickyHeader ? null : null}
     </div>
   );
@@ -5219,9 +5912,10 @@ export function DataTableHead({
 }) {
   return (
     <thead
-      className={`text-left text-xs uppercase tracking-[0.2em] text-[color:var(--textMuted)] ${
-        sticky ? "sticky top-0 bg-[color:var(--surface2)]/95 backdrop-blur" : ""
-      }`}
+      className={cn(
+        "text-left",
+        sticky ? "sticky top-0 z-10 border-b border-border/70 bg-surface/95 backdrop-blur" : ""
+      )}
     >
       {children}
     </thead>
@@ -5236,7 +5930,7 @@ export function DataTableHead({
 ```tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 
 type DialogProps = {
@@ -5263,31 +5957,65 @@ export function Dialog({
   children,
 }: DialogProps) {
   const [mounted, setMounted] = useState(false);
+  const titleId = useId();
+  const descId = useId();
+  const panelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onOpenChange(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    // Focus first focusable element inside the panel
+    setTimeout(() => {
+      const root = panelRef.current;
+      if (!root) return;
+      const el = root.querySelector<HTMLElement>(
+        "button,[href],input,select,textarea,[tabindex]:not([tabindex='-1'])"
+      );
+      el?.focus();
+    }, 0);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open, onOpenChange]);
 
   if (!mounted || !open) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
       <button
-        className="absolute inset-0 bg-black/60"
+        type="button"
+        className="absolute inset-0 bg-black/55 backdrop-blur-sm"
         aria-label="Fermer"
         onClick={() => onOpenChange(false)}
       />
-      <div className="relative w-full max-w-lg rounded-[var(--r)] border border-[color:var(--border)] bg-[color:var(--surface2)] p-6 shadow-[var(--sh)]">
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={description ? descId : undefined}
+        className="relative w-full max-w-lg rounded-[var(--r)] border border-border bg-surface p-7 shadow-[var(--shDropdown)]"
+      >
         <div className="grid gap-2">
-          <h3 className="text-lg font-semibold">{title}</h3>
-          {description ? <p className="text-sm text-[color:var(--textMuted)]">{description}</p> : null}
+          <h3 id={titleId} className="text-lg font-semibold">{title}</h3>
+          {description ? <p id={descId} className="text-sm text-muted2">{description}</p> : null}
         </div>
         {children ? <div className="mt-4">{children}</div> : null}
         <div className="mt-6 flex flex-wrap justify-end gap-3">
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             {cancelLabel}
           </Button>
-          <Button variant={confirmVariant} onClick={onConfirm}>
+          <Button variant={confirmVariant === "destructive" ? "danger" : confirmVariant} onClick={onConfirm}>
             {confirmLabel}
           </Button>
         </div>
@@ -5304,7 +6032,9 @@ export function Dialog({
 ```tsx
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { cloneElement, isValidElement, useEffect, useId, useRef, useState } from "react";
+import type { MouseEvent as ReactMouseEvent, ReactElement } from "react";
+import { cn } from "@/lib/cn";
 
 export function DropdownMenu({
   trigger,
@@ -5324,28 +6054,67 @@ export function DropdownMenu({
       if (!rootRef.current) return;
       if (!rootRef.current.contains(e.target as Node)) setOpen(false);
     };
+    const onTouch = (e: TouchEvent) => {
+      if (!rootRef.current) return;
+      if (!rootRef.current.contains(e.target as Node)) setOpen(false);
+    };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
     };
     document.addEventListener("mousedown", onDown);
+    document.addEventListener("touchstart", onTouch);
     document.addEventListener("keydown", onKey);
     return () => {
       document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("touchstart", onTouch);
       document.removeEventListener("keydown", onKey);
     };
   }, []);
 
+  type TriggerProps = {
+    onClick?: (event: ReactMouseEvent<HTMLElement>) => void;
+    "aria-expanded"?: boolean;
+    "aria-haspopup"?: "menu";
+  };
+
+  const handleTriggerClick = (event: ReactMouseEvent<HTMLElement>) => {
+    if (event.defaultPrevented) return;
+    setOpen((v) => !v);
+  };
+
+  const triggerElement = isValidElement<TriggerProps>(trigger) ? (trigger as ReactElement<TriggerProps>) : null;
+
+  const triggerNode = triggerElement
+    ? cloneElement(triggerElement, {
+        onClick: (event: ReactMouseEvent<HTMLElement>) => {
+          triggerElement.props.onClick?.(event);
+          handleTriggerClick(event);
+        },
+        "aria-expanded": open,
+        "aria-haspopup": "menu",
+      })
+    : (
+        <button
+          type="button"
+          onClick={handleTriggerClick}
+          className="inline-flex items-center gap-2"
+          aria-expanded={open}
+          aria-haspopup="menu"
+        >
+          {trigger}
+        </button>
+      );
+
   return (
     <div className="relative" ref={rootRef} data-dropdown={id}>
-      <button type="button" onClick={() => setOpen((v) => !v)} className="contents" aria-expanded={open}>
-        {trigger}
-      </button>
+      {triggerNode}
       {open ? (
         <div
-          className={`absolute z-50 mt-2 min-w-[240px] rounded-[var(--r)] border border-[color:var(--border)] bg-[color:var(--surface)] shadow-[var(--sh)] p-1 ${
+          className={`absolute z-50 mt-2 min-w-[240px] rounded-[var(--r)] border border-border bg-surface/95 backdrop-blur shadow-[var(--shDropdown)] p-1 ${
             align === "right" ? "right-0" : "left-0"
           }`}
           role="menu"
+          onClick={() => setOpen(false)}
         >
           {children}
         </div>
@@ -5354,19 +6123,42 @@ export function DropdownMenu({
   );
 }
 
+type DropdownItemChildProps = {
+  className?: string;
+  onClick?: (event: ReactMouseEvent<HTMLElement>) => void;
+  role?: string;
+};
+
 export function DropdownItem({
   children,
   onClick,
+  asChild = false,
 }: {
   children: React.ReactNode;
   onClick?: () => void;
+  asChild?: boolean;
 }) {
+  const itemClass =
+    "w-full rounded-[var(--rButton)] px-3 py-2 text-left text-sm text-text transition hover:bg-surface2/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20";
+
+  if (asChild && isValidElement<DropdownItemChildProps>(children)) {
+    const child = children as ReactElement<DropdownItemChildProps>;
+    return cloneElement(child, {
+      className: cn(itemClass, child.props.className ?? ""),
+      role: "menuitem",
+      onClick: (event: ReactMouseEvent<HTMLElement>) => {
+        child.props.onClick?.(event);
+        onClick?.();
+      },
+    });
+  }
+
   return (
     <button
       type="button"
       role="menuitem"
       onClick={onClick}
-      className="w-full rounded-xl px-3 py-2 text-left text-sm text-[color:var(--text)] hover:bg-white/5"
+      className={itemClass}
     >
       {children}
     </button>
@@ -5380,50 +6172,41 @@ export function DropdownItem({
 
 ```tsx
 import type { InputHTMLAttributes } from "react";
+import { cn } from "@/lib/cn";
 
 type InputProps = InputHTMLAttributes<HTMLInputElement> & {
   label?: string;
+  helperText?: string;
+  error?: string;
+  containerClassName?: string;
 };
 
-export function Input({ className = "", label, ...props }: InputProps) {
+export function Input({ className = "", containerClassName = "", label, helperText, error, id, ...props }: InputProps) {
+  const describedBy = error ? `${id ?? ""}-error` : helperText ? `${id ?? ""}-help` : undefined;
   return (
-    <label className="grid gap-2 text-sm text-[color:var(--textMuted)]">
-      {label ? <span className="text-xs uppercase tracking-[0.2em]">{label}</span> : null}
+    <label className={cn("grid gap-2", containerClassName)}>
+      {label ? <span className="ms-kicker">{label}</span> : null}
       <input
-        className={`min-h-[44px] w-full rounded-[var(--rInput)] border border-[color:var(--border)] bg-[color:var(--surface2)] px-3 py-2 text-sm text-[color:var(--text)] placeholder:text-[color:var(--textMuted)] outline-none transition focus:border-[rgba(255,255,255,0.12)] focus:ring-2 focus:ring-[rgba(139,92,246,0.45)] ${className}`}
+        id={id}
+        aria-invalid={Boolean(error) || undefined}
+        aria-describedby={describedBy}
+        className={cn(
+          "ms-input text-sm outline-none",
+          error ? "border-danger/55 focus-visible:shadow-none" : "",
+          className
+        )}
         {...props}
       />
+      {error ? (
+        <p id={`${id ?? ""}-error`} className="text-xs font-medium text-danger">
+          {error}
+        </p>
+      ) : helperText ? (
+        <p id={`${id ?? ""}-help`} className="text-xs text-muted2">
+          {helperText}
+        </p>
+      ) : null}
     </label>
-  );
-}
-
-```
-
-## components/ui/KpiCard.tsx
-<a id="components-ui-kpicardtsx"></a>
-
-```tsx
-import { Card } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
-
-type KpiCardProps = {
-  title: string;
-  value: number | string;
-  trend?: string;
-  hint?: string;
-};
-
-export function KpiCard({ title, value, trend, hint }: KpiCardProps) {
-  return (
-    <Card className="relative overflow-hidden">
-      <div className="absolute right-0 top-0 h-16 w-16 rounded-full bg-[color:var(--accentWeak)] blur-2xl" />
-      <p className="text-xs uppercase tracking-[0.2em] text-[color:var(--textMuted)]">{title}</p>
-      <p className="mt-3 text-3xl font-semibold">{value}</p>
-      <div className="mt-4 flex items-center gap-2 text-xs text-[color:var(--textMuted)]">
-        {trend ? <Badge variant="accent">{trend}</Badge> : null}
-        {hint ? <span>{hint}</span> : null}
-      </div>
-    </Card>
   );
 }
 
@@ -5433,7 +6216,9 @@ export function KpiCard({ title, value, trend, hint }: KpiCardProps) {
 <a id="components-ui-navigation-drawertsx"></a>
 
 ```tsx
-import React from "react";
+"use client";
+
+import React, { useEffect } from "react";
 
 type DrawerSide = "left" | "right" | "bottom";
 
@@ -5455,42 +6240,51 @@ export default function Drawer({
   title?: string;
   children: React.ReactNode;
 }) {
+  // Lock scroll + allow ESC close.
+  // This stays client-only and does not affect backend.
+  useEffect(() => {
+    if (!open) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open, onClose]);
+
   if (!open) return null;
 
   const panelClass =
     side === "bottom"
-      ? "w-full max-h-[85vh] rounded-t-[var(--r)]"
-      : "h-full w-[88vw] max-w-[320px]";
-
-  const sideClass =
-    side === "right"
-      ? "ml-auto"
-      : side === "bottom"
-      ? "mt-auto"
-      : "";
-
-  const borderClass = side === "bottom" ? "border-t" : side === "right" ? "border-l" : "border-r";
+      ? "fixed inset-x-0 bottom-0 w-full max-h-[85vh] rounded-t-[var(--r)] border-t"
+      : side === "right"
+      ? "fixed inset-y-0 right-0 h-full w-[88vw] max-w-[320px] border-l"
+      : "fixed inset-y-0 left-0 h-full w-[88vw] max-w-[320px] border-r";
 
   return (
-    <div className="fixed inset-0 z-50 flex">
+    <div className="fixed inset-0 z-50">
       <button
         type="button"
-        className="absolute inset-0 bg-black/60"
+        className="absolute inset-0 bg-black/55 backdrop-blur-sm"
         aria-label="Fermer"
         onClick={onClose}
       />
       <aside
-        className={`${sideClass} relative ${panelClass} ${borderClass} border-[color:var(--border)] bg-[color:var(--surface)] shadow-[var(--sh)]`}
+        className={`relative ${panelClass} border-border bg-surface shadow-[var(--shDropdown)]`}
         role="dialog"
         aria-modal="true"
       >
         {title ? (
-          <div className="flex items-center justify-between gap-3 border-b border-[color:var(--border)] px-4 py-3">
-            <p className="text-sm font-semibold text-[color:var(--text)]">{title}</p>
+          <div className="flex items-center justify-between gap-3 border-b border-border/70 px-4 py-3">
+            <p className="text-sm font-semibold text-text">{title}</p>
             <button
               type="button"
               onClick={onClose}
-              className="rounded-xl border border-[color:var(--border)] bg-transparent px-3 py-1.5 text-xs text-[color:var(--textMuted)] hover:bg-white/5"
+              className="rounded-[var(--rButton)] border border-border/70 bg-transparent px-3 py-1.5 text-xs font-semibold text-muted2 transition hover:bg-surface2"
             >
               Fermer
             </button>
@@ -5511,6 +6305,7 @@ export default function Drawer({
 
 ```tsx
 import type { ReactNode, JSX } from "react";
+import { cn } from "@/lib/cn";
 
 export function SectionHeader({
   title,
@@ -5525,16 +6320,21 @@ export function SectionHeader({
 }) {
   const Tag = `h${level}` as keyof JSX.IntrinsicElements;
   return (
-    <div className="mb-6 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-      <div>
-        <Tag className="text-[color:var(--text)] font-semibold text-2xl md:text-3xl tracking-tight leading-tight">
+    <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+      <div className="min-w-0">
+        <Tag
+          className={cn(
+            "font-display text-text font-semibold tracking-tight leading-tight",
+            level <= 2 ? "text-2xl md:text-3xl lg:text-[34px]" : "text-xl md:text-2xl lg:text-[28px]"
+          )}
+        >
           {title}
         </Tag>
         {description ? (
-          <p className="mt-1 text-sm text-[color:var(--textMuted)] max-w-2xl">{description}</p>
+          <p className="mt-2 max-w-2xl text-sm text-muted2">{description}</p>
         ) : null}
       </div>
-      {action ? <div className="mt-4 md:mt-0">{action}</div> : null}
+      {action ? <div className="shrink-0 pt-1 md:pt-0">{action}</div> : null}
     </div>
   );
 }
@@ -5546,21 +6346,42 @@ export function SectionHeader({
 
 ```tsx
 import type { SelectHTMLAttributes } from "react";
+import { cn } from "@/lib/cn";
 
 type SelectProps = SelectHTMLAttributes<HTMLSelectElement> & {
   label?: string;
+  helperText?: string;
+  error?: string;
+  containerClassName?: string;
 };
 
-export function Select({ className = "", label, children, ...props }: SelectProps) {
+export function Select({ className = "", containerClassName = "", label, helperText, error, id, children, ...props }: SelectProps) {
+  const describedBy = error ? `${id ?? ""}-error` : helperText ? `${id ?? ""}-help` : undefined;
   return (
-    <label className="grid gap-2 text-sm text-[color:var(--textMuted)]">
-      {label ? <span className="text-xs uppercase tracking-[0.2em]">{label}</span> : null}
+    <label className={cn("grid gap-2", containerClassName)}>
+      {label ? <span className="ms-kicker">{label}</span> : null}
       <select
-        className={`min-h-[44px] w-full rounded-[var(--rInput)] border border-[color:var(--border)] bg-[color:var(--surface2)] px-3 py-2 text-sm text-[color:var(--text)] outline-none transition focus:border-[rgba(255,255,255,0.12)] focus:ring-2 focus:ring-[rgba(139,92,246,0.45)] ${className}`}
+        id={id}
+        aria-invalid={Boolean(error) || undefined}
+        aria-describedby={describedBy}
+        className={cn(
+          "ms-input cursor-pointer text-sm outline-none",
+          error ? "border-danger/55" : "",
+          className
+        )}
         {...props}
       >
         {children}
       </select>
+      {error ? (
+        <p id={`${id ?? ""}-error`} className="text-xs font-medium text-danger">
+          {error}
+        </p>
+      ) : helperText ? (
+        <p id={`${id ?? ""}-help`} className="text-xs text-muted2">
+          {helperText}
+        </p>
+      ) : null}
     </label>
   );
 }
@@ -5578,7 +6399,7 @@ type SkeletonProps = {
 export function Skeleton({ className = "" }: SkeletonProps) {
   return (
     <div
-      className={`animate-pulse rounded-[var(--rGlobal)] bg-white/10 ${className}`}
+      className={`animate-pulse rounded-[var(--rGlobal)] bg-surface2/70 ${className}`}
     />
   );
 }
@@ -5590,13 +6411,17 @@ export function Skeleton({ className = "" }: SkeletonProps) {
 
 ```tsx
 import type { HTMLAttributes } from "react";
+import { cn } from "@/lib/cn";
 
 type TableProps = HTMLAttributes<HTMLDivElement>;
 
 export function Table({ className = "", ...props }: TableProps) {
   return (
     <div
-      className={`overflow-x-auto rounded-[var(--r)] border border-[color:var(--border)] bg-[color:var(--surface)] shadow-[var(--sh)] ${className}`}
+      className={cn(
+        "rounded-[var(--r)] border border-border bg-surface shadow-soft overflow-x-auto",
+        className
+      )}
       {...props}
     />
   );
@@ -5609,19 +6434,40 @@ export function Table({ className = "", ...props }: TableProps) {
 
 ```tsx
 import type { TextareaHTMLAttributes } from "react";
+import { cn } from "@/lib/cn";
 
 type TextareaProps = TextareaHTMLAttributes<HTMLTextAreaElement> & {
   label?: string;
+  helperText?: string;
+  error?: string;
+  containerClassName?: string;
 };
 
-export function Textarea({ className = "", label, ...props }: TextareaProps) {
+export function Textarea({ className = "", containerClassName = "", label, helperText, error, id, ...props }: TextareaProps) {
+  const describedBy = error ? `${id ?? ""}-error` : helperText ? `${id ?? ""}-help` : undefined;
   return (
-    <label className="grid gap-2 text-sm text-[color:var(--textMuted)]">
-      {label ? <span className="text-xs uppercase tracking-[0.2em]">{label}</span> : null}
+    <label className={cn("grid gap-2", containerClassName)}>
+      {label ? <span className="ms-kicker">{label}</span> : null}
       <textarea
-        className={`min-h-[120px] w-full rounded-[var(--rInput)] border border-[color:var(--border)] bg-[color:var(--surface2)] px-3 py-3 text-sm text-[color:var(--text)] placeholder:text-[color:var(--textMuted)] outline-none transition focus:border-[rgba(255,255,255,0.12)] focus:ring-2 focus:ring-[rgba(139,92,246,0.45)] ${className}`}
+        id={id}
+        aria-invalid={Boolean(error) || undefined}
+        aria-describedby={describedBy}
+        className={cn(
+          "ms-input min-h-[120px] resize-y py-3 text-sm outline-none",
+          error ? "border-danger/55" : "",
+          className
+        )}
         {...props}
       />
+      {error ? (
+        <p id={`${id ?? ""}-error`} className="text-xs font-medium text-danger">
+          {error}
+        </p>
+      ) : helperText ? (
+        <p id={`${id ?? ""}-help`} className="text-xs text-muted2">
+          {helperText}
+        </p>
+      ) : null}
     </label>
   );
 }
@@ -5635,6 +6481,7 @@ export function Textarea({ className = "", label, ...props }: TextareaProps) {
 "use client";
 
 import { createContext, useContext, useMemo, useState } from "react";
+import { CheckCircle2, Info, XCircle } from "lucide-react";
 
 type ToastVariant = "success" | "error" | "info";
 
@@ -5652,9 +6499,15 @@ type ToastContextValue = {
 const ToastContext = createContext<ToastContextValue | null>(null);
 
 const variantStyles: Record<ToastVariant, string> = {
-  success: "border-[rgba(34,197,94,0.35)]",
-  error: "border-[rgba(239,68,68,0.35)]",
-  info: "border-[rgba(139,92,246,0.30)]",
+  success: "border-success/35 bg-surface",
+  error: "border-danger/35 bg-surface",
+  info: "border-primary/30 bg-surface",
+};
+
+const variantIcon: Record<ToastVariant, typeof Info> = {
+  success: CheckCircle2,
+  error: XCircle,
+  info: Info,
 };
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
@@ -5675,17 +6528,34 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     <ToastContext.Provider value={value}>
       {children}
       <div className="fixed right-4 top-4 z-50 grid gap-3">
-        {toasts.map((toast) => (
-          <div
-            key={toast.id}
-            className={`w-[300px] rounded-[var(--r)] border bg-[color:var(--surface2)] px-4 py-3 shadow-[var(--shDropdown)] ${variantStyles[toast.variant]}`}
-          >
-            <p className="text-sm font-semibold text-[var(--text)]">{toast.title}</p>
-            {toast.description ? (
-              <p className="mt-1 text-xs text-[color:var(--textMuted)]">{toast.description}</p>
-            ) : null}
-          </div>
-        ))}
+        {toasts.map((toast) => {
+          const Icon = variantIcon[toast.variant];
+          return (
+            <div
+              key={toast.id}
+              className={`w-[340px] rounded-[var(--r)] border px-4 py-3 shadow-[var(--shDropdown)] ${variantStyles[toast.variant]}`}
+            >
+              <div className="flex items-start gap-3">
+                <span className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-xl border border-border/60 bg-surface2">
+                  <Icon
+                    size={18}
+                    className={
+                      toast.variant === "success"
+                        ? "text-success"
+                        : toast.variant === "error"
+                          ? "text-danger"
+                          : "text-primary"
+                    }
+                  />
+                </span>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-text">{toast.title}</p>
+                  {toast.description ? <p className="mt-1 text-xs text-muted2">{toast.description}</p> : null}
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </ToastContext.Provider>
   );
@@ -5707,29 +6577,34 @@ export function useToast() {
 ```tsx
 "use client";
 
+import { cn } from "@/lib/cn";
+
 type ToggleProps = {
   checked: boolean;
   onChange: (checked: boolean) => void;
   label?: string;
+  disabled?: boolean;
 };
 
-export function Toggle({ checked, onChange, label }: ToggleProps) {
+export function Toggle({ checked, onChange, label, disabled }: ToggleProps) {
   return (
-    <label className="flex items-center gap-3 text-sm text-[color:var(--textMuted)]">
+    <label className={cn("flex items-center gap-3 text-sm", disabled ? "opacity-60" : "text-muted2")}>
       <button
         type="button"
         aria-pressed={checked}
-        onClick={() => onChange(!checked)}
-        className={`relative h-7 w-12 rounded-full border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--accent)] ${
-          checked
-            ? "border-[color:var(--accent)] bg-[color:var(--accentWeak)]"
-            : "border-[color:var(--border)] bg-[color:var(--surface2)]"
-        }`}
+        disabled={disabled}
+        onClick={() => (disabled ? null : onChange(!checked))}
+        className={cn(
+          "relative h-7 w-12 rounded-full border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25",
+          checked ? "border-primary bg-primary/18" : "border-border bg-surface",
+          disabled ? "cursor-not-allowed" : "cursor-pointer"
+        )}
       >
         <span
-          className={`absolute top-1/2 h-5 w-5 -translate-y-1/2 rounded-full bg-[color:var(--text)] transition ${
+          className={cn(
+            "absolute top-1/2 h-5 w-5 -translate-y-1/2 rounded-full border border-border/40 bg-surface2 shadow-sm transition",
             checked ? "translate-x-6" : "translate-x-1"
-          }`}
+          )}
         />
       </button>
       {label ? <span>{label}</span> : null}
@@ -5743,22 +6618,54 @@ export function Toggle({ checked, onChange, label }: ToggleProps) {
 <a id="components-ui-tooltiptsx"></a>
 
 ```tsx
+"use client";
+
 import * as React from "react";
+import { cn } from "@/lib/cn";
+
+type TooltipSide = "top" | "right" | "bottom" | "left";
 
 type TooltipProps = {
   content: React.ReactNode;
   children: React.ReactNode;
-  side?: "top" | "right" | "bottom" | "left";
+  side?: TooltipSide;
   disabled?: boolean;
 };
 
+const sideClasses: Record<TooltipSide, string> = {
+  top: "bottom-full left-1/2 -translate-x-1/2 -translate-y-2",
+  bottom: "top-full left-1/2 -translate-x-1/2 translate-y-2",
+  left: "right-full top-1/2 -translate-y-1/2 -translate-x-2",
+  right: "left-full top-1/2 -translate-y-1/2 translate-x-2",
+};
+
 export function Tooltip({ content, children, side = "top", disabled }: TooltipProps) {
-  void side;
-  // Simple fallback: show content as title if not disabled
+  const [open, setOpen] = React.useState(false);
+  const id = React.useId();
+
   if (disabled || !content) return <>{children}</>;
+
   return (
-    <span title={typeof content === "string" ? content : undefined} style={{ position: "relative", display: "inline-flex" }}>
-      {children}
+    <span
+      className="relative inline-flex"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+      onFocus={() => setOpen(true)}
+      onBlur={() => setOpen(false)}
+    >
+      <span aria-describedby={open ? id : undefined}>{children}</span>
+      <span
+        id={id}
+        role="tooltip"
+        className={cn(
+          "pointer-events-none absolute z-50 whitespace-nowrap rounded-[14px] border border-border bg-surface/95 px-3 py-2 text-xs text-text shadow-[var(--shDropdown)] backdrop-blur transition",
+          "opacity-0 scale-[0.98]",
+          open ? "opacity-100 scale-100" : "",
+          sideClasses[side]
+        )}
+      >
+        {content}
+      </span>
     </span>
   );
 }
@@ -5803,33 +6710,39 @@ export function useUser() {
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
-    "./app/**/*.{js,ts,jsx,tsx}",
-    "./components/**/*.{js,ts,jsx,tsx}",
+    "./app/**/*.{js,ts,jsx,tsx,mdx}",
+    "./components/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   theme: {
     extend: {
       colors: {
-        bg: 'var(--bg)',
-        surface: 'var(--surface)',
-        surface2: 'var(--surface2)',
-        text: 'var(--text)',
-        muted: 'var(--muted)',
-        muted2: 'var(--muted2)',
-        border: 'var(--border)',
-        primary: 'var(--accent)',
-        primary2: 'var(--accent2)',
-        primaryHover: 'var(--accentHover)',
-        primaryWeak: 'var(--accentWeak)',
-        danger: 'var(--danger)',
-        success: 'var(--success)',
-        warning: 'var(--warning)',
+        bg: "rgb(var(--bg) / <alpha-value>)",
+        surface: "rgb(var(--surface) / <alpha-value>)",
+        surface2: "rgb(var(--surface2) / <alpha-value>)",
+
+        // Defaults match globals.css opacities; /xx still works when Tailwind sets --tw-*-opacity
+        text: "rgb(var(--text) / var(--tw-text-opacity, var(--textA)))",
+        muted: "rgb(var(--muted) / var(--tw-text-opacity, var(--textSecondaryA)))",
+        muted2: "rgb(var(--muted2) / var(--tw-text-opacity, var(--textMutedA)))",
+        border: "rgb(var(--border) / var(--tw-border-opacity, var(--borderA)))",
+
+        primary: "rgb(var(--accent) / <alpha-value>)",
+        primary2: "rgb(var(--accent2) / <alpha-value>)",
+        primaryHover: "rgb(var(--accentHover) / <alpha-value>)",
+        primaryWeak: "rgb(var(--accentWeak) / var(--tw-bg-opacity, var(--accentWeakA)))",
+
+        danger: "rgb(var(--danger) / <alpha-value>)",
+        success: "rgb(var(--success) / <alpha-value>)",
+        warning: "rgb(var(--warning) / <alpha-value>)",
       },
       borderRadius: {
         xl: '18px',
         '2xl': '22px',
       },
       fontFamily: {
-        sans: ['Inter', 'var(--font-sans)', 'system-ui', 'sans-serif'],
+        sans: ['var(--font-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        display: ['var(--font-display)', 'var(--font-sans)', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        mono: ['var(--font-mono)', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', 'monospace'],
       },
       boxShadow: {
         soft: 'var(--shCard)',

@@ -14,7 +14,7 @@ export function round2(n: number): number {
 
 export function computeDefaultVatRate(
   org: { defaultVatRate: number },
-  client: { vatProfile?: string | null; countryCode?: string | null; vatNumber?: string | null }
+  client: { vatProfile?: string | null; countryCode?: string | null; vatNumber?: string | null; vatRateOverride?: number | null }
 ): number {
   const profile = (client.vatProfile ?? "PARTICULIER") as VatProfile;
 
@@ -24,6 +24,11 @@ export function computeDefaultVatRate(
   // - EXONERE => 0%
   // Otherwise => org default
   if (profile === "PRO_UE_VAT" || profile === "EXPORT" || profile === "EXONERE") return 0;
+
+  const override = client.vatRateOverride;
+  if (override !== undefined && override !== null && Number.isFinite(override) && override >= 0 && override <= 1) {
+    return override;
+  }
 
   return org.defaultVatRate;
 }

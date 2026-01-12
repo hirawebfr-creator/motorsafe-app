@@ -1,24 +1,34 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { success, failure } from "@/lib/api";
-import { getSessionUser, isApprovedGarage } from "@/lib/auth";
+import { failure, success } from "@/lib/api";
+import { requireApprovedTenant, requireUser } from "@/lib/guards";
+import { toErrorResponse } from "@/lib/routeErrors";
+import { z } from "zod";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type Ctx = { params: Promise<{ id: string }> };
 
-function normalizeText(value: unknown) {
-  return String(value ?? "").trim();
+const UpdateSchema = z.object({
+  clientId: z.coerce.number().int().positive().optional(),
+  brand: z.string().trim().min(2).max(60).optional(),
+  model: z.string().trim().min(2).max(60).optional(),
+  plate: z.string().trim().min(2).max(12).optional(),
+  vin: z.string().trim().toUpperCase().regex(/^[A-Z0-9]{17}$/).optional().or(z.literal("")),
+  fuel: z.string().trim().max(40).optional().or(z.literal("")),
+  year: z.coerce.number().int().min(1900).max(2100).optional(),
+  engine: z.string().trim().max(80).optional().or(z.literal("")),
+});
+
+function cleanOptional(value: string | undefined) {
+  const v = (value ?? "").trim();
+  return v.length ? v : null;
 }
 
 export async function GET(req: Request, ctx: Ctx) {
   try {
-    const user = await getSessionUser(req);
-    if (!user) return NextResponse.json(failure("Non autorise"), { status: 401 });
-    if (!isApprovedGarage(user)) {
-      return NextResponse.json(failure("Compte en attente de validation."), { status: 403 });
-    }
+    const user = requireApprovedTenant(await requireUser(req));
 
     const { id } = await ctx.params;
 
@@ -28,11 +38,11 @@ export async function GET(req: Request, ctx: Ctx) {
 
     const vehicle = await prisma.vehicle.findFirst({
       where: user.role === "ADMIN"
-        ? { id }
-        : { id, garageId: user.garageId ?? -1 },
+        ? { id, deletedAt: null }
+        : { id, garageId: user.garageId ?? -1, deletedAt: null },
       include: {
         client: true,
-        interventions: { orderBy: { createdAt: "desc" } },
+        interventions: { where: { deletedAt: null }, orderBy: { createdAt: "desc" } },
       },
     });
 
@@ -43,98 +53,114 @@ export async function GET(req: Request, ctx: Ctx) {
     return NextResponse.json(success(vehicle));
   } catch (err) {
     console.error("Erreur API GET /api/vehicules/[id] :", err);
-    return NextResponse.json(failure("Erreur serveur"), { status: 500 });
+    return toErrorResponse(err);
   }
 }
 
-export async function PUT(req: Request, ctx: Ctx) {
+async function updateVehicle(req: Request, ctx: Ctx) {
   try {
-    const user = await getSessionUser(req);
-    if (!user) return NextResponse.json(failure("Non autorise"), { status: 401 });
-    if (!isApprovedGarage(user)) {
-      return NextResponse.json(failure("Compte en attente de validation."), { status: 403 });
-    }
+    const user = requireApprovedTenant(await requireUser(req));
 
     const { id } = await ctx.params;
-    const body = await req.json();
-
-    const brand = normalizeText(body.brand);
-    const model = normalizeText(body.model);
-    const plate = normalizeText(body.plate).toUpperCase();
-    const vin = body.vin ? normalizeText(body.vin).toUpperCase() : null;
-    const fuel = body.fuel ? normalizeText(body.fuel) : null;
-
-    if (!id || !brand || !model || !plate) {
+    const body = await req.json().catch(() => null);
+    const parsed = UpdateSchema.safeParse(body);
+    if (!parsed.success) {
       return NextResponse.json(
-        failure("Champs obligatoires: brand, model, plate."),
+        { ok: false, error: { code: "BAD_REQUEST", message: "Body invalide", details: parsed.error.flatten() } },
         { status: 400 }
       );
     }
 
-    if (brand.length < 2 || model.length < 2) {
-      return NextResponse.json(failure("Marque et modele doivent faire au moins 2 caracteres."), {
-        status: 400,
-      });
-    }
-
-    if (brand.length > 60 || model.length > 60) {
-      return NextResponse.json(failure("Marque et modele doivent faire moins de 60 caracteres."), {
-        status: 400,
-      });
-    }
-
-    if (plate.length < 2 || plate.length > 12) {
-      return NextResponse.json(failure("Immatriculation invalide."), { status: 400 });
-    }
-
-    if (vin && !/^[A-Z0-9]{17}$/.test(vin)) {
-      return NextResponse.json(
-        failure("VIN invalide (17 caracteres alphanumeriques)."),
-        { status: 400 }
-      );
-    }
-
-    if (fuel && fuel.length > 40) {
-      return NextResponse.json(failure("Carburant trop long."), { status: 400 });
-    }
+    const input = parsed.data;
 
     const existing = await prisma.vehicle.findFirst({
       where: user.role === "ADMIN"
-        ? { id }
-        : { id, garageId: user.garageId ?? -1 },
-      select: { id: true },
+        ? { id, deletedAt: null }
+        : { id, garageId: user.garageId ?? -1, deletedAt: null },
+      select: { id: true, garageId: true, clientId: true },
     });
 
     if (!existing) {
       return NextResponse.json(failure("Vehicule introuvable"), { status: 404 });
     }
 
-    const updated = await prisma.vehicle.update({
-      where: { id },
-      data: {
-        brand,
-        model,
-        plate,
-        vin,
-        fuel,
-      },
-      include: { client: true },
+    const updated = await prisma.$transaction(async (tx) => {
+      let nextClientId: number | undefined;
+      let nextGarageId: number | undefined;
+
+      if (input.clientId !== undefined && input.clientId !== existing.clientId) {
+        const client = await tx.client.findFirst({
+          where: user.role === "ADMIN"
+            ? {
+                id: input.clientId,
+                deletedAt: null,
+                ...(existing.garageId != null ? { garageId: existing.garageId } : {}),
+              }
+            : { id: input.clientId, garageId: user.garageId ?? -1, deletedAt: null },
+          select: { id: true, garageId: true },
+        });
+
+        if (!client) {
+          return NextResponse.json(failure("Client introuvable"), { status: 404 });
+        }
+
+        nextClientId = client.id;
+        if (existing.garageId == null && client.garageId != null) {
+          nextGarageId = client.garageId;
+        }
+      }
+
+      const vehicle = await tx.vehicle.update({
+        where: { id },
+        data: {
+          ...(nextClientId !== undefined ? { clientId: nextClientId } : {}),
+          ...(nextGarageId !== undefined ? { garageId: nextGarageId } : {}),
+          ...(input.brand ? { brand: input.brand } : {}),
+          ...(input.model ? { model: input.model } : {}),
+          ...(input.plate ? { plate: input.plate.toUpperCase() } : {}),
+          ...(input.vin !== undefined
+            ? { vin: cleanOptional(input.vin)?.toUpperCase() ?? null }
+            : {}),
+          ...(input.fuel !== undefined ? { fuel: cleanOptional(input.fuel) } : {}),
+          ...(input.year !== undefined ? { year: input.year } : {}),
+          ...(input.engine !== undefined ? { engine: cleanOptional(input.engine) } : {}),
+        },
+        include: { client: true },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          garageId: existing.garageId ?? user.garageId ?? null,
+          userId: user.id,
+          action: "VEHICLE_UPDATE",
+          entityType: "Vehicle",
+          entityId: id,
+        },
+      });
+
+      return vehicle;
     });
+
+    if (updated instanceof NextResponse) return updated;
 
     return NextResponse.json(success(updated), { status: 200 });
   } catch (err) {
     console.error("Erreur API PUT /api/vehicules/[id] :", err);
-    return NextResponse.json(failure("Erreur serveur"), { status: 500 });
+    return toErrorResponse(err);
   }
+}
+
+export async function PUT(req: Request, ctx: Ctx) {
+  return updateVehicle(req, ctx);
+}
+
+export async function PATCH(req: Request, ctx: Ctx) {
+  return updateVehicle(req, ctx);
 }
 
 export async function DELETE(req: Request, ctx: Ctx) {
   try {
-    const user = await getSessionUser(req);
-    if (!user) return NextResponse.json(failure("Non autorise"), { status: 401 });
-    if (!isApprovedGarage(user)) {
-      return NextResponse.json(failure("Compte en attente de validation."), { status: 403 });
-    }
+    const user = requireApprovedTenant(await requireUser(req));
 
     const { id } = await ctx.params;
 
@@ -144,20 +170,31 @@ export async function DELETE(req: Request, ctx: Ctx) {
 
     const existing = await prisma.vehicle.findFirst({
       where: user.role === "ADMIN"
-        ? { id }
-        : { id, garageId: user.garageId ?? -1 },
-      select: { id: true },
+        ? { id, deletedAt: null }
+        : { id, garageId: user.garageId ?? -1, deletedAt: null },
+      select: { id: true, garageId: true },
     });
 
     if (!existing) {
       return NextResponse.json(failure("Vehicule introuvable"), { status: 404 });
     }
 
-    await prisma.vehicle.delete({ where: { id } });
+    await prisma.$transaction(async (tx) => {
+      await tx.vehicle.update({ where: { id }, data: { deletedAt: new Date() } });
+      await tx.auditLog.create({
+        data: {
+          garageId: existing.garageId ?? user.garageId ?? null,
+          userId: user.id,
+          action: "VEHICLE_DELETE",
+          entityType: "Vehicle",
+          entityId: id,
+        },
+      });
+    });
 
     return NextResponse.json(success({ id }), { status: 200 });
   } catch (err) {
     console.error("Erreur API DELETE /api/vehicules/[id] :", err);
-    return NextResponse.json(failure("Erreur serveur"), { status: 500 });
+    return toErrorResponse(err);
   }
 }

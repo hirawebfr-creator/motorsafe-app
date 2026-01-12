@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { failure } from "@/lib/api";
-import { getSessionUser, isApprovedGarage } from "@/lib/auth";
+import { failure, success } from "@/lib/api";
+import { requireActiveSubscription, requireApprovedTenant, requireUser } from "@/lib/guards";
+import { toErrorResponse } from "@/lib/routeErrors";
 import PDFDocument from "pdfkit/js/pdfkit.standalone";
 import { Buffer } from "buffer";
+import { mkdir, writeFile } from "fs/promises";
+import path from "path";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,11 +27,8 @@ function formatDate(date: Date | string | null | undefined) {
 
 export async function GET(req: Request, ctx: Ctx) {
   try {
-    const user = await getSessionUser(req);
-    if (!user) return NextResponse.json(failure("Non autorise"), { status: 401 });
-    if (!isApprovedGarage(user)) {
-      return NextResponse.json(failure("Compte en attente de validation."), { status: 403 });
-    }
+    const user = requireApprovedTenant(await requireUser(req));
+    requireActiveSubscription(user);
 
     const { id } = await ctx.params;
 
@@ -38,8 +38,8 @@ export async function GET(req: Request, ctx: Ctx) {
 
     const intervention = await prisma.intervention.findFirst({
       where: user.role === "ADMIN"
-        ? { id }
-        : { id, garageId: user.garageId ?? -1 },
+        ? { id, deletedAt: null }
+        : { id, garageId: user.garageId ?? -1, deletedAt: null },
       include: {
         vehicle: { include: { client: true } },
         revisions: { orderBy: { createdAt: "desc" } },
@@ -186,6 +186,99 @@ export async function GET(req: Request, ctx: Ctx) {
     });
   } catch (err) {
     console.error("Erreur API PDF /api/interventions/[id]/pdf :", err);
-    return NextResponse.json(failure("Erreur serveur PDF"), { status: 500 });
+    return toErrorResponse(err);
+  }
+}
+
+export async function POST(req: Request, ctx: Ctx) {
+  try {
+    const user = requireApprovedTenant(await requireUser(req));
+    requireActiveSubscription(user);
+
+    const { id } = await ctx.params;
+    if (!id || typeof id !== "string") {
+      return NextResponse.json(failure("ID invalide", undefined, "BAD_REQUEST"), { status: 400 });
+    }
+
+    const intervention = await prisma.intervention.findFirst({
+      where: user.role === "ADMIN"
+        ? { id, deletedAt: null }
+        : { id, garageId: user.garageId ?? -1, deletedAt: null },
+      include: { vehicle: { include: { client: true } } },
+    });
+
+    if (!intervention) {
+      return NextResponse.json(failure("Intervention introuvable", undefined, "NOT_FOUND"), { status: 404 });
+    }
+
+    // Generate a simple PDF (reuse the GET content layout without revisions).
+    const doc = new PDFDocument({ size: "A4", margin: 50 });
+    const chunks: Buffer[] = [];
+    doc.on("data", (chunk: Buffer | Uint8Array) => {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    });
+    const done = new Promise<Buffer>((resolve) => {
+      doc.on("end", () => resolve(Buffer.concat(chunks)));
+    });
+
+    const left = doc.page.margins.left;
+    const right = doc.page.width - doc.page.margins.right;
+    const row = (label: string, value: string) => {
+      const labelWidth = 150;
+      const valueWidth = right - left - labelWidth;
+      const y = doc.y;
+      doc.font("Helvetica-Bold").text(label, left, y, { width: labelWidth });
+      doc.font("Helvetica").text(value, left + labelWidth, y, { width: valueWidth });
+      doc.moveDown(0.3);
+    };
+
+    doc.fontSize(18).font("Helvetica-Bold").text("MotorSafe", left, doc.y);
+    doc.moveDown(0.6);
+    doc.fontSize(16).font("Helvetica-Bold").text("Rapport d'intervention");
+    doc.moveTo(left, doc.y + 4).lineTo(right, doc.y + 4).strokeColor("#444").stroke();
+    doc.moveDown(0.8);
+
+    row("ID", intervention.id);
+    row("Type", intervention.type);
+    row("Client", `${intervention.vehicle.client.firstName} ${intervention.vehicle.client.lastName}`);
+    row("Vehicule", `${intervention.vehicle.brand} ${intervention.vehicle.model}`);
+    row("Plaque", intervention.vehicle.plate);
+    if (intervention.notes) {
+      doc.moveDown(0.3);
+      doc.fontSize(11).font("Helvetica-Bold").text("Notes", { underline: true });
+      doc.moveDown(0.2);
+      doc.fontSize(11).font("Helvetica").text(intervention.notes, { width: right - left });
+    }
+
+    doc.end();
+    const pdfBuffer = await done;
+
+    const uploadsDir = path.join(process.cwd(), "uploads", "pdf");
+    await mkdir(uploadsDir, { recursive: true });
+
+    const fileName = `intervention-${intervention.id}.pdf`;
+    const key = `pdf/${fileName}`;
+    const absPath = path.join(process.cwd(), "uploads", key);
+    await writeFile(absPath, pdfBuffer);
+
+    const fileUrl = `/api/uploads/file/${key}`;
+
+    const document = await prisma.document.create({
+      data: {
+        garageId: intervention.garageId,
+        vehicleId: intervention.vehicleId,
+        interventionId: intervention.id,
+        type: "INTERVENTION_REPORT",
+        fileUrl,
+        fileName,
+        mime: "application/pdf",
+        size: pdfBuffer.length,
+      },
+    });
+
+    return NextResponse.json(success(document), { status: 201 });
+  } catch (err) {
+    console.error("Erreur API POST PDF /api/interventions/[id]/pdf :", err);
+    return toErrorResponse(err);
   }
 }

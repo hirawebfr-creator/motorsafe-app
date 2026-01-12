@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireApprovedTenant, requireUser, getTenantId } from "@/lib/guards";
 import { RouteError, toErrorResponse } from "@/lib/routeErrors";
+import type { Prisma } from "@prisma/client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,7 +17,7 @@ export async function POST(req: Request, ctx: Ctx) {
     const { id } = await ctx.params;
     const quoteId = String(id);
 
-    const updated = await prisma.$transaction(async (tx) => {
+    const updated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const quote = await tx.quote.findFirst({
         where: { id: quoteId, organisationId, deletedAt: null },
         select: { id: true, status: true },

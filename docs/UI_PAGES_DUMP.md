@@ -8,6 +8,7 @@ Ce fichier est généré automatiquement.
 ## Index
 
 - [/](#root)
+- [/_ui-debug](#_ui-debug)
 - [/admin](#admin)
 - [/admin/garages](#admin-garages)
 - [/admin/pro-demandes](#admin-pro-demandes)
@@ -29,6 +30,7 @@ Ce fichier est généré automatiquement.
 - [/pro/pending](#pro-pending)
 - [/pro/signup](#pro-signup)
 - [/settings](#settings)
+- [/ui-debug](#ui-debug)
 - [/vehicules](#vehicules)
 - [/vehicules/[id]](#vehicules-[id])
 
@@ -45,18 +47,20 @@ Ce fichier est généré automatiquement.
 ```tsx
 
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { IBM_Plex_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/Toast";
 
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-sans",
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
-const jetbrains = JetBrains_Mono({
+const plexMono = IBM_Plex_Mono({
   subsets: ["latin"],
+  weight: ["400", "500", "600"],
   variable: "--font-mono",
   display: "swap",
 });
@@ -66,6 +70,7 @@ export const metadata: Metadata = {
     default: "MotorSafe",
     template: "%s | MotorSafe",
   },
+  metadataBase: new URL("https://motorsafe.fr"),
   description: "Panel professionnel pour garages, interventions et conformite.",
   applicationName: "MotorSafe",
 };
@@ -74,11 +79,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="fr" className="h-full">
       <body
-        className={`${inter.variable} ${jetbrains.variable} min-h-screen font-sans antialiased`}
+        className={`${inter.variable} ${inter.variable} ${plexMono.variable} min-h-screen font-sans antialiased`}
       >
-        <ToastProvider>
-          {children}
-        </ToastProvider>
+        <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
   );
@@ -90,127 +93,201 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
 #### app/page.tsx
 ```tsx
-import Link from "next/link";
 import type { Metadata } from "next";
-import { Button } from "@/components/ui/Button";
+import Link from "next/link";
 import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
 
 export const metadata: Metadata = {
-  title: "MotorSafe Pro – Gestion de garages et interventions",
-  description:
-    "La plateforme SaaS tout-en-un pour les garages, pros et flottes. Gérez clients, véhicules, interventions, documents et conformité.",
-  keywords: [
-    "garage",
-    "SaaS",
-    "gestion",
-    "flotte",
-    "automobile",
-    "interventions",
-    "MotorSafe",
-    "logiciel garage",
-    "cloud",
-    "maintenance",
-    "conformité",
-  ],
-  alternates: { canonical: "https://motorsafe.fr" },
-  openGraph: {
-    title: "MotorSafe Pro – Gestion de garages et interventions",
-    description:
-      "La plateforme SaaS tout-en-un pour les garages, pros et flottes. Gérez clients, véhicules, interventions, documents et conformité.",
-    url: "https://motorsafe.fr",
-    type: "website",
-    images: ["/og-motorsafe.png"],
-  },
+  title: "MotorSafe",
+  description: "Espace pro garages : dossiers, interventions et documents PDF, avec conformité intégrée.",
 };
 
 export default function LandingPage() {
   return (
     <main className="min-h-screen w-full bg-bg text-text">
-      <div className="mx-auto w-full max-w-6xl px-4 py-14 md:px-8">
-        <header className="flex flex-col gap-10">
-          <div className="flex items-center justify-between gap-4">
-            <Link href="/" className="flex items-center gap-3">
-              <div className="grid h-10 w-10 place-items-center rounded-[14px] border border-border bg-surface2">
-                <span className="text-sm font-semibold text-primary">MS</span>
-              </div>
-              <div className="leading-tight">
-                <div className="text-sm font-semibold">MotorSafe</div>
-                <div className="text-xs text-muted2">SaaS pour garages & pros</div>
-              </div>
-            </Link>
+      <header className="border-b border-border bg-bg/60 backdrop-blur-xl">
+        <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between gap-4 px-6">
+          <Link href="/" className="flex items-center gap-3">
+            <div className="grid h-11 w-11 place-items-center rounded-2xl border border-border bg-surface2">
+              <span className="text-sm font-extrabold tracking-tight text-primary2">MS</span>
+            </div>
+            <div className="leading-tight">
+              <div className="text-sm font-semibold text-text">MotorSafe</div>
+              <div className="text-xs text-muted2">Espace pro</div>
+            </div>
+          </Link>
 
-            <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
+            <Link href="/pro" className="hidden sm:block">
+              <Button variant="ghost">Espace pro</Button>
+            </Link>
+            <Link href="/auth/login">
+              <Button>Connexion</Button>
+            </Link>
+          </div>
+        </div>
+      </header>
+
+      <section className="relative">
+        <div className="pointer-events-none absolute inset-x-0 -top-24 mx-auto h-64 max-w-[1200px] rounded-full bg-primaryWeak blur-3xl opacity-50" />
+        <div className="mx-auto grid w-full max-w-[1200px] gap-10 px-6 py-16 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
+          <div className="grid gap-6">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="accent">Garages & pros de l’auto</Badge>
+              <Badge variant="warning">Validation des comptes</Badge>
+            </div>
+
+            <div>
+              <p className="ms-kicker">MotorSafe</p>
+              <h1 className="mt-3 text-4xl font-semibold tracking-tight text-text md:text-5xl">
+                Le panel premium pour gérer vos dossiers atelier.
+              </h1>
+              <p className="mt-4 max-w-[60ch] text-base text-muted2">
+                Clients, véhicules, interventions et documents PDF — avec conformité intégrée et une interface rapide,
+                pensée terrain.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
               <Link href="/auth/login">
-                <Button variant="secondary" size="sm">
-                  Connexion
-                </Button>
+                <Button>Accéder au dashboard</Button>
               </Link>
               <Link href="/pro/inscription">
-                <Button variant="primary" size="sm">
-                  Demander un accès
-                </Button>
+                <Button variant="secondary">Demander un compte pro</Button>
               </Link>
             </div>
-          </div>
 
-          <div className="grid gap-4 md:grid-cols-[1.3fr_0.7fr] md:items-start">
-            <div className="grid gap-3">
-              <p className="ms-kicker">MotorSafe Pro</p>
-              <h1 className="text-4xl font-semibold tracking-tight md:text-6xl">
-                Une interface premium pour piloter votre activité.
-              </h1>
-              <p className="max-w-2xl text-base text-muted md:text-lg">
-                Clients, véhicules, interventions, documents et conformité : tout est centralisé dans un panel clair, rapide et
-                responsive.
-              </p>
-
-              <div className="mt-2 flex flex-wrap items-center gap-3">
-                <Link href="/auth/login">
-                  <Button size="lg">Démarrer</Button>
-                </Link>
-                <Link href="/legal">
-                  <Button size="lg" variant="ghost">
-                    Mentions légales
-                  </Button>
-                </Link>
-              </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              {[
+                {
+                  title: "Traçabilité",
+                  desc: "Historique clair et actions sécurisées.",
+                },
+                {
+                  title: "Documents",
+                  desc: "Générez et retrouvez vos PDF rapidement.",
+                },
+                {
+                  title: "Conformité",
+                  desc: "Références légales intégrées au flux.",
+                },
+              ].map((item) => (
+                <Card key={item.title} className="p-4">
+                  <p className="text-sm font-semibold text-text">{item.title}</p>
+                  <p className="mt-1 text-xs text-muted2">{item.desc}</p>
+                </Card>
+              ))}
             </div>
-
-            <Card className="p-6">
-              <p className="ms-kicker">En bref</p>
-              <ul className="mt-3 grid gap-2 text-sm text-muted">
-                <li>• Workflow simple : clients → véhicules → interventions → PDF</li>
-                <li>• Traçabilité et conformité intégrées</li>
-                <li>• Mobile, tablette, desktop</li>
-              </ul>
-            </Card>
           </div>
-        </header>
 
-        <section className="mt-12 grid gap-6 md:grid-cols-3">
-          <Card className="p-6">
-            <h2 className="text-lg font-semibold">Gestion complète</h2>
-            <p className="mt-2 text-sm text-muted">
-              Clients, véhicules, interventions, documents et conformité : tout est au même endroit.
+          <Card className="p-8">
+            <p className="ms-kicker">Démarrage</p>
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight">Accès professionnel</h2>
+            <p className="mt-2 text-sm text-muted2">
+              Les comptes sont validés pour garantir un environnement pro.
             </p>
-          </Card>
-          <Card className="p-6">
-            <h2 className="text-lg font-semibold">Lisible & cohérent</h2>
-            <p className="mt-2 text-sm text-muted">
-              Surfaces nettes, typographie claire, espace : une UI sobre, premium et productive.
-            </p>
-          </Card>
-          <Card className="p-6">
-            <h2 className="text-lg font-semibold">Sécurisé</h2>
-            <p className="mt-2 text-sm text-muted">
-              Accès, preuves et historique : la conformité sans complexité.
-            </p>
-          </Card>
-        </section>
 
-        <footer className="mt-14 border-t border-border pt-8 text-center text-xs text-muted2">
-          © {new Date().getFullYear()} MotorSafe.
-        </footer>
+            <div className="mt-6 grid gap-3">
+              <Link href="/auth/login">
+                <Button className="w-full">Connexion</Button>
+              </Link>
+              <Link href="/pro/inscription">
+                <Button variant="secondary" className="w-full">
+                  Créer un compte pro
+                </Button>
+              </Link>
+              <Link href="/legal" className="text-center text-sm font-semibold text-primary hover:text-primaryHover">
+                Mentions légales
+              </Link>
+            </div>
+          </Card>
+        </div>
+      </section>
+
+      <footer className="border-t border-border/70">
+        <div className="mx-auto flex max-w-[1200px] flex-col gap-2 px-6 py-10 text-sm text-muted2 sm:flex-row sm:items-center sm:justify-between">
+          <p>© {new Date().getFullYear()} MotorSafe</p>
+          <div className="flex items-center gap-4">
+            <Link href="/legal" className="font-semibold text-primary hover:text-primaryHover">
+              Légal
+            </Link>
+            <Link href="/pro" className="font-semibold text-primary hover:text-primaryHover">
+              Espace pro
+            </Link>
+          </div>
+        </div>
+      </footer>
+    </main>
+  );
+}
+
+```
+
+## /_ui-debug
+<a id="_ui-debug"></a>
+
+### Layouts
+
+- app/layout.tsx
+
+#### app/layout.tsx
+```tsx
+
+import type { Metadata } from "next";
+import { IBM_Plex_Mono, Inter } from "next/font/google";
+import "./globals.css";
+import { ToastProvider } from "@/components/ui/Toast";
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+});
+
+const plexMono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-mono",
+  display: "swap",
+});
+
+export const metadata: Metadata = {
+  title: {
+    default: "MotorSafe",
+    template: "%s | MotorSafe",
+  },
+  metadataBase: new URL("https://motorsafe.fr"),
+  description: "Panel professionnel pour garages, interventions et conformite.",
+  applicationName: "MotorSafe",
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="fr" className="h-full">
+      <body
+        className={`${inter.variable} ${inter.variable} ${plexMono.variable} min-h-screen font-sans antialiased`}
+      >
+        <ToastProvider>{children}</ToastProvider>
+      </body>
+    </html>
+  );
+}
+
+```
+
+### Page
+
+#### app/_ui-debug/page.tsx
+```tsx
+export default function UIDebug() {
+  return (
+    <main style={{ padding: 40 }}>
+      <h1>UI DEBUG PAGE</h1>
+      <div className="p-6 rounded-xl bg-blue-600 text-white font-bold">
+        If you see blue, Tailwind works.
       </div>
     </main>
   );
@@ -230,18 +307,20 @@ export default function LandingPage() {
 ```tsx
 
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { IBM_Plex_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/Toast";
 
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-sans",
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
-const jetbrains = JetBrains_Mono({
+const plexMono = IBM_Plex_Mono({
   subsets: ["latin"],
+  weight: ["400", "500", "600"],
   variable: "--font-mono",
   display: "swap",
 });
@@ -251,6 +330,7 @@ export const metadata: Metadata = {
     default: "MotorSafe",
     template: "%s | MotorSafe",
   },
+  metadataBase: new URL("https://motorsafe.fr"),
   description: "Panel professionnel pour garages, interventions et conformite.",
   applicationName: "MotorSafe",
 };
@@ -259,11 +339,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="fr" className="h-full">
       <body
-        className={`${inter.variable} ${jetbrains.variable} min-h-screen font-sans antialiased`}
+        className={`${inter.variable} ${inter.variable} ${plexMono.variable} min-h-screen font-sans antialiased`}
       >
-        <ToastProvider>
-          {children}
-        </ToastProvider>
+        <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
   );
@@ -297,7 +375,7 @@ export default async function DashboardLayout({
 ```tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -327,16 +405,16 @@ type GarageItem = {
 
 export default function AdminPendingPage() {
   const user = useUser();
-  if (!user) return null;
+
   const [garages, setGarages] = useState<GarageItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [adminKey, setAdminKey] = useState("");
-  const [keyReady, setKeyReady] = useState(user.role === "ADMIN");
+  const [keyReady, setKeyReady] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [rejectTarget, setRejectTarget] = useState<GarageItem | null>(null);
-  const isAdmin = user.role === "ADMIN";
+  const isAdmin = user?.role === "ADMIN";
   const toast = useToast();
 
   useEffect(() => {
@@ -348,7 +426,7 @@ export default function AdminPendingPage() {
     }
   }, [isAdmin]);
 
-  const loadPending = async () => {
+  const loadPending = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -362,7 +440,7 @@ export default function AdminPendingPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [adminKey, isAdmin]);
 
   const approve = async (id: number) => {
     setError(null);
@@ -420,49 +498,59 @@ export default function AdminPendingPage() {
   };
 
   useEffect(() => {
-    if (keyReady) {
+    if (!user) return;
+    if (isAdmin) {
+      setKeyReady(true);
       loadPending();
+      return;
     }
-  }, [keyReady]);
+
+    if (keyReady) loadPending();
+  }, [isAdmin, keyReady, loadPending, user]);
+
+  if (!user) return null;
 
   if (!keyReady && !isAdmin) {
     return (
-      <Card className="p-6">
-        <p className="text-sm text-muted2">
-          Accès réservé à l'administration. Renseignez votre ADMIN_KEY pour continuer.
-        </p>
-        <div className="mt-4 grid gap-3 max-w-md">
-          <Input
-            label="ADMIN_KEY"
-            value={adminKey}
-            onChange={(event) => setAdminKey(event.target.value)}
-            placeholder="ADMIN_KEY"
-          />
-          <Button
-            onClick={() => {
-              if (!adminKey.trim()) return;
-              window.localStorage.setItem("ms_admin_key", adminKey.trim());
-              setKeyReady(true);
-            }}
-          >
-            Deverrouiller
-          </Button>
+      <Card className="p-0 overflow-hidden">
+        <div className="ms-cardHeader">
+          <p className="ms-kicker">Administration</p>
+          <p className="mt-2 text-lg font-semibold text-text">Accès réservé</p>
+          <p className="mt-2 text-sm text-muted2">
+            Renseignez votre ADMIN_KEY pour continuer.
+          </p>
+        </div>
+        <div className="ms-cardBody">
+          <div className="grid max-w-md gap-3">
+            <Input
+              label="ADMIN_KEY"
+              value={adminKey}
+              onChange={(event) => setAdminKey(event.target.value)}
+              placeholder="ADMIN_KEY"
+            />
+            <Button
+              onClick={() => {
+                if (!adminKey.trim()) return;
+                window.localStorage.setItem("ms_admin_key", adminKey.trim());
+                setKeyReady(true);
+              }}
+            >
+              Déverrouiller
+            </Button>
+          </div>
         </div>
       </Card>
     );
   }
 
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-8">
       <SectionHeader
         title="Demandes en attente"
-        description="Gérez les demandes d'inscription des garages. Approvez ou refusez avec un motif."
+        description="Gérez les demandes d’inscription des garages. Approvez ou refusez avec un motif."
         action={
-          <Link
-            href="/admin/garages"
-            className="text-sm font-semibold text-primary hover:text-primaryHover"
-          >
-            Voir tous les garages
+          <Link href="/admin/garages">
+            <Button variant="secondary" size="sm">Voir tous les garages</Button>
           </Link>
         }
         level={1}
@@ -475,30 +563,32 @@ export default function AdminPendingPage() {
       ) : garages.length === 0 ? (
         <EmptyState title="Aucune demande" description="Les demandes en attente apparaitront ici." />
       ) : (
-        <div className="grid gap-4">
+        <div className="grid gap-6">
           {garages.map((garage) => (
-            <Card key={garage.id} className="grid gap-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
+            <Card key={garage.id} className="p-0 overflow-hidden">
+              <div className="ms-cardHeader flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-base font-semibold text-text">{garage.name}</p>
                   <p className="text-xs text-muted2">{garage.email}</p>
                 </div>
                 <Badge variant="warning">En attente</Badge>
               </div>
-              <div className="grid gap-2 text-sm text-muted2">
+              <div className="ms-cardBody grid gap-2 text-sm text-muted2">
                 <p>Téléphone : {garage.phone || "-"}</p>
                 <p>Adresse : {garage.address || "-"}</p>
                 <p>SIRET : {garage.siret || "-"}</p>
               </div>
-              <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="ms-cardFooter flex flex-wrap items-center justify-between gap-3">
                 <div className="text-xs text-muted2">
                   Responsable : {garage.users[0]?.email ?? "-"}
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Button variant="ghost" onClick={() => openReject(garage)}>
+                  <Button variant="ghost" size="sm" onClick={() => openReject(garage)}>
                     Refuser
                   </Button>
-                  <Button onClick={() => approve(garage.id)}>Approuver</Button>
+                  <Button size="sm" onClick={() => approve(garage.id)}>
+                    Approuver
+                  </Button>
                 </div>
               </div>
             </Card>
@@ -539,18 +629,20 @@ export default function AdminPendingPage() {
 ```tsx
 
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { IBM_Plex_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/Toast";
 
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-sans",
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
-const jetbrains = JetBrains_Mono({
+const plexMono = IBM_Plex_Mono({
   subsets: ["latin"],
+  weight: ["400", "500", "600"],
   variable: "--font-mono",
   display: "swap",
 });
@@ -560,6 +652,7 @@ export const metadata: Metadata = {
     default: "MotorSafe",
     template: "%s | MotorSafe",
   },
+  metadataBase: new URL("https://motorsafe.fr"),
   description: "Panel professionnel pour garages, interventions et conformite.",
   applicationName: "MotorSafe",
 };
@@ -568,11 +661,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="fr" className="h-full">
       <body
-        className={`${inter.variable} ${jetbrains.variable} min-h-screen font-sans antialiased`}
+        className={`${inter.variable} ${inter.variable} ${plexMono.variable} min-h-screen font-sans antialiased`}
       >
-        <ToastProvider>
-          {children}
-        </ToastProvider>
+        <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
   );
@@ -606,7 +697,7 @@ export default async function DashboardLayout({
 ```tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -631,13 +722,13 @@ type GarageItem = {
 
 export default function AdminGaragesPage() {
   const user = useUser();
-  if (!user) return null;
+
   const [garages, setGarages] = useState<GarageItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [adminKey, setAdminKey] = useState("");
-  const [keyReady, setKeyReady] = useState(user.role === "ADMIN");
-  const isAdmin = user.role === "ADMIN";
+  const [keyReady, setKeyReady] = useState(false);
+  const isAdmin = user?.role === "ADMIN";
 
   useEffect(() => {
     if (isAdmin) return;
@@ -648,7 +739,7 @@ export default function AdminGaragesPage() {
     }
   }, [isAdmin]);
 
-  const loadGarages = async () => {
+  const loadGarages = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -662,43 +753,56 @@ export default function AdminGaragesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [adminKey, isAdmin]);
 
   useEffect(() => {
-    if (keyReady) {
+    if (!user) return;
+    if (isAdmin) {
+      setKeyReady(true);
       loadGarages();
+      return;
     }
-  }, [keyReady]);
+
+    if (keyReady) loadGarages();
+  }, [isAdmin, keyReady, loadGarages, user]);
+
+  if (!user) return null;
 
   if (!keyReady && !isAdmin) {
     return (
-      <Card className="p-6">
-        <p className="text-sm text-muted2">
-          Accès réservé à l'administration. Renseignez votre ADMIN_KEY pour continuer.
-        </p>
-        <div className="mt-4 grid gap-3 max-w-md">
-          <Input
-            label="ADMIN_KEY"
-            value={adminKey}
-            onChange={(event) => setAdminKey(event.target.value)}
-            placeholder="ADMIN_KEY"
-          />
-          <Button
-            onClick={() => {
-              if (!adminKey.trim()) return;
-              window.localStorage.setItem("ms_admin_key", adminKey.trim());
-              setKeyReady(true);
-            }}
-          >
-            Deverrouiller
-          </Button>
+      <Card className="p-0 overflow-hidden">
+        <div className="ms-cardHeader">
+          <p className="ms-kicker">Administration</p>
+          <p className="mt-2 text-lg font-semibold text-text">Accès réservé</p>
+          <p className="mt-2 text-sm text-muted2">
+            Renseignez votre ADMIN_KEY pour continuer.
+          </p>
+        </div>
+        <div className="ms-cardBody">
+          <div className="grid max-w-md gap-3">
+            <Input
+              label="ADMIN_KEY"
+              value={adminKey}
+              onChange={(event) => setAdminKey(event.target.value)}
+              placeholder="ADMIN_KEY"
+            />
+            <Button
+              onClick={() => {
+                if (!adminKey.trim()) return;
+                window.localStorage.setItem("ms_admin_key", adminKey.trim());
+                setKeyReady(true);
+              }}
+            >
+              Déverrouiller
+            </Button>
+          </div>
         </div>
       </Card>
     );
   }
 
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-8">
       <SectionHeader
         title="Tous les garages"
         description="Liste complète des garages inscrits sur la plateforme."
@@ -713,6 +817,10 @@ export default function AdminGaragesPage() {
       {error ? <ErrorBanner message={error} /> : null}
 
       <Card className="p-0 overflow-hidden">
+        <div className="ms-cardHeader">
+          <p className="ms-kicker">Administration</p>
+          <p className="mt-2 text-lg font-semibold text-text">Liste des garages</p>
+        </div>
         <DataTable stickyHeader variant="plain">
           <DataTableHead sticky>
             <tr>
@@ -789,18 +897,20 @@ export default function AdminGaragesPage() {
 ```tsx
 
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { IBM_Plex_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/Toast";
 
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-sans",
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
-const jetbrains = JetBrains_Mono({
+const plexMono = IBM_Plex_Mono({
   subsets: ["latin"],
+  weight: ["400", "500", "600"],
   variable: "--font-mono",
   display: "swap",
 });
@@ -810,6 +920,7 @@ export const metadata: Metadata = {
     default: "MotorSafe",
     template: "%s | MotorSafe",
   },
+  metadataBase: new URL("https://motorsafe.fr"),
   description: "Panel professionnel pour garages, interventions et conformite.",
   applicationName: "MotorSafe",
 };
@@ -818,11 +929,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="fr" className="h-full">
       <body
-        className={`${inter.variable} ${jetbrains.variable} min-h-screen font-sans antialiased`}
+        className={`${inter.variable} ${inter.variable} ${plexMono.variable} min-h-screen font-sans antialiased`}
       >
-        <ToastProvider>
-          {children}
-        </ToastProvider>
+        <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
   );
@@ -872,18 +981,20 @@ export default AdminPendingPage;
 ```tsx
 
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { IBM_Plex_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/Toast";
 
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-sans",
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
-const jetbrains = JetBrains_Mono({
+const plexMono = IBM_Plex_Mono({
   subsets: ["latin"],
+  weight: ["400", "500", "600"],
   variable: "--font-mono",
   display: "swap",
 });
@@ -893,6 +1004,7 @@ export const metadata: Metadata = {
     default: "MotorSafe",
     template: "%s | MotorSafe",
   },
+  metadataBase: new URL("https://motorsafe.fr"),
   description: "Panel professionnel pour garages, interventions et conformite.",
   applicationName: "MotorSafe",
 };
@@ -901,11 +1013,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="fr" className="h-full">
       <body
-        className={`${inter.variable} ${jetbrains.variable} min-h-screen font-sans antialiased`}
+        className={`${inter.variable} ${inter.variable} ${plexMono.variable} min-h-screen font-sans antialiased`}
       >
-        <ToastProvider>
-          {children}
-        </ToastProvider>
+        <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
   );
@@ -939,7 +1049,7 @@ export default async function DashboardLayout({
 ```tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -970,7 +1080,7 @@ const TYPES = ["E85", "Reprog", "Diag", "Autre"];
 
 export default function AdminReferencesPage() {
   const user = useUser();
-  if (!user) return null;
+
   const [items, setItems] = useState<LegalReference[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({
@@ -985,7 +1095,7 @@ export default function AdminReferencesPage() {
   });
   const toast = useToast();
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setError(null);
     try {
       const data = await fetcher<LegalReference[]>("/api/legal-references", { noStore: true });
@@ -995,11 +1105,11 @@ export default function AdminReferencesPage() {
       setError(message);
       toast.push({ title: "Erreur", description: message, variant: "error" });
     }
-  };
+  }, [toast]);
 
   useEffect(() => {
     load();
-  }, []);
+  }, [load]);
 
   const toggleType = (type: string) => {
     setForm((prev) => ({
@@ -1079,16 +1189,24 @@ export default function AdminReferencesPage() {
 
   const activeCount = useMemo(() => items.filter((item) => item.isActive).length, [items]);
 
+  if (!user) return null;
+
   if (!isAdmin) {
     return (
-      <Card>
-        <p className="text-sm text-muted2">Accès réservé à l'administration.</p>
+      <Card className="p-0 overflow-hidden">
+        <div className="ms-cardHeader">
+          <p className="ms-kicker">Administration</p>
+          <p className="mt-2 text-lg font-semibold text-text">Accès restreint</p>
+        </div>
+        <div className="ms-cardBody">
+          <p className="text-sm text-muted2">Accès réservé à l’administration.</p>
+        </div>
       </Card>
     );
   }
 
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-8">
       <SectionHeader
         title="Références légales"
         description="Gérez les références applicables aux interventions. Elles seront visibles dans les dossiers."
@@ -1098,8 +1216,8 @@ export default function AdminReferencesPage() {
       {error ? <ErrorBanner message={error} /> : null}
 
       <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-        <Card className="grid gap-4 p-0 overflow-hidden">
-          <div className="flex items-center justify-between border-b border-border p-4">
+        <Card className="grid gap-6 p-0 overflow-hidden">
+          <div className="ms-cardHeader flex items-center justify-between">
             <h2 className="text-lg font-semibold">Références actives</h2>
             <Badge variant="accent">{activeCount} actives</Badge>
           </div>
@@ -1115,7 +1233,7 @@ export default function AdminReferencesPage() {
               {items.length === 0 ? (
                 <tr>
                   <td colSpan={3}>
-                    <p className="text-sm text-muted2">Aucune référence.</p>
+                    <div className="p-6 text-sm text-muted2">Aucune référence.</div>
                   </td>
                 </tr>
               ) : (
@@ -1149,7 +1267,7 @@ export default function AdminReferencesPage() {
           </DataTable>
         </Card>
 
-        <Card className="grid gap-4">
+        <Card className="grid gap-5">
           <div>
             <p className="ms-kicker">Nouvelle référence</p>
             <h2 className="mt-2 text-xl font-semibold">Ajouter une référence</h2>
@@ -1202,7 +1320,7 @@ export default function AdminReferencesPage() {
             <option value="CRITICAL">Critique</option>
           </Select>
           <div className="grid gap-2 text-xs text-muted2">
-            <p className="text-text">Types d'intervention associés</p>
+            <p className="text-text">Types d’intervention associés</p>
             <div className="flex flex-wrap gap-2">
               {TYPES.map((type) => (
                 <button
@@ -1240,18 +1358,20 @@ export default function AdminReferencesPage() {
 ```tsx
 
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { IBM_Plex_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/Toast";
 
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-sans",
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
-const jetbrains = JetBrains_Mono({
+const plexMono = IBM_Plex_Mono({
   subsets: ["latin"],
+  weight: ["400", "500", "600"],
   variable: "--font-mono",
   display: "swap",
 });
@@ -1261,6 +1381,7 @@ export const metadata: Metadata = {
     default: "MotorSafe",
     template: "%s | MotorSafe",
   },
+  metadataBase: new URL("https://motorsafe.fr"),
   description: "Panel professionnel pour garages, interventions et conformite.",
   applicationName: "MotorSafe",
 };
@@ -1269,11 +1390,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="fr" className="h-full">
       <body
-        className={`${inter.variable} ${jetbrains.variable} min-h-screen font-sans antialiased`}
+        className={`${inter.variable} ${inter.variable} ${plexMono.variable} min-h-screen font-sans antialiased`}
       >
-        <ToastProvider>
-          {children}
-        </ToastProvider>
+        <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
   );
@@ -1332,51 +1451,102 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-5xl items-center justify-center px-6 py-16">
-      <Card className="w-full max-w-lg p-8">
-        <div className="grid gap-3">
-          <p className="ms-kicker">Connexion</p>
-          <h1 className="text-3xl font-semibold tracking-tight text-text">Accès garage</h1>
-          <p className="text-sm text-muted2">
-            Connectez-vous pour accéder à votre dashboard sécurisé.
-          </p>
+    <main className="min-h-screen w-full bg-bg text-text">
+      <header className="border-b border-border bg-bg/60 backdrop-blur-xl">
+        <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between gap-4 px-6">
+          <Link href="/" className="flex items-center gap-3">
+            <div className="grid h-11 w-11 place-items-center rounded-2xl border border-border bg-surface2">
+              <span className="text-sm font-extrabold tracking-tight text-primary2">MS</span>
+            </div>
+            <div className="leading-tight">
+              <div className="text-sm font-semibold text-text">MotorSafe</div>
+              <div className="text-xs text-muted2">Espace pro</div>
+            </div>
+          </Link>
+          <div className="flex items-center gap-2">
+            <Link href="/pro/inscription" className="hidden sm:block">
+              <Button variant="ghost">Créer un compte</Button>
+            </Link>
+            <Link href="/">
+              <Button variant="secondary">Retour site</Button>
+            </Link>
+          </div>
+        </div>
+      </header>
+
+      <div className="mx-auto grid w-full max-w-[1200px] gap-10 px-6 py-16 lg:grid-cols-[1fr_440px] lg:items-start">
+        <div className="hidden lg:flex flex-col gap-8">
+          <div>
+            <p className="ms-kicker">Connexion</p>
+            <h1 className="mt-3 text-4xl font-semibold tracking-tight text-text">Accédez à votre atelier</h1>
+            <p className="mt-3 text-base text-muted2">
+              Retrouvez vos dossiers, vos interventions et vos documents en un seul endroit sécurisé.
+            </p>
+          </div>
+
+          <div className="grid gap-4">
+            <Card className="p-4">
+              <p className="ms-kicker">Sécurité</p>
+              <p className="mt-2 text-sm font-semibold text-text">Accès sécurisé et conformité intégrée</p>
+              <p className="mt-1 text-xs text-muted2">
+                Chaque action est tracée pour garantir la qualité de vos dossiers.
+              </p>
+            </Card>
+            <Card className="p-4">
+              <p className="ms-kicker">Performance</p>
+              <p className="mt-2 text-sm font-semibold text-text">Une interface rapide, pensée terrain</p>
+              <p className="mt-1 text-xs text-muted2">
+                Pas de surcharge : juste l&apos;essentiel pour l&apos;atelier.
+              </p>
+            </Card>
+          </div>
         </div>
 
-        <form onSubmit={submit} className="mt-8 grid gap-4">
-          <Input
-            label="Email"
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            placeholder="contact@garage.fr"
-            required
-          />
-          <Input
-            label="Mot de passe"
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            placeholder="********"
-            required
-          />
-          {error ? <p className="text-sm text-danger">{error}</p> : null}
-          <Button type="submit" disabled={loading}>
-            {loading ? "Connexion..." : "Se connecter"}
-          </Button>
-        </form>
+        <Card className="w-full p-8">
+          <div className="grid gap-3">
+            <p className="ms-kicker">Connexion</p>
+            <h1 className="text-2xl font-semibold tracking-tight text-text">Accès garage</h1>
+            <p className="text-sm text-muted2">
+              Connectez-vous pour accéder à votre dashboard sécurisé.
+            </p>
+          </div>
 
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 text-sm text-muted2">
-          <Link
-            href="/auth/register-pro"
-            className="font-semibold text-primary hover:text-primaryHover"
-          >
-            Créer un compte pro
-          </Link>
-          <Link href="/" className="font-semibold text-primary hover:text-primaryHover">
-            Retour site
-          </Link>
-        </div>
-      </Card>
+          <form onSubmit={submit} className="mt-8 grid gap-4">
+            <Input
+              label="Email"
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="contact@garage.fr"
+              required
+            />
+            <Input
+              label="Mot de passe"
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder="********"
+              required
+            />
+            {error ? <p className="text-sm text-danger">{error}</p> : null}
+            <Button type="submit" disabled={loading}>
+              {loading ? "Connexion..." : "Se connecter"}
+            </Button>
+          </form>
+
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 text-sm text-muted2">
+            <Link
+              href="/auth/register-pro"
+              className="font-semibold text-primary hover:text-primaryHover"
+            >
+              Créer un compte pro
+            </Link>
+            <Link href="/pro" className="font-semibold text-primary hover:text-primaryHover">
+              Infos espace pro
+            </Link>
+          </div>
+        </Card>
+      </div>
     </main>
   );
 }
@@ -1394,18 +1564,20 @@ export default function LoginPage() {
 ```tsx
 
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { IBM_Plex_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/Toast";
 
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-sans",
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
-const jetbrains = JetBrains_Mono({
+const plexMono = IBM_Plex_Mono({
   subsets: ["latin"],
+  weight: ["400", "500", "600"],
   variable: "--font-mono",
   display: "swap",
 });
@@ -1415,6 +1587,7 @@ export const metadata: Metadata = {
     default: "MotorSafe",
     template: "%s | MotorSafe",
   },
+  metadataBase: new URL("https://motorsafe.fr"),
   description: "Panel professionnel pour garages, interventions et conformite.",
   applicationName: "MotorSafe",
 };
@@ -1423,11 +1596,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="fr" className="h-full">
       <body
-        className={`${inter.variable} ${jetbrains.variable} min-h-screen font-sans antialiased`}
+        className={`${inter.variable} ${inter.variable} ${plexMono.variable} min-h-screen font-sans antialiased`}
       >
-        <ToastProvider>
-          {children}
-        </ToastProvider>
+        <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
   );
@@ -1458,18 +1629,20 @@ export default function PendingPage() {
 ```tsx
 
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { IBM_Plex_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/Toast";
 
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-sans",
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
-const jetbrains = JetBrains_Mono({
+const plexMono = IBM_Plex_Mono({
   subsets: ["latin"],
+  weight: ["400", "500", "600"],
   variable: "--font-mono",
   display: "swap",
 });
@@ -1479,6 +1652,7 @@ export const metadata: Metadata = {
     default: "MotorSafe",
     template: "%s | MotorSafe",
   },
+  metadataBase: new URL("https://motorsafe.fr"),
   description: "Panel professionnel pour garages, interventions et conformite.",
   applicationName: "MotorSafe",
 };
@@ -1487,11 +1661,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="fr" className="h-full">
       <body
-        className={`${inter.variable} ${jetbrains.variable} min-h-screen font-sans antialiased`}
+        className={`${inter.variable} ${inter.variable} ${plexMono.variable} min-h-screen font-sans antialiased`}
       >
-        <ToastProvider>
-          {children}
-        </ToastProvider>
+        <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
   );
@@ -1523,18 +1695,20 @@ export default function RegisterProPage() {
 ```tsx
 
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { IBM_Plex_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/Toast";
 
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-sans",
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
-const jetbrains = JetBrains_Mono({
+const plexMono = IBM_Plex_Mono({
   subsets: ["latin"],
+  weight: ["400", "500", "600"],
   variable: "--font-mono",
   display: "swap",
 });
@@ -1544,6 +1718,7 @@ export const metadata: Metadata = {
     default: "MotorSafe",
     template: "%s | MotorSafe",
   },
+  metadataBase: new URL("https://motorsafe.fr"),
   description: "Panel professionnel pour garages, interventions et conformite.",
   applicationName: "MotorSafe",
 };
@@ -1552,11 +1727,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="fr" className="h-full">
       <body
-        className={`${inter.variable} ${jetbrains.variable} min-h-screen font-sans antialiased`}
+        className={`${inter.variable} ${inter.variable} ${plexMono.variable} min-h-screen font-sans antialiased`}
       >
-        <ToastProvider>
-          {children}
-        </ToastProvider>
+        <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
   );
@@ -1590,7 +1763,7 @@ export default async function DashboardLayout({
 ```tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Plus, MoreHorizontal, Trash2, Pencil } from "lucide-react";
@@ -1629,10 +1802,13 @@ export default function ClientsPage() {
   const [garages, setGarages] = useState<GarageOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [query, setQuery] = useState("");
+  const qFromUrl = searchParams.get("q") || "";
+  const [query, setQuery] = useState(qFromUrl);
 
-  const selectedFromUrl = Number(searchParams.get("selected") || "");
-  const [selectedId, setSelectedId] = useState<number | null>(Number.isFinite(selectedFromUrl) ? selectedFromUrl : null);
+  const selectedParam = searchParams.get("selected");
+  const selectedFromUrl = selectedParam ? Number(selectedParam) : NaN;
+  const initialSelectedId = Number.isFinite(selectedFromUrl) && selectedFromUrl > 0 ? selectedFromUrl : null;
+  const [selectedId, setSelectedId] = useState<number | null>(initialSelectedId);
 
   const [detail, setDetail] = useState<ClientItem | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -1650,7 +1826,7 @@ export default function ClientsPage() {
     garageId: "",
   });
 
-  const loadClients = async () => {
+  const loadClients = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -1661,29 +1837,36 @@ export default function ClientsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const loadGarages = async () => {
-    if (user.role !== "ADMIN") return;
+  const loadGarages = useCallback(async () => {
+    if (user?.role !== "ADMIN") return;
     try {
       const data = await fetcher<GarageOption[]>("/api/admin/garages", { noStore: true });
       setGarages(data ?? []);
     } catch {
       setGarages([]);
     }
-  };
+  }, [user?.role]);
 
   useEffect(() => {
     loadClients();
     loadGarages();
-  }, []);
+  }, [loadClients, loadGarages]);
 
   useEffect(() => {
     // keep selectedId in sync if URL changes
-    if (!Number.isFinite(selectedFromUrl)) return;
+    if (!selectedParam) {
+      setSelectedId(null);
+      return;
+    }
+    if (!Number.isFinite(selectedFromUrl) || selectedFromUrl <= 0) return;
     setSelectedId(selectedFromUrl);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedFromUrl]);
+  }, [selectedFromUrl, selectedParam]);
+
+  useEffect(() => {
+    setQuery(qFromUrl);
+  }, [qFromUrl]);
 
   useEffect(() => {
     const loadDetail = async () => {
@@ -1791,12 +1974,12 @@ export default function ClientsPage() {
   };
 
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-8">
       <SectionHeader
         title="Clients"
         description="Liste, recherche et gestion des fiches clients."
         action={
-          <Button onClick={openCreate}>
+          <Button onClick={openCreate} size="sm">
             <Plus size={16} /> Créer
           </Button>
         }
@@ -1805,11 +1988,12 @@ export default function ClientsPage() {
 
       {error ? <ErrorBanner message={error} /> : null}
 
-      <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
+      <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
         {/* Left: list */}
         <Card className="p-0 overflow-hidden">
-          <div className="border-b border-border p-4">
+          <div className="ms-cardHeader">
             <Input
+              label="Recherche"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Rechercher par nom ou ID"
@@ -1824,9 +2008,9 @@ export default function ClientsPage() {
 
           <div className="max-h-[calc(100vh-220px)] overflow-auto">
             {loading ? (
-              <div className="p-4 text-sm text-muted2">Chargement…</div>
+              <div className="ms-cardBody text-sm text-muted2">Chargement…</div>
             ) : filtered.length === 0 ? (
-              <div className="p-4">
+              <div className="ms-cardBody">
                 <EmptyState
                   title="Aucun client"
                   description="Créez un client pour démarrer."
@@ -1834,7 +2018,7 @@ export default function ClientsPage() {
                 />
               </div>
             ) : (
-              <div className="p-2">
+              <div className="p-3 sm:p-4">
                 {filtered.map((client) => {
                   const isActive = selectedId === client.id;
                   return (
@@ -1848,14 +2032,14 @@ export default function ClientsPage() {
                           router.replace(`/clients?selected=${client.id}`);
                         }
                       }}
-                      className={`flex items-center justify-between gap-3 rounded-xl px-3 py-3 text-sm transition ${
+                      className={`flex items-center justify-between gap-4 rounded-2xl px-4 py-3.5 text-sm transition ${
                         isActive
-                          ? "bg-primaryWeak text-text border border-primary"
-                          : "text-text hover:bg-surface2 border border-transparent"
+                          ? "bg-primaryWeak text-text border border-primary/25"
+                          : "text-text hover:bg-surface2/80 border border-transparent"
                       }`}
                     >
                       <div className="min-w-0">
-                        <p className="truncate font-medium">
+                        <p className="truncate font-semibold">
                           {client.firstName} {client.lastName}
                         </p>
                         {user.role === "ADMIN" ? (
@@ -1877,7 +2061,7 @@ export default function ClientsPage() {
 
         {/* Right: detail */}
         <Card className="p-0 overflow-hidden">
-          <div className="border-b border-border p-4 flex items-start justify-between gap-3">
+          <div className="ms-cardHeader flex items-start justify-between gap-4">
             <div>
               <p className="ms-kicker">Détail</p>
               <p className="mt-1 text-sm text-muted2">
@@ -1907,7 +2091,7 @@ export default function ClientsPage() {
             ) : null}
           </div>
 
-          <div className="p-4">
+          <div className="ms-cardBody">
             {detailLoading ? (
               <div className="text-sm text-muted2">Chargement du détail…</div>
             ) : !detail ? (
@@ -1916,8 +2100,8 @@ export default function ClientsPage() {
                 description="Choisissez un client dans la liste pour afficher sa fiche."
               />
             ) : (
-              <div className="grid gap-4">
-                <div className="rounded-[var(--r)] border border-border bg-surface2 p-4">
+              <div className="grid gap-6">
+                <div className="rounded-[var(--r)] border border-border bg-surface2 p-5 sm:p-6">
                   <p className="text-sm font-semibold">
                     {detail.firstName} {detail.lastName}
                   </p>
@@ -1929,7 +2113,7 @@ export default function ClientsPage() {
                   ) : null}
                 </div>
 
-                <div className="rounded-[var(--r)] border border-border bg-surface p-4">
+                <div className="rounded-[var(--r)] border border-border bg-surface p-5 sm:p-6">
                   <p className="text-sm font-semibold">Véhicules</p>
                   <p className="mt-1 text-sm text-muted2">
                     Disponible dans le dossier client.
@@ -2014,18 +2198,20 @@ export default function ClientsPage() {
 ```tsx
 
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { IBM_Plex_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/Toast";
 
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-sans",
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
-const jetbrains = JetBrains_Mono({
+const plexMono = IBM_Plex_Mono({
   subsets: ["latin"],
+  weight: ["400", "500", "600"],
   variable: "--font-mono",
   display: "swap",
 });
@@ -2035,6 +2221,7 @@ export const metadata: Metadata = {
     default: "MotorSafe",
     template: "%s | MotorSafe",
   },
+  metadataBase: new URL("https://motorsafe.fr"),
   description: "Panel professionnel pour garages, interventions et conformite.",
   applicationName: "MotorSafe",
 };
@@ -2043,11 +2230,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="fr" className="h-full">
       <body
-        className={`${inter.variable} ${jetbrains.variable} min-h-screen font-sans antialiased`}
+        className={`${inter.variable} ${inter.variable} ${plexMono.variable} min-h-screen font-sans antialiased`}
       >
-        <ToastProvider>
-          {children}
-        </ToastProvider>
+        <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
   );
@@ -2181,7 +2366,7 @@ export default function ClientDetailPage() {
   const fullName = `${client.firstName} ${client.lastName}`;
 
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-8">
       <SectionHeader
         title={fullName}
         description={`Fiche client #${client.id}`}
@@ -2193,16 +2378,26 @@ export default function ClientDetailPage() {
         level={1}
       />
 
-      <Card>
-        <div className="flex items-start justify-between gap-3">
+      <div className="-mt-4 flex flex-wrap items-center gap-2">
+        <Badge variant="accent">Client</Badge>
+        {client.garage?.name ? <Badge variant="neutral">{client.garage.name}</Badge> : null}
+        <Badge variant="neutral">{vehicles.length} véhicule(s)</Badge>
+        <Badge variant="neutral">{interventions.length} intervention(s)</Badge>
+      </div>
+
+      <Card className="p-0 overflow-hidden">
+        <div className="ms-cardHeader flex items-start justify-between gap-3">
           <div>
-            <p className="text-sm font-semibold">Informations</p>
+            <p className="ms-kicker">Informations</p>
+            <p className="mt-2 text-lg font-semibold text-text">{fullName}</p>
             <p className="mt-1 text-sm text-muted2">Client #{client.id}</p>
           </div>
-          <Badge variant="accent">Client</Badge>
+          <span className="hidden sm:block">
+            <Badge variant="accent">Fiche</Badge>
+          </span>
         </div>
 
-        <div className="mt-4 grid gap-2 text-sm text-muted2">
+        <div className="ms-cardBody grid gap-2 text-sm text-muted2">
           <p>
             Nom: <span className="text-text">{client.firstName} {client.lastName}</span>
           </p>
@@ -2212,9 +2407,9 @@ export default function ClientDetailPage() {
         </div>
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2">
         <Card className="p-0 overflow-hidden">
-          <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
+          <div className="ms-cardHeader flex items-center justify-between gap-4">
             <div>
               <p className="ms-kicker">Véhicules</p>
               <p className="mt-1 text-sm text-muted2">
@@ -2227,7 +2422,7 @@ export default function ClientDetailPage() {
           </div>
 
           {vehicles.length === 0 ? (
-            <div className="px-5 py-4">
+            <div className="ms-cardBody">
               <EmptyState
                 title="Aucun véhicule"
                 description="Ce client n'a pas encore de véhicule."
@@ -2267,7 +2462,7 @@ export default function ClientDetailPage() {
         </Card>
 
         <Card className="p-0 overflow-hidden">
-          <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
+          <div className="ms-cardHeader flex items-center justify-between gap-4">
             <div>
               <p className="ms-kicker">Interventions</p>
               <p className="mt-1 text-sm text-muted2">
@@ -2280,7 +2475,7 @@ export default function ClientDetailPage() {
           </div>
 
           {interventions.length === 0 ? (
-            <div className="px-5 py-4">
+            <div className="ms-cardBody">
               <EmptyState
                 title="Aucune intervention"
                 description="Les interventions de ce client apparaîtront ici."
@@ -2339,18 +2534,20 @@ export default function ClientDetailPage() {
 ```tsx
 
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { IBM_Plex_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/Toast";
 
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-sans",
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
-const jetbrains = JetBrains_Mono({
+const plexMono = IBM_Plex_Mono({
   subsets: ["latin"],
+  weight: ["400", "500", "600"],
   variable: "--font-mono",
   display: "swap",
 });
@@ -2360,6 +2557,7 @@ export const metadata: Metadata = {
     default: "MotorSafe",
     template: "%s | MotorSafe",
   },
+  metadataBase: new URL("https://motorsafe.fr"),
   description: "Panel professionnel pour garages, interventions et conformite.",
   applicationName: "MotorSafe",
 };
@@ -2368,11 +2566,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="fr" className="h-full">
       <body
-        className={`${inter.variable} ${jetbrains.variable} min-h-screen font-sans antialiased`}
+        className={`${inter.variable} ${inter.variable} ${plexMono.variable} min-h-screen font-sans antialiased`}
       >
-        <ToastProvider>
-          {children}
-        </ToastProvider>
+        <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
   );
@@ -2413,6 +2609,7 @@ import { EmptyState } from "@/components/common/EmptyState";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { SectionHeader } from "@/components/ui/SectionHeader";
+import { Badge } from "@/components/ui/Badge";
 import { DataTable, DataTableHead } from "@/components/ui/DataTable";
 import { formatDistance } from "date-fns/formatDistance";
 import { fr } from "date-fns/locale/fr";
@@ -2424,6 +2621,9 @@ export default async function DashboardPage() {
   const user = await getSessionUser();
   if (!user) redirect("/auth/login");
   if (!isApprovedGarage(user)) redirect("/pro/en-attente");
+
+  const scopeLabel = user.role === "ADMIN" ? "Admin" : "Garage";
+  const garageName = user.role === "GARAGE" ? user.garage?.name : undefined;
 
   const baseWhere = user.role === "ADMIN" ? {} : { garageId: user.garageId ?? -1 };
   const weekSince = new Date();
@@ -2461,7 +2661,7 @@ export default async function DashboardPage() {
   };
 
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-8">
       <SectionHeader
         title="Tableau de bord"
         description="Vue d’ensemble de votre activité : clients, véhicules et interventions."
@@ -2482,16 +2682,24 @@ export default async function DashboardPage() {
         }
       />
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="-mt-4 flex flex-wrap items-center gap-2">
+        <Badge variant={user.role === "ADMIN" ? "accent" : "neutral"}>{scopeLabel}</Badge>
+        {garageName ? <Badge variant="neutral">{garageName}</Badge> : null}
+        {user.role === "GARAGE" ? (
+          <Badge variant="neutral">ID garage #{user.garageId ?? "—"}</Badge>
+        ) : null}
+      </div>
+
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Clients actifs" value={clientsCount} />
         <StatCard label="Véhicules suivis" value={vehiclesCount} />
         <StatCard label="Interventions totales" value={interventionsCount} />
         <StatCard label="Aujourd’hui" value={interventionsToday} badge={`7j: ${interventionsWeek}`} />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2">
         <Card className="p-0">
-          <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
+          <div className="ms-cardHeader flex items-center justify-between gap-4">
             <div>
               <p className="ms-kicker">Derniers clients</p>
               <p className="mt-1 text-sm text-muted2">Ajouts récents</p>
@@ -2501,7 +2709,7 @@ export default async function DashboardPage() {
             </Link>
           </div>
           {recentClients.length === 0 ? (
-            <div className="px-5 py-4">
+            <div className="ms-cardBody">
               <EmptyState
                 title="Aucun client"
                 description="Créez votre premier client pour démarrer."
@@ -2545,7 +2753,7 @@ export default async function DashboardPage() {
         </Card>
 
         <Card className="p-0">
-          <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
+          <div className="ms-cardHeader flex items-center justify-between gap-4">
             <div>
               <p className="ms-kicker">Dernières interventions</p>
               <p className="mt-1 text-sm text-muted2">Trafic atelier</p>
@@ -2555,7 +2763,7 @@ export default async function DashboardPage() {
             </Link>
           </div>
           {recentInterventions.length === 0 ? (
-            <div className="px-5 py-4">
+            <div className="ms-cardBody">
               <EmptyState title="Aucune intervention" description="Les interventions récentes apparaîtront ici." />
             </div>
           ) : (
@@ -2613,18 +2821,20 @@ export default async function DashboardPage() {
 ```tsx
 
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { IBM_Plex_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/Toast";
 
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-sans",
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
-const jetbrains = JetBrains_Mono({
+const plexMono = IBM_Plex_Mono({
   subsets: ["latin"],
+  weight: ["400", "500", "600"],
   variable: "--font-mono",
   display: "swap",
 });
@@ -2634,6 +2844,7 @@ export const metadata: Metadata = {
     default: "MotorSafe",
     template: "%s | MotorSafe",
   },
+  metadataBase: new URL("https://motorsafe.fr"),
   description: "Panel professionnel pour garages, interventions et conformite.",
   applicationName: "MotorSafe",
 };
@@ -2642,11 +2853,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="fr" className="h-full">
       <body
-        className={`${inter.variable} ${jetbrains.variable} min-h-screen font-sans antialiased`}
+        className={`${inter.variable} ${inter.variable} ${plexMono.variable} min-h-screen font-sans antialiased`}
       >
-        <ToastProvider>
-          {children}
-        </ToastProvider>
+        <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
   );
@@ -2693,6 +2902,7 @@ import { ErrorBanner } from "@/components/common/ErrorBanner";
 import { EmptyState } from "@/components/common/EmptyState";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { useRouter } from "next/navigation";
+import { StatCard } from "@/components/common/StatCard";
 
 type DocumentItem = {
   id: string;
@@ -2747,6 +2957,14 @@ export default function DocumentsPage() {
 
   const visibleDocuments = filtered.slice(0, visibleCount);
 
+  const latestCreatedAt = useMemo(() => {
+    if (filtered.length === 0) return null;
+    const latest = filtered.reduce((acc, current) => {
+      return new Date(current.createdAt).getTime() > new Date(acc.createdAt).getTime() ? current : acc;
+    }, filtered[0]);
+    return latest.createdAt;
+  }, [filtered]);
+
   // Helper for relative date
   const getRelativeDate = (date: Date | string) => {
     const d = typeof date === "string" ? new Date(date) : date;
@@ -2754,7 +2972,7 @@ export default function DocumentsPage() {
   };
 
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-8">
       <SectionHeader
         title="Documents"
         description="Téléchargez les dossiers PDF générés depuis les interventions."
@@ -2762,19 +2980,38 @@ export default function DocumentsPage() {
         level={1}
       />
 
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <StatCard label="Documents" value={loading ? "…" : filtered.length} badge={loading ? undefined : "PDF"} />
+        <StatCard
+          label="Affichés"
+          value={loading ? "…" : Math.min(visibleCount, filtered.length)}
+          badge={loading ? undefined : `Sur ${filtered.length}`}
+        />
+        <StatCard
+          label="Dernière génération"
+          value={loading ? "…" : latestCreatedAt ? getRelativeDate(latestCreatedAt) : "—"}
+          badge={loading ? undefined : latestCreatedAt ? new Date(latestCreatedAt).toLocaleDateString("fr-FR") : undefined}
+        />
+      </div>
+
       {error ? <ErrorBanner message={error} /> : null}
 
       <Card className="p-0 overflow-hidden">
-        <div className="border-b border-border p-4">
-          <Input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Rechercher par plaque, client, type"
-            className="max-w-md"
-          />
-          <p className="mt-3 text-xs text-muted2">
-            {loading ? "Chargement…" : `${filtered.length} document(s)`}
-          </p>
+        <div className="ms-cardHeader">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div className="w-full max-w-xl">
+              <p className="ms-kicker">Recherche</p>
+              <Input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Plaque, client, type…"
+                className="mt-2"
+              />
+            </div>
+            <div className="text-xs text-muted2">
+              {loading ? "Chargement…" : `${filtered.length} document(s)`}
+            </div>
+          </div>
         </div>
 
         <DataTable stickyHeader variant="plain">
@@ -2815,11 +3052,8 @@ export default function DocumentsPage() {
                     {doc.vehicle.client.firstName} {doc.vehicle.client.lastName}
                   </td>
                   <td className="text-right">
-                    <a
-                      href={`/api/interventions/${doc.id}/pdf`}
-                      className="text-sm font-semibold text-primary hover:text-primaryHover"
-                    >
-                      Télécharger
+                    <a href={`/api/interventions/${doc.id}/pdf`} className="inline-flex">
+                      <Button variant="outline" size="sm">Télécharger</Button>
                     </a>
                   </td>
                 </tr>
@@ -2829,7 +3063,7 @@ export default function DocumentsPage() {
         </DataTable>
 
         {filtered.length > visibleCount ? (
-          <div className="border-t border-border p-4 flex justify-center">
+          <div className="ms-cardFooter flex justify-center">
             <Button variant="ghost" onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}>
               Afficher plus
             </Button>
@@ -2854,18 +3088,20 @@ export default function DocumentsPage() {
 ```tsx
 
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { IBM_Plex_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/Toast";
 
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-sans",
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
-const jetbrains = JetBrains_Mono({
+const plexMono = IBM_Plex_Mono({
   subsets: ["latin"],
+  weight: ["400", "500", "600"],
   variable: "--font-mono",
   display: "swap",
 });
@@ -2875,6 +3111,7 @@ export const metadata: Metadata = {
     default: "MotorSafe",
     template: "%s | MotorSafe",
   },
+  metadataBase: new URL("https://motorsafe.fr"),
   description: "Panel professionnel pour garages, interventions et conformite.",
   applicationName: "MotorSafe",
 };
@@ -2883,11 +3120,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="fr" className="h-full">
       <body
-        className={`${inter.variable} ${jetbrains.variable} min-h-screen font-sans antialiased`}
+        className={`${inter.variable} ${inter.variable} ${plexMono.variable} min-h-screen font-sans antialiased`}
       >
-        <ToastProvider>
-          {children}
-        </ToastProvider>
+        <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
   );
@@ -2976,7 +3211,8 @@ export default function InterventionsPage() {
   const [vehicles, setVehicles] = useState<VehicleOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [query, setQuery] = useState("");
+  const qFromUrl = searchParams.get("q") || "";
+  const [query, setQuery] = useState(qFromUrl);
   const toast = useToast();
 
   const selectedFromUrl = searchParams.get("selected") || "";
@@ -3020,7 +3256,7 @@ export default function InterventionsPage() {
       if (!res.ok) throw new Error("Erreur lors du chargement des véhicules.");
       const data = await res.json();
       setVehicles(data?.data ?? []);
-    } catch (err) {
+    } catch {
       setVehicles([]);
     }
   };
@@ -3032,8 +3268,11 @@ export default function InterventionsPage() {
 
   useEffect(() => {
     setSelectedId(selectedFromUrl || null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedFromUrl]);
+
+  useEffect(() => {
+    setQuery(qFromUrl);
+  }, [qFromUrl]);
 
   useEffect(() => {
     const loadDetail = async () => {
@@ -3121,12 +3360,12 @@ export default function InterventionsPage() {
   };
 
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-8">
       <SectionHeader
         title="Interventions"
         description="Suivi, dossiers et génération PDF."
         action={
-          <Button onClick={() => setCreateOpen(true)}>
+          <Button onClick={() => setCreateOpen(true)} size="sm">
             <Plus size={16} /> Créer
           </Button>
         }
@@ -3135,24 +3374,28 @@ export default function InterventionsPage() {
 
       {error ? <ErrorBanner message={error} /> : null}
 
-      <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
+      <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
         <Card className="p-0 overflow-hidden">
-          <div className="border-b border-border p-4">
+          <div className="ms-cardHeader">
             <Input
+              label="Recherche"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Rechercher par plaque, client, type"
             />
-            <p className="mt-3 text-xs text-muted2">
-              {loading ? "Chargement…" : `${filtered.length} intervention(s)`}
-            </p>
+            <div className="mt-3 flex items-center justify-between">
+              <p className="text-xs text-muted2">
+                {loading ? "Chargement…" : `${filtered.length} intervention(s)`}
+              </p>
+              {selectedId ? <Badge variant="accent">Sélectionnée</Badge> : null}
+            </div>
           </div>
 
           <div className="max-h-[calc(100vh-220px)] overflow-auto">
             {loading ? (
-              <div className="p-4 text-sm text-muted2">Chargement…</div>
+              <div className="ms-cardBody text-sm text-muted2">Chargement…</div>
             ) : filtered.length === 0 ? (
-              <div className="p-4">
+              <div className="ms-cardBody">
                 <EmptyState
                   title="Aucune intervention"
                   description="Créez une intervention pour démarrer."
@@ -3160,7 +3403,7 @@ export default function InterventionsPage() {
                 />
               </div>
             ) : (
-              <div className="p-2">
+              <div className="p-3 sm:p-4">
                 {filtered.map((item) => {
                   const isActive = selectedId === item.id;
                   return (
@@ -3174,21 +3417,21 @@ export default function InterventionsPage() {
                           router.replace(`/interventions?selected=${item.id}`);
                         }
                       }}
-                      className={`flex items-center justify-between gap-3 rounded-xl px-3 py-3 text-sm transition ${
+                      className={`flex items-center justify-between gap-4 rounded-2xl px-4 py-3.5 text-sm transition ${
                         isActive
-                          ? "bg-surface2 text-text border border-primary"
-                          : "text-text hover:bg-surface2 border border-transparent"
+                          ? "bg-primaryWeak text-text border border-primary/25"
+                          : "text-text hover:bg-surface2/80 border border-transparent"
                       }`}
                     >
                       <div className="min-w-0">
-                        <p className="truncate font-medium">
+                        <p className="truncate font-semibold">
                           {item.vehicle.plate} <span className="text-muted2">· {item.type}</span>
                         </p>
                         <p className="truncate text-xs text-muted2">
                           {item.vehicle.client.firstName} {item.vehicle.client.lastName} · {new Date(item.createdAt).toLocaleDateString("fr-FR")}
                         </p>
                       </div>
-                      <Badge variant="accent">Dossier</Badge>
+                      <span className="text-xs text-muted2">#{item.id}</span>
                     </Link>
                   );
                 })}
@@ -3198,7 +3441,7 @@ export default function InterventionsPage() {
         </Card>
 
         <Card className="p-0 overflow-hidden">
-          <div className="border-b border-border p-4 flex items-start justify-between gap-3">
+          <div className="ms-cardHeader flex items-start justify-between gap-4">
             <div>
               <p className="ms-kicker">Détail</p>
               <p className="mt-1 text-sm text-muted2">
@@ -3218,19 +3461,19 @@ export default function InterventionsPage() {
                   </button>
                 }
               >
-                <DropdownItem>
-                  <a className="block" href={`/api/interventions/${detail.id}/pdf`} target="_blank" rel="noreferrer">
+                <DropdownItem asChild>
+                  <a href={`/api/interventions/${detail.id}/pdf`} target="_blank" rel="noreferrer">
                     Télécharger PDF
                   </a>
                 </DropdownItem>
-                <DropdownItem>
+                <DropdownItem asChild>
                   <Link href={`/interventions/${detail.id}`}>Ouvrir le dossier complet</Link>
                 </DropdownItem>
               </DropdownMenu>
             ) : null}
           </div>
 
-          <div className="p-4">
+          <div className="ms-cardBody">
             {detailLoading ? (
               <div className="text-sm text-muted2">Chargement du détail…</div>
             ) : !detail ? (
@@ -3239,8 +3482,8 @@ export default function InterventionsPage() {
                 description="Choisissez une intervention dans la liste pour afficher son dossier."
               />
             ) : (
-              <div className="grid gap-4">
-                <div className="rounded-[var(--r)] border border-border bg-surface2 p-4">
+              <div className="grid gap-6">
+                <div className="rounded-[var(--r)] border border-border bg-surface2 p-5 sm:p-6">
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-sm font-semibold">{detail.vehicle.plate}</p>
@@ -3258,14 +3501,14 @@ export default function InterventionsPage() {
                   </div>
                 </div>
 
-                <div className="rounded-[var(--r)] border border-border bg-surface p-4">
+                <div className="rounded-[var(--r)] border border-border bg-surface p-5 sm:p-6">
                   <p className="text-sm font-semibold">Conformité</p>
                   <div className="mt-3">
                     <LegalReferencesPanel type={detail.type} />
                   </div>
                 </div>
 
-                <div className="rounded-[var(--r)] border border-border bg-surface p-4">
+                <div className="rounded-[var(--r)] border border-border bg-surface p-5 sm:p-6">
                   <p className="text-sm font-semibold">Révisions</p>
                   <p className="mt-2 text-sm text-muted2">
                     {detail.revisions && detail.revisions.length > 0
@@ -3365,7 +3608,6 @@ export default function InterventionsPage() {
   );
 }
 
-
 ```
 
 ## /interventions/[id]
@@ -3380,18 +3622,20 @@ export default function InterventionsPage() {
 ```tsx
 
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { IBM_Plex_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/Toast";
 
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-sans",
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
-const jetbrains = JetBrains_Mono({
+const plexMono = IBM_Plex_Mono({
   subsets: ["latin"],
+  weight: ["400", "500", "600"],
   variable: "--font-mono",
   display: "swap",
 });
@@ -3401,6 +3645,7 @@ export const metadata: Metadata = {
     default: "MotorSafe",
     template: "%s | MotorSafe",
   },
+  metadataBase: new URL("https://motorsafe.fr"),
   description: "Panel professionnel pour garages, interventions et conformite.",
   applicationName: "MotorSafe",
 };
@@ -3409,11 +3654,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="fr" className="h-full">
       <body
-        className={`${inter.variable} ${jetbrains.variable} min-h-screen font-sans antialiased`}
+        className={`${inter.variable} ${inter.variable} ${plexMono.variable} min-h-screen font-sans antialiased`}
       >
-        <ToastProvider>
-          {children}
-        </ToastProvider>
+        <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
   );
@@ -3448,10 +3691,12 @@ export default async function DashboardLayout({
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
 import { ErrorBanner } from "@/components/common/ErrorBanner";
 import { Loading } from "@/components/common/Loading";
 import { EmptyState } from "@/components/common/EmptyState";
@@ -3477,7 +3722,7 @@ type Intervention = {
   softwareVersion?: string | null;
   checksum?: string | null;
   vehicle: Vehicle;
-  revisions?: Array<any>;
+  revisions?: Array<{ id?: string; createdAt?: string; hash?: string | null }>;
 };
 
 export default function InterventionDetailPage() {
@@ -3505,18 +3750,18 @@ export default function InterventionDetailPage() {
   }, [id]);
 
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-8">
       <SectionHeader
         title={intervention ? `Dossier ${intervention.vehicle.plate}` : "Dossier intervention"}
         description="Détail complet de l'intervention, traçabilité et conformité."
         level={1}
         action={
           <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-            <a href="/interventions" className="w-full sm:w-auto">
+            <Link href="/interventions" className="w-full sm:w-auto">
               <Button variant="secondary" size="sm" className="w-full sm:w-auto">
                 Retour
               </Button>
-            </a>
+            </Link>
             {intervention ? (
               <a
                 href={`/api/interventions/${intervention.id}/pdf`}
@@ -3530,6 +3775,20 @@ export default function InterventionDetailPage() {
           </div>
         }
       />
+
+      {intervention ? (
+        <div className="-mt-4 flex flex-wrap items-center gap-2">
+          <Badge variant="accent">{intervention.type}</Badge>
+          <Badge variant="neutral">{intervention.vehicle.brand} {intervention.vehicle.model}</Badge>
+          <Badge variant="neutral">Client: {intervention.vehicle.client.firstName} {intervention.vehicle.client.lastName}</Badge>
+          {intervention.revisions?.length ? (
+            <Badge variant="neutral">{intervention.revisions.length} révision(s)</Badge>
+          ) : (
+            <Badge variant="neutral">Aucune révision</Badge>
+          )}
+        </div>
+      ) : null}
+
       {loading ? (
         <div className="flex justify-center py-12"><Loading /></div>
       ) : error ? (
@@ -3538,13 +3797,13 @@ export default function InterventionDetailPage() {
         <EmptyState title="Intervention introuvable" description="Ce dossier n'existe pas ou n'est plus accessible." />
       ) : (
         <div className="grid gap-8 lg:grid-cols-2">
-          <Card className="flex flex-col gap-4">
-            <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+          <Card className="p-0 overflow-hidden">
+            <div className="ms-cardHeader flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="ms-kicker">Véhicule</p>
                 <h2 className="mt-2 text-xl font-semibold tracking-tight">
                   {intervention.vehicle.plate}{" "}
-                  <span className="text-muted2 font-normal">· {intervention.type}</span>
+                  <span className="font-normal text-muted2">· {intervention.type}</span>
                 </h2>
                 <p className="mt-1 text-xs text-muted2">
                   {intervention.vehicle.brand} {intervention.vehicle.model}
@@ -3556,42 +3815,51 @@ export default function InterventionDetailPage() {
                   </span>
                 </p>
               </div>
-              <div className="flex flex-col gap-2 items-end">
-                <span className="text-xs text-muted2">Créée le {new Date(intervention.createdAt).toLocaleDateString("fr-FR")}</span>
-                {intervention.performedAt && <span className="text-xs text-muted2">Réalisée le {new Date(intervention.performedAt).toLocaleDateString("fr-FR")}</span>}
+              <div className="flex flex-col items-end gap-2">
+                <span className="text-xs text-muted2">
+                  Créée le {new Date(intervention.createdAt).toLocaleDateString("fr-FR")}
+                </span>
+                {intervention.performedAt ? (
+                  <span className="text-xs text-muted2">
+                    Réalisée le {new Date(intervention.performedAt).toLocaleDateString("fr-FR")}
+                  </span>
+                ) : null}
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4 mt-2">
-              <div>
-                <p className="text-xs text-muted2 mb-1">Kilométrage</p>
-                <p className="text-text font-medium">{intervention.odometerKm ?? "-"}</p>
+            <div className="ms-cardBody grid gap-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="mb-1 text-xs text-muted2">Kilométrage</p>
+                  <p className="font-medium text-text">{intervention.odometerKm ?? "-"}</p>
+                </div>
+                <div>
+                  <p className="mb-1 text-xs text-muted2">ECU</p>
+                  <p className="font-medium text-text">{intervention.ecuType ?? "-"}</p>
+                </div>
+                <div>
+                  <p className="mb-1 text-xs text-muted2">Version logicielle</p>
+                  <p className="font-medium text-text">{intervention.softwareVersion ?? "-"}</p>
+                </div>
+                <div>
+                  <p className="mb-1 text-xs text-muted2">Checksum</p>
+                  <p className="font-medium text-text">{intervention.checksum ?? "-"}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-xs text-muted2 mb-1">ECU</p>
-                <p className="text-text font-medium">{intervention.ecuType ?? "-"}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted2 mb-1">Version logicielle</p>
-                <p className="text-text font-medium">{intervention.softwareVersion ?? "-"}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted2 mb-1">Checksum</p>
-                <p className="text-text font-medium">{intervention.checksum ?? "-"}</p>
-              </div>
+
+              {intervention.notes ? (
+                <div>
+                  <p className="mb-1 text-xs text-muted2">Notes</p>
+                  <p className="whitespace-pre-line text-text">{intervention.notes}</p>
+                </div>
+              ) : null}
             </div>
-            {intervention.notes && (
-              <div className="mt-4">
-                <p className="text-xs text-muted2 mb-1">Notes</p>
-                <p className="text-text whitespace-pre-line">{intervention.notes}</p>
-              </div>
-            )}
           </Card>
           <div className="flex flex-col gap-6">
             <LegalReferencesPanel type={intervention.type} />
             {/* Historique des révisions, si présent */}
             {intervention.revisions && intervention.revisions.length > 0 && (
-              <Card className="p-4">
-                <h3 className="text-lg font-semibold mb-2">Historique des révisions</h3>
+              <Card className="p-5 sm:p-6">
+                <h3 className="mb-3 text-lg font-semibold">Historique des révisions</h3>
                 <ul className="space-y-2">
                   {intervention.revisions.map((rev, idx) => (
                     <li key={rev.id || idx} className="text-xs text-muted2">
@@ -3622,18 +3890,20 @@ export default function InterventionDetailPage() {
 ```tsx
 
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { IBM_Plex_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/Toast";
 
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-sans",
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
-const jetbrains = JetBrains_Mono({
+const plexMono = IBM_Plex_Mono({
   subsets: ["latin"],
+  weight: ["400", "500", "600"],
   variable: "--font-mono",
   display: "swap",
 });
@@ -3643,6 +3913,7 @@ export const metadata: Metadata = {
     default: "MotorSafe",
     template: "%s | MotorSafe",
   },
+  metadataBase: new URL("https://motorsafe.fr"),
   description: "Panel professionnel pour garages, interventions et conformite.",
   applicationName: "MotorSafe",
 };
@@ -3651,11 +3922,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="fr" className="h-full">
       <body
-        className={`${inter.variable} ${jetbrains.variable} min-h-screen font-sans antialiased`}
+        className={`${inter.variable} ${inter.variable} ${plexMono.variable} min-h-screen font-sans antialiased`}
       >
-        <ToastProvider>
-          {children}
-        </ToastProvider>
+        <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
   );
@@ -3669,21 +3938,42 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 ```tsx
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
 
 export default function LegalPage() {
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-4xl items-center justify-center px-6 py-16">
-      <Card className="grid gap-4">
-        <p className="ms-kicker">Légal</p>
-        <h1 className="text-3xl font-semibold text-text">Informations légales</h1>
-        <p className="text-sm text-muted2">
-          Cette page sera complétée avec les mentions légales, la politique de confidentialité et les
-          conditions d’utilisation.
-        </p>
-        <Link href="/" className="text-sm font-semibold text-primary hover:text-primaryHover">
-          Retour au site
-        </Link>
-      </Card>
+    <main className="min-h-screen w-full bg-bg text-text">
+      <div className="mx-auto flex w-full max-w-4xl items-center justify-center px-6 py-16">
+        <Card className="p-0 overflow-hidden">
+          <div className="ms-cardHeader">
+            <p className="ms-kicker">Légal</p>
+            <h1 className="mt-3 text-3xl font-semibold text-text">Informations légales</h1>
+            <p className="mt-2 text-sm text-muted2">
+              Cette page sera complétée avec les mentions légales, la politique de confidentialité et les conditions d&apos;utilisation.
+            </p>
+          </div>
+
+          <div className="ms-cardBody">
+            <div className="grid gap-3 text-sm text-muted2">
+              {[
+                "Mentions légales et identité de l&apos;éditeur.",
+                "Politique de confidentialité et gestion des données.",
+                "Conditions générales d&apos;utilisation.",
+              ].map((item) => (
+                <div key={item} className="rounded-xl border border-border/60 bg-surface2/80 px-4 py-3">
+                  {item}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="ms-cardFooter flex justify-end">
+            <Link href="/">
+              <Button variant="secondary" size="sm">Retour au site</Button>
+            </Link>
+          </div>
+        </Card>
+      </div>
     </main>
   );
 }
@@ -3702,18 +3992,20 @@ export default function LegalPage() {
 ```tsx
 
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { IBM_Plex_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/Toast";
 
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-sans",
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
-const jetbrains = JetBrains_Mono({
+const plexMono = IBM_Plex_Mono({
   subsets: ["latin"],
+  weight: ["400", "500", "600"],
   variable: "--font-mono",
   display: "swap",
 });
@@ -3723,6 +4015,7 @@ export const metadata: Metadata = {
     default: "MotorSafe",
     template: "%s | MotorSafe",
   },
+  metadataBase: new URL("https://motorsafe.fr"),
   description: "Panel professionnel pour garages, interventions et conformite.",
   applicationName: "MotorSafe",
 };
@@ -3731,11 +4024,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="fr" className="h-full">
       <body
-        className={`${inter.variable} ${jetbrains.variable} min-h-screen font-sans antialiased`}
+        className={`${inter.variable} ${inter.variable} ${plexMono.variable} min-h-screen font-sans antialiased`}
       >
-        <ToastProvider>
-          {children}
-        </ToastProvider>
+        <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
   );
@@ -3799,18 +4090,20 @@ export default async function ParametresPage() {
 ```tsx
 
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { IBM_Plex_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/Toast";
 
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-sans",
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
-const jetbrains = JetBrains_Mono({
+const plexMono = IBM_Plex_Mono({
   subsets: ["latin"],
+  weight: ["400", "500", "600"],
   variable: "--font-mono",
   display: "swap",
 });
@@ -3820,6 +4113,7 @@ export const metadata: Metadata = {
     default: "MotorSafe",
     template: "%s | MotorSafe",
   },
+  metadataBase: new URL("https://motorsafe.fr"),
   description: "Panel professionnel pour garages, interventions et conformite.",
   applicationName: "MotorSafe",
 };
@@ -3828,11 +4122,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="fr" className="h-full">
       <body
-        className={`${inter.variable} ${jetbrains.variable} min-h-screen font-sans antialiased`}
+        className={`${inter.variable} ${inter.variable} ${plexMono.variable} min-h-screen font-sans antialiased`}
       >
-        <ToastProvider>
-          {children}
-        </ToastProvider>
+        <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
   );
@@ -3847,27 +4139,95 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
 
 export default function ProLandingPage() {
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-4xl items-center justify-center px-6 py-16">
-      <Card className="grid gap-6 text-center p-8">
-        <div className="flex flex-col gap-2">
-          <p className="ms-kicker">Espace pro</p>
-          <h1 className="text-3xl font-semibold tracking-tight text-text">Connexion garages</h1>
-          <p className="text-sm text-muted2">
-            Connectez-vous ou demandez un compte pro. Chaque demande est validée par l'administration.
-          </p>
-        </div>
-        <div className="flex flex-wrap justify-center gap-3">
-          <Link href="/auth/login">
-            <Button>Connexion Pro</Button>
+    <main className="min-h-screen w-full bg-bg text-text">
+      <header className="border-b border-border bg-bg/60 backdrop-blur-xl">
+        <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between gap-4 px-6">
+          <Link href="/" className="flex items-center gap-3">
+            <div className="grid h-11 w-11 place-items-center rounded-2xl border border-border bg-surface2">
+              <span className="text-sm font-extrabold tracking-tight text-primary2">MS</span>
+            </div>
+            <div className="leading-tight">
+              <div className="text-sm font-semibold text-text">MotorSafe</div>
+              <div className="text-xs text-muted2">Espace pro</div>
+            </div>
           </Link>
-          <Link href="/pro/inscription">
-            <Button variant="secondary">Créer compte pro</Button>
-          </Link>
+
+          <div className="flex items-center gap-2">
+            <Link href="/auth/login">
+              <Button>Connexion</Button>
+            </Link>
+          </div>
         </div>
-      </Card>
+      </header>
+
+      <div className="mx-auto grid w-full max-w-[1200px] gap-10 px-6 py-16 lg:grid-cols-[1.2fr_0.8fr] lg:items-start">
+        <div className="grid gap-6">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="accent">Garages & pros</Badge>
+            <Badge variant="warning">Comptes validés</Badge>
+          </div>
+
+          <div>
+            <p className="ms-kicker">Espace pro</p>
+            <h1 className="mt-3 text-4xl font-semibold tracking-tight text-text">
+              Un accès dédié pour les garages et pros de l&apos;auto
+            </h1>
+            <p className="mt-3 text-base text-muted2">
+              Connectez-vous ou demandez un compte pro. Chaque demande est validée par l&apos;administration.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            <Link href="/auth/login">
+              <Button>Connexion pro</Button>
+            </Link>
+            <Link href="/pro/inscription">
+              <Button variant="secondary">Demander un compte</Button>
+            </Link>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            {[
+              { title: "Validation", desc: "Dossier vérifié avant activation." },
+              { title: "Dossiers", desc: "Clients, véhicules, interventions." },
+              { title: "PDF", desc: "Documents générés et accessibles." },
+            ].map((item) => (
+              <Card key={item.title} className="p-4">
+                <p className="text-sm font-semibold text-text">{item.title}</p>
+                <p className="mt-1 text-xs text-muted2">{item.desc}</p>
+              </Card>
+            ))}
+          </div>
+        </div>
+
+        <Card className="p-8">
+          <p className="ms-kicker">Onboarding</p>
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-text">Process simple</h2>
+          <p className="mt-2 text-sm text-muted2">Trois étapes, sans friction.</p>
+
+          <ol className="mt-5 grid gap-3 text-sm text-muted2">
+            <li className="rounded-xl border border-border/60 bg-surface2/80 px-4 py-3">1. Informations atelier</li>
+            <li className="rounded-xl border border-border/60 bg-surface2/80 px-4 py-3">2. Validation</li>
+            <li className="rounded-xl border border-border/60 bg-surface2/80 px-4 py-3">3. Accès dashboard</li>
+          </ol>
+
+          <div className="mt-6 grid gap-3">
+            <Link href="/pro/inscription">
+              <Button className="w-full">Créer un compte pro</Button>
+            </Link>
+            <Link href="/auth/login">
+              <Button variant="secondary" className="w-full">Déjà un compte ? Connexion</Button>
+            </Link>
+            <Link href="/" className="text-center text-sm font-semibold text-primary hover:text-primaryHover">
+              Retour site
+            </Link>
+          </div>
+        </Card>
+      </div>
     </main>
   );
 }
@@ -3885,18 +4245,20 @@ export default function ProLandingPage() {
 ```tsx
 
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { IBM_Plex_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/Toast";
 
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-sans",
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
-const jetbrains = JetBrains_Mono({
+const plexMono = IBM_Plex_Mono({
   subsets: ["latin"],
+  weight: ["400", "500", "600"],
   variable: "--font-mono",
   display: "swap",
 });
@@ -3906,6 +4268,7 @@ export const metadata: Metadata = {
     default: "MotorSafe",
     template: "%s | MotorSafe",
   },
+  metadataBase: new URL("https://motorsafe.fr"),
   description: "Panel professionnel pour garages, interventions et conformite.",
   applicationName: "MotorSafe",
 };
@@ -3914,11 +4277,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="fr" className="h-full">
       <body
-        className={`${inter.variable} ${jetbrains.variable} min-h-screen font-sans antialiased`}
+        className={`${inter.variable} ${inter.variable} ${plexMono.variable} min-h-screen font-sans antialiased`}
       >
-        <ToastProvider>
-          {children}
-        </ToastProvider>
+        <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
   );
@@ -3933,26 +4294,48 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
 
 export default function ProPendingPage() {
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-5xl items-center justify-center px-6 py-16">
-      <Card className="w-full max-w-xl text-center p-8">
-        <Badge variant="warning">Validation en cours</Badge>
-        <h1 className="mt-4 text-3xl font-semibold text-text">Compte en validation</h1>
-        <p className="mt-3 text-sm text-muted2">
-          Votre dossier est en cours d'analyse par MotorSafe. Nous revenons vers vous dès que la
-          validation est terminée.
-        </p>
-        <div className="mt-6 flex flex-wrap justify-center gap-3 text-sm">
-          <Link href="/auth/login" className="font-semibold text-primary hover:text-primaryHover">
-            Revenir à la connexion
-          </Link>
-          <Link href="/" className="font-semibold text-primary hover:text-primaryHover">
-            Retour site
-          </Link>
-        </div>
-      </Card>
+    <main className="min-h-screen w-full bg-bg text-text">
+      <div className="mx-auto flex w-full max-w-5xl items-center justify-center px-6 py-16">
+        <Card className="w-full max-w-2xl p-8 text-center">
+          <div className="flex flex-col items-center gap-3">
+            <Badge variant="warning">Validation en cours</Badge>
+            <h1 className="text-3xl font-semibold text-text">Compte en validation</h1>
+            <p className="text-sm text-muted2">
+              Votre dossier est en cours d&apos;analyse par MotorSafe. Nous revenons vers vous dès que la validation est
+              terminée.
+            </p>
+          </div>
+
+          <div className="mt-8 grid gap-3 text-left">
+            {[
+              "Vérification des informations atelier.",
+              "Contrôle des justificatifs et du SIRET.",
+              "Activation des accès au dashboard.",
+            ].map((step) => (
+              <div key={step} className="rounded-xl border border-border/60 bg-surface2/80 px-4 py-3 text-sm text-muted2">
+                {step}
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-8 flex flex-wrap justify-center gap-3 text-sm">
+            <Link href="/auth/login">
+              <Button variant="secondary" size="sm">
+                Revenir à la connexion
+              </Button>
+            </Link>
+            <Link href="/">
+              <Button variant="ghost" size="sm">
+                Retour site
+              </Button>
+            </Link>
+          </div>
+        </Card>
+      </div>
     </main>
   );
 }
@@ -3970,18 +4353,20 @@ export default function ProPendingPage() {
 ```tsx
 
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { IBM_Plex_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/Toast";
 
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-sans",
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
-const jetbrains = JetBrains_Mono({
+const plexMono = IBM_Plex_Mono({
   subsets: ["latin"],
+  weight: ["400", "500", "600"],
   variable: "--font-mono",
   display: "swap",
 });
@@ -3991,6 +4376,7 @@ export const metadata: Metadata = {
     default: "MotorSafe",
     template: "%s | MotorSafe",
   },
+  metadataBase: new URL("https://motorsafe.fr"),
   description: "Panel professionnel pour garages, interventions et conformite.",
   applicationName: "MotorSafe",
 };
@@ -3999,11 +4385,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="fr" className="h-full">
       <body
-        className={`${inter.variable} ${jetbrains.variable} min-h-screen font-sans antialiased`}
+        className={`${inter.variable} ${inter.variable} ${plexMono.variable} min-h-screen font-sans antialiased`}
       >
-        <ToastProvider>
-          {children}
-        </ToastProvider>
+        <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
   );
@@ -4069,87 +4453,126 @@ export default function ProInscriptionPage() {
   };
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-6xl items-center justify-center px-6 py-16">
-      <Card className="w-full max-w-3xl p-8">
-        <div className="grid gap-3">
-          <p className="ms-kicker">Inscription</p>
-          <h1 className="text-3xl font-semibold tracking-tight text-text">Demander un accès MotorSafe</h1>
-          <p className="text-sm text-muted2">
-            Remplissez votre dossier, l'équipe MotorSafe valide les comptes avant activation.
-          </p>
+    <main className="min-h-screen w-full bg-bg text-text">
+      <div className="mx-auto grid w-full max-w-6xl gap-10 px-6 py-16 lg:grid-cols-[1fr_520px] lg:items-start">
+        <div className="hidden lg:flex flex-col gap-8">
+          <Link href="/" className="flex items-center gap-3">
+            <div className="grid h-11 w-11 place-items-center rounded-[14px] bg-gradient-to-br from-primary to-primary2 text-white shadow-sm">
+              <span className="text-sm font-semibold">MS</span>
+            </div>
+            <div className="leading-tight">
+              <div className="text-sm font-semibold">MotorSafe</div>
+              <div className="text-xs text-muted2">Accès pro</div>
+            </div>
+          </Link>
+
+          <div>
+            <p className="ms-kicker">Inscription</p>
+            <h1 className="mt-3 text-4xl font-semibold tracking-tight">Demandez votre accès MotorSafe</h1>
+            <p className="mt-3 text-base text-muted2">
+              L&apos;équipe MotorSafe valide les comptes pour garantir une communauté professionnelle fiable.
+            </p>
+          </div>
+
+          <Card className="p-4">
+            <p className="ms-kicker">Process</p>
+            <ol className="mt-3 grid gap-2 text-sm text-muted2">
+              <li>1. Déposez vos informations atelier.</li>
+              <li>2. Vérification administrative rapide.</li>
+              <li>3. Activation et accès au dashboard.</li>
+            </ol>
+          </Card>
+
+          <Card className="p-4">
+            <p className="ms-kicker">Support</p>
+            <p className="mt-2 text-sm font-semibold">Un accompagnement dédié</p>
+            <p className="mt-1 text-xs text-muted2">
+              Nos équipes répondent en moins de 24h pour les demandes urgentes.
+            </p>
+          </Card>
         </div>
 
-        <form onSubmit={submit} className="mt-8 grid gap-5">
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Input
-              label="Nom du garage"
-              value={form.garageName}
-              onChange={(event) => setForm((prev) => ({ ...prev, garageName: event.target.value }))}
-              placeholder="Garage Horizon"
-              required
-            />
-            <Input
-              label="Email garage"
-              type="email"
-              value={form.garageEmail}
-              onChange={(event) => setForm((prev) => ({ ...prev, garageEmail: event.target.value }))}
-              placeholder="garage@horizon.fr"
-              required
-            />
-            <Input
-              label="Téléphone"
-              value={form.phone}
-              onChange={(event) => setForm((prev) => ({ ...prev, phone: event.target.value }))}
-              placeholder="+33 6 00 00 00 00"
-            />
-            <Input
-              label="Adresse"
-              value={form.address}
-              onChange={(event) => setForm((prev) => ({ ...prev, address: event.target.value }))}
-              placeholder="12 rue des Ateliers, Lyon"
-            />
-            <Input
-              label="SIRET"
-              value={form.siret}
-              onChange={(event) => setForm((prev) => ({ ...prev, siret: event.target.value }))}
-              placeholder="123 456 789 00010"
-            />
+        <Card className="w-full p-8">
+          <div className="grid gap-3">
+            <p className="ms-kicker">Inscription</p>
+            <h1 className="text-2xl font-semibold tracking-tight text-text">Créer un compte pro</h1>
+            <p className="text-sm text-muted2">
+              Renseignez vos informations, nous reviendrons vers vous rapidement.
+            </p>
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Input
-              label="Email responsable"
-              type="email"
-              value={form.email}
-              onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
-              placeholder="responsable@garage.fr"
-              required
-            />
-            <Input
-              label="Mot de passe"
-              type="password"
-              value={form.password}
-              onChange={(event) => setForm((prev) => ({ ...prev, password: event.target.value }))}
-              placeholder="********"
-              required
-            />
-          </div>
+          <form onSubmit={submit} className="mt-8 grid gap-5">
+            <div className="grid gap-4 lg:grid-cols-2">
+              <Input
+                label="Nom du garage"
+                value={form.garageName}
+                onChange={(event) => setForm((prev) => ({ ...prev, garageName: event.target.value }))}
+                placeholder="Garage Horizon"
+                required
+              />
+              <Input
+                label="Email garage"
+                type="email"
+                value={form.garageEmail}
+                onChange={(event) => setForm((prev) => ({ ...prev, garageEmail: event.target.value }))}
+                placeholder="garage@horizon.fr"
+                required
+              />
+              <Input
+                label="Téléphone"
+                value={form.phone}
+                onChange={(event) => setForm((prev) => ({ ...prev, phone: event.target.value }))}
+                placeholder="+33 6 00 00 00 00"
+              />
+              <Input
+                label="Adresse"
+                value={form.address}
+                onChange={(event) => setForm((prev) => ({ ...prev, address: event.target.value }))}
+                placeholder="12 rue des Ateliers, Lyon"
+              />
+              <Input
+                label="SIRET"
+                value={form.siret}
+                onChange={(event) => setForm((prev) => ({ ...prev, siret: event.target.value }))}
+                placeholder="123 456 789 00010"
+              />
+            </div>
 
-          {error ? <p className="text-sm text-danger">{error}</p> : null}
+            <div className="grid gap-4 lg:grid-cols-2">
+              <Input
+                label="Email responsable"
+                type="email"
+                value={form.email}
+                onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
+                placeholder="responsable@garage.fr"
+                required
+              />
+              <Input
+                label="Mot de passe"
+                type="password"
+                value={form.password}
+                onChange={(event) => setForm((prev) => ({ ...prev, password: event.target.value }))}
+                placeholder="********"
+                required
+              />
+            </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <Button type="submit" disabled={loading}>
-              {loading ? "Envoi..." : "Envoyer la demande"}
-            </Button>
-            <Link
-              href="/auth/login"
-              className="text-sm font-semibold text-primary hover:text-primaryHover"
-            >
-              Déjà un compte ? Connexion
-            </Link>
-          </div>
-        </form>
-      </Card>
+            {error ? <p className="text-sm text-danger">{error}</p> : null}
+
+            <div className="flex flex-wrap items-center gap-3">
+              <Button type="submit" disabled={loading}>
+                {loading ? "Envoi..." : "Envoyer la demande"}
+              </Button>
+              <Link
+                href="/auth/login"
+                className="text-sm font-semibold text-primary hover:text-primaryHover"
+              >
+                Déjà un compte ? Connexion
+              </Link>
+            </div>
+          </form>
+        </Card>
+      </div>
     </main>
   );
 }
@@ -4167,18 +4590,20 @@ export default function ProInscriptionPage() {
 ```tsx
 
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { IBM_Plex_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/Toast";
 
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-sans",
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
-const jetbrains = JetBrains_Mono({
+const plexMono = IBM_Plex_Mono({
   subsets: ["latin"],
+  weight: ["400", "500", "600"],
   variable: "--font-mono",
   display: "swap",
 });
@@ -4188,6 +4613,7 @@ export const metadata: Metadata = {
     default: "MotorSafe",
     template: "%s | MotorSafe",
   },
+  metadataBase: new URL("https://motorsafe.fr"),
   description: "Panel professionnel pour garages, interventions et conformite.",
   applicationName: "MotorSafe",
 };
@@ -4196,11 +4622,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="fr" className="h-full">
       <body
-        className={`${inter.variable} ${jetbrains.variable} min-h-screen font-sans antialiased`}
+        className={`${inter.variable} ${inter.variable} ${plexMono.variable} min-h-screen font-sans antialiased`}
       >
-        <ToastProvider>
-          {children}
-        </ToastProvider>
+        <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
   );
@@ -4231,18 +4655,20 @@ export default function ProPendingRedirect() {
 ```tsx
 
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { IBM_Plex_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/Toast";
 
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-sans",
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
-const jetbrains = JetBrains_Mono({
+const plexMono = IBM_Plex_Mono({
   subsets: ["latin"],
+  weight: ["400", "500", "600"],
   variable: "--font-mono",
   display: "swap",
 });
@@ -4252,6 +4678,7 @@ export const metadata: Metadata = {
     default: "MotorSafe",
     template: "%s | MotorSafe",
   },
+  metadataBase: new URL("https://motorsafe.fr"),
   description: "Panel professionnel pour garages, interventions et conformite.",
   applicationName: "MotorSafe",
 };
@@ -4260,11 +4687,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="fr" className="h-full">
       <body
-        className={`${inter.variable} ${jetbrains.variable} min-h-screen font-sans antialiased`}
+        className={`${inter.variable} ${inter.variable} ${plexMono.variable} min-h-screen font-sans antialiased`}
       >
-        <ToastProvider>
-          {children}
-        </ToastProvider>
+        <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
   );
@@ -4296,18 +4721,20 @@ export default function ProSignupRedirect() {
 ```tsx
 
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { IBM_Plex_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/Toast";
 
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-sans",
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
-const jetbrains = JetBrains_Mono({
+const plexMono = IBM_Plex_Mono({
   subsets: ["latin"],
+  weight: ["400", "500", "600"],
   variable: "--font-mono",
   display: "swap",
 });
@@ -4317,6 +4744,7 @@ export const metadata: Metadata = {
     default: "MotorSafe",
     template: "%s | MotorSafe",
   },
+  metadataBase: new URL("https://motorsafe.fr"),
   description: "Panel professionnel pour garages, interventions et conformite.",
   applicationName: "MotorSafe",
 };
@@ -4325,11 +4753,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="fr" className="h-full">
       <body
-        className={`${inter.variable} ${jetbrains.variable} min-h-screen font-sans antialiased`}
+        className={`${inter.variable} ${inter.variable} ${plexMono.variable} min-h-screen font-sans antialiased`}
       >
-        <ToastProvider>
-          {children}
-        </ToastProvider>
+        <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
   );
@@ -4369,6 +4795,76 @@ export default function SettingsRedirect() {
 
 ```
 
+## /ui-debug
+<a id="ui-debug"></a>
+
+### Layouts
+
+- app/layout.tsx
+
+#### app/layout.tsx
+```tsx
+
+import type { Metadata } from "next";
+import { IBM_Plex_Mono, Inter } from "next/font/google";
+import "./globals.css";
+import { ToastProvider } from "@/components/ui/Toast";
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+});
+
+const plexMono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-mono",
+  display: "swap",
+});
+
+export const metadata: Metadata = {
+  title: {
+    default: "MotorSafe",
+    template: "%s | MotorSafe",
+  },
+  metadataBase: new URL("https://motorsafe.fr"),
+  description: "Panel professionnel pour garages, interventions et conformite.",
+  applicationName: "MotorSafe",
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="fr" className="h-full">
+      <body
+        className={`${inter.variable} ${inter.variable} ${plexMono.variable} min-h-screen font-sans antialiased`}
+      >
+        <ToastProvider>{children}</ToastProvider>
+      </body>
+    </html>
+  );
+}
+
+```
+
+### Page
+
+#### app/ui-debug/page.tsx
+```tsx
+export default function UIDebug() {
+  return (
+    <main style={{ padding: 40 }}>
+      <h1>UI DEBUG PAGE</h1>
+      <div className="p-6 rounded-xl bg-blue-600 text-white font-bold">
+        If you see blue, Tailwind works.
+      </div>
+    </main>
+  );
+}
+
+```
+
 ## /vehicules
 <a id="vehicules"></a>
 
@@ -4381,18 +4877,20 @@ export default function SettingsRedirect() {
 ```tsx
 
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { IBM_Plex_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/Toast";
 
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-sans",
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
-const jetbrains = JetBrains_Mono({
+const plexMono = IBM_Plex_Mono({
   subsets: ["latin"],
+  weight: ["400", "500", "600"],
   variable: "--font-mono",
   display: "swap",
 });
@@ -4402,6 +4900,7 @@ export const metadata: Metadata = {
     default: "MotorSafe",
     template: "%s | MotorSafe",
   },
+  metadataBase: new URL("https://motorsafe.fr"),
   description: "Panel professionnel pour garages, interventions et conformite.",
   applicationName: "MotorSafe",
 };
@@ -4410,11 +4909,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="fr" className="h-full">
       <body
-        className={`${inter.variable} ${jetbrains.variable} min-h-screen font-sans antialiased`}
+        className={`${inter.variable} ${inter.variable} ${plexMono.variable} min-h-screen font-sans antialiased`}
       >
-        <ToastProvider>
-          {children}
-        </ToastProvider>
+        <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
   );
@@ -4491,7 +4988,8 @@ export default function VehiculesPage() {
   const [clients, setClients] = useState<ClientOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [query, setQuery] = useState("");
+  const qFromUrl = searchParams.get("q") || "";
+  const [query, setQuery] = useState(qFromUrl);
 
   const selectedFromUrl = searchParams.get("selected") || "";
   const [selectedId, setSelectedId] = useState<string | null>(selectedFromUrl || null);
@@ -4543,8 +5041,11 @@ export default function VehiculesPage() {
 
   useEffect(() => {
     setSelectedId(selectedFromUrl || null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedFromUrl]);
+
+  useEffect(() => {
+    setQuery(qFromUrl);
+  }, [qFromUrl]);
 
   useEffect(() => {
     const loadDetail = async () => {
@@ -4655,12 +5156,12 @@ export default function VehiculesPage() {
   };
 
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-8">
       <SectionHeader
         title="Véhicules"
         description="Parc véhicule, recherche et accès aux dossiers."
         action={
-          <Button onClick={openCreate}>
+          <Button onClick={openCreate} size="sm">
             <Plus size={16} /> Créer
           </Button>
         }
@@ -4669,24 +5170,28 @@ export default function VehiculesPage() {
 
       {error ? <ErrorBanner message={error} /> : null}
 
-      <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
+      <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
         <Card className="p-0 overflow-hidden">
-          <div className="border-b border-border p-4">
+          <div className="ms-cardHeader">
             <Input
+              label="Recherche"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Rechercher par plaque, marque, client"
             />
-            <p className="mt-3 text-xs text-muted2">
-              {loading ? "Chargement…" : `${filtered.length} véhicule(s)`}
-            </p>
+            <div className="mt-3 flex items-center justify-between">
+              <p className="text-xs text-muted2">
+                {loading ? "Chargement…" : `${filtered.length} véhicule(s)`}
+              </p>
+              {selectedId ? <Badge variant="accent">Sélectionné</Badge> : null}
+            </div>
           </div>
 
           <div className="max-h-[calc(100vh-220px)] overflow-auto">
             {loading ? (
-              <div className="p-4 text-sm text-muted2">Chargement…</div>
+              <div className="ms-cardBody text-sm text-muted2">Chargement…</div>
             ) : filtered.length === 0 ? (
-              <div className="p-4">
+              <div className="ms-cardBody">
                 <EmptyState
                   title="Aucun véhicule"
                   description="Créez un véhicule pour démarrer."
@@ -4694,7 +5199,7 @@ export default function VehiculesPage() {
                 />
               </div>
             ) : (
-              <div className="p-2">
+              <div className="p-3 sm:p-4">
                 {filtered.map((vehicle) => {
                   const isActive = selectedId === vehicle.id;
                   return (
@@ -4708,19 +5213,19 @@ export default function VehiculesPage() {
                           router.replace(`/vehicules?selected=${vehicle.id}`);
                         }
                       }}
-                      className={`flex items-center justify-between gap-3 rounded-xl px-3 py-3 text-sm transition ${
+                      className={`flex items-center justify-between gap-4 rounded-2xl px-4 py-3.5 text-sm transition ${
                         isActive
-                          ? "bg-surface2 text-text border border-primary"
-                          : "text-text hover:bg-surface2 border border-transparent"
+                          ? "bg-primaryWeak text-text border border-primary/25"
+                          : "text-text hover:bg-surface2/80 border border-transparent"
                       }`}
                     >
                       <div className="min-w-0">
-                        <p className="truncate font-medium">{vehicle.plate}</p>
+                        <p className="truncate font-semibold">{vehicle.plate}</p>
                         <p className="truncate text-xs text-muted2">
                           {vehicle.brand} {vehicle.model} · {vehicle.client.firstName} {vehicle.client.lastName}
                         </p>
                       </div>
-                      <Badge variant="accent">Dossier</Badge>
+                      <span className="text-xs text-muted2">#{vehicle.id}</span>
                     </Link>
                   );
                 })}
@@ -4730,7 +5235,7 @@ export default function VehiculesPage() {
         </Card>
 
         <Card className="p-0 overflow-hidden">
-          <div className="border-b border-border p-4 flex items-start justify-between gap-3">
+          <div className="ms-cardHeader flex items-start justify-between gap-4">
             <div>
               <p className="ms-kicker">Détail</p>
               <p className="mt-1 text-sm text-muted2">
@@ -4760,7 +5265,7 @@ export default function VehiculesPage() {
             ) : null}
           </div>
 
-          <div className="p-4">
+          <div className="ms-cardBody">
             {detailLoading ? (
               <div className="text-sm text-muted2">Chargement du détail…</div>
             ) : !detail ? (
@@ -4769,8 +5274,8 @@ export default function VehiculesPage() {
                 description="Choisissez un véhicule dans la liste pour afficher son dossier."
               />
             ) : (
-              <div className="grid gap-4">
-                <div className="rounded-[var(--r)] border border-border bg-surface2 p-4">
+              <div className="grid gap-6">
+                <div className="rounded-[var(--r)] border border-border bg-surface2 p-5 sm:p-6">
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-sm font-semibold">{detail.plate}</p>
@@ -4793,9 +5298,9 @@ export default function VehiculesPage() {
                   </div>
                 </div>
 
-                <div className="rounded-[var(--r)] border border-border bg-surface p-4">
+                <div className="rounded-[var(--r)] border border-border bg-surface p-5 sm:p-6">
                   <p className="text-sm font-semibold">Interventions récentes</p>
-                  <div className="mt-3 grid gap-2">
+                  <div className="mt-4 grid gap-2">
                     {!detail.interventions || detail.interventions.length === 0 ? (
                       <p className="text-sm text-muted2">Aucune intervention.</p>
                     ) : (
@@ -4803,7 +5308,7 @@ export default function VehiculesPage() {
                         <Link
                           key={i.id}
                           href={`/interventions/${i.id}`}
-                          className="flex items-center justify-between rounded-xl border border-border bg-surface2 px-3 py-2 text-sm hover:bg-surface"
+                          className="flex items-center justify-between rounded-2xl border border-border bg-surface2 px-4 py-2.5 text-sm hover:bg-surface"
                         >
                           <span className="font-medium">{i.type}</span>
                           <span className="text-xs text-muted2">
@@ -4906,18 +5411,20 @@ export default function VehiculesPage() {
 ```tsx
 
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { IBM_Plex_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/Toast";
 
 const inter = Inter({
   subsets: ["latin"],
   variable: "--font-sans",
+  weight: ["400", "500", "600", "700"],
   display: "swap",
 });
 
-const jetbrains = JetBrains_Mono({
+const plexMono = IBM_Plex_Mono({
   subsets: ["latin"],
+  weight: ["400", "500", "600"],
   variable: "--font-mono",
   display: "swap",
 });
@@ -4927,6 +5434,7 @@ export const metadata: Metadata = {
     default: "MotorSafe",
     template: "%s | MotorSafe",
   },
+  metadataBase: new URL("https://motorsafe.fr"),
   description: "Panel professionnel pour garages, interventions et conformite.",
   applicationName: "MotorSafe",
 };
@@ -4935,11 +5443,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="fr" className="h-full">
       <body
-        className={`${inter.variable} ${jetbrains.variable} min-h-screen font-sans antialiased`}
+        className={`${inter.variable} ${inter.variable} ${plexMono.variable} min-h-screen font-sans antialiased`}
       >
-        <ToastProvider>
-          {children}
-        </ToastProvider>
+        <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
   );
@@ -4973,7 +5479,7 @@ export default async function DashboardLayout({
 ```tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Card } from "@/components/ui/Card";
@@ -5024,7 +5530,7 @@ export default function VehiculeDetailPage() {
     checksum: "",
   });
 
-  const loadVehicle = async () => {
+  const loadVehicle = useCallback(async () => {
     if (!vehicleId) return;
     setLoading(true);
     setError(null);
@@ -5038,11 +5544,11 @@ export default function VehiculeDetailPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [vehicleId]);
 
   useEffect(() => {
     loadVehicle();
-  }, [vehicleId]);
+  }, [loadVehicle]);
 
   const createIntervention = async () => {
     if (!vehicleId) return;
@@ -5075,30 +5581,36 @@ export default function VehiculeDetailPage() {
   };
 
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-8">
       <SectionHeader
         title={vehicle ? vehicle.plate : "Véhicule"}
         description="Dossier véhicule et historique des interventions."
         action={
-          <Link
-            href="/vehicules"
-            className="text-sm font-semibold text-primary hover:text-primaryHover"
-          >
-            Retour véhicules
+          <Link href="/vehicules">
+            <Button variant="secondary" size="sm">Retour</Button>
           </Link>
         }
         level={1}
       />
+
+      {vehicle ? (
+        <div className="-mt-4 flex flex-wrap items-center gap-2">
+          <Badge variant="accent">{vehicle.brand} {vehicle.model}</Badge>
+          <Badge variant="neutral">Client: {vehicle.client.firstName} {vehicle.client.lastName}</Badge>
+          <Badge variant="neutral">{vehicle.interventions.length} intervention(s)</Badge>
+          <Badge variant="neutral">Carburant: {vehicle.fuel || "-"}</Badge>
+        </div>
+      ) : null}
 
       {error ? <ErrorBanner message={error} /> : null}
 
       {loading ? (
         <Loading />
       ) : vehicle ? (
-        <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-          <div className="grid gap-6">
-            <Card>
-              <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
+          <div className="grid gap-8">
+            <Card className="p-0 overflow-hidden">
+              <div className="ms-cardHeader flex flex-wrap items-center justify-between gap-4">
                 <div>
                   <p className="ms-kicker">Véhicule</p>
                   <h2 className="mt-2 text-xl font-semibold text-text">
@@ -5110,28 +5622,28 @@ export default function VehiculeDetailPage() {
                 </div>
                 <Badge variant="accent">{vehicle.plate}</Badge>
               </div>
-              <div className="mt-6 grid gap-3 text-sm text-muted2">
+              <div className="ms-cardBody grid gap-3 text-sm text-muted2">
                 <p>VIN: {vehicle.vin || "-"}</p>
                 <p>Carburant: {vehicle.fuel || "-"}</p>
               </div>
             </Card>
 
-            <Card>
-              <div className="flex items-center justify-between">
+            <Card className="p-0 overflow-hidden">
+              <div className="ms-cardHeader flex items-center justify-between">
                 <div>
                   <p className="ms-kicker">Interventions</p>
                   <h2 className="mt-2 text-xl font-semibold text-text">Historique</h2>
                 </div>
                 <Badge variant="accent">{vehicle.interventions.length}</Badge>
               </div>
-              <div className="mt-6 grid gap-3">
+              <div className="ms-cardBody grid gap-4">
                 {vehicle.interventions.length === 0 ? (
                   <p className="text-sm text-muted2">Aucune intervention.</p>
                 ) : (
                   vehicle.interventions.map((intervention) => (
                     <div
                       key={intervention.id}
-                      className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--r)] border border-border bg-surface2 px-4 py-3"
+                      className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-border bg-surface2 px-5 py-4"
                     >
                       <div>
                         <p className="text-sm font-semibold text-text">{intervention.type}</p>

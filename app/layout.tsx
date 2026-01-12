@@ -1,19 +1,14 @@
 
 import type { Metadata } from "next";
-import { IBM_Plex_Mono, Plus_Jakarta_Sans, Space_Grotesk } from "next/font/google";
+import { IBM_Plex_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/Toast";
+import { DevTools } from "@/components/common/DevTools";
 
-const plusJakarta = Plus_Jakarta_Sans({
+const inter = Inter({
   subsets: ["latin"],
   variable: "--font-sans",
   weight: ["400", "500", "600", "700"],
-  display: "swap",
-});
-
-const spaceGrotesk = Space_Grotesk({
-  subsets: ["latin"],
-  variable: "--font-display",
   display: "swap",
 });
 
@@ -38,10 +33,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="fr" className="h-full">
       <body
-        className={`${plusJakarta.variable} ${spaceGrotesk.variable} ${plexMono.variable} min-h-screen font-sans antialiased`}
+        className={`${inter.variable} ${inter.variable} ${plexMono.variable} min-h-screen font-sans antialiased`}
       >
         <ToastProvider>
           {children}
+          {process.env.NODE_ENV === "development" ? <DevTools /> : null}
         </ToastProvider>
       </body>
     </html>

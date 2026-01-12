@@ -46,6 +46,8 @@ type InterventionItem = {
   };
 };
 
+type Paginated<T> = { items: T[]; page: number; pageSize: number; total: number };
+
 export default function ClientDetailPage() {
   const params = useParams();
   const id = Array.isArray(params?.id) ? params.id[0] : (params?.id as string);
@@ -64,14 +66,14 @@ export default function ClientDetailPage() {
       try {
         const [clientData, vehiclesData, interventionsData] = await Promise.all([
           fetcher<ClientDetails>(`/api/clients/${id}`, { noStore: true }),
-          fetcher<VehicleItem[]>("/api/vehicules", { noStore: true }),
-          fetcher<InterventionItem[]>("/api/interventions", { noStore: true }),
+          fetcher<Paginated<VehicleItem>>("/api/vehicules?page=1&pageSize=100", { noStore: true }),
+          fetcher<Paginated<InterventionItem>>("/api/interventions?page=1&pageSize=100", { noStore: true }),
         ]);
 
         setClient(clientData);
         const clientId = Number(clientData.id);
-        setVehicles((vehiclesData ?? []).filter((v) => v?.client?.id === clientId));
-        setInterventions((interventionsData ?? []).filter((i) => i?.vehicle?.client?.id === clientId));
+        setVehicles((vehiclesData?.items ?? []).filter((v) => v?.client?.id === clientId));
+        setInterventions((interventionsData?.items ?? []).filter((i) => i?.vehicle?.client?.id === clientId));
       } catch (err) {
         setError(err instanceof Error ? err.message : "Erreur serveur.");
       } finally {
@@ -100,7 +102,7 @@ export default function ClientDetailPage() {
   const fullName = `${client.firstName} ${client.lastName}`;
 
   return (
-    <div className="grid gap-6">
+    <div className="grid gap-8">
       <SectionHeader
         title={fullName}
         description={`Fiche client #${client.id}`}
@@ -112,16 +114,26 @@ export default function ClientDetailPage() {
         level={1}
       />
 
-      <Card>
-        <div className="flex items-start justify-between gap-3">
+      <div className="-mt-4 flex flex-wrap items-center gap-2">
+        <Badge variant="accent">Client</Badge>
+        {client.garage?.name ? <Badge variant="neutral">{client.garage.name}</Badge> : null}
+        <Badge variant="neutral">{vehicles.length} véhicule(s)</Badge>
+        <Badge variant="neutral">{interventions.length} intervention(s)</Badge>
+      </div>
+
+      <Card className="p-0 overflow-hidden">
+        <div className="ms-cardHeader flex items-start justify-between gap-3">
           <div>
-            <p className="text-sm font-semibold">Informations</p>
+            <p className="ms-kicker">Informations</p>
+            <p className="mt-2 text-lg font-semibold text-text">{fullName}</p>
             <p className="mt-1 text-sm text-muted2">Client #{client.id}</p>
           </div>
-          <Badge variant="accent">Client</Badge>
+          <span className="hidden sm:block">
+            <Badge variant="accent">Fiche</Badge>
+          </span>
         </div>
 
-        <div className="mt-4 grid gap-2 text-sm text-muted2">
+        <div className="ms-cardBody grid gap-2 text-sm text-muted2">
           <p>
             Nom: <span className="text-text">{client.firstName} {client.lastName}</span>
           </p>
@@ -131,9 +143,9 @@ export default function ClientDetailPage() {
         </div>
       </Card>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2">
         <Card className="p-0 overflow-hidden">
-          <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
+          <div className="ms-cardHeader flex items-center justify-between gap-4">
             <div>
               <p className="ms-kicker">Véhicules</p>
               <p className="mt-1 text-sm text-muted2">
@@ -146,7 +158,7 @@ export default function ClientDetailPage() {
           </div>
 
           {vehicles.length === 0 ? (
-            <div className="px-5 py-4">
+            <div className="ms-cardBody">
               <EmptyState
                 title="Aucun véhicule"
                 description="Ce client n'a pas encore de véhicule."
@@ -186,7 +198,7 @@ export default function ClientDetailPage() {
         </Card>
 
         <Card className="p-0 overflow-hidden">
-          <div className="flex items-center justify-between gap-3 border-b border-border px-5 py-4">
+          <div className="ms-cardHeader flex items-center justify-between gap-4">
             <div>
               <p className="ms-kicker">Interventions</p>
               <p className="mt-1 text-sm text-muted2">
@@ -199,7 +211,7 @@ export default function ClientDetailPage() {
           </div>
 
           {interventions.length === 0 ? (
-            <div className="px-5 py-4">
+            <div className="ms-cardBody">
               <EmptyState
                 title="Aucune intervention"
                 description="Les interventions de ce client apparaîtront ici."

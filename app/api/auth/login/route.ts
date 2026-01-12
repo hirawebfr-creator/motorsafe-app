@@ -36,7 +36,7 @@ export async function POST(req: Request) {
       return NextResponse.json(failure("Identifiants invalides."), { status: 401 });
     }
 
-    if (user.role === "GARAGE" && user.garage?.status !== "ACTIVE") {
+    if (user.role !== "ADMIN" && user.garage?.status !== "ACTIVE") {
       const message =
         user.garage?.status === "REJECTED"
           ? "Compte refuse."

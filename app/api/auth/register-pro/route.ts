@@ -43,7 +43,10 @@ export async function POST(req: Request) {
       });
     }
 
-    const existingGarage = await prisma.garage.findUnique({ where: { email: garageEmail } });
+    const existingGarage = await prisma.garage.findUnique({
+      where: { email: garageEmail },
+      select: { id: true },
+    });
     if (existingGarage) {
       return NextResponse.json(failure("Un garage avec cet email existe deja."), { status: 409 });
     }
@@ -71,7 +74,7 @@ export async function POST(req: Request) {
         data: {
           email: userEmail,
           passwordHash,
-          role: "GARAGE",
+          role: "OWNER",
           garageId: createdGarage.id,
         },
       });

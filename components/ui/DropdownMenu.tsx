@@ -78,7 +78,7 @@ export function DropdownMenu({
       {triggerNode}
       {open ? (
         <div
-          className={`absolute z-50 mt-2 min-w-[240px] rounded-[var(--r)] border border-border/70 bg-surface/95 shadow-[var(--shDropdown)] backdrop-blur p-1 ${
+          className={`absolute z-50 mt-2 min-w-[240px] rounded-[var(--r)] border border-border bg-surface/95 backdrop-blur shadow-[var(--shDropdown)] p-1 ${
             align === "right" ? "right-0" : "left-0"
           }`}
           role="menu"
@@ -106,7 +106,8 @@ export function DropdownItem({
   onClick?: () => void;
   asChild?: boolean;
 }) {
-  const itemClass = "w-full rounded-xl px-3 py-2 text-left text-sm text-text hover:bg-surface2/80";
+  const itemClass =
+    "w-full rounded-[var(--rButton)] px-3 py-2 text-left text-sm text-text transition hover:bg-surface2/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20";
 
   if (asChild && isValidElement<DropdownItemChildProps>(children)) {
     const child = children as ReactElement<DropdownItemChildProps>;

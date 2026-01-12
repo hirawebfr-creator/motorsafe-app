@@ -4,6 +4,7 @@ import { requireApprovedTenant, requireUser, getTenantId } from "@/lib/guards";
 import { RouteError, toErrorResponse } from "@/lib/routeErrors";
 import { z } from "zod";
 import { computePaymentStatus } from "@/lib/quoteInvoice";
+import type { Prisma } from "@prisma/client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,7 +32,7 @@ export async function POST(req: Request, ctx: Ctx) {
 
     const { amount, method } = parsed.data;
 
-    const updated = await prisma.$transaction(async (tx) => {
+    const updated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const invoice = await tx.invoice.findFirst({
         where: { id: invoiceId, organisationId, deletedAt: null },
         select: { id: true, status: true, totalIncl: true, amountPaid: true },

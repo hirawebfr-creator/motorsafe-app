@@ -4,6 +4,7 @@ import { requireApprovedTenant, requireUser, getTenantId } from "@/lib/guards";
 import { RouteError, toErrorResponse } from "@/lib/routeErrors";
 import { z } from "zod";
 import { computeLinesWithTotals, normalizeVatMode } from "@/lib/quoteInvoice";
+import type { Prisma } from "@prisma/client";
 import { allocateNumberTx } from "@/lib/numbering";
 
 export const runtime = "nodejs";
@@ -138,7 +139,7 @@ export async function POST(req: Request) {
     const now = new Date();
     const year = now.getFullYear();
 
-    const created = await prisma.$transaction(async (tx) => {
+    const created = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const allocation = await allocateNumberTx(tx, {
         organisationId,
         type: "QUOTE",

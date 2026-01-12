@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createHash } from "crypto";
-import { success, failure } from "@/lib/api";
-import { getSessionUser, isApprovedGarage } from "@/lib/auth";
+import { failure, success } from "@/lib/api";
+import { requireApprovedTenant, requireUser } from "@/lib/guards";
+import { toErrorResponse } from "@/lib/routeErrors";
+import { z } from "zod";
+import type { Prisma } from "@prisma/client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -54,20 +57,30 @@ function normalizeText(value: unknown) {
   return String(value ?? "").trim();
 }
 
+const UpdateSchema = z.object({
+  type: z.string().trim().min(1).max(40).optional(),
+  title: z.string().trim().min(1).max(120).optional().or(z.literal("")),
+  status: z.enum(["DRAFT", "OPEN", "DONE", "CANCELED"]).optional(),
+  notes: z.string().trim().max(2000).optional().or(z.literal("")),
+  performedAt: z.string().optional().or(z.literal("")),
+  odometerKm: z.union([z.number(), z.string()]).optional().or(z.literal("")),
+  ecuType: z.string().trim().max(80).optional().or(z.literal("")),
+  softwareVersion: z.string().trim().max(80).optional().or(z.literal("")),
+  checksum: z.string().trim().max(128).optional().or(z.literal("")),
+  amountCents: z.coerce.number().int().min(0).optional(),
+  createdBy: z.string().trim().max(120).optional(),
+});
+
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
-    const user = await getSessionUser(req);
-    if (!user) return NextResponse.json(failure("Non autorise"), { status: 401 });
-    if (!isApprovedGarage(user)) {
-      return NextResponse.json(failure("Compte en attente de validation."), { status: 403 });
-    }
+    const user = requireApprovedTenant(await requireUser(req));
 
     const { id } = await ctx.params;
 
     const intervention = await prisma.intervention.findFirst({
       where: user.role === "ADMIN"
-        ? { id: String(id) }
-        : { id: String(id), garageId: user.garageId ?? -1 },
+        ? { id: String(id), deletedAt: null }
+        : { id: String(id), garageId: user.garageId ?? -1, deletedAt: null },
       include: {
         vehicle: { include: { client: true } },
         revisions: { orderBy: { createdAt: "desc" } },
@@ -81,71 +94,87 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     return NextResponse.json(success(intervention));
   } catch (err) {
     console.error("Erreur API GET /api/interventions/[id] :", err);
-    return NextResponse.json(failure("Erreur serveur."), { status: 500 });
+    return toErrorResponse(err);
   }
 }
 
-export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }) {
+async function updateIntervention(req: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
-    const user = await getSessionUser(req);
-    if (!user) return NextResponse.json(failure("Non autorise"), { status: 401 });
-    if (!isApprovedGarage(user)) {
-      return NextResponse.json(failure("Compte en attente de validation."), { status: 403 });
-    }
+    const user = requireApprovedTenant(await requireUser(req));
 
     const { id } = await ctx.params;
 
     const interventionId = String(id);
-    const body = await req.json();
+    const body = await req.json().catch(() => null);
+    const parsed = UpdateSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { ok: false, error: { code: "BAD_REQUEST", message: "Body invalide", details: parsed.error.flatten() } },
+        { status: 400 }
+      );
+    }
+
+    const input = parsed.data;
 
     const existing = await prisma.intervention.findFirst({
       where: user.role === "ADMIN"
-        ? { id: interventionId }
-        : { id: interventionId, garageId: user.garageId ?? -1 },
+        ? { id: interventionId, deletedAt: null }
+        : { id: interventionId, garageId: user.garageId ?? -1, deletedAt: null },
     });
 
     if (!existing) {
       return NextResponse.json(failure("Intervention introuvable."), { status: 404 });
     }
 
-    const type = normalizeText(body.type ?? existing.type);
+    const type = normalizeText(input.type ?? existing.type);
+    const title =
+      input.title === undefined
+        ? existing.title
+        : input.title
+        ? normalizeText(input.title)
+        : null;
+
+    const status = (input.status as any) ?? existing.status;
+
     const notes =
-      body.notes === undefined
+      input.notes === undefined
         ? existing.notes
-        : body.notes
-        ? normalizeText(body.notes)
+        : input.notes
+        ? normalizeText(input.notes)
         : null;
 
     const performedAt =
-      body.performedAt === undefined || body.performedAt === null || body.performedAt === ""
+      input.performedAt === undefined || input.performedAt === null || input.performedAt === ""
         ? existing.performedAt
-        : new Date(body.performedAt);
+        : new Date(input.performedAt);
 
     const odometerKm =
-      body.odometerKm === undefined || body.odometerKm === null || body.odometerKm === ""
+      input.odometerKm === undefined || input.odometerKm === null || input.odometerKm === ""
         ? existing.odometerKm
-        : Number(body.odometerKm);
+        : Number(input.odometerKm);
 
     const ecuType =
-      body.ecuType === undefined
+      input.ecuType === undefined
         ? existing.ecuType
-        : body.ecuType
-        ? normalizeText(body.ecuType)
+        : input.ecuType
+        ? normalizeText(input.ecuType)
         : null;
 
     const softwareVersion =
-      body.softwareVersion === undefined
+      input.softwareVersion === undefined
         ? existing.softwareVersion
-        : body.softwareVersion
-        ? normalizeText(body.softwareVersion)
+        : input.softwareVersion
+        ? normalizeText(input.softwareVersion)
         : null;
 
     const checksum =
-      body.checksum === undefined
+      input.checksum === undefined
         ? existing.checksum
-        : body.checksum
-        ? normalizeText(body.checksum)
+        : input.checksum
+        ? normalizeText(input.checksum)
         : null;
+
+    const amountCents = input.amountCents === undefined ? existing.amountCents : input.amountCents;
 
     if (!type) {
       return NextResponse.json(failure("Type obligatoire."), { status: 400 });
@@ -200,11 +229,14 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
       createdAtIso,
     });
 
-    const updated = await prisma.$transaction(async (tx) => {
+    const updated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const intervention = await tx.intervention.update({
         where: { id: interventionId },
         data: {
           type,
+          title,
+          status,
+          amountCents,
           notes,
           performedAt: performedAt ?? null,
           odometerKm: Number.isFinite(odometerKm as number) ? (odometerKm as number) : null,
@@ -224,9 +256,19 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
           interventionId,
           payload,
           hash,
-          createdBy: body.createdBy ? normalizeText(body.createdBy) : user.email,
+          createdBy: input.createdBy ? normalizeText(input.createdBy) : user.email,
           clientIp,
           userAgent,
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          garageId: intervention.garageId ?? user.garageId ?? null,
+          userId: user.id,
+          action: "INTERVENTION_UPDATE",
+          entityType: "Intervention",
+          entityId: interventionId,
         },
       });
 
@@ -236,37 +278,52 @@ export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }
     return NextResponse.json(success(updated), { status: 200 });
   } catch (err) {
     console.error("Erreur API PUT /api/interventions/[id] :", err);
-    return NextResponse.json(failure("Erreur serveur."), { status: 500 });
+    return toErrorResponse(err);
   }
+}
+
+export async function PUT(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  return updateIntervention(req, ctx);
+}
+
+export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  return updateIntervention(req, ctx);
 }
 
 export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
-    const user = await getSessionUser(req);
-    if (!user) return NextResponse.json(failure("Non autorise"), { status: 401 });
-    if (!isApprovedGarage(user)) {
-      return NextResponse.json(failure("Compte en attente de validation."), { status: 403 });
-    }
+    const user = requireApprovedTenant(await requireUser(req));
 
     const { id } = await ctx.params;
     const interventionId = String(id);
 
     const existing = await prisma.intervention.findFirst({
       where: user.role === "ADMIN"
-        ? { id: interventionId }
-        : { id: interventionId, garageId: user.garageId ?? -1 },
-      select: { id: true },
+        ? { id: interventionId, deletedAt: null }
+        : { id: interventionId, garageId: user.garageId ?? -1, deletedAt: null },
+      select: { id: true, garageId: true },
     });
 
     if (!existing) {
       return NextResponse.json(failure("Intervention introuvable."), { status: 404 });
     }
 
-    await prisma.intervention.delete({ where: { id: interventionId } });
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      await tx.intervention.update({ where: { id: interventionId }, data: { deletedAt: new Date() } });
+      await tx.auditLog.create({
+        data: {
+          garageId: existing.garageId ?? user.garageId ?? null,
+          userId: user.id,
+          action: "INTERVENTION_DELETE",
+          entityType: "Intervention",
+          entityId: interventionId,
+        },
+      });
+    });
 
     return NextResponse.json(success({ id: interventionId }), { status: 200 });
   } catch (err) {
     console.error("Erreur API DELETE /api/interventions/[id] :", err);
-    return NextResponse.json(failure("Erreur serveur."), { status: 500 });
+    return toErrorResponse(err);
   }
 }

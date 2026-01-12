@@ -1,39 +1,38 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useRef } from "react";
+import { useEffect, useId, useMemo, useRef } from "react";
 import type { SessionUser } from "@/lib/auth";
+import type { NavItem } from "@/components/layout/nav-config";
 import { Button } from "@/components/ui/Button";
 import { DropdownMenu, DropdownItem } from "@/components/ui/DropdownMenu";
-import { Menu, Plus, Search, UserCircle2 } from "lucide-react";
+import { Menu, Plus, Search, ShieldCheck, UserCircle2 } from "lucide-react";
 
 export function TopBar({
   user,
-  isDesktop,
+  navItems = [],
+  activePath = "/",
   query,
   onQueryChange,
   onSearch,
   onMenu,
-  onOpenMobileSearch,
   onLogout,
-  onToggleCreate,
+  isMobile,
 }: {
   user?: SessionUser;
-  isDesktop: boolean;
-  query: string;
-  onQueryChange: (value: string) => void;
-  onSearch: () => void;
+  navItems?: NavItem[];
+  activePath?: string;
+  query?: string;
+  onQueryChange?: (value: string) => void;
+  onSearch?: () => void;
   onMenu: () => void;
-  onOpenMobileSearch: () => void;
   onLogout: () => void;
-  onToggleCreate: () => void;
+  isMobile: boolean;
 }) {
   const searchId = useId();
   const searchRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    if (!isDesktop) return;
-
     const onKeyDown = (e: KeyboardEvent) => {
       if (!e.ctrlKey) return;
       if (e.key.toLowerCase() !== "k") return;
@@ -43,80 +42,130 @@ export function TopBar({
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isDesktop]);
+  }, []);
+
+  const pathname = (activePath || "/").split("?")[0];
+
+  const { mainNav, adminNav } = useMemo(() => {
+    const isAdmin = user?.role === "ADMIN";
+    const filtered = navItems.filter((n) => !n.adminOnly || isAdmin);
+    return {
+      mainNav: filtered.filter((n) => !n.adminOnly),
+      adminNav: filtered.filter((n) => n.adminOnly),
+    };
+  }, [navItems, user?.role]);
 
   return (
-    <header
-      className="fixed inset-x-0 top-0 z-50 border-b border-[color:var(--border)] bg-[color:var(--bg)]/60 backdrop-blur-xl"
-      data-ui="topbar-2026-01-02-premium"
-    >
-      <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-3 px-4 sm:px-6 lg:px-8">
-        {!isDesktop ? (
+    <header className="fixed inset-x-0 top-0 z-50 border-b border-border bg-bg/60 backdrop-blur-xl">
+      <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-4 px-4 sm:px-6 lg:px-10">
+        {/* Menu */}
+        {isMobile ? (
           <button
             type="button"
             onClick={onMenu}
-            className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--textMuted)] transition hover:bg-[color:var(--surface2)] focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)]/40"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-border bg-surface text-muted2 transition hover:bg-surface2 focus:outline-none focus:ring-2 focus:ring-primary/40"
             aria-label="Ouvrir le menu"
           >
             <Menu size={18} />
           </button>
         ) : null}
 
+        {/* Brand */}
         <Link href="/dashboard" className="flex items-center gap-3">
-          <div className="grid h-10 w-10 place-items-center rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface2)]">
-            <span className="text-sm font-extrabold text-[color:var(--accent2)]">MS</span>
+          <div className="grid h-11 w-11 place-items-center rounded-2xl border border-border bg-surface2">
+            <span className="text-sm font-extrabold tracking-tight text-primary2">MS</span>
           </div>
           <div className="hidden sm:block leading-tight">
-            <div className="text-sm font-semibold text-[color:var(--text)]">MotorSafe</div>
-            <div className="text-xs text-[color:var(--textMuted)]">Panel garages</div>
+            <div className="text-sm font-semibold text-text">MotorSafe</div>
+            <div className="text-xs text-muted2">Panel garages</div>
           </div>
         </Link>
 
-        {isDesktop ? (
-          <div
-            className="ms-focus-within hidden flex-1 items-center gap-2 rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 shadow-sm lg:flex"
-            role="search"
-            aria-label="Recherche"
-          >
-            <Search size={16} className="text-[color:var(--textMuted)]" />
-            <label htmlFor={searchId} className="sr-only">
-              Recherche globale
-            </label>
-            <input
-              id={searchId}
-              ref={searchRef}
-              className="h-11 w-full bg-transparent text-sm text-[color:var(--text)] placeholder:text-[color:var(--textMuted)] outline-none"
-              placeholder="Rechercher un client, une plaque, un dossier…"
-              value={query}
-              onChange={(e) => onQueryChange(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") onSearch();
-              }}
-            />
-            <kbd className="hidden rounded-lg border border-[color:var(--border)] bg-[color:var(--surface2)] px-2 py-1 text-[11px] text-[color:var(--textMuted)] sm:inline-flex">
-              Ctrl K
-            </kbd>
-          </div>
-        ) : (
-          <div className="flex-1" />
-        )}
+        {/* Desktop nav */}
+        <nav className="hidden">
+          {mainNav.map((item) => {
+            const isActive =
+              pathname === item.href || pathname.startsWith(`${item.href}/`);
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={[
+                  "inline-flex items-center gap-2 rounded-2xl px-3.5 py-2 text-sm font-semibold transition",
+                  isActive
+                    ? "bg-surface2 text-text"
+                    : "text-muted2 hover:bg-surface2/70 hover:text-text",
+                ].join(" ")}
+                aria-current={isActive ? "page" : undefined}
+              >
+                {Icon ? (
+                  <Icon
+                    size={16}
+                    className={isActive ? "text-primary2" : "text-muted2"}
+                  />
+                ) : null}
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
 
-        <div className="ml-auto flex items-center gap-2">
-          {!isDesktop ? (
-            <button
-              type="button"
-              onClick={onOpenMobileSearch}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--textMuted)] transition hover:bg-[color:var(--surface2)] focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)]/40"
-              aria-label="Recherche"
+          {user?.role === "ADMIN" && adminNav.length > 0 ? (
+            <DropdownMenu
+              trigger={
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-2 rounded-2xl px-3.5 py-2 text-sm font-semibold text-muted2 transition hover:bg-surface2/70 hover:text-text"
+                >
+                  <ShieldCheck size={16} className="text-muted2" />
+                  Admin
+                </button>
+              }
             >
-              <Search size={18} />
-            </button>
+              {adminNav.map((item) => (
+                <DropdownItem asChild key={item.href}>
+                  <Link href={item.href}>{item.label}</Link>
+                </DropdownItem>
+              ))}
+            </DropdownMenu>
           ) : null}
+        </nav>
 
+        {/* Search (lg+) */}
+        <div
+          className="ms-focus-within hidden flex-1 items-center gap-2 rounded-2xl border border-border bg-surface px-3 shadow-sm lg:flex"
+          role="search"
+          aria-label="Recherche"
+        >
+          <Search size={16} className="text-muted2" />
+          <label htmlFor={searchId} className="sr-only">
+            Recherche globale
+          </label>
+          <input
+            id={searchId}
+            ref={searchRef}
+            className="h-11 w-full bg-transparent text-sm text-text placeholder:text-muted2 outline-none"
+            placeholder="Rechercher un client, une plaque, un dossier…"
+            value={query ?? ""}
+            onChange={(e) => onQueryChange?.(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") onSearch?.();
+            }}
+          />
+          <kbd className="hidden rounded-lg border border-border bg-surface2 px-2 py-1 text-[11px] text-muted2 sm:inline-flex">
+            Ctrl K
+          </kbd>
+        </div>
+
+        <div className="flex-1 lg:hidden" />
+
+        {/* Actions */}
+        <div className="ml-auto flex items-center gap-2">
           <DropdownMenu
             trigger={
-              <Button variant="primary" size="sm" onClick={onToggleCreate}>
-                <Plus size={16} /> Nouveau
+              <Button variant="primary" size="md">
+                <Plus size={16} />
+                <span className="hidden sm:inline">Nouveau</span>
               </Button>
             }
           >
@@ -138,10 +187,12 @@ export function TopBar({
             trigger={
               <button
                 type="button"
-                className="inline-flex h-10 items-center gap-2 rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface)] px-3 text-sm font-semibold text-[color:var(--text)] transition hover:bg-[color:var(--surface2)] focus:outline-none focus:ring-2 focus:ring-[color:var(--accent)]/40"
+                className="inline-flex h-11 items-center gap-2 rounded-2xl border border-border bg-surface px-3.5 text-sm font-semibold text-text transition hover:bg-surface2 focus:outline-none focus:ring-2 focus:ring-primary/40"
               >
-                <UserCircle2 size={18} className="text-[color:var(--textMuted)]" />
-                <span className="hidden max-w-[220px] truncate sm:block">{user?.email ?? "Profil"}</span>
+                <UserCircle2 size={18} className="text-muted2" />
+                <span className="hidden max-w-[220px] truncate sm:block">
+                  {user?.email ?? "Profil"}
+                </span>
               </button>
             }
           >

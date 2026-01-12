@@ -34,7 +34,11 @@ export default function ProInscriptionPage() {
       });
       const json = await res.json();
       if (!res.ok || !json.ok) {
-        throw new Error(json?.error || "Erreur serveur.");
+        const message =
+          typeof json?.error === "string"
+            ? json.error
+            : json?.error?.message || "Erreur serveur.";
+        throw new Error(message);
       }
       toast.push({
         title: "Demande envoyée",

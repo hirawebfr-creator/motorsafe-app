@@ -1,22 +1,17 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { Plus, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
-
-import { fetcher, requestJson } from "@/lib/fetcher";
-import { SectionHeader } from "@/components/ui/SectionHeader";
-import { Card } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
-import { Badge } from "@/components/ui/Badge";
-import { Dialog } from "@/components/ui/Dialog";
-import { DropdownMenu, DropdownItem } from "@/components/ui/DropdownMenu";
-import { useToast } from "@/components/ui/Toast";
-import { ErrorBanner } from "@/components/common/ErrorBanner";
-import { EmptyState } from "@/components/common/EmptyState";
+import {
+  Car,
+  Fuel,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+  TrendingUp,
+  User,
+} from "lucide-react";
 
 type ClientOption = { id: number; firstName: string; lastName: string };
 
@@ -27,423 +22,338 @@ type VehicleItem = {
   plate: string;
   vin?: string | null;
   fuel?: string | null;
+  year?: number | null;
   createdAt?: string;
   client: ClientOption;
 };
 
-type VehicleDetails = VehicleItem & {
-  interventions?: Array<{ id: string; type: string; createdAt: string }>
+function isRecord(x: unknown): x is Record<string, unknown> {
+  return typeof x === "object" && x !== null && !Array.isArray(x);
+}
+
+function unwrapOk(json: unknown): unknown {
+  if (isRecord(json) && json.ok === true && "data" in json) return json.data;
+  return json;
+}
+
+function pickArray(json: unknown): unknown[] {
+  const data = unwrapOk(json);
+  if (Array.isArray(data)) return data;
+  if (isRecord(data) && Array.isArray(data.items)) return data.items;
+  if (isRecord(data) && Array.isArray(data.data)) return data.data;
+  return [];
+}
+
+function fmtDate(input?: string | null) {
+  if (!input) return "—";
+  const d = new Date(input);
+  if (Number.isNaN(d.getTime())) return "—";
+  return new Intl.DateTimeFormat("fr-FR", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(d);
+}
+
+const FUEL_LABELS: Record<string, string> = {
+  Essence: "Essence",
+  Diesel: "Diesel",
+  E85: "E85",
+  Hybride: "Hybride",
+  Electrique: "Électrique",
 };
 
 export default function VehiculesPage() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-
-  const [vehicles, setVehicles] = useState<VehicleItem[]>([]);
-  const [clients, setClients] = useState<ClientOption[]>([]);
+  const [q, setQ] = useState("");
   const [loading, setLoading] = useState(true);
+  const [items, setItems] = useState<VehicleItem[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const qFromUrl = searchParams.get("q") || "";
-  const [query, setQuery] = useState(qFromUrl);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const selectedFromUrl = searchParams.get("selected") || "";
-  const [selectedId, setSelectedId] = useState<string | null>(selectedFromUrl || null);
-  const [detail, setDetail] = useState<VehicleDetails | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
+  const debounceRef = useRef<number | null>(null);
 
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
-
-  const [editorOpen, setEditorOpen] = useState(false);
-  const [editorMode, setEditorMode] = useState<"create" | "edit">("create");
-  const toast = useToast();
-
-  const [form, setForm] = useState({
-    clientId: "",
-    brand: "",
-    model: "",
-    plate: "",
-    vin: "",
-    fuel: "",
-  });
-
-  const loadVehicles = async () => {
-    setLoading(true);
-    setError(null);
+  async function load(search: string) {
     try {
-      const data = await fetcher<VehicleItem[]>("/api/vehicules", { noStore: true });
-      setVehicles(data ?? []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erreur serveur.");
+      setLoading(true);
+      setError(null);
+
+      const url = new URL("/api/vehicules", window.location.origin);
+      url.searchParams.set("page", "1");
+      url.searchParams.set("pageSize", "100");
+      if (search.trim()) url.searchParams.set("q", search.trim());
+
+      const res = await fetch(url.toString(), { cache: "no-store" });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        const message =
+          json?.error?.message || json?.error || `GET /api/vehicules ${res.status}`;
+        throw new Error(message);
+      }
+
+      setItems(pickArray(json) as VehicleItem[]);
+    } catch (e) {
+      setItems([]);
+      setError(e instanceof Error ? e.message : "Erreur inconnue");
     } finally {
       setLoading(false);
     }
-  };
-
-  const loadClients = async () => {
-    try {
-      const data = await fetcher<ClientOption[]>("/api/clients", { noStore: true });
-      setClients(data ?? []);
-    } catch {
-      setClients([]);
-    }
-  };
+  }
 
   useEffect(() => {
-    loadVehicles();
-    loadClients();
+    void load("");
   }, []);
 
   useEffect(() => {
-    setSelectedId(selectedFromUrl || null);
-  }, [selectedFromUrl]);
+    if (debounceRef.current) window.clearTimeout(debounceRef.current);
+    debounceRef.current = window.setTimeout(() => {
+      void load(q);
+    }, 300);
 
-  useEffect(() => {
-    setQuery(qFromUrl);
-  }, [qFromUrl]);
-
-  useEffect(() => {
-    const loadDetail = async () => {
-      if (!selectedId) {
-        setDetail(null);
-        return;
-      }
-      setDetailLoading(true);
-      try {
-        const data = await fetcher<VehicleDetails>(`/api/vehicules/${selectedId}`, { noStore: true });
-        setDetail(data);
-      } catch (err) {
-        setDetail(null);
-        setError(err instanceof Error ? err.message : "Erreur serveur.");
-      } finally {
-        setDetailLoading(false);
-      }
+    return () => {
+      if (debounceRef.current) window.clearTimeout(debounceRef.current);
     };
-    loadDetail();
-  }, [selectedId]);
+  }, [q]);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return vehicles;
-    return vehicles.filter((vehicle) => {
-      const data = `${vehicle.plate} ${vehicle.brand} ${vehicle.model} ${vehicle.client.firstName} ${vehicle.client.lastName}`.toLowerCase();
-      return data.includes(q);
-    });
-  }, [vehicles, query]);
+  async function onDelete(id: string) {
+    const ok = window.confirm(
+      "Supprimer ce véhicule ? Cette action est irréversible."
+    );
+    if (!ok) return;
 
-  const openCreate = () => {
-    setEditorMode("create");
-    setForm({ clientId: "", brand: "", model: "", plate: "", vin: "", fuel: "" });
-    setEditorOpen(true);
-  };
-
-  const openEdit = (vehicle: VehicleDetails) => {
-    setEditorMode("edit");
-    setForm({
-      clientId: String(vehicle.client.id),
-      brand: vehicle.brand,
-      model: vehicle.model,
-      plate: vehicle.plate,
-      vin: vehicle.vin ?? "",
-      fuel: vehicle.fuel ?? "",
-    });
-    setEditorOpen(true);
-  };
-
-  const submit = async () => {
-    setError(null);
     try {
-      const payload = {
-        clientId: Number(form.clientId),
-        brand: form.brand,
-        model: form.model,
-        plate: form.plate,
-        vin: form.vin || null,
-        fuel: form.fuel || null,
-      };
-
-      if (editorMode === "edit" && detail) {
-        await requestJson<VehicleItem>(`/api/vehicules/${detail.id}`, { method: "PUT", body: payload });
-      } else {
-        await requestJson<VehicleItem>("/api/vehicules", { method: "POST", body: payload });
+      setDeletingId(id);
+      const res = await fetch(`/api/vehicules/${id}`, { method: "DELETE" });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) {
+        const message =
+          json?.error?.message || json?.error || `DELETE /api/vehicules/${id} ${res.status}`;
+        throw new Error(message);
       }
-      toast.push({
-        title: editorMode === "edit" ? "Véhicule mis à jour" : "Véhicule créé",
-        description: "Les informations sont enregistrées.",
-        variant: "success",
-      });
-      setEditorOpen(false);
-      await loadVehicles();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Erreur serveur.";
-      setError(message);
-      toast.push({ title: "Erreur", description: message, variant: "error" });
-    }
-  };
-
-  const requestDelete = (vehicleId: string) => {
-    setPendingDeleteId(vehicleId);
-    setConfirmOpen(true);
-  };
-
-  const removeVehicle = async () => {
-    if (!pendingDeleteId) return;
-    try {
-      await requestJson(`/api/vehicules/${pendingDeleteId}`, { method: "DELETE" });
-      toast.push({
-        title: "Véhicule supprimé",
-        description: "Le véhicule a été retiré.",
-        variant: "success",
-      });
-      await loadVehicles();
-      if (selectedId === pendingDeleteId) {
-        setSelectedId(null);
-        router.replace("/vehicules");
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Erreur serveur.";
-      setError(message);
-      toast.push({ title: "Erreur", description: message, variant: "error" });
+      await load(q);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Erreur suppression");
     } finally {
-      setConfirmOpen(false);
-      setPendingDeleteId(null);
+      setDeletingId(null);
     }
-  };
+  }
+
+  const rows = useMemo(() => items ?? [], [items]);
+
+  // Stats
+  const stats = useMemo(() => {
+    const total = rows.length;
+    const fuels = rows.reduce((acc, r) => {
+      if (r.fuel) acc[r.fuel] = (acc[r.fuel] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    const topFuel = Object.entries(fuels).sort((a, b) => b[1] - a[1])[0];
+    const thisMonth = rows.filter((r) => {
+      if (!r.createdAt) return false;
+      const d = new Date(r.createdAt);
+      const now = new Date();
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    }).length;
+    return { total, thisMonth, topFuel: topFuel?.[0] || "—" };
+  }, [rows]);
 
   return (
-    <div className="grid gap-6">
-      <SectionHeader
-        title="Véhicules"
-        description="Parc véhicule, recherche et accès aux dossiers."
-        action={
-          <Button onClick={openCreate}>
-            <Plus size={16} /> Créer
-          </Button>
-        }
-        level={1}
-      />
-
-      {error ? <ErrorBanner message={error} /> : null}
-
-      <div className="grid gap-4 lg:grid-cols-[360px_1fr]">
-        <Card className="p-0 overflow-hidden">
-          <div className="border-b border-border p-4">
-            <Input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Rechercher par plaque, marque, client"
+    <div className="ms-animate-slide-up">
+      {/* Page Header */}
+      <div className="ms-page-header">
+        <div>
+          <h1 className="ms-page-title">Véhicules</h1>
+          <p className="ms-page-subtitle">
+            Gérez le parc automobile de vos clients
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="ms-search">
+            <Search size={18} className="ms-search-icon" />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Rechercher un véhicule..."
+              className="ms-search-input"
             />
-            <p className="mt-3 text-xs text-muted2">
-              {loading ? "Chargement…" : `${filtered.length} véhicule(s)`}
-            </p>
           </div>
-
-          <div className="max-h-[calc(100vh-220px)] overflow-auto">
-            {loading ? (
-              <div className="p-4 text-sm text-muted2">Chargement…</div>
-            ) : filtered.length === 0 ? (
-              <div className="p-4">
-                <EmptyState
-                  title="Aucun véhicule"
-                  description="Créez un véhicule pour démarrer."
-                  action={<Button onClick={openCreate}>Créer un véhicule</Button>}
-                />
-              </div>
-            ) : (
-              <div className="p-2">
-                {filtered.map((vehicle) => {
-                  const isActive = selectedId === vehicle.id;
-                  return (
-                    <Link
-                      key={vehicle.id}
-                      href={`/vehicules/${vehicle.id}`}
-                      onClick={(e) => {
-                        if (typeof window !== "undefined" && window.matchMedia("(min-width: 1024px)").matches) {
-                          e.preventDefault();
-                          setSelectedId(vehicle.id);
-                          router.replace(`/vehicules?selected=${vehicle.id}`);
-                        }
-                      }}
-                      className={`flex items-center justify-between gap-3 rounded-xl px-3 py-3 text-sm transition ${
-                        isActive
-                          ? "bg-surface2 text-text border border-primary"
-                          : "text-text hover:bg-surface2 border border-transparent"
-                      }`}
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate font-medium">{vehicle.plate}</p>
-                        <p className="truncate text-xs text-muted2">
-                          {vehicle.brand} {vehicle.model} · {vehicle.client.firstName} {vehicle.client.lastName}
-                        </p>
-                      </div>
-                      <Badge variant="accent">Dossier</Badge>
-                    </Link>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </Card>
-
-        <Card className="p-0 overflow-hidden">
-          <div className="border-b border-border p-4 flex items-start justify-between gap-3">
-            <div>
-              <p className="ms-kicker">Détail</p>
-              <p className="mt-1 text-sm text-muted2">
-                {detail ? detail.plate : "Sélectionnez un véhicule"}
-              </p>
-            </div>
-
-            {detail ? (
-              <DropdownMenu
-                trigger={
-                  <button
-                    type="button"
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border bg-surface hover:bg-surface2"
-                    aria-label="Actions"
-                  >
-                    <MoreHorizontal size={18} />
-                  </button>
-                }
-              >
-                <DropdownItem onClick={() => openEdit(detail)}>
-                  <span className="inline-flex items-center gap-2"><Pencil size={16} /> Modifier</span>
-                </DropdownItem>
-                <DropdownItem onClick={() => requestDelete(detail.id)}>
-                  <span className="inline-flex items-center gap-2 text-danger"><Trash2 size={16} /> Supprimer</span>
-                </DropdownItem>
-              </DropdownMenu>
-            ) : null}
-          </div>
-
-          <div className="p-4">
-            {detailLoading ? (
-              <div className="text-sm text-muted2">Chargement du détail…</div>
-            ) : !detail ? (
-              <EmptyState
-                title="Aucun véhicule sélectionné"
-                description="Choisissez un véhicule dans la liste pour afficher son dossier."
-              />
-            ) : (
-              <div className="grid gap-4">
-                <div className="rounded-[var(--r)] border border-border bg-surface2 p-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold">{detail.plate}</p>
-                      <p className="mt-1 text-xs text-muted2">
-                        {detail.brand} {detail.model}
-                      </p>
-                    </div>
-                    <Badge variant="accent">{detail.fuel ?? "-"}</Badge>
-                  </div>
-                  <p className="mt-3 text-sm text-muted2">
-                    Client: <span className="text-text">{detail.client.firstName} {detail.client.lastName}</span>
-                  </p>
-                  {detail.vin ? (
-                    <p className="mt-1 text-xs text-muted2">VIN: {detail.vin}</p>
-                  ) : null}
-                  <div className="mt-4">
-                    <Link href={`/vehicules/${detail.id}`}>
-                      <Button variant="secondary" size="sm">Ouvrir le dossier complet</Button>
-                    </Link>
-                  </div>
-                </div>
-
-                <div className="rounded-[var(--r)] border border-border bg-surface p-4">
-                  <p className="text-sm font-semibold">Interventions récentes</p>
-                  <div className="mt-3 grid gap-2">
-                    {!detail.interventions || detail.interventions.length === 0 ? (
-                      <p className="text-sm text-muted2">Aucune intervention.</p>
-                    ) : (
-                      detail.interventions.slice(0, 5).map((i) => (
-                        <Link
-                          key={i.id}
-                          href={`/interventions/${i.id}`}
-                          className="flex items-center justify-between rounded-xl border border-border bg-surface2 px-3 py-2 text-sm hover:bg-surface"
-                        >
-                          <span className="font-medium">{i.type}</span>
-                          <span className="text-xs text-muted2">
-                            {new Date(i.createdAt).toLocaleDateString("fr-FR")}
-                          </span>
-                        </Link>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </Card>
+          <Link href="/vehicules/nouveau" className="ms-btn ms-btn-primary">
+            <Plus size={18} />
+            Nouveau véhicule
+          </Link>
+        </div>
       </div>
 
-      <Dialog
-        open={editorOpen}
-        onOpenChange={setEditorOpen}
-        title={editorMode === "edit" ? "Modifier le véhicule" : "Créer un véhicule"}
-        description={editorMode === "edit" ? "Mettez à jour la fiche véhicule." : "Renseignez les informations du véhicule."}
-        confirmLabel={editorMode === "edit" ? "Mettre à jour" : "Créer"}
-        confirmVariant="primary"
-        onConfirm={submit}
-      >
-        <div className="grid gap-4">
-          <Select
-            label="Client"
-            value={form.clientId}
-            onChange={(event) => setForm((prev) => ({ ...prev, clientId: event.target.value }))}
-          >
-            <option value="">Sélectionner un client</option>
-            {clients.map((client) => (
-              <option key={client.id} value={client.id}>
-                {client.firstName} {client.lastName}
-              </option>
-            ))}
-          </Select>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Input
-              label="Marque"
-              value={form.brand}
-              onChange={(event) => setForm((prev) => ({ ...prev, brand: event.target.value }))}
-              placeholder="BMW"
-            />
-            <Input
-              label="Modèle"
-              value={form.model}
-              onChange={(event) => setForm((prev) => ({ ...prev, model: event.target.value }))}
-              placeholder="Série 1"
-            />
+      {/* Stats */}
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="ms-stat-card">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="ms-stat-label">Total véhicules</div>
+              <div className="ms-stat-value">{loading ? "—" : stats.total}</div>
+            </div>
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--ms-primary-light)]">
+              <Car size={24} className="text-[var(--ms-primary)]" />
+            </div>
           </div>
-
-          <Input
-            label="Immatriculation"
-            value={form.plate}
-            onChange={(event) => setForm((prev) => ({ ...prev, plate: event.target.value }))}
-            placeholder="AB-123-CD"
-          />
-          <Input
-            label="VIN"
-            value={form.vin}
-            onChange={(event) => setForm((prev) => ({ ...prev, vin: event.target.value }))}
-            placeholder="WBA12345678900000"
-          />
-          <Input
-            label="Carburant"
-            value={form.fuel}
-            onChange={(event) => setForm((prev) => ({ ...prev, fuel: event.target.value }))}
-            placeholder="SP98"
-          />
         </div>
-      </Dialog>
+        <div className="ms-stat-card">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="ms-stat-label">Ce mois-ci</div>
+              <div className="ms-stat-value">{loading ? "—" : stats.thisMonth}</div>
+            </div>
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--ms-success-light)]">
+              <TrendingUp size={24} className="text-[var(--ms-success)]" />
+            </div>
+          </div>
+          {!loading && stats.thisMonth > 0 && (
+            <div className="ms-stat-trend ms-stat-trend-up">
+              <TrendingUp size={14} />
+              +{stats.thisMonth} ce mois
+            </div>
+          )}
+        </div>
+        <div className="ms-stat-card">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="ms-stat-label">Carburant principal</div>
+              <div className="ms-stat-value text-xl">
+                {loading ? "—" : FUEL_LABELS[stats.topFuel] || stats.topFuel}
+              </div>
+            </div>
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--ms-warning-light)]">
+              <Fuel size={24} className="text-[#B45309]" />
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <Dialog
-        open={confirmOpen}
-        onOpenChange={setConfirmOpen}
-        title="Supprimer ce véhicule"
-        description="Le véhicule sera retiré du parc."
-        confirmLabel="Supprimer"
-        confirmVariant="destructive"
-        onConfirm={removeVehicle}
-      />
+      {/* Error */}
+      {error && (
+        <div className="ms-alert ms-alert-error mb-6">
+          <span>{error}</span>
+        </div>
+      )}
+
+      {/* Table */}
+      <div className="ms-table-container">
+        <div
+          className="ms-table-header"
+          style={{ gridTemplateColumns: "120px 1.5fr 1.2fr 100px 120px 80px" }}
+        >
+          <div>Immat</div>
+          <div>Véhicule</div>
+          <div>Propriétaire</div>
+          <div>Carburant</div>
+          <div>Date ajout</div>
+          <div className="text-right">Actions</div>
+        </div>
+
+        <div className="max-h-[calc(100vh-420px)] overflow-y-auto">
+          {loading ? (
+            <div className="space-y-2 p-4">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="ms-skeleton h-16 w-full" />
+              ))}
+            </div>
+          ) : rows.length === 0 ? (
+            <div className="ms-empty">
+              <div className="ms-empty-icon">
+                <Car size={28} />
+              </div>
+              <div className="ms-empty-title">Aucun véhicule</div>
+              <div className="ms-empty-text">
+                Ajoutez votre premier véhicule pour commencer.
+              </div>
+              <Link href="/vehicules/nouveau" className="ms-btn ms-btn-primary mt-4">
+                <Plus size={18} />
+                Ajouter un véhicule
+              </Link>
+            </div>
+          ) : (
+            rows.map((item, idx) => {
+              const plate = item.plate || "—";
+              const brandModel = `${item.brand ?? ""} ${item.model ?? ""}`.trim() || "—";
+              const clientName = item.client
+                ? `${item.client.firstName} ${item.client.lastName}`
+                : "—";
+              const fuel = FUEL_LABELS[item.fuel ?? ""] || item.fuel || "—";
+              const isDeleting = deletingId === item.id;
+
+              return (
+                <div
+                  key={item.id}
+                  className="ms-table-row ms-animate-slide-up"
+                  style={{
+                    gridTemplateColumns: "120px 1.5fr 1.2fr 100px 120px 80px",
+                    animationDelay: `${idx * 30}ms`,
+                  }}
+                >
+                  <Link
+                    href={`/vehicules/${item.id}`}
+                    className="font-semibold text-[var(--ms-text)] hover:text-[var(--ms-primary)] transition-colors font-mono"
+                  >
+                    {plate}
+                  </Link>
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--ms-bg-subtle)]">
+                      <Car size={18} className="text-[var(--ms-text-muted)]" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-[var(--ms-text)]">
+                        {brandModel}
+                      </div>
+                      {item.year && (
+                        <div className="text-xs text-[var(--ms-text-muted)]">
+                          {item.year}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-[var(--ms-text-secondary)]">
+                    <User size={16} className="text-[var(--ms-text-muted)]" />
+                    <span className="truncate">{clientName}</span>
+                  </div>
+                  <div>
+                    <span className="ms-badge ms-badge-neutral">{fuel}</span>
+                  </div>
+                  <div className="text-sm text-[var(--ms-text-muted)]">
+                    {fmtDate(item.createdAt)}
+                  </div>
+                  <div className="flex items-center justify-end gap-1">
+                    <Link
+                      href={`/vehicules/${item.id}`}
+                      className="ms-btn-icon-sm ms-btn-ghost rounded-lg"
+                      title="Modifier"
+                    >
+                      <Pencil size={16} />
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => onDelete(item.id)}
+                      disabled={isDeleting}
+                      className="ms-btn-icon-sm rounded-lg text-[var(--ms-text-muted)] hover:bg-[var(--ms-error-light)] hover:text-[var(--ms-error)] transition-colors disabled:opacity-50"
+                      title="Supprimer"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+
+      {/* Footer */}
+      {!loading && rows.length > 0 && (
+        <div className="mt-4 flex items-center justify-between text-sm text-[var(--ms-text-muted)]">
+          <span>
+            {rows.length} véhicule{rows.length > 1 ? "s" : ""}
+          </span>
+          <span>Dernière mise à jour : maintenant</span>
+        </div>
+      )}
     </div>
   );
 }

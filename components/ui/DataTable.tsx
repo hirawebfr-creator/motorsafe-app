@@ -16,11 +16,15 @@ export function DataTable({
   return (
     <div
       className={cn(
-        variant === "card" ? "ms-card overflow-x-auto" : "overflow-x-auto",
+        variant === "card"
+          ? "rounded-[var(--r)] border border-border bg-surface shadow-soft overflow-hidden"
+          : "",
         className
       )}
     >
-      <table className="ms-table text-sm">{children}</table>
+      <div className="overflow-x-auto">
+        <table className="ms-table min-w-[720px] text-sm">{children}</table>
+      </div>
       {stickyHeader ? null : null}
     </div>
   );
@@ -37,7 +41,7 @@ export function DataTableHead({
     <thead
       className={cn(
         "text-left",
-        sticky ? "sticky top-0 z-10 border-b border-border/60 bg-surface/90 backdrop-blur" : ""
+        sticky ? "sticky top-0 z-10 border-b border-border/70 bg-surface/95 backdrop-blur" : ""
       )}
     >
       {children}

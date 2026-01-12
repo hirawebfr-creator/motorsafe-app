@@ -4,6 +4,7 @@ import { requireApprovedTenant, requireUser, getTenantId } from "@/lib/guards";
 import { RouteError, toErrorResponse } from "@/lib/routeErrors";
 import { z } from "zod";
 import { computeLinesWithTotals, normalizeVatMode } from "@/lib/quoteInvoice";
+import type { Prisma } from "@prisma/client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -67,7 +68,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
     const input = parsed.data;
     const vehicleId = input.vehicleId ? input.vehicleId.trim() : undefined;
 
-    const updated = await prisma.$transaction(async (tx) => {
+    const updated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const existing = await tx.invoice.findFirst({
         where: { id: invoiceId, organisationId, deletedAt: null },
         include: { lines: { where: { deletedAt: null } } },
@@ -195,7 +196,7 @@ export async function DELETE(req: Request, ctx: Ctx) {
     const { id } = await ctx.params;
     const invoiceId = String(id);
 
-    await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const existing = await tx.invoice.findFirst({
         where: { id: invoiceId, organisationId, deletedAt: null },
         select: { id: true },

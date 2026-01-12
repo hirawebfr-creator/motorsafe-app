@@ -12,7 +12,17 @@ export default async function ParametresPage() {
 
   const garage = user.role === "ADMIN"
     ? null
-    : await prisma.garage.findUnique({ where: { id: user.garageId ?? -1 } });
+    : await prisma.garage.findUnique({
+        where: { id: user.garageId ?? -1 },
+        select: {
+          name: true,
+          email: true,
+          phone: true,
+          address: true,
+          siret: true,
+          status: true,
+        },
+      });
 
   return <ParametresClient role={user.role} userEmail={user.email} garage={garage} />;
 }

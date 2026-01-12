@@ -59,5 +59,5 @@ export async function allocateNumber(params: {
   prefix: string;
   padding: number;
 }): Promise<{ number: string; year: number; seq: number }> {
-  return prisma.$transaction((tx) => allocateNumberTx(tx, params));
+  return prisma.$transaction((tx: Prisma.TransactionClient) => allocateNumberTx(tx, params));
 }

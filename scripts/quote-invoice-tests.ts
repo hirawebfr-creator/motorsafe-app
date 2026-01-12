@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, type Prisma } from "@prisma/client";
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -104,10 +104,10 @@ async function run() {
       },
     });
 
-    const inv1 = await prisma.$transaction((tx) =>
+    const inv1 = await prisma.$transaction((tx: Prisma.TransactionClient) =>
       convertQuoteToInvoiceTx(tx, { organisationId: org1.id, quoteId: quote.id })
     );
-    const inv2 = await prisma.$transaction((tx) =>
+    const inv2 = await prisma.$transaction((tx: Prisma.TransactionClient) =>
       convertQuoteToInvoiceTx(tx, { organisationId: org1.id, quoteId: quote.id })
     );
 
