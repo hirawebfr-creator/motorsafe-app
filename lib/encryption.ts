@@ -13,8 +13,8 @@ const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 16;
 const ENCODING = 'base64' as const;
 
-// Prefix to identify encrypted values
-const ENCRYPTED_PREFIX = 'enc:';
+// Prefix to identify encrypted values (without trailing colon - added by join)
+const ENCRYPTED_PREFIX = 'enc';
 
 /**
  * Get the encryption key from environment, derive if needed
@@ -65,6 +65,7 @@ export function encrypt(plaintext: string): string {
 
 /**
  * Decrypt a value encrypted with encrypt()
+ * Handles both old format (enc::iv:tag:data with 5 parts) and new format (enc:iv:tag:data with 4 parts)
  */
 export function decrypt(encryptedValue: string): string {
   if (!encryptedValue || !encryptedValue.startsWith(ENCRYPTED_PREFIX)) {
@@ -72,22 +73,37 @@ export function decrypt(encryptedValue: string): string {
   }
   
   const parts = encryptedValue.split(':');
-  if (parts.length !== 4) {
-    console.error('Invalid encrypted format');
+  
+  // Handle old format with double colon (enc::iv:tag:data = 5 parts)
+  // and new format (enc:iv:tag:data = 4 parts)
+  let iv: string, authTag: string, encrypted: string;
+  
+  if (parts.length === 5 && parts[1] === '') {
+    // Old format: enc::iv:tag:data
+    iv = parts[2];
+    authTag = parts[3];
+    encrypted = parts[4];
+  } else if (parts.length === 4) {
+    // New format: enc:iv:tag:data
+    iv = parts[1];
+    authTag = parts[2];
+    encrypted = parts[3];
+  } else {
+    console.error('Invalid encrypted format, parts:', parts.length);
     return '[DONNÉES PROTÉGÉES]';
   }
   
   try {
     const key = getKey();
-    const iv = Buffer.from(parts[1], ENCODING);
-    const authTag = Buffer.from(parts[2], ENCODING);
-    const encrypted = Buffer.from(parts[3], ENCODING);
+    const ivBuffer = Buffer.from(iv, ENCODING);
+    const authTagBuffer = Buffer.from(authTag, ENCODING);
+    const encryptedBuffer = Buffer.from(encrypted, ENCODING);
     
-    const decipher = createDecipheriv(ALGORITHM, key, iv);
-    decipher.setAuthTag(authTag);
+    const decipher = createDecipheriv(ALGORITHM, key, ivBuffer);
+    decipher.setAuthTag(authTagBuffer);
     
     const decrypted = Buffer.concat([
-      decipher.update(encrypted),
+      decipher.update(encryptedBuffer),
       decipher.final(),
     ]);
     
