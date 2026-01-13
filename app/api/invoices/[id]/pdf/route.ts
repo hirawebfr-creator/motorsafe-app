@@ -6,6 +6,7 @@ import { PDFDocument, StandardFonts } from "pdf-lib";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import type { Plan } from "@/lib/guards";
+import { decryptClientData } from "@/lib/encryption";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -62,6 +63,9 @@ export async function GET(req: Request, ctx: Ctx) {
 
     if (!invoice) throw new RouteError(404, "NOT_FOUND", "Facture introuvable");
 
+    // Déchiffrer les données du client
+    const client = decryptClientData(invoice.client as Record<string, unknown>) as typeof invoice.client;
+
     const pdf = await PDFDocument.create();
     const page = pdf.addPage([595.28, 841.89]);
     const font = await pdf.embedFont(StandardFonts.Helvetica);
@@ -82,9 +86,9 @@ export async function GET(req: Request, ctx: Ctx) {
     y -= 8;
 
     draw("Client", true);
-    draw(`${invoice.client.firstName} ${invoice.client.lastName}`);
-    if (invoice.client.email) draw(`Email: ${invoice.client.email}`);
-    if (invoice.client.phone) draw(`Tel: ${invoice.client.phone}`);
+    draw(`${client.firstName} ${client.lastName}`);
+    if (client.email) draw(`Email: ${client.email}`);
+    if (client.phone) draw(`Tel: ${client.phone}`);
     y -= 8;
 
     if (invoice.vehicle) {
