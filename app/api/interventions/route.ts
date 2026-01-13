@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createHash } from "crypto";
 import { success } from "@/lib/api";
-import { requireApprovedTenant, requireUser } from "@/lib/guards";
+import { requireApprovedTenant, requireUser, PLAN_LIMITS, FREE_UPGRADE_MESSAGE, type Plan } from "@/lib/guards";
 import { toErrorResponse } from "@/lib/routeErrors";
 import { z } from "zod";
 import type { Prisma } from "@prisma/client";
@@ -163,6 +163,37 @@ export async function POST(req: Request) {
         { ok: false, error: { code: "TENANT_REQUIRED", message: "Garage invalide." } },
         { status: 400 }
       );
+    }
+
+    // Plan limits - interventions sur les 7 derniers jours pour FREE
+    if (user.role !== "ADMIN") {
+      const plan = (user.garage?.plan as Plan) || "FREE";
+      const limit = PLAN_LIMITS[plan].interventionsPer7Days;
+      if (limit !== Infinity) {
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        
+        const count = await prisma.intervention.count({
+          where: {
+            garageId: targetGarageId,
+            deletedAt: null,
+            createdAt: { gte: sevenDaysAgo },
+          },
+        });
+        
+        if (count >= limit) {
+          return NextResponse.json(
+            {
+              ok: false,
+              error: {
+                code: "LIMIT_REACHED",
+                message: `Vous avez atteint la limite de ${limit} interventions par semaine sur le plan Gratuit. ${FREE_UPGRADE_MESSAGE}`,
+              },
+            },
+            { status: 403 }
+          );
+        }
+      }
     }
 
     const userAgent = req.headers.get("user-agent") ?? null;

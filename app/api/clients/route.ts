@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { success } from "@/lib/api";
-import { requireApprovedTenant, requireUser, PLAN_LIMITS, type Plan } from "@/lib/guards";
+import { requireApprovedTenant, requireUser, PLAN_LIMITS, FREE_UPGRADE_MESSAGE, type Plan } from "@/lib/guards";
 import { toErrorResponse } from "@/lib/routeErrors";
 import { z } from "zod";
 import { encrypt, decryptClients } from "@/lib/encryption";
@@ -179,14 +179,12 @@ export async function POST(req: Request) {
       if (limit !== Infinity) {
         const count = await prisma.client.count({ where: { garageId: targetGarageId, deletedAt: null } });
         if (count >= limit) {
-          const planName = plan === "STARTER" ? "Starter" : plan === "PRO" ? "Pro" : "Gratuit";
-          const upgradeTo = plan === "FREE" ? "Starter ou Pro" : "Pro";
           return NextResponse.json(
             {
               ok: false,
               error: {
                 code: "LIMIT_REACHED",
-                message: `Limite du plan ${planName} atteinte (${limit} clients). Passez au plan ${upgradeTo} pour continuer.`,
+                message: `Vous avez atteint la limite de ${limit} clients sur le plan Gratuit. ${FREE_UPGRADE_MESSAGE}`,
               },
             },
             { status: 403 }

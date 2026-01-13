@@ -7,11 +7,14 @@ export type Plan = "FREE" | "STARTER" | "PRO";
 // ============================================
 // LIMITES PAR PLAN
 // ============================================
+// FREE: limites sur 7 jours glissants
+// STARTER/PRO: limites globales ou illimitées
 export const PLAN_LIMITS = {
   FREE: {
-    clients: 10,
-    vehicules: 10,
-    interventionsPerMonth: 10,
+    clients: 5,
+    vehicules: 5,
+    interventionsPer7Days: 5,
+    pdfDownloadsPer7Days: 5,
     hasDevisFactures: false,
     hasDocuments: false,
     hasAdvancedStats: false,
@@ -21,7 +24,8 @@ export const PLAN_LIMITS = {
   STARTER: {
     clients: 50,
     vehicules: 50,
-    interventionsPerMonth: 100,
+    interventionsPer7Days: Infinity,
+    pdfDownloadsPer7Days: Infinity,
     hasDevisFactures: true,
     hasDocuments: true,
     hasAdvancedStats: false,
@@ -31,7 +35,8 @@ export const PLAN_LIMITS = {
   PRO: {
     clients: Infinity,
     vehicules: Infinity,
-    interventionsPerMonth: Infinity,
+    interventionsPer7Days: Infinity,
+    pdfDownloadsPer7Days: Infinity,
     hasDevisFactures: true,
     hasDocuments: true,
     hasAdvancedStats: true,
@@ -39,6 +44,9 @@ export const PLAN_LIMITS = {
     hasPrioritySupport: true,
   },
 } as const;
+
+// Message d'upgrade pour le plan FREE
+export const FREE_UPGRADE_MESSAGE = "Passez au plan Starter (49€/mois) ou Pro (129€/mois) pour débloquer plus de fonctionnalités !";
 
 // ============================================
 // GUARDS DE BASE

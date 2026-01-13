@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireApprovedTenant, requireUser, getTenantId } from "@/lib/guards";
+import { requireApprovedTenant, requireUser, getTenantId, PLAN_LIMITS, FREE_UPGRADE_MESSAGE } from "@/lib/guards";
 import { RouteError, toErrorResponse } from "@/lib/routeErrors";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
+import type { Plan } from "@/lib/guards";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,6 +20,32 @@ export async function GET(req: Request, ctx: Ctx) {
   try {
     const user = requireApprovedTenant(await requireUser(req));
     const organisationId = getTenantId(user);
+
+    // Vérifier la limite PDF pour le plan FREE (7 jours glissants)
+    const garage = await prisma.garage.findUnique({ where: { id: organisationId } });
+    const plan = (garage?.plan || "FREE") as Plan;
+    const limit = PLAN_LIMITS[plan].pdfDownloadsPer7Days;
+
+    if (limit !== Infinity) {
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+      const pdfCount = await prisma.document.count({
+        where: {
+          garageId: organisationId,
+          type: { in: ["QUOTE_PDF", "INVOICE_PDF"] },
+          createdAt: { gte: sevenDaysAgo },
+        },
+      });
+
+      if (pdfCount >= limit) {
+        throw new RouteError(
+          403,
+          "LIMIT_REACHED",
+          `Limite de ${limit} téléchargements PDF par semaine atteinte. ${FREE_UPGRADE_MESSAGE}`
+        );
+      }
+    }
 
     const { id } = await ctx.params;
     const quoteId = String(id);
