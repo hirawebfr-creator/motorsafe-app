@@ -9,12 +9,16 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // Map des clés de prix vers les variables d'environnement
-// .trim() pour supprimer les \r\n éventuels ajoutés par Vercel CLI
+// Nettoie les \r\n littéraux parfois ajoutés par Vercel CLI
+function cleanEnv(val: string | undefined): string | undefined {
+  return val?.replace(/\\r\\n$/, "").replace(/\r\n$/, "").trim();
+}
+
 const PRICE_KEYS: Record<string, string | undefined> = {
-  STARTER_MONTHLY: process.env.STRIPE_PRICE_STARTER_MONTHLY?.trim(),
-  STARTER_YEARLY: process.env.STRIPE_PRICE_STARTER_YEARLY?.trim(),
-  PRO_MONTHLY: process.env.STRIPE_PRICE_PRO_MONTHLY?.trim(),
-  PRO_YEARLY: process.env.STRIPE_PRICE_PRO_YEARLY?.trim(),
+  STARTER_MONTHLY: cleanEnv(process.env.STRIPE_PRICE_STARTER_MONTHLY),
+  STARTER_YEARLY: cleanEnv(process.env.STRIPE_PRICE_STARTER_YEARLY),
+  PRO_MONTHLY: cleanEnv(process.env.STRIPE_PRICE_PRO_MONTHLY),
+  PRO_YEARLY: cleanEnv(process.env.STRIPE_PRICE_PRO_YEARLY),
 };
 
 export async function POST(req: Request) {

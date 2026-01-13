@@ -19,5 +19,8 @@ export function toErrorResponse(err: unknown) {
     return NextResponse.json(failure(err.message, err.details, err.code), { status: err.status });
   }
 
+  // Log l'erreur pour debug
+  console.error("Unhandled error:", err);
+  
   return NextResponse.json(failure("Erreur serveur", undefined, "INTERNAL"), { status: 500 });
 }
