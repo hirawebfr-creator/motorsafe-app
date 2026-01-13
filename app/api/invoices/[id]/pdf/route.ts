@@ -3,8 +3,6 @@ import { prisma } from "@/lib/prisma";
 import { requireApprovedTenant, requireUser, getTenantId, PLAN_LIMITS, FREE_UPGRADE_MESSAGE } from "@/lib/guards";
 import { RouteError, toErrorResponse } from "@/lib/routeErrors";
 import { PDFDocument, StandardFonts } from "pdf-lib";
-import { mkdir, writeFile } from "fs/promises";
-import path from "path";
 import type { Plan } from "@/lib/guards";
 import { decryptClientData } from "@/lib/encryption";
 
@@ -115,27 +113,24 @@ export async function GET(req: Request, ctx: Ctx) {
     const bytes = await pdf.save();
     const buffer = Buffer.from(bytes);
 
-    const uploadsDir = path.join(process.cwd(), "uploads", "pdf");
-    await mkdir(uploadsDir, { recursive: true });
-
     const fileName = `facture-${safeFilePart(invoice.invoiceNumber ?? invoice.id)}.pdf`;
-    const key = `pdf/${fileName}`;
-    const fullPath = path.join(process.cwd(), "uploads", key);
 
-    await writeFile(fullPath, buffer);
-
-    const fileUrl = `/api/uploads/file/${key}`;
-
-    await prisma.document.create({
-      data: {
-        garageId: organisationId,
-        type: "INVOICE_PDF",
-        fileUrl,
-        fileName,
-        mime: "application/pdf",
-        size: buffer.length,
-      },
-    });
+    // On Vercel serverless, we can't write to the filesystem (except /tmp)
+    // So we just track the document without storing the file
+    try {
+      await prisma.document.create({
+        data: {
+          garageId: organisationId,
+          type: "INVOICE_PDF",
+          fileUrl: `generated:${fileName}`,
+          fileName,
+          mime: "application/pdf",
+          size: buffer.length,
+        },
+      });
+    } catch {
+      // Ignore duplicate document errors
+    }
 
     return new NextResponse(new Uint8Array(buffer), {
       status: 200,
