@@ -28,9 +28,11 @@ import { Button } from "@/components/ui/Button";
 import { useUser } from "@/components/user-context";
 
 type BillingStatus = {
-  plan: "FREE" | "PRO" | "ADMIN";
+  plan: "FREE" | "STARTER" | "PRO" | "ADMIN";
   status: string | null;
   currentPeriodEnd: string | null;
+  trialEnd: string | null;
+  trialDaysLeft: number | null;
   hasPaymentMethod: boolean;
   hasSubscription: boolean;
   canManageBilling: boolean;
@@ -163,7 +165,12 @@ export default function BillingPage() {
 
   const isActive = status?.status === "ACTIVE" || status?.status === "TRIALING";
   const isPro = status?.plan === "PRO";
+  const isStarter = status?.plan === "STARTER";
+  const isPaid = isPro || isStarter;
   const statusInfo = STATUS_LABELS[status?.status ?? ""] || { label: status?.status || "Inconnu", color: "text-gray-600" };
+  
+  // Nom du plan pour l'affichage
+  const planName = status?.plan === "PRO" ? "Pro" : status?.plan === "STARTER" ? "Starter" : "Gratuit";
 
   return (
     <div className="mx-auto max-w-6xl py-8">
@@ -226,9 +233,11 @@ export default function BillingPage() {
         <Card className="mb-8 p-6">
           <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
             <div className="flex items-center gap-4">
-              <div className={`flex h-14 w-14 items-center justify-center rounded-xl ${isPro ? "bg-gradient-to-br from-indigo-500 to-purple-500" : "bg-gray-100"}`}>
+              <div className={`flex h-14 w-14 items-center justify-center rounded-xl ${isPaid ? (isPro ? "bg-gradient-to-br from-indigo-500 to-purple-500" : "bg-gradient-to-br from-blue-400 to-blue-600") : "bg-gray-100"}`}>
                 {isPro ? (
                   <Crown size={28} className="text-white" />
+                ) : isStarter ? (
+                  <Sparkles size={28} className="text-white" />
                 ) : (
                   <Rocket size={28} className="text-gray-600" />
                 )}
@@ -236,15 +245,24 @@ export default function BillingPage() {
               <div>
                 <div className="flex items-center gap-2">
                   <h2 className="text-xl font-bold">
-                    Plan {status.plan === "PRO" ? "Pro" : "Gratuit"}
+                    Plan {planName}
                   </h2>
                   {status.hasSubscription && (
                     <span className={`text-sm font-medium ${statusInfo.color}`}>
                       • {statusInfo.label}
+                      {status.trialDaysLeft !== null && status.trialDaysLeft > 0 && (
+                        <> ({status.trialDaysLeft} jour{status.trialDaysLeft > 1 ? "s" : ""} restant{status.trialDaysLeft > 1 ? "s" : ""})</>
+                      )}
                     </span>
                   )}
                 </div>
-                {status.currentPeriodEnd && isActive && (
+                {status.status === "TRIALING" && status.trialEnd && (
+                  <p className="mt-1 flex items-center gap-2 text-sm text-blue-600">
+                    <Gift size={14} />
+                    Essai gratuit jusqu'au {formatDate(status.trialEnd)}
+                  </p>
+                )}
+                {status.currentPeriodEnd && isActive && status.status !== "TRIALING" && (
                   <p className="mt-1 flex items-center gap-2 text-sm text-muted2">
                     <Calendar size={14} />
                     Renouvellement le {formatDate(status.currentPeriodEnd)}
@@ -285,8 +303,8 @@ export default function BillingPage() {
         </Card>
       )}
 
-      {/* Pricing Section - Show if not Pro or not active */}
-      {(!isPro || !isActive) && (
+      {/* Pricing Section - Show if not paid or not active */}
+      {(!isPaid || !isActive) && (
         <>
           <h2 className="mb-4 text-center text-2xl font-bold">Choisissez votre formule</h2>
           

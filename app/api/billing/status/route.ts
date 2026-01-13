@@ -31,6 +31,7 @@ export async function GET(req: Request) {
         plan: true,
         subscriptionStatus: true,
         currentPeriodEnd: true,
+        trialEnd: true,
         stripeCustomerId: true,
         stripeSubscriptionId: true,
       },
@@ -40,11 +41,22 @@ export async function GET(req: Request) {
       throw new RouteError(404, "NOT_FOUND", "Garage introuvable");
     }
 
+    // Calculer les jours restants de la période d'essai
+    let trialDaysLeft: number | null = null;
+    if (garage.trialEnd && garage.subscriptionStatus === "TRIALING") {
+      const now = new Date();
+      const trialEnd = new Date(garage.trialEnd);
+      const diffMs = trialEnd.getTime() - now.getTime();
+      trialDaysLeft = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+    }
+
     return NextResponse.json(
       success({
         plan: garage.plan,
         status: garage.subscriptionStatus,
         currentPeriodEnd: garage.currentPeriodEnd?.toISOString() ?? null,
+        trialEnd: garage.trialEnd?.toISOString() ?? null,
+        trialDaysLeft,
         hasPaymentMethod: !!garage.stripeCustomerId,
         hasSubscription: !!garage.stripeSubscriptionId,
         canManageBilling: !!garage.stripeCustomerId,

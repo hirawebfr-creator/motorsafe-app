@@ -83,6 +83,7 @@ model Garage {
   stripeSubscriptionId String?           @unique
   subscriptionStatus  SubscriptionStatus @default(INCOMPLETE)
   currentPeriodEnd    DateTime?
+  trialEnd            DateTime?
 
   users         User[]
   clients       Client[]

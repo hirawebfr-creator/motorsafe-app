@@ -114,6 +114,7 @@ export async function POST(req: Request) {
           const sub: any = await stripe.subscriptions.retrieve(subscriptionId);
           const status = toStatus(sub.status);
           const currentPeriodEnd = sub.current_period_end ? new Date(sub.current_period_end * 1000) : null;
+          const trialEnd = sub.trial_end ? new Date(sub.trial_end * 1000) : null;
           
           // Récupère le price ID du premier item de la subscription
           const priceId = sub.items?.data?.[0]?.price?.id ?? null;
@@ -126,6 +127,7 @@ export async function POST(req: Request) {
               stripeSubscriptionId: subscriptionId,
               subscriptionStatus: status,
               currentPeriodEnd,
+              trialEnd,
               plan,
             },
             select: { id: true },
@@ -149,6 +151,7 @@ export async function POST(req: Request) {
       const subscriptionId = sub.id as string;
       const status = toStatus(sub.status);
       const currentPeriodEnd = sub.current_period_end ? new Date(sub.current_period_end * 1000) : null;
+      const trialEnd = sub.trial_end ? new Date(sub.trial_end * 1000) : null;
       
       // Récupère le price ID du premier item de la subscription
       const priceId = sub.items?.data?.[0]?.price?.id ?? null;
@@ -163,6 +166,7 @@ export async function POST(req: Request) {
             stripeSubscriptionId: subscriptionId,
             subscriptionStatus: status,
             currentPeriodEnd,
+            trialEnd,
             plan,
           },
           select: { id: true },

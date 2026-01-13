@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { success } from "@/lib/api";
-import { requireApprovedTenant, requireUser } from "@/lib/guards";
+import { requireApprovedTenant, requireUser, PLAN_LIMITS, type Plan } from "@/lib/guards";
 import { toErrorResponse } from "@/lib/routeErrors";
 import { z } from "zod";
 import { encrypt, decryptClients } from "@/lib/encryption";
@@ -172,21 +172,26 @@ export async function POST(req: Request) {
       );
     }
 
-    // FREE plan limits (backend-enforced).
-    if (user.role !== "ADMIN" && user.garage?.plan !== "PRO") {
-      const limit = Number(process.env.FREE_CLIENT_LIMIT ?? 10);
-      const count = await prisma.client.count({ where: { garageId: targetGarageId, deletedAt: null } });
-      if (count >= limit) {
-        return NextResponse.json(
-          {
-            ok: false,
-            error: {
-              code: "LIMIT_REACHED",
-              message: `Limite FREE atteinte (${limit} clients). Passez Pro pour continuer.`,
+    // Plan limits (backend-enforced) - utilise les limites définies dans PLAN_LIMITS
+    if (user.role !== "ADMIN") {
+      const plan = (user.garage?.plan as Plan) || "FREE";
+      const limit = PLAN_LIMITS[plan].clients;
+      if (limit !== Infinity) {
+        const count = await prisma.client.count({ where: { garageId: targetGarageId, deletedAt: null } });
+        if (count >= limit) {
+          const planName = plan === "STARTER" ? "Starter" : plan === "PRO" ? "Pro" : "Gratuit";
+          const upgradeTo = plan === "FREE" ? "Starter ou Pro" : "Pro";
+          return NextResponse.json(
+            {
+              ok: false,
+              error: {
+                code: "LIMIT_REACHED",
+                message: `Limite du plan ${planName} atteinte (${limit} clients). Passez au plan ${upgradeTo} pour continuer.`,
+              },
             },
-          },
-          { status: 403 }
-        );
+            { status: 403 }
+          );
+        }
       }
     }
 
