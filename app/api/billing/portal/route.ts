@@ -8,6 +8,11 @@ import { getStripe } from "@/lib/stripe";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// Nettoie les \r\n littéraux des variables d'environnement
+function cleanEnv(val: string | undefined): string | undefined {
+  return val?.replace(/\\r\\n$/, "").replace(/\r\n$/, "").trim();
+}
+
 export async function POST(req: Request) {
   try {
     const user = requireApprovedTenant(await requireUser(req));
@@ -19,7 +24,7 @@ export async function POST(req: Request) {
     const garageId = user.garageId;
     if (!garageId) throw new RouteError(400, "TENANT_REQUIRED", "Garage invalide.");
 
-    const appUrl = process.env.APP_URL;
+    const appUrl = cleanEnv(process.env.APP_URL);
     if (!appUrl) throw new RouteError(500, "CONFIG", "APP_URL manquant");
 
     const stripe = getStripe();
