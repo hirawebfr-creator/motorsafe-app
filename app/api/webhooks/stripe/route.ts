@@ -5,6 +5,22 @@ import { getStripe } from "@/lib/stripe";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// Nettoie les \r\n littéraux des variables d'environnement
+function cleanEnv(val: string | undefined): string | undefined {
+  return val?.replace(/\\r\\n$/, "").replace(/\r\n$/, "").trim();
+}
+
+// Prix Stripe configurés
+const STARTER_PRICES = [
+  cleanEnv(process.env.STRIPE_PRICE_STARTER_MONTHLY),
+  cleanEnv(process.env.STRIPE_PRICE_STARTER_YEARLY),
+].filter(Boolean);
+
+const PRO_PRICES = [
+  cleanEnv(process.env.STRIPE_PRICE_PRO_MONTHLY),
+  cleanEnv(process.env.STRIPE_PRICE_PRO_YEARLY),
+].filter(Boolean);
+
 function toStatus(status: string) {
   // Stripe statuses: incomplete, incomplete_expired, trialing, active, past_due, canceled, unpaid
   const normalized = status.toUpperCase();
@@ -22,10 +38,19 @@ function toStatus(status: string) {
   }
 }
 
-function planFromStatus(status: string) {
+// Détermine le plan selon le price ID de la subscription
+function planFromPriceId(priceId: string | null): "FREE" | "STARTER" | "PRO" {
+  if (!priceId) return "FREE";
+  if (PRO_PRICES.includes(priceId)) return "PRO";
+  if (STARTER_PRICES.includes(priceId)) return "STARTER";
+  // Par défaut si le prix n'est pas reconnu mais existe, on assume PRO
+  return "PRO";
+}
+
+// Détermine si le status permet l'accès
+function isActiveStatus(status: string): boolean {
   const s = status.toUpperCase();
-  if (s === "ACTIVE" || s === "TRIALING" || s === "PAST_DUE") return "PRO" as const;
-  return "FREE" as const;
+  return s === "ACTIVE" || s === "TRIALING" || s === "PAST_DUE";
 }
 
 export async function POST(req: Request) {
@@ -89,6 +114,10 @@ export async function POST(req: Request) {
           const sub: any = await stripe.subscriptions.retrieve(subscriptionId);
           const status = toStatus(sub.status);
           const currentPeriodEnd = sub.current_period_end ? new Date(sub.current_period_end * 1000) : null;
+          
+          // Récupère le price ID du premier item de la subscription
+          const priceId = sub.items?.data?.[0]?.price?.id ?? null;
+          const plan = isActiveStatus(status) ? planFromPriceId(priceId) : "FREE";
 
           await prisma.garage.update({
             where: { id: garage.id },
@@ -97,7 +126,7 @@ export async function POST(req: Request) {
               stripeSubscriptionId: subscriptionId,
               subscriptionStatus: status,
               currentPeriodEnd,
-              plan: planFromStatus(status),
+              plan,
             },
             select: { id: true },
           });
@@ -120,6 +149,10 @@ export async function POST(req: Request) {
       const subscriptionId = sub.id as string;
       const status = toStatus(sub.status);
       const currentPeriodEnd = sub.current_period_end ? new Date(sub.current_period_end * 1000) : null;
+      
+      // Récupère le price ID du premier item de la subscription
+      const priceId = sub.items?.data?.[0]?.price?.id ?? null;
+      const plan = isActiveStatus(status) ? planFromPriceId(priceId) : "FREE";
 
       const garage = await upsertGarageByCustomer(customerId);
       if (garage) {
@@ -130,7 +163,7 @@ export async function POST(req: Request) {
             stripeSubscriptionId: subscriptionId,
             subscriptionStatus: status,
             currentPeriodEnd,
-            plan: planFromStatus(status),
+            plan,
           },
           select: { id: true },
         });

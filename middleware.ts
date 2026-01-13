@@ -113,13 +113,13 @@ export async function middleware(request: NextRequest) {
         return NextResponse.next();
       }
 
-      // Check if subscription is active
-      const isActive = 
-        plan === "PRO" && 
-        (subscriptionStatus === "ACTIVE" || subscriptionStatus === "TRIALING");
+      // Check if subscription is active (STARTER or PRO)
+      const hasActivePlan = 
+        (plan === "STARTER" || plan === "PRO") && 
+        (subscriptionStatus === "ACTIVE" || subscriptionStatus === "TRIALING" || subscriptionStatus === "PAST_DUE");
 
       // If not active, redirect to billing with message
-      if (!isActive) {
+      if (!hasActivePlan) {
         const billingUrl = new URL("/billing", request.url);
         billingUrl.searchParams.set("upgrade", "required");
         billingUrl.searchParams.set("from", pathname);

@@ -2,6 +2,47 @@ import { getSessionUser, isApprovedGarage, type SessionUser } from "@/lib/auth";
 import { RouteError } from "@/lib/routeErrors";
 
 export type AppRole = SessionUser["role"];
+export type Plan = "FREE" | "STARTER" | "PRO";
+
+// ============================================
+// LIMITES PAR PLAN
+// ============================================
+export const PLAN_LIMITS = {
+  FREE: {
+    clients: 10,
+    vehicules: 10,
+    interventionsPerMonth: 10,
+    hasDevisFactures: false,
+    hasDocuments: false,
+    hasAdvancedStats: false,
+    hasMultiUsers: false,
+    hasPrioritySupport: false,
+  },
+  STARTER: {
+    clients: 50,
+    vehicules: 50,
+    interventionsPerMonth: 100,
+    hasDevisFactures: true,
+    hasDocuments: true,
+    hasAdvancedStats: false,
+    hasMultiUsers: false,
+    hasPrioritySupport: false,
+  },
+  PRO: {
+    clients: Infinity,
+    vehicules: Infinity,
+    interventionsPerMonth: Infinity,
+    hasDevisFactures: true,
+    hasDocuments: true,
+    hasAdvancedStats: true,
+    hasMultiUsers: true,
+    hasPrioritySupport: true,
+  },
+} as const;
+
+// ============================================
+// GUARDS DE BASE
+// ============================================
 
 export async function requireUser(req: Request): Promise<SessionUser> {
   const user = await getSessionUser(req);
@@ -38,13 +79,57 @@ export function requireRole(user: SessionUser, roles: AppRole[]) {
   throw new RouteError(403, "FORBIDDEN", "Acces refuse.");
 }
 
-export function isProActive(user: SessionUser) {
-  return user.garage?.plan === "PRO" && user.garage?.subscriptionStatus === "ACTIVE";
+// ============================================
+// GUARDS D'ABONNEMENT
+// ============================================
+
+/** Retourne le plan effectif de l'utilisateur */
+export function getUserPlan(user: SessionUser): Plan {
+  if (user.role === "ADMIN") return "PRO"; // Admins ont accès PRO
+  
+  const status = user.garage?.subscriptionStatus;
+  const isActive = status === "ACTIVE" || status === "TRIALING" || status === "PAST_DUE";
+  
+  if (!isActive) return "FREE";
+  
+  return (user.garage?.plan as Plan) ?? "FREE";
 }
 
-export function requireActiveSubscription(user: SessionUser) {
+/** Vérifie si l'utilisateur a au moins le plan minimum requis */
+export function hasPlan(user: SessionUser, minPlan: Plan): boolean {
+  const userPlan = getUserPlan(user);
+  const planOrder: Plan[] = ["FREE", "STARTER", "PRO"];
+  return planOrder.indexOf(userPlan) >= planOrder.indexOf(minPlan);
+}
+
+/** Retourne les limites du plan de l'utilisateur */
+export function getPlanLimits(user: SessionUser) {
+  const plan = getUserPlan(user);
+  return PLAN_LIMITS[plan];
+}
+
+// Compatibilité avec l'ancien code
+export function isProActive(user: SessionUser) {
+  return hasPlan(user, "PRO");
+}
+
+/** Exige au moins STARTER (ou plus) pour accéder */
+export function requireStarterOrHigher(user: SessionUser) {
   if (user.role === "ADMIN") return;
-  if (!isProActive(user)) {
-    throw new RouteError(402, "SUBSCRIPTION_REQUIRED", "Abonnement requis.");
+  if (!hasPlan(user, "STARTER")) {
+    throw new RouteError(402, "SUBSCRIPTION_REQUIRED", "Abonnement Starter ou Pro requis.");
   }
+}
+
+/** Exige PRO pour accéder */
+export function requirePro(user: SessionUser) {
+  if (user.role === "ADMIN") return;
+  if (!hasPlan(user, "PRO")) {
+    throw new RouteError(402, "SUBSCRIPTION_REQUIRED", "Abonnement Pro requis.");
+  }
+}
+
+/** Alias pour compatibilité - exige STARTER minimum */
+export function requireActiveSubscription(user: SessionUser) {
+  requireStarterOrHigher(user);
 }
