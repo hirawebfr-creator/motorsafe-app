@@ -6,7 +6,6 @@ import {
   Check,
   Crown,
   Rocket,
-  Briefcase,
   Loader2,
   Sparkles,
   Shield,
@@ -56,6 +55,8 @@ function formatDate(iso: string | null) {
   }).format(new Date(iso));
 }
 
+type BillingPeriod = "monthly" | "yearly";
+
 export default function BillingPage() {
   const user = useUser();
   const searchParams = useSearchParams();
@@ -67,6 +68,7 @@ export default function BillingPage() {
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [showUpgradeNotice, setShowUpgradeNotice] = useState(upgradeRequired);
+  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>("monthly");
 
   const loadStatus = useCallback(async () => {
     try {
@@ -91,14 +93,14 @@ export default function BillingPage() {
     void loadStatus();
   }, [loadStatus]);
 
-  const handleCheckout = async (plan: string) => {
+  const handleCheckout = async (priceKey: string) => {
     try {
       setError(null);
-      setActionLoading("checkout");
+      setActionLoading(priceKey);
       const res = await fetch("/api/billing/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan }),
+        body: JSON.stringify({ priceKey }),
       });
       const json = await res.json();
       if (json.ok && json.data?.url) {
@@ -167,7 +169,7 @@ export default function BillingPage() {
     <div className="mx-auto max-w-6xl py-8">
       <SectionHeader
         title="Facturation"
-        description="Gérez votre abonnement MotorSafe"
+        description="Gérez votre abonnement SafeMotor"
         action={
           status?.canManageBilling ? (
             <Button
@@ -207,7 +209,7 @@ export default function BillingPage() {
           <div className="flex-1">
             <p className="font-medium">Abonnement requis</p>
             <p className="text-sm text-indigo-600">
-              Pour accéder à {fromPage ? `"${fromPage}"` : "cette fonctionnalité"}, vous devez passer à un plan Pro.
+              Pour accéder à {fromPage ? `"${fromPage}"` : "cette fonctionnalité"}, vous devez passer à un plan payant.
             </p>
           </div>
           <button
@@ -250,26 +252,13 @@ export default function BillingPage() {
                 )}
                 {!status.hasSubscription && (
                   <p className="mt-1 text-sm text-muted2">
-                    Passez à Pro pour débloquer toutes les fonctionnalités
+                    Passez à un plan payant pour débloquer toutes les fonctionnalités
                   </p>
                 )}
               </div>
             </div>
 
             <div className="flex flex-wrap gap-3">
-              {!isPro && (
-                <Button
-                  onClick={() => handleCheckout("PRO")}
-                  disabled={!!actionLoading}
-                >
-                  {actionLoading === "checkout" ? (
-                    <Loader2 size={16} className="animate-spin" />
-                  ) : (
-                    <Sparkles size={16} />
-                  )}
-                  Passer à Pro
-                </Button>
-              )}
               {status.canManageBilling && (
                 <Button
                   variant="secondary"
@@ -296,10 +285,38 @@ export default function BillingPage() {
         </Card>
       )}
 
-      {/* Pricing Cards - Only show if not Pro */}
+      {/* Pricing Section - Show if not Pro or not active */}
       {(!isPro || !isActive) && (
         <>
-          <h2 className="mb-8 text-center text-2xl font-bold">Nos offres</h2>
+          <h2 className="mb-4 text-center text-2xl font-bold">Choisissez votre formule</h2>
+          
+          {/* Billing Period Toggle */}
+          <div className="mb-8 flex items-center justify-center gap-4">
+            <button
+              onClick={() => setBillingPeriod("monthly")}
+              className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                billingPeriod === "monthly"
+                  ? "bg-indigo-600 text-white"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              }`}
+            >
+              Mensuel
+            </button>
+            <button
+              onClick={() => setBillingPeriod("yearly")}
+              className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                billingPeriod === "yearly"
+                  ? "bg-indigo-600 text-white"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              }`}
+            >
+              Annuel
+              <span className="rounded bg-green-500 px-2 py-0.5 text-xs text-white">
+                -17%
+              </span>
+            </button>
+          </div>
+
           <div className="grid gap-8 md:grid-cols-3">
             {/* FREE CARD */}
             <Card className="flex flex-col p-6">
@@ -331,6 +348,54 @@ export default function BillingPage() {
               </Button>
             </Card>
 
+            {/* STARTER CARD */}
+            <Card className="flex flex-col p-6">
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-400 to-blue-600">
+                <Sparkles size={24} className="text-white" />
+              </div>
+              <h3 className="text-xl font-bold">Starter</h3>
+              <p className="mt-1 text-sm text-muted2">Pour les indépendants</p>
+              <div className="my-4">
+                {billingPeriod === "monthly" ? (
+                  <>
+                    <span className="text-3xl font-bold">49€</span>
+                    <span className="text-muted2">/mois</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-3xl font-bold">490€</span>
+                    <span className="text-muted2">/an</span>
+                    <p className="text-sm text-green-600">Soit 40€/mois</p>
+                  </>
+                )}
+              </div>
+              <ul className="mb-6 flex-1 space-y-2 text-sm">
+                <li className="flex items-center gap-2">
+                  <Check size={16} className="text-blue-600" />50 véhicules
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check size={16} className="text-blue-600" />Interventions illimitées
+                </li>
+                <li className="flex items-center gap-2">
+                  <TrendingUp size={16} className="text-blue-600" />Statistiques de base
+                </li>
+                <li className="flex items-center gap-2">
+                  <Gift size={16} className="text-blue-600" />14 jours d'essai
+                </li>
+              </ul>
+              <Button
+                variant="secondary"
+                onClick={() => handleCheckout(billingPeriod === "monthly" ? "STARTER_MONTHLY" : "STARTER_YEARLY")}
+                disabled={!!actionLoading}
+              >
+                {actionLoading === "STARTER_MONTHLY" || actionLoading === "STARTER_YEARLY" ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  "S'abonner"
+                )}
+              </Button>
+            </Card>
+
             {/* PRO CARD */}
             <Card className="relative flex flex-col border-2 border-indigo-500 bg-gradient-to-br from-indigo-50 to-purple-50 p-6">
               <div className="absolute -top-3 left-1/2 -translate-x-1/2">
@@ -343,10 +408,20 @@ export default function BillingPage() {
                 <Crown size={24} className="text-white" />
               </div>
               <h3 className="text-xl font-bold">Pro</h3>
-              <p className="mt-1 text-sm text-muted2">Pour les pros</p>
+              <p className="mt-1 text-sm text-muted2">Pour les professionnels</p>
               <div className="my-4">
-                <span className="text-3xl font-bold">49€</span>
-                <span className="text-muted2">/mois</span>
+                {billingPeriod === "monthly" ? (
+                  <>
+                    <span className="text-3xl font-bold">129€</span>
+                    <span className="text-muted2">/mois</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-3xl font-bold">1290€</span>
+                    <span className="text-muted2">/an</span>
+                    <p className="text-sm text-green-600">Soit 107€/mois</p>
+                  </>
+                )}
               </div>
               <ul className="mb-6 flex-1 space-y-2 text-sm">
                 <li className="flex items-center gap-2">
@@ -362,57 +437,22 @@ export default function BillingPage() {
                   <Users size={16} className="text-indigo-600" />Multi-utilisateurs
                 </li>
                 <li className="flex items-center gap-2">
+                  <Headphones size={16} className="text-indigo-600" />Support prioritaire
+                </li>
+                <li className="flex items-center gap-2">
                   <Gift size={16} className="text-indigo-600" />14 jours d'essai
                 </li>
               </ul>
               <Button
-                onClick={() => handleCheckout("PRO")}
+                onClick={() => handleCheckout(billingPeriod === "monthly" ? "PRO_MONTHLY" : "PRO_YEARLY")}
                 disabled={!!actionLoading || (status?.plan === "PRO" && isActive)}
               >
-                {actionLoading === "checkout" ? (
+                {actionLoading === "PRO_MONTHLY" || actionLoading === "PRO_YEARLY" ? (
                   <Loader2 size={16} className="animate-spin" />
                 ) : status?.plan === "PRO" && isActive ? (
                   "Plan actuel"
                 ) : (
                   "S'abonner"
-                )}
-              </Button>
-            </Card>
-
-            {/* BUSINESS CARD */}
-            <Card className="flex flex-col border-2 border-teal-400 bg-gradient-to-br from-teal-50 to-blue-50 p-6">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-teal-400 to-blue-500">
-                <Briefcase size={24} className="text-white" />
-              </div>
-              <h3 className="text-xl font-bold">Business</h3>
-              <p className="mt-1 text-sm text-muted2">Pour les exigeants</p>
-              <div className="my-4">
-                <span className="text-3xl font-bold">99€</span>
-                <span className="text-muted2">/mois</span>
-              </div>
-              <ul className="mb-6 flex-1 space-y-2 text-sm">
-                <li className="flex items-center gap-2">
-                  <Check size={16} className="text-teal-600" />Tout Pro +
-                </li>
-                <li className="flex items-center gap-2">
-                  <Headphones size={16} className="text-teal-600" />Support prioritaire
-                </li>
-                <li className="flex items-center gap-2">
-                  <Shield size={16} className="text-teal-600" />Sauvegarde avancée
-                </li>
-                <li className="flex items-center gap-2">
-                  <Zap size={16} className="text-teal-600" />Activation instantanée
-                </li>
-              </ul>
-              <Button
-                variant="secondary"
-                onClick={() => handleCheckout("BUSINESS")}
-                disabled={!!actionLoading}
-              >
-                {actionLoading === "checkout" ? (
-                  <Loader2 size={16} className="animate-spin" />
-                ) : (
-                  "Contacter"
                 )}
               </Button>
             </Card>
@@ -447,7 +487,11 @@ export default function BillingPage() {
             },
             {
               q: "L'essai gratuit est-il vraiment gratuit ?",
-              a: "Absolument ! Vous avez 14 jours pour tester toutes les fonctionnalités Pro sans aucun paiement.",
+              a: "Absolument ! Vous avez 14 jours pour tester toutes les fonctionnalités sans aucun paiement.",
+            },
+            {
+              q: "Quelle est la différence entre Starter et Pro ?",
+              a: "Starter est limité à 50 véhicules et offre des statistiques de base. Pro offre un accès illimité, les statistiques avancées, le multi-utilisateurs et un support prioritaire.",
             },
             {
               q: "Mes données sont-elles sécurisées ?",

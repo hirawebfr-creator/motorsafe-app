@@ -8,6 +8,14 @@ import { getStripe } from "@/lib/stripe";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// Map des clés de prix vers les variables d'environnement
+const PRICE_KEYS: Record<string, string | undefined> = {
+  STARTER_MONTHLY: process.env.STRIPE_PRICE_STARTER_MONTHLY,
+  STARTER_YEARLY: process.env.STRIPE_PRICE_STARTER_YEARLY,
+  PRO_MONTHLY: process.env.STRIPE_PRICE_PRO_MONTHLY,
+  PRO_YEARLY: process.env.STRIPE_PRICE_PRO_YEARLY,
+};
+
 export async function POST(req: Request) {
   try {
     const user = requireApprovedTenant(await requireUser(req));
@@ -19,8 +27,12 @@ export async function POST(req: Request) {
     const garageId = user.garageId;
     if (!garageId) throw new RouteError(400, "TENANT_REQUIRED", "Garage invalide.");
 
-    const priceId = process.env.STRIPE_PRICE_PRO_MONTHLY;
-    if (!priceId) throw new RouteError(500, "CONFIG", "STRIPE_PRICE_PRO_MONTHLY manquant");
+    // Récupérer le priceKey du body (défaut: PRO_MONTHLY pour compatibilité)
+    const body = await req.json().catch(() => ({}));
+    const priceKey = body.priceKey || "PRO_MONTHLY";
+    
+    const priceId = PRICE_KEYS[priceKey];
+    if (!priceId) throw new RouteError(400, "INVALID_PRICE", `Prix invalide: ${priceKey}`);
 
     const appUrl = process.env.APP_URL;
     if (!appUrl) throw new RouteError(500, "CONFIG", "APP_URL manquant");
