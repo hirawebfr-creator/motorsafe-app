@@ -9,11 +9,12 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // Map des clés de prix vers les variables d'environnement
+// .trim() pour supprimer les \r\n éventuels ajoutés par Vercel CLI
 const PRICE_KEYS: Record<string, string | undefined> = {
-  STARTER_MONTHLY: process.env.STRIPE_PRICE_STARTER_MONTHLY,
-  STARTER_YEARLY: process.env.STRIPE_PRICE_STARTER_YEARLY,
-  PRO_MONTHLY: process.env.STRIPE_PRICE_PRO_MONTHLY,
-  PRO_YEARLY: process.env.STRIPE_PRICE_PRO_YEARLY,
+  STARTER_MONTHLY: process.env.STRIPE_PRICE_STARTER_MONTHLY?.trim(),
+  STARTER_YEARLY: process.env.STRIPE_PRICE_STARTER_YEARLY?.trim(),
+  PRO_MONTHLY: process.env.STRIPE_PRICE_PRO_MONTHLY?.trim(),
+  PRO_YEARLY: process.env.STRIPE_PRICE_PRO_YEARLY?.trim(),
 };
 
 export async function POST(req: Request) {
