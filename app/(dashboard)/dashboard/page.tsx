@@ -14,6 +14,7 @@ import {
   Wrench,
 } from "lucide-react";
 import { fetcher } from "@/lib/fetcher";
+import { useUser } from "@/components/user-context";
 
 type KpisResponse = {
   clientsCount: number;
@@ -21,6 +22,8 @@ type KpisResponse = {
   interventionsCount: number;
   revenueTotalCents: number;
 };
+
+type GarageOption = { id: number; name: string; status: "PENDING" | "ACTIVE" | "REJECTED" };
 
 type ReportsResponse = { labels: string[]; values: number[] };
 type AnalyticsResponse = { done: number; inProgress: number; cancelled: number };
@@ -79,6 +82,7 @@ function formatEUR(cents: number) {
 }
 
 export default function DashboardPage() {
+  const user = useUser();
   const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const defaultFromISO = useMemo(() => {
     const d = new Date();
@@ -96,16 +100,50 @@ export default function DashboardPage() {
   const [analytics, setAnalytics] = useState<AnalyticsResponse | null>(null);
   const [recentInterventions, setRecentInterventions] = useState<RecentIntervention[]>([]);
   const [recentVehicles, setRecentVehicles] = useState<RecentVehicle[]>([]);
+  const [garages, setGarages] = useState<GarageOption[]>([]);
+  const [selectedGarageId, setSelectedGarageId] = useState<string>("");
 
   const queryString = useMemo(() => {
     const sp = new URLSearchParams();
     sp.set("from", fromISO);
     sp.set("to", toISO);
+    if (user.role === "ADMIN" && selectedGarageId) {
+      sp.set("garageId", selectedGarageId);
+    }
     return sp.toString();
-  }, [fromISO, toISO]);
+  }, [fromISO, toISO, selectedGarageId, user.role]);
+
+  useEffect(() => {
+    if (user.role !== "ADMIN") return;
+    const loadGarages = async () => {
+      try {
+        const data = await fetcher<GarageOption[]>("/api/admin/garages?status=active", { noStore: true });
+        const items = data ?? [];
+        setGarages(items);
+        if (!selectedGarageId && items.length > 0) {
+          setSelectedGarageId(String(items[0].id));
+        }
+        if (items.length === 0) {
+          setLoading(false);
+          setRefreshing(false);
+        }
+      } catch (e) {
+        console.error("Dashboard garages load error:", e);
+        setGarages([]);
+        setLoading(false);
+        setRefreshing(false);
+      }
+    };
+    void loadGarages();
+  }, [selectedGarageId, user.role]);
 
   const loadAll = useCallback(async (isRefresh = false) => {
     try {
+      if (user.role === "ADMIN" && !selectedGarageId) {
+        setLoading(false);
+        setRefreshing(false);
+        return;
+      }
       if (isRefresh) setRefreshing(true);
       else setLoading(true);
 
@@ -127,11 +165,12 @@ export default function DashboardPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [queryString]);
+  }, [queryString, selectedGarageId, user.role]);
 
   useEffect(() => {
+    if (user.role === "ADMIN" && !selectedGarageId) return;
     void loadAll();
-  }, [loadAll]);
+  }, [loadAll, selectedGarageId, user.role]);
 
   // Chart data
   const chart = useMemo(() => {
@@ -164,6 +203,26 @@ export default function DashboardPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {user.role === "ADMIN" ? (
+            <div className="flex items-center gap-2 rounded-lg border border-[var(--ms-border)] bg-white px-3 py-2">
+              <span className="text-sm text-[var(--ms-text-muted)]">Garage</span>
+              <select
+                value={selectedGarageId}
+                onChange={(e) => setSelectedGarageId(e.target.value)}
+                className="border-none bg-transparent text-sm text-[var(--ms-text)] outline-none"
+              >
+                {garages.length === 0 ? (
+                  <option value="">Aucun garage</option>
+                ) : (
+                  garages.map((garage) => (
+                    <option key={garage.id} value={garage.id}>
+                      {garage.name}
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
+          ) : null}
           <div className="flex items-center gap-2 rounded-lg border border-[var(--ms-border)] bg-white px-3 py-2">
             <Calendar size={16} className="text-[var(--ms-text-muted)]" />
             <input
@@ -183,7 +242,7 @@ export default function DashboardPage() {
           <button
             type="button"
             onClick={() => void loadAll(true)}
-            disabled={refreshing}
+            disabled={refreshing || (user.role === "ADMIN" && !selectedGarageId)}
             className="ms-btn ms-btn-secondary"
           >
             <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />

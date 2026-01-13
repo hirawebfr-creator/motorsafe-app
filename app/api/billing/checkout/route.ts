@@ -55,8 +55,12 @@ export async function POST(req: Request) {
       customer: customerId,
       line_items: [{ price: priceId, quantity: 1 }],
       allow_promotion_codes: true,
+      subscription_data: {
+        trial_period_days: 14,
+        metadata: { garageId: String(garage.id) },
+      },
       success_url: `${appUrl}/app/billing/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${appUrl}/app/billing`,
+      cancel_url: `${appUrl}/billing`,
       metadata: { garageId: String(garage.id) },
     });
 

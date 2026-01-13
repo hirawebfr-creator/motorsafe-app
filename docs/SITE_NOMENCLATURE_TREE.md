@@ -4,6 +4,10 @@ Arborescence du repo (hors `node_modules`, `.next`, `.git`, etc.).
 
 ```text
 motorsafe/
+├─ .github/
+│  └─ workflows/
+│     ├─ ci.yml
+│     └─ deploy-vercel.yml
 ├─ .vscode/
 │  └─ tasks.json
 ├─ app/
@@ -18,8 +22,15 @@ motorsafe/
 │  │  │  ├─ references/
 │  │  │  │  └─ page.tsx
 │  │  │  └─ page.tsx
+│  │  ├─ billing/
+│  │  │  └─ page.tsx
 │  │  ├─ clients/
 │  │  │  ├─ [id]/
+│  │  │  │  └─ page.tsx
+│  │  │  ├─ new/
+│  │  │  │  ├─ loading.tsx
+│  │  │  │  └─ page.tsx
+│  │  │  ├─ nouveau/
 │  │  │  │  └─ page.tsx
 │  │  │  └─ page.tsx
 │  │  ├─ dashboard/
@@ -30,13 +41,23 @@ motorsafe/
 │  │  │  ├─ [id]/
 │  │  │  │  └─ page.tsx
 │  │  │  └─ page.tsx
+│  │  ├─ messages/
+│  │  │  └─ page.tsx
+│  │  ├─ notifications/
+│  │  │  └─ page.tsx
 │  │  ├─ parametres/
 │  │  │  ├─ page.tsx
 │  │  │  └─ ParametresClient.tsx
+│  │  ├─ pdf/
+│  │  │  └─ page.tsx
 │  │  ├─ settings/
+│  │  │  └─ page.tsx
+│  │  ├─ vehicles/
 │  │  │  └─ page.tsx
 │  │  ├─ vehicules/
 │  │  │  ├─ [id]/
+│  │  │  │  └─ page.tsx
+│  │  │  ├─ nouveau/
 │  │  │  │  └─ page.tsx
 │  │  │  └─ page.tsx
 │  │  └─ layout.tsx
@@ -59,14 +80,32 @@ motorsafe/
 │  │  ├─ billing/
 │  │  │  ├─ checkout/
 │  │  │  │  └─ route.ts
-│  │  │  └─ portal/
+│  │  │  ├─ portal/
+│  │  │  │  └─ route.ts
+│  │  │  └─ status/
 │  │  │     └─ route.ts
 │  │  ├─ clients/
 │  │  │  ├─ [id]/
 │  │  │  │  └─ route.ts
 │  │  │  └─ route.ts
+│  │  ├─ dashboard/
+│  │  │  ├─ analytics/
+│  │  │  │  └─ route.ts
+│  │  │  ├─ kpis/
+│  │  │  │  └─ route.ts
+│  │  │  ├─ recent-interventions/
+│  │  │  │  └─ route.ts
+│  │  │  ├─ recent-vehicles/
+│  │  │  │  └─ route.ts
+│  │  │  ├─ reports/
+│  │  │  │  └─ route.ts
+│  │  │  └─ _utils.ts
 │  │  ├─ documents/
 │  │  │  ├─ [id]/
+│  │  │  │  └─ route.ts
+│  │  │  └─ route.ts
+│  │  ├─ garages/
+│  │  │  ├─ options/
 │  │  │  │  └─ route.ts
 │  │  │  └─ route.ts
 │  │  ├─ health/
@@ -85,6 +124,10 @@ motorsafe/
 │  │  │  │  │  └─ route.ts
 │  │  │  │  ├─ pdf/
 │  │  │  │  │  └─ route.ts
+│  │  │  │  └─ route.ts
+│  │  │  └─ route.ts
+│  │  ├─ legal-references/
+│  │  │  ├─ [id]/
 │  │  │  │  └─ route.ts
 │  │  │  └─ route.ts
 │  │  ├─ me/
@@ -162,6 +205,8 @@ motorsafe/
 │  ├─ layout.tsx
 │  └─ page.tsx
 ├─ components/
+│  ├─ clients/
+│  │  └─ ClientCreateForm.tsx
 │  ├─ common/
 │  │  ├─ DevOriginBanner.tsx
 │  │  ├─ DevOverlay.tsx
@@ -172,11 +217,16 @@ motorsafe/
 │  │  ├─ LegalReferencesPanel.tsx
 │  │  ├─ Loading.tsx
 │  │  └─ StatCard.tsx
+│  ├─ dashboard/
+│  │  └─ StatCard.tsx
 │  ├─ layout/
 │  │  ├─ responsive/
+│  │  │  └─ ProSidebarMenu.tsx
 │  │  ├─ AppShell.tsx
 │  │  ├─ DesktopSidebar.tsx
+│  │  ├─ MobileNav.tsx
 │  │  ├─ nav-config.ts
+│  │  ├─ Sidebar.tsx
 │  │  └─ Topbar.tsx
 │  ├─ marketing/
 │  │  └─ HomePage.tsx
@@ -194,6 +244,7 @@ motorsafe/
 │  │  ├─ Dialog.tsx
 │  │  ├─ DropdownMenu.tsx
 │  │  ├─ Input.tsx
+│  │  ├─ KpiCard.tsx
 │  │  ├─ SectionHeader.tsx
 │  │  ├─ Select.tsx
 │  │  ├─ Skeleton.tsx
@@ -244,8 +295,10 @@ motorsafe/
 │  ├─ vercel.svg
 │  └─ window.svg
 ├─ scripts/
+│  ├─ api-e2e-tests.ts
 │  ├─ backfill-garage.js
 │  ├─ create-admin.js
+│  ├─ crud-tests.ts
 │  ├─ dump-nomenclature.js
 │  ├─ dump-pages-ui.js
 │  ├─ dump-ui.js
@@ -253,6 +306,7 @@ motorsafe/
 │  ├─ fetch_endpoints.js
 │  ├─ next-build.js
 │  ├─ next-dev-daemon.js
+│  ├─ next-dev-fg.js
 │  ├─ next-dev-stop-fg.js
 │  ├─ next-dev-stop.js
 │  ├─ next-dev.js
@@ -263,6 +317,7 @@ motorsafe/
 │  └─ pdfkit-standalone.d.ts
 ├─ .dev.log
 ├─ .env
+├─ .env.example
 ├─ .gitignore
 ├─ .next-dev.pid
 ├─ .node-version
@@ -277,6 +332,7 @@ motorsafe/
 ├─ package-lock.json
 ├─ package.json
 ├─ postcss.config.mjs
+├─ README_DEPLOY.md
 ├─ README.md
 ├─ tailwind.config.js
 ├─ tsconfig.json

@@ -75,6 +75,7 @@ async function main() {
       notes: "Cliente de démonstration",
       vatProfile: "PARTICULIER",
       countryCode: "FR",
+      createdAt: new Date(),
     },
   });
 
@@ -88,6 +89,7 @@ async function main() {
       vatProfile: "PRO_UE_VAT",
       vatNumber: "EU123456789",
       countryCode: "DE",
+      createdAt: new Date(),
     },
   });
 
@@ -100,6 +102,7 @@ async function main() {
       phone: "+33 6 33 44 55 66",
       vatProfile: "EXPORT",
       countryCode: "US",
+      createdAt: new Date(),
     },
   });
 
@@ -113,6 +116,7 @@ async function main() {
       vin: "VF1AAAAAAAAAAAAAA",
       fuel: "Essence",
       year: 2018,
+      createdAt: new Date(),
     },
   });
 
@@ -125,6 +129,7 @@ async function main() {
       notes: "Intervention seed",
       status: "OPEN",
       createdBy: owner.email,
+      createdAt: new Date(),
     },
   });
 

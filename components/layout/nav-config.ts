@@ -9,6 +9,8 @@ import {
   Settings,
   CreditCard,
   ShieldCheck,
+  Receipt,
+  FileCheck,
 } from "lucide-react";
 import type React from "react";
 
@@ -27,6 +29,8 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Clients", href: "/clients", icon: Users, group: "main" },
   { label: "Véhicules", href: "/vehicules", icon: Car, group: "main" },
   { label: "Interventions", href: "/interventions", icon: Wrench, group: "main" },
+  { label: "Devis", href: "/devis", icon: FileCheck, group: "main" },
+  { label: "Factures", href: "/factures", icon: Receipt, group: "main" },
   { label: "Documents", href: "/documents", icon: FileText, group: "main" },
   { label: "Messages", href: "/messages", icon: MessageSquare, group: "main" },
   { label: "Notifications", href: "/notifications", icon: Bell, group: "main" },
