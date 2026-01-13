@@ -57,6 +57,7 @@ function normalizeText(value: unknown) {
   return String(value ?? "").trim();
 }
 
+// FLOW-INT-01: Extended schema for intervention workflow
 const UpdateSchema = z.object({
   type: z.string().trim().min(1).max(40).optional(),
   title: z.string().trim().min(1).max(120).optional().or(z.literal("")),
@@ -69,6 +70,16 @@ const UpdateSchema = z.object({
   checksum: z.string().trim().max(128).optional().or(z.literal("")),
   amountCents: z.coerce.number().int().min(0).optional(),
   createdBy: z.string().trim().max(120).optional(),
+  // FLOW-INT-01: New fields
+  tags: z.array(z.string().trim().max(40)).optional(),
+  intakeChecklist: z.record(z.string(), z.boolean()).optional(),
+  intakeNotes: z.string().trim().max(2000).optional().or(z.literal("")),
+  agreementAt: z.string().datetime().optional().or(z.literal("")).or(z.null()),
+  agreementMethod: z.string().trim().max(40).optional().or(z.literal("")),
+  workNotes: z.string().trim().max(4000).optional().or(z.literal("")),
+  partsNotes: z.string().trim().max(4000).optional().or(z.literal("")),
+  outtakeChecklist: z.record(z.string(), z.boolean()).optional(),
+  closedAt: z.string().datetime().optional().or(z.literal("")).or(z.null()),
 });
 
 export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }) {
@@ -84,6 +95,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
       include: {
         vehicle: { include: { client: true } },
         revisions: { orderBy: { createdAt: "desc" } },
+        documents: { where: { deletedAt: null }, orderBy: { createdAt: "desc" } },
       },
     });
 
@@ -176,6 +188,29 @@ async function updateIntervention(req: Request, ctx: { params: Promise<{ id: str
 
     const amountCents = input.amountCents === undefined ? existing.amountCents : input.amountCents;
 
+    // FLOW-INT-01: Process new fields
+    const tags = input.tags !== undefined ? input.tags : (existing as any).tags ?? [];
+    const intakeChecklist = input.intakeChecklist !== undefined ? input.intakeChecklist : (existing as any).intakeChecklist;
+    const intakeNotes = input.intakeNotes === undefined
+      ? (existing as any).intakeNotes
+      : input.intakeNotes ? normalizeText(input.intakeNotes) : null;
+    const agreementAt = input.agreementAt === undefined || input.agreementAt === null
+      ? (existing as any).agreementAt
+      : input.agreementAt === "" ? null : new Date(input.agreementAt);
+    const agreementMethod = input.agreementMethod === undefined
+      ? (existing as any).agreementMethod
+      : input.agreementMethod ? normalizeText(input.agreementMethod) : null;
+    const workNotes = input.workNotes === undefined
+      ? (existing as any).workNotes
+      : input.workNotes ? normalizeText(input.workNotes) : null;
+    const partsNotes = input.partsNotes === undefined
+      ? (existing as any).partsNotes
+      : input.partsNotes ? normalizeText(input.partsNotes) : null;
+    const outtakeChecklist = input.outtakeChecklist !== undefined ? input.outtakeChecklist : (existing as any).outtakeChecklist;
+    const closedAt = input.closedAt === undefined || input.closedAt === null
+      ? (existing as any).closedAt
+      : input.closedAt === "" ? null : new Date(input.closedAt);
+
     if (!type) {
       return NextResponse.json(failure("Type obligatoire."), { status: 400 });
     }
@@ -247,8 +282,18 @@ async function updateIntervention(req: Request, ctx: { params: Promise<{ id: str
           userAgent,
           payload,
           hash,
+          // FLOW-INT-01: New fields
+          tags,
+          intakeChecklist: intakeChecklist ?? undefined,
+          intakeNotes,
+          agreementAt: agreementAt ?? null,
+          agreementMethod,
+          workNotes,
+          partsNotes,
+          outtakeChecklist: outtakeChecklist ?? undefined,
+          closedAt: closedAt ?? null,
         },
-        include: { vehicle: { include: { client: true } } },
+        include: { vehicle: { include: { client: true } }, documents: true },
       });
 
       await tx.interventionRevision.create({

@@ -222,8 +222,25 @@ model Intervention {
   softwareVersion String?
   checksum        String?
 
-  // attachments will be implemented later (file paths / storage references)
-  // attachments String[]
+  // === FLOW-INT-01: Parcours logique intervention ===
+  // Multi-tags for intervention type
+  tags            String[]   @default([])
+  
+  // Intake (reception)
+  intakeChecklist Json?      // { lights: bool, noises: bool, leaks: bool, smoke: bool, ... }
+  intakeNotes     String?
+  
+  // Client agreement
+  agreementAt     DateTime?
+  agreementMethod String?    // "in_app", "phone", "email", etc.
+  
+  // Work performed
+  workNotes       String?
+  partsNotes      String?
+  
+  // Outtake (restitution)
+  outtakeChecklist Json?     // { roadTest: bool, lights: bool, clean: bool, ... }
+  closedAt         DateTime?
 
   // revisions store immutable snapshots when interventions are created/edited
   revisions InterventionRevision[]

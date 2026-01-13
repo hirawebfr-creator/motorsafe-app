@@ -43,6 +43,7 @@ export async function GET(req: Request, ctx: Ctx) {
       include: {
         vehicle: { include: { client: true } },
         revisions: { orderBy: { createdAt: "desc" } },
+        documents: { where: { deletedAt: null }, orderBy: { createdAt: "desc" } },
       },
     });
 
@@ -114,6 +115,90 @@ export async function GET(req: Request, ctx: Ctx) {
     row("ECU", asText(intervention.ecuType));
     row("Version soft", asText(intervention.softwareVersion));
     row("Checksum", asText(intervention.checksum));
+
+    // FLOW-INT-01: Tags
+    const intv = intervention as any;
+    if (intv.tags && intv.tags.length > 0) {
+      doc.moveDown(0.2);
+      row("Types", intv.tags.join(", "));
+    }
+
+    // FLOW-INT-01: Intake checklist
+    if (intv.intakeChecklist) {
+      doc.moveDown(0.3);
+      doc.fontSize(13).font("Helvetica-Bold").text("Reception (entree)", { underline: true });
+      doc.moveDown(0.2);
+      const checks = intv.intakeChecklist;
+      const items = [];
+      if (checks.lights) items.push("Voyants allumes");
+      if (checks.noises) items.push("Bruits anormaux");
+      if (checks.leaks) items.push("Fuites");
+      if (checks.smoke) items.push("Fumee");
+      if (checks.bodyDamage) items.push("Degats carrosserie");
+      row("Anomalies signalees", items.length > 0 ? items.join(", ") : "Aucune");
+    }
+    if (intv.intakeNotes) {
+      doc.moveDown(0.2);
+      doc.fontSize(11).font("Helvetica-Bold").text("Symptomes client", { underline: true });
+      doc.moveDown(0.2);
+      doc.fontSize(11).font("Helvetica").text(intv.intakeNotes, { width: right - left });
+    }
+
+    // FLOW-INT-01: Agreement
+    if (intv.agreementAt) {
+      doc.moveDown(0.3);
+      doc.fontSize(13).font("Helvetica-Bold").text("Accord client", { underline: true });
+      doc.moveDown(0.2);
+      row("Date accord", formatDate(intv.agreementAt));
+      row("Methode", intv.agreementMethod || "in_app");
+      if (intv.amountCents) {
+        row("Montant estime", (intv.amountCents / 100).toFixed(2) + " EUR");
+      }
+    }
+
+    // FLOW-INT-01: Work notes
+    if (intv.workNotes || intv.partsNotes) {
+      doc.moveDown(0.3);
+      doc.fontSize(13).font("Helvetica-Bold").text("Travaux effectues", { underline: true });
+      doc.moveDown(0.2);
+      if (intv.workNotes) {
+        doc.fontSize(11).font("Helvetica").text(intv.workNotes, { width: right - left });
+        doc.moveDown(0.2);
+      }
+      if (intv.partsNotes) {
+        doc.fontSize(11).font("Helvetica-Bold").text("Pieces utilisees:", { continued: true });
+        doc.font("Helvetica").text(" " + intv.partsNotes, { width: right - left - 100 });
+      }
+    }
+
+    // FLOW-INT-01: Outtake
+    if (intv.closedAt || intv.outtakeChecklist) {
+      doc.moveDown(0.3);
+      doc.fontSize(13).font("Helvetica-Bold").text("Sortie / Restitution", { underline: true });
+      doc.moveDown(0.2);
+      if (intv.closedAt) {
+        row("Cloturee le", formatDate(intv.closedAt));
+      }
+      if (intv.outtakeChecklist) {
+        const oc = intv.outtakeChecklist;
+        const checks = [];
+        if (oc.roadTest) checks.push("Essai OK");
+        if (oc.lightsOff) checks.push("Voyants eteints");
+        if (oc.clean) checks.push("Vehicule propre");
+        if (oc.clientBriefed) checks.push("Client informe");
+        row("Controles sortie", checks.length > 0 ? checks.join(", ") : "Non renseigne");
+      }
+    }
+
+    // FLOW-INT-01: Documents list
+    if (intervention.documents && intervention.documents.length > 0) {
+      doc.moveDown(0.3);
+      doc.fontSize(13).font("Helvetica-Bold").text("Documents lies", { underline: true });
+      doc.moveDown(0.2);
+      intervention.documents.forEach((d: any, idx: number) => {
+        row(`Doc ${idx + 1}`, `${d.fileName} (${formatDate(d.createdAt)})`);
+      });
+    }
 
     if (intervention.notes) {
       doc.moveDown(0.2);
