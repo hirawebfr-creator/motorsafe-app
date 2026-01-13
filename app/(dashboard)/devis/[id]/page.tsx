@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -15,20 +15,27 @@ import {
   FileDown,
   RefreshCw,
   ArrowRight,
+  Plus,
+  Trash2,
+  Save,
+  Pencil,
 } from "lucide-react";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 
 type QuoteLine = {
+  id?: string;
   description: string;
   qty: number;
   unitPriceExcl: number;
   vatRate: number;
-  totalExcl: number;
-  totalVat: number;
-  totalIncl: number;
+  lineTotalExcl?: number;
+  lineVatAmount?: number;
+  lineTotalIncl?: number;
 };
+
+const DEFAULT_VAT_RATE = 0.2;
 
 type QuoteDetail = {
   id: string;
@@ -88,12 +95,18 @@ const STATUS_CONFIG: Record<string, { bg: string; text: string; label: string }>
 
 export default function DevisDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const id = params.id as string;
 
   const [quote, setQuote] = useState<QuoteDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+
+  // Edition state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editLines, setEditLines] = useState<QuoteLine[]>([]);
+  const [saving, setSaving] = useState(false);
 
   const loadQuote = useCallback(async () => {
     try {
@@ -105,6 +118,12 @@ export default function DevisDetailPage() {
         throw new Error(json.error?.message || "Devis introuvable");
       }
       setQuote(json.data);
+      setEditLines(json.data.lines.map((l: QuoteLine) => ({
+        description: l.description,
+        qty: l.qty,
+        unitPriceExcl: l.unitPriceExcl,
+        vatRate: l.vatRate,
+      })));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur");
     } finally {
@@ -120,6 +139,22 @@ export default function DevisDetailPage() {
     try {
       setActionLoading(action);
       setError(null);
+
+      // Special handling for convert - need to redirect to invoice
+      if (action === "convert") {
+        const res = await fetch(`/api/quotes/${id}/convert`, { method: "POST" });
+        const json = await res.json();
+        if (!res.ok || !json.ok) {
+          throw new Error(json.error?.message || "Erreur conversion");
+        }
+        // Redirect to the created invoice
+        const invoiceId = json.data?.id;
+        if (invoiceId) {
+          router.push(`/factures/${invoiceId}`);
+          return;
+        }
+      }
+
       const res = await fetch(`/api/quotes/${id}/${action}`, { method: "POST" });
       const json = await res.json();
       if (!res.ok || !json.ok) {
@@ -152,6 +187,101 @@ export default function DevisDetailPage() {
     }
   };
 
+  // --- Line editing functions ---
+  const handleLineChange = (index: number, field: keyof QuoteLine, value: string | number) => {
+    setEditLines((prev) => {
+      const updated = [...prev];
+      if (field === "description") {
+        updated[index] = { ...updated[index], description: String(value) };
+      } else if (field === "qty") {
+        updated[index] = { ...updated[index], qty: Number(value) || 1 };
+      } else if (field === "unitPriceExcl") {
+        updated[index] = { ...updated[index], unitPriceExcl: Number(value) || 0 };
+      } else if (field === "vatRate") {
+        updated[index] = { ...updated[index], vatRate: Number(value) || 0 };
+      }
+      return updated;
+    });
+  };
+
+  const handleAddLine = () => {
+    setEditLines((prev) => [
+      ...prev,
+      { description: "", qty: 1, unitPriceExcl: 0, vatRate: DEFAULT_VAT_RATE },
+    ]);
+  };
+
+  const handleRemoveLine = (index: number) => {
+    setEditLines((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSaveLines = async () => {
+    // Validate
+    const validLines = editLines.filter((l) => l.description.trim().length > 0);
+    if (validLines.length === 0) {
+      setError("Au moins une ligne est requise");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setError(null);
+
+      const res = await fetch(`/api/quotes/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          lines: validLines.map((l) => ({
+            description: l.description.trim(),
+            qty: l.qty,
+            unitPriceExcl: l.unitPriceExcl,
+            vatRate: l.vatRate,
+          })),
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok || !json.ok) {
+        throw new Error(json.error?.message || "Erreur sauvegarde");
+      }
+
+      setIsEditing(false);
+      await loadQuote();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    // Reset to original lines
+    if (quote) {
+      setEditLines(quote.lines.map((l) => ({
+        description: l.description,
+        qty: l.qty,
+        unitPriceExcl: l.unitPriceExcl,
+        vatRate: l.vatRate,
+      })));
+    }
+    setIsEditing(false);
+  };
+
+  // Calculate preview totals
+  const previewTotals = editLines.reduce(
+    (acc, l) => {
+      const lineExcl = l.qty * l.unitPriceExcl;
+      const lineVat = lineExcl * l.vatRate;
+      const lineIncl = lineExcl + lineVat;
+      return {
+        subtotalExcl: acc.subtotalExcl + lineExcl,
+        totalVat: acc.totalVat + lineVat,
+        totalIncl: acc.totalIncl + lineIncl,
+      };
+    },
+    { subtotalExcl: 0, totalVat: 0, totalIncl: 0 }
+  );
+
   if (loading) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center">
@@ -160,7 +290,7 @@ export default function DevisDetailPage() {
     );
   }
 
-  if (error || !quote) {
+  if (error && !quote) {
     return (
       <div className="space-y-6">
         <Link href="/devis" className="inline-flex items-center gap-2 text-sm text-muted2 hover:text-text">
@@ -174,7 +304,10 @@ export default function DevisDetailPage() {
     );
   }
 
+  if (!quote) return null;
+
   const cfg = STATUS_CONFIG[quote.status] || STATUS_CONFIG.DRAFT;
+  const canEdit = quote.status === "DRAFT";
 
   return (
     <div className="space-y-6">
@@ -188,15 +321,15 @@ export default function DevisDetailPage() {
         description={`Créé le ${fmtDate(quote.createdAt)}`}
         action={
           <div className="flex flex-wrap gap-2">
-            <Button variant="ghost" onClick={() => void loadQuote()} disabled={!!actionLoading}>
+            <Button variant="ghost" onClick={() => void loadQuote()} disabled={!!actionLoading || saving}>
               <RefreshCw size={16} />
             </Button>
-            <Button variant="secondary" onClick={handleDownloadPdf} disabled={!!actionLoading}>
+            <Button variant="secondary" onClick={handleDownloadPdf} disabled={!!actionLoading || saving}>
               {actionLoading === "pdf" ? <Loader2 size={16} className="animate-spin" /> : <FileDown size={16} />}
               PDF
             </Button>
             {quote.status === "DRAFT" && (
-              <Button onClick={() => handleAction("send")} disabled={!!actionLoading}>
+              <Button onClick={() => handleAction("send")} disabled={!!actionLoading || saving}>
                 {actionLoading === "send" ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
                 Envoyer
               </Button>
@@ -247,7 +380,7 @@ export default function DevisDetailPage() {
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-2xl font-bold">{fmtEur(quote.totalIncl)}</p>
+                <p className="text-2xl font-bold">{fmtEur(isEditing ? previewTotals.totalIncl : quote.totalIncl)}</p>
                 <p className="text-sm text-muted2">TTC</p>
               </div>
             </div>
@@ -255,38 +388,128 @@ export default function DevisDetailPage() {
 
           {/* Lines */}
           <Card className="overflow-hidden p-0">
-            <div className="border-b border-border bg-surface2 px-5 py-3">
+            <div className="flex items-center justify-between border-b border-border bg-surface2 px-5 py-3">
               <h3 className="font-semibold">Lignes du devis</h3>
-            </div>
-            <div className="divide-y divide-border">
-              {quote.lines.map((line, idx) => (
-                <div key={idx} className="flex items-center justify-between px-5 py-4">
-                  <div className="flex-1">
-                    <p className="font-medium">{line.description}</p>
-                    <p className="text-sm text-muted2">
-                      {line.qty} × {fmtEur(line.unitPriceExcl)} HT
-                      {line.vatRate > 0 && ` • TVA ${(line.vatRate * 100).toFixed(0)}%`}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-semibold">{fmtEur(line.totalIncl)}</p>
-                    <p className="text-xs text-muted2">{fmtEur(line.totalExcl)} HT</p>
-                  </div>
+              {canEdit && !isEditing && (
+                <Button variant="ghost" size="sm" onClick={() => setIsEditing(true)}>
+                  <Pencil size={14} />
+                  Modifier
+                </Button>
+              )}
+              {isEditing && (
+                <div className="flex gap-2">
+                  <Button variant="ghost" size="sm" onClick={handleCancelEdit} disabled={saving}>
+                    Annuler
+                  </Button>
+                  <Button size="sm" onClick={handleSaveLines} disabled={saving}>
+                    {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                    Enregistrer
+                  </Button>
                 </div>
-              ))}
+              )}
             </div>
+
+            {isEditing ? (
+              /* Edit Mode */
+              <div className="divide-y divide-border">
+                {editLines.map((line, idx) => (
+                  <div key={idx} className="grid grid-cols-12 gap-3 px-5 py-4">
+                    <div className="col-span-5">
+                      <label className="mb-1 block text-xs text-muted2">Description</label>
+                      <input
+                        type="text"
+                        value={line.description}
+                        onChange={(e) => handleLineChange(idx, "description", e.target.value)}
+                        placeholder="Description..."
+                        className="w-full rounded border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="mb-1 block text-xs text-muted2">Qté</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={line.qty}
+                        onChange={(e) => handleLineChange(idx, "qty", e.target.value)}
+                        className="w-full rounded border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="mb-1 block text-xs text-muted2">Prix HT</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={line.unitPriceExcl}
+                        onChange={(e) => handleLineChange(idx, "unitPriceExcl", e.target.value)}
+                        className="w-full rounded border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
+                      />
+                    </div>
+                    <div className="col-span-2">
+                      <label className="mb-1 block text-xs text-muted2">TVA %</label>
+                      <select
+                        value={line.vatRate}
+                        onChange={(e) => handleLineChange(idx, "vatRate", e.target.value)}
+                        className="w-full rounded border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-primary"
+                      >
+                        <option value="0">0%</option>
+                        <option value="0.055">5.5%</option>
+                        <option value="0.1">10%</option>
+                        <option value="0.2">20%</option>
+                      </select>
+                    </div>
+                    <div className="col-span-1 flex items-end justify-center pb-2">
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveLine(idx)}
+                        className="rounded p-1 text-red-500 hover:bg-red-50"
+                        disabled={editLines.length <= 1}
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                <div className="px-5 py-3">
+                  <Button variant="ghost" size="sm" onClick={handleAddLine}>
+                    <Plus size={14} />
+                    Ajouter une ligne
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              /* View Mode */
+              <div className="divide-y divide-border">
+                {quote.lines.map((line, idx) => (
+                  <div key={idx} className="flex items-center justify-between px-5 py-4">
+                    <div className="flex-1">
+                      <p className="font-medium">{line.description}</p>
+                      <p className="text-sm text-muted2">
+                        {line.qty} × {fmtEur(line.unitPriceExcl)} HT
+                        {line.vatRate > 0 && ` • TVA ${(line.vatRate * 100).toFixed(0)}%`}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-semibold">{fmtEur(line.lineTotalIncl || 0)}</p>
+                      <p className="text-xs text-muted2">{fmtEur(line.lineTotalExcl || 0)} HT</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div className="border-t border-border bg-surface2 px-5 py-4">
               <div className="flex justify-between text-sm">
                 <span className="text-muted2">Sous-total HT</span>
-                <span>{fmtEur(quote.subtotalExcl)}</span>
+                <span>{fmtEur(isEditing ? previewTotals.subtotalExcl : quote.subtotalExcl)}</span>
               </div>
               <div className="mt-1 flex justify-between text-sm">
                 <span className="text-muted2">TVA</span>
-                <span>{fmtEur(quote.totalVat)}</span>
+                <span>{fmtEur(isEditing ? previewTotals.totalVat : quote.totalVat)}</span>
               </div>
               <div className="mt-2 flex justify-between border-t border-border pt-2 text-lg font-bold">
                 <span>Total TTC</span>
-                <span>{fmtEur(quote.totalIncl)}</span>
+                <span>{fmtEur(isEditing ? previewTotals.totalIncl : quote.totalIncl)}</span>
               </div>
             </div>
           </Card>
