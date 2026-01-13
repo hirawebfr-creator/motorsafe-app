@@ -38,15 +38,15 @@ export async function GET(req: Request) {
       return NextResponse.json(success({ labels: [...TEMPLATE_LABELS], values: TEMPLATE_HOURS.map(() => 0) }));
     }
 
-    // SQLite: group by hour-of-day using strftime('%H', createdAt)
-    const rows = await prisma.$queryRaw<Array<{ hour: string; count: number }>>`
-      SELECT strftime('%H', createdAt) as hour, COUNT(*) as count
-      FROM Intervention
-      WHERE garageId = ${organisationId}
-        AND deletedAt IS NULL
-        AND createdAt >= ${range.from}
-        AND createdAt <= ${range.to}
-      GROUP BY hour
+    // PostgreSQL: group by hour-of-day using EXTRACT
+    const rows = await prisma.$queryRaw<Array<{ hour: string; count: bigint }>>`
+      SELECT EXTRACT(HOUR FROM "createdAt")::text as hour, COUNT(*) as count
+      FROM "Intervention"
+      WHERE "garageId" = ${organisationId}
+        AND "deletedAt" IS NULL
+        AND "createdAt" >= ${range.from}
+        AND "createdAt" <= ${range.to}
+      GROUP BY EXTRACT(HOUR FROM "createdAt")
     `;
 
     const byHour = new Map<number, number>();
