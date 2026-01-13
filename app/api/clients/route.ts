@@ -4,6 +4,7 @@ import { success } from "@/lib/api";
 import { requireApprovedTenant, requireUser } from "@/lib/guards";
 import { toErrorResponse } from "@/lib/routeErrors";
 import { z } from "zod";
+import { encrypt, decryptClients } from "@/lib/encryption";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -112,7 +113,7 @@ export async function GET(req: Request) {
       ];
     }
 
-    const [total, items] = await Promise.all([
+    const [total, rawItems] = await Promise.all([
       prisma.client.count({ where: baseWhere }),
       prisma.client.findMany({
         where: baseWhere,
@@ -122,6 +123,9 @@ export async function GET(req: Request) {
         include: { garage: { select: { id: true, name: true } } },
       }),
     ]);
+
+    // Décrypter les données sensibles avant de retourner
+    const items = decryptClients(rawItems as Record<string, unknown>[]);
 
     return NextResponse.json(success({ items, page, pageSize, total }));
   } catch (err) {
@@ -187,15 +191,23 @@ export async function POST(req: Request) {
     }
 
     const client = await prisma.$transaction(async (tx) => {
+      // Chiffrer les données sensibles
+      const firstName = encrypt(nameMode ? firstLast!.firstName : input.firstName);
+      const lastName = encrypt(nameMode ? firstLast!.lastName : input.lastName);
+      const email = cleanOptional(input.email) ? encrypt(cleanOptional(input.email)!) : null;
+      const phone = cleanOptional(input.phone) ? encrypt(cleanOptional(input.phone)!) : null;
+      const address = cleanOptional(input.address) ? encrypt(cleanOptional(input.address)!) : null;
+      const notes = cleanOptional(input.notes) ? encrypt(cleanOptional(input.notes)!) : null;
+
       const created = await tx.client.create({
         data: {
           garageId: targetGarageId,
-          firstName: nameMode ? firstLast!.firstName : input.firstName,
-          lastName: nameMode ? firstLast!.lastName : input.lastName,
-          email: cleanOptional(input.email),
-          phone: cleanOptional(input.phone),
-          address: cleanOptional(input.address),
-          notes: cleanOptional(input.notes),
+          firstName,
+          lastName,
+          email,
+          phone,
+          address,
+          notes,
           vatProfile: vat.vatProfile,
           vatRateOverride: vat.vatRateOverride,
         },

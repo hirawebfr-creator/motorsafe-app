@@ -5,6 +5,7 @@ import { requireApprovedTenant, requireUser } from "@/lib/guards";
 import { toErrorResponse } from "@/lib/routeErrors";
 import { z } from "zod";
 import type { Prisma } from "@prisma/client";
+import { encrypt, decryptClientData } from "@/lib/encryption";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -44,16 +45,19 @@ export async function GET(req: Request, { params }: Ctx) {
       ...(user.role === "ADMIN" ? {} : { garageId: user.garageId ?? -1 }),
     };
 
-    const client = await prisma.client.findFirst({
+    const rawClient = await prisma.client.findFirst({
       where,
       include: { garage: { select: { id: true, name: true } } },
     });
-    if (!client) {
+    if (!rawClient) {
       return NextResponse.json(
         { ok: false, error: { code: "NOT_FOUND", message: "Introuvable" } },
         { status: 404 }
       );
     }
+
+    // Déchiffrer les données sensibles
+    const client = decryptClientData(rawClient as Record<string, unknown>);
 
     return NextResponse.json(success(client));
   } catch (err) {
@@ -101,16 +105,30 @@ async function updateClient(req: Request, { params }: Ctx) {
     }
 
     const updated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      const client = await tx.client.update({
+      // Chiffrer les données sensibles avant mise à jour
+      const data: Record<string, unknown> = {};
+      if (input.firstName) data.firstName = encrypt(input.firstName);
+      if (input.lastName) data.lastName = encrypt(input.lastName);
+      if (input.email !== undefined) {
+        const cleaned = cleanOptional(input.email);
+        data.email = cleaned ? encrypt(cleaned) : null;
+      }
+      if (input.phone !== undefined) {
+        const cleaned = cleanOptional(input.phone);
+        data.phone = cleaned ? encrypt(cleaned) : null;
+      }
+      if (input.address !== undefined) {
+        const cleaned = cleanOptional(input.address);
+        data.address = cleaned ? encrypt(cleaned) : null;
+      }
+      if (input.notes !== undefined) {
+        const cleaned = cleanOptional(input.notes);
+        data.notes = cleaned ? encrypt(cleaned) : null;
+      }
+
+      const rawClient = await tx.client.update({
         where: { id: clientId },
-        data: {
-          ...(input.firstName ? { firstName: input.firstName } : {}),
-          ...(input.lastName ? { lastName: input.lastName } : {}),
-          ...(input.email !== undefined ? { email: cleanOptional(input.email) } : {}),
-          ...(input.phone !== undefined ? { phone: cleanOptional(input.phone) } : {}),
-          ...(input.address !== undefined ? { address: cleanOptional(input.address) } : {}),
-          ...(input.notes !== undefined ? { notes: cleanOptional(input.notes) } : {}),
-        },
+        data,
       });
 
       await tx.auditLog.create({
@@ -123,7 +141,8 @@ async function updateClient(req: Request, { params }: Ctx) {
         },
       });
 
-      return client;
+      // Déchiffrer avant de retourner
+      return decryptClientData(rawClient as Record<string, unknown>);
     });
 
     return NextResponse.json(success(updated));
