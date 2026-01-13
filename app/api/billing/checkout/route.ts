@@ -39,7 +39,7 @@ export async function POST(req: Request) {
     const priceId = PRICE_KEYS[priceKey];
     if (!priceId) throw new RouteError(400, "INVALID_PRICE", `Prix invalide: ${priceKey}`);
 
-    const appUrl = process.env.APP_URL;
+    const appUrl = cleanEnv(process.env.APP_URL);
     if (!appUrl) throw new RouteError(500, "CONFIG", "APP_URL manquant");
 
     const stripe = getStripe();
