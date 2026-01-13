@@ -85,6 +85,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json(success({ url: session.url }));
   } catch (err) {
+    console.error("Erreur API POST /api/billing/checkout:", err);
     return toErrorResponse(err);
   }
 }
