@@ -31,7 +31,8 @@ export default function LoginPage() {
           window.location.href = "/pro/en-attente";
           return;
         }
-        throw new Error(json?.error || "Erreur serveur.");
+        const errorMsg = json?.error?.message || json?.error || "Erreur serveur.";
+        throw new Error(typeof errorMsg === "string" ? errorMsg : "Erreur serveur.");
       }
       toast.push({ title: "Connexion réussie", description: "Bienvenue sur votre panel.", variant: "success" });
       window.location.href = "/dashboard";
