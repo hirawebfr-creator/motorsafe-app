@@ -18,6 +18,7 @@ export async function GET(req: Request) {
 
     const url = new URL(req.url);
     const status = url.searchParams.get("status");
+    const withStats = url.searchParams.get("withStats") === "true";
 
     const where: Prisma.GarageWhereInput =
       status === "pending"
@@ -39,12 +40,28 @@ export async function GET(req: Request) {
         address: true,
         siret: true,
         status: true,
+        plan: true,
         reviewNote: true,
         reviewedAt: true,
         createdAt: true,
+        stripeCustomerId: true,
+        stripeSubscriptionId: true,
         users: {
           select: { id: true, email: true, role: true, createdAt: true },
         },
+        ...(withStats
+          ? {
+              _count: {
+                select: {
+                  clients: true,
+                  vehicles: true,
+                  interventions: true,
+                  quotes: true,
+                  invoices: true,
+                },
+              },
+            }
+          : {}),
       },
     });
 

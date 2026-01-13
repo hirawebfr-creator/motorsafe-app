@@ -13,14 +13,44 @@ import { fetcher } from "@/lib/fetcher";
 import { ErrorBanner } from "@/components/common/ErrorBanner";
 import { Loading } from "@/components/common/Loading";
 import { EmptyState } from "@/components/common/EmptyState";
+import {
+  Building2,
+  Users,
+  Car,
+  Wrench,
+  FileText,
+  Receipt,
+  Crown,
+  Star,
+  Shield,
+} from "lucide-react";
 
 type GarageItem = {
   id: number;
   name: string;
   email: string;
+  phone?: string | null;
+  address?: string | null;
+  siret?: string | null;
+  plan?: string | null;
   status: "PENDING" | "ACTIVE" | "REJECTED";
   createdAt: string;
+  stripeCustomerId?: string | null;
+  stripeSubscriptionId?: string | null;
   users: Array<{ id: string; email: string; role: string; createdAt: string }>;
+  _count?: {
+    clients: number;
+    vehicles: number;
+    interventions: number;
+    quotes: number;
+    invoices: number;
+  };
+};
+
+const PLAN_COLORS: Record<string, { bg: string; text: string; icon: typeof Star }> = {
+  FREE: { bg: "bg-gray-100", text: "text-gray-700", icon: Shield },
+  STARTER: { bg: "bg-blue-100", text: "text-blue-700", icon: Star },
+  PRO: { bg: "bg-purple-100", text: "text-purple-700", icon: Crown },
 };
 
 export default function AdminGaragesPage() {
@@ -46,7 +76,7 @@ export default function AdminGaragesPage() {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetcher<GarageItem[]>("/api/admin/garages", {
+      const data = await fetcher<GarageItem[]>("/api/admin/garages?withStats=true", {
         noStore: true,
         headers: !isAdmin && adminKey ? { "x-admin-key": adminKey } : undefined,
       });
@@ -122,13 +152,15 @@ export default function AdminGaragesPage() {
       <Card className="p-0 overflow-hidden">
         <div className="ms-cardHeader">
           <p className="ms-kicker">Administration</p>
-          <p className="mt-2 text-lg font-semibold text-text">Liste des garages</p>
+          <p className="mt-2 text-lg font-semibold text-text">Liste des garages ({garages.length})</p>
         </div>
         <DataTable stickyHeader variant="plain">
           <DataTableHead sticky>
             <tr>
               <th>Garage</th>
+              <th>Plan</th>
               <th>Statut</th>
+              <th className="text-center">Stats</th>
               <th>Responsable</th>
               <th className="text-right">Création</th>
             </tr>
@@ -136,48 +168,94 @@ export default function AdminGaragesPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={4}>
+                <td colSpan={6}>
                   <Loading />
                 </td>
               </tr>
             ) : garages.length === 0 ? (
               <tr>
-                <td colSpan={4}>
+                <td colSpan={6}>
                   <EmptyState title="Aucun garage" description="Les garages apparaitront ici." />
                 </td>
               </tr>
             ) : (
-              garages.map((garage) => (
-                <tr key={garage.id}>
-                  <td>
-                    <p className="font-semibold text-text">{garage.name}</p>
-                    <p className="text-xs text-muted2">{garage.email}</p>
-                  </td>
-                  <td>
-                    <Badge
-                      variant={
-                        garage.status === "ACTIVE"
-                          ? "success"
+              garages.map((garage) => {
+                const planCfg = PLAN_COLORS[garage.plan || "FREE"] || PLAN_COLORS.FREE;
+                const PlanIcon = planCfg.icon;
+                return (
+                  <tr key={garage.id}>
+                    <td>
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-100">
+                          <Building2 className="h-5 w-5 text-indigo-600" />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-text">{garage.name}</p>
+                          <p className="text-xs text-muted2">{garage.email}</p>
+                          {garage.siret && <p className="text-xs text-muted2">SIRET: {garage.siret}</p>}
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <span className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium ${planCfg.bg} ${planCfg.text}`}>
+                        <PlanIcon className="h-3 w-3" />
+                        {garage.plan || "FREE"}
+                      </span>
+                    </td>
+                    <td>
+                      <Badge
+                        variant={
+                          garage.status === "ACTIVE"
+                            ? "success"
+                            : garage.status === "REJECTED"
+                            ? "neutral"
+                            : "warning"
+                        }
+                      >
+                        {garage.status === "ACTIVE"
+                          ? "Actif"
                           : garage.status === "REJECTED"
-                          ? "neutral"
-                          : "warning"
-                      }
-                    >
-                      {garage.status === "ACTIVE"
-                        ? "Actif"
-                        : garage.status === "REJECTED"
-                        ? "Refusé"
-                        : "En attente"}
-                    </Badge>
-                  </td>
-                  <td className="text-sm text-muted2">
-                    {garage.users[0]?.email ?? "-"}
-                  </td>
-                  <td className="text-right text-sm text-muted2">
-                    {new Date(garage.createdAt).toLocaleDateString("fr-FR")}
-                  </td>
-                </tr>
-              ))
+                          ? "Refusé"
+                          : "En attente"}
+                      </Badge>
+                    </td>
+                    <td>
+                      {garage._count ? (
+                        <div className="flex items-center justify-center gap-3 text-xs">
+                          <span className="flex items-center gap-1" title="Clients">
+                            <Users className="h-3 w-3 text-orange-500" />
+                            {garage._count.clients}
+                          </span>
+                          <span className="flex items-center gap-1" title="Véhicules">
+                            <Car className="h-3 w-3 text-blue-500" />
+                            {garage._count.vehicles}
+                          </span>
+                          <span className="flex items-center gap-1" title="Interventions">
+                            <Wrench className="h-3 w-3 text-purple-500" />
+                            {garage._count.interventions}
+                          </span>
+                          <span className="flex items-center gap-1" title="Devis">
+                            <FileText className="h-3 w-3 text-cyan-500" />
+                            {garage._count.quotes}
+                          </span>
+                          <span className="flex items-center gap-1" title="Factures">
+                            <Receipt className="h-3 w-3 text-emerald-500" />
+                            {garage._count.invoices}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-muted2">—</span>
+                      )}
+                    </td>
+                    <td className="text-sm text-muted2">
+                      {garage.users[0]?.email ?? "-"}
+                    </td>
+                    <td className="text-right text-sm text-muted2">
+                      {new Date(garage.createdAt).toLocaleDateString("fr-FR")}
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </DataTable>
