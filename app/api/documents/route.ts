@@ -17,10 +17,13 @@ const QuerySchema = z.object({
   type: z.enum(["INTERVENTION_REPORT", "UPLOAD"]).optional(),
 });
 
+const DOCUMENT_CATEGORIES = ["ENTREE", "SORTIE", "DIAGNOSTIC", "PIECES", "DIVERS"] as const;
+
 const CreateSchema = z.object({
   vehicleId: z.string().trim().min(1).optional(),
   interventionId: z.string().trim().min(1).optional(),
   type: z.enum(["INTERVENTION_REPORT", "UPLOAD"]),
+  category: z.enum(DOCUMENT_CATEGORIES).optional().default("DIVERS"),
   fileUrl: z.string().trim().min(1).max(500),
   fileName: z.string().trim().min(1).max(200),
   mime: z.string().trim().min(1).max(120),
@@ -129,6 +132,7 @@ export async function POST(req: Request) {
           vehicleId: input.vehicleId ?? null,
           interventionId: input.interventionId ?? null,
           type: input.type,
+          category: input.category ?? "DIVERS",
           fileUrl: input.fileUrl,
           fileName: input.fileName,
           mime: input.mime,

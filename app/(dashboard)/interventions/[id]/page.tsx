@@ -19,11 +19,15 @@ import {
   HandshakeIcon,
   LogOut,
   Save,
-  Camera,
   AlertTriangle,
   CheckCircle2,
   Clock,
   RefreshCw,
+  Upload,
+  Trash2,
+  FolderOpen,
+  Download,
+  File,
 } from "lucide-react";
 
 // === Types ===
@@ -40,6 +44,7 @@ type Document = {
   fileName: string;
   fileUrl: string;
   mime: string;
+  category?: string | null;
   createdAt: string;
 };
 
@@ -95,6 +100,14 @@ const TAG_OPTIONS = [
   { value: "OTHER_MODIF", label: "Autre modif" },
 ];
 
+const DOCUMENT_CATEGORIES = [
+  { value: "ENTREE", label: "Entrée", color: "var(--ms-primary)" },
+  { value: "SORTIE", label: "Sortie", color: "var(--ms-success)" },
+  { value: "DIAGNOSTIC", label: "Diagnostic", color: "var(--ms-warning)" },
+  { value: "PIECES", label: "Pièces", color: "var(--ms-accent)" },
+  { value: "DIVERS", label: "Divers", color: "var(--ms-text-secondary)" },
+];
+
 const INTAKE_ITEMS: { key: keyof IntakeChecklist; label: string }[] = [
   { key: "lights", label: "Voyants allumés" },
   { key: "noises", label: "Bruits anormaux" },
@@ -127,6 +140,245 @@ function formatDate(d: string | null | undefined) {
 function formatCents(cents: number | null | undefined) {
   if (cents === null || cents === undefined) return "—";
   return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(cents / 100);
+}
+
+// === Documents Section Component ===
+function DocumentsSection({
+  interventionId,
+  documents,
+  isClosed,
+  onRefresh,
+}: {
+  interventionId: string;
+  documents: Document[];
+  isClosed: boolean;
+  onRefresh: () => void;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const fileInputRef = useCallback((node: HTMLInputElement | null) => {
+    if (node) node.value = "";
+  }, []);
+
+  const getCategoryConfig = (cat: string | null | undefined) => {
+    return DOCUMENT_CATEGORIES.find((c) => c.value === cat) ?? DOCUMENT_CATEGORIES[4]; // Default DIVERS
+  };
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+
+    try {
+      // 1. Get presigned URL or local upload config
+      const presignRes = await fetch("/api/uploads/presign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileName: file.name, mime: file.type, size: file.size }),
+      });
+      if (!presignRes.ok) throw new Error("Erreur presign");
+      const presignData = await presignRes.json();
+      const info = presignData.data;
+
+      let fileUrl: string;
+
+      if (info.strategy === "s3") {
+        // Upload directly to S3/R2
+        const uploadRes = await fetch(info.url, {
+          method: "PUT",
+          headers: info.headers,
+          body: file,
+        });
+        if (!uploadRes.ok) throw new Error("Erreur upload S3");
+        fileUrl = `/api/uploads/file/${info.key}`;
+      } else {
+        // Local upload
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("key", info.key);
+        const uploadRes = await fetch("/api/uploads/local", { method: "POST", body: formData });
+        if (!uploadRes.ok) throw new Error("Erreur upload local");
+        fileUrl = `/api/uploads/file/${info.key}`;
+      }
+
+      // 2. Create document record
+      const docRes = await fetch("/api/documents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          interventionId,
+          type: "UPLOAD",
+          category: "DIVERS",
+          fileUrl,
+          fileName: file.name,
+          mime: file.type,
+          size: file.size,
+        }),
+      });
+      if (!docRes.ok) throw new Error("Erreur création document");
+
+      onRefresh();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Erreur upload");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const updateCategory = async (docId: string, category: string) => {
+    setUpdatingId(docId);
+    try {
+      const res = await fetch(`/api/documents/${docId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category }),
+      });
+      if (!res.ok) throw new Error("Erreur update");
+      onRefresh();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Erreur");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const deleteDocument = async (docId: string) => {
+    if (!confirm("Supprimer ce document ?")) return;
+    setDeletingId(docId);
+    try {
+      const res = await fetch(`/api/documents/${docId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Erreur suppression");
+      onRefresh();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Erreur");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const isImage = (mime: string) => mime.startsWith("image/");
+
+  return (
+    <Card className="p-0 overflow-hidden lg:col-span-2">
+      <div className="ms-cardHeader flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--ms-accent-light)]">
+            <FolderOpen size={20} className="text-[var(--ms-accent)]" />
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold">Documents</h3>
+            <p className="text-xs text-muted2">{documents.length} fichier(s) lié(s)</p>
+          </div>
+        </div>
+        {!isClosed && (
+          <label className="cursor-pointer">
+            <input
+              type="file"
+              className="hidden"
+              onChange={handleUpload}
+              ref={fileInputRef}
+              accept="image/*,.pdf,.doc,.docx"
+            />
+            <span className="ms-btn ms-btn-primary ms-btn-sm inline-flex items-center gap-1">
+              {uploading ? (
+                <RefreshCw size={16} className="animate-spin" />
+              ) : (
+                <Upload size={16} />
+              )}
+              Ajouter
+            </span>
+          </label>
+        )}
+      </div>
+      <div className="ms-cardBody">
+        {documents.length === 0 ? (
+          <div className="text-center py-8 text-muted2">
+            <FolderOpen size={32} className="mx-auto mb-2 opacity-50" />
+            <p>Aucun document</p>
+            {!isClosed && <p className="text-xs mt-1">Ajoutez photos, rapports, etc.</p>}
+          </div>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {documents.map((doc) => {
+              const catConfig = getCategoryConfig(doc.category);
+              return (
+                <div
+                  key={doc.id}
+                  className="rounded-xl border border-[var(--ms-border)] bg-[var(--ms-bg-subtle)] p-3 relative group"
+                >
+                  {/* Thumbnail or icon */}
+                  <div className="h-24 rounded-lg bg-[var(--ms-bg)] flex items-center justify-center mb-3 overflow-hidden">
+                    {isImage(doc.mime) ? (
+                      <img
+                        src={doc.fileUrl}
+                        alt={doc.fileName}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <File size={32} className="text-muted2" />
+                    )}
+                  </div>
+
+                  {/* File name */}
+                  <p className="text-sm font-medium truncate" title={doc.fileName}>
+                    {doc.fileName}
+                  </p>
+
+                  {/* Category selector */}
+                  <div className="mt-2">
+                    <select
+                      value={doc.category ?? "DIVERS"}
+                      onChange={(e) => updateCategory(doc.id, e.target.value)}
+                      disabled={isClosed || updatingId === doc.id}
+                      className="ms-input w-full text-xs py-1"
+                      style={{ borderColor: catConfig.color }}
+                    >
+                      {DOCUMENT_CATEGORIES.map((cat) => (
+                        <option key={cat.value} value={cat.value}>
+                          {cat.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="mt-2 flex items-center justify-between text-xs text-muted2">
+                    <span>{formatDate(doc.createdAt).split(",")[0]}</span>
+                    <div className="flex gap-2">
+                      <a
+                        href={doc.fileUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="hover:text-[var(--ms-primary)]"
+                        title="Ouvrir"
+                      >
+                        <Download size={14} />
+                      </a>
+                      {!isClosed && (
+                        <button
+                          onClick={() => deleteDocument(doc.id)}
+                          disabled={deletingId === doc.id}
+                          className="hover:text-[var(--ms-error)]"
+                          title="Supprimer"
+                        >
+                          {deletingId === doc.id ? (
+                            <RefreshCw size={14} className="animate-spin" />
+                          ) : (
+                            <Trash2 size={14} />
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </Card>
+  );
 }
 
 export default function InterventionDetailPage() {
@@ -257,11 +509,6 @@ export default function InterventionDetailPage() {
                 ))}
               </div>
             </div>
-            {intervention.documents && intervention.documents.length > 0 && (
-              <div><label className="block text-sm font-medium mb-2">Documents</label>
-                {intervention.documents.map((doc) => (<a key={doc.id} href={doc.fileUrl} target="_blank" rel="noreferrer" className="flex items-center gap-2 text-sm text-[var(--ms-primary)] hover:underline"><Camera size={14} />{doc.fileName}</a>))}
-              </div>
-            )}
             <Button onClick={saveIntake} disabled={saving === "intake" || !!isClosed} className="w-full" variant="secondary">
               {saving === "intake" ? <RefreshCw size={16} className="animate-spin mr-1" /> : <Save size={16} className="mr-1" />}Enregistrer
             </Button>
@@ -376,6 +623,14 @@ export default function InterventionDetailPage() {
             </div>
           </div>
         </Card>
+
+        {/* Section 6: Documents */}
+        <DocumentsSection
+          interventionId={intervention.id}
+          documents={intervention.documents ?? []}
+          isClosed={!!isClosed}
+          onRefresh={fetchIntervention}
+        />
       </div>
 
       {intervention.revisions && intervention.revisions.length > 0 && (

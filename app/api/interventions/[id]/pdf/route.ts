@@ -195,8 +195,16 @@ export async function GET(req: Request, ctx: Ctx) {
       doc.moveDown(0.3);
       doc.fontSize(13).font("Helvetica-Bold").text("Documents lies", { underline: true });
       doc.moveDown(0.2);
+      const categoryLabels: Record<string, string> = {
+        ENTREE: "Entree",
+        SORTIE: "Sortie",
+        DIAGNOSTIC: "Diagnostic",
+        PIECES: "Pieces",
+        DIVERS: "Divers",
+      };
       intervention.documents.forEach((d: any, idx: number) => {
-        row(`Doc ${idx + 1}`, `${d.fileName} (${formatDate(d.createdAt)})`);
+        const catLabel = categoryLabels[d.category] || "Divers";
+        row(`Doc ${idx + 1}`, `[${catLabel}] ${d.fileName} (${formatDate(d.createdAt)})`);
       });
     }
 

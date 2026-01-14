@@ -262,6 +262,7 @@ model Document {
   interventionId String?
 
   type     DocumentType
+  category String?      @default("DIVERS")  // ENTREE, SORTIE, DIAGNOSTIC, PIECES, DIVERS
   fileUrl  String
   fileName String
   mime     String
