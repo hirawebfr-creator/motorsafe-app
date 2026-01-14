@@ -29,6 +29,8 @@ import {
   Download,
   File,
   Archive,
+  ClipboardList,
+  FileCheck,
 } from "lucide-react";
 
 // === Types ===
@@ -471,11 +473,23 @@ export default function InterventionDetailPage() {
         description="Parcours complet : réception → travaux → restitution"
         level={1}
         action={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Link href="/interventions"><Button variant="secondary" size="sm">Retour</Button></Link>
-            <a href={`/api/interventions/${intervention.id}/pdf`} target="_blank" rel="noreferrer">
-              <Button variant="secondary" size="sm"><FileText size={16} className="mr-1" />PDF</Button>
+            <a href={`/api/interventions/${intervention.id}/order/pdf`} target="_blank" rel="noreferrer">
+              <Button variant="secondary" size="sm"><ClipboardList size={16} className="mr-1" />Ordre réparation</Button>
             </a>
+            <a href={`/api/interventions/${intervention.id}/pdf`} target="_blank" rel="noreferrer">
+              <Button variant="secondary" size="sm"><FileText size={16} className="mr-1" />Dossier PDF</Button>
+            </a>
+            {isClosed ? (
+              <a href={`/api/interventions/${intervention.id}/delivery/pdf`} target="_blank" rel="noreferrer">
+                <Button variant="secondary" size="sm"><FileCheck size={16} className="mr-1" />PV restitution</Button>
+              </a>
+            ) : (
+              <Button variant="secondary" size="sm" disabled title="Disponible après clôture">
+                <FileCheck size={16} className="mr-1" />PV restitution
+              </Button>
+            )}
             <a href={`/api/interventions/${intervention.id}/export`} download>
               <Button size="sm"><Archive size={16} className="mr-1" />Exporter ZIP</Button>
             </a>
