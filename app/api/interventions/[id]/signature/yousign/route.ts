@@ -4,7 +4,7 @@
  * Creates a Yousign signature request for an intervention's order document
  * 
  * Flow:
- * 1. Generate the PDF (Ordre de Réparation)
+ * 1. Generate the PDF (Ordre de Réparation) - INLINE to avoid auth issues
  * 2. Create Yousign signature request
  * 3. Upload the PDF document
  * 4. Add the client as signer with signature field
@@ -26,17 +26,211 @@ import {
   getYousignConfig,
 } from "@/lib/yousign";
 import { z } from "zod";
+import PDFDocument from "pdfkit/js/pdfkit.standalone";
+import { Buffer } from "buffer";
+import { getLegalContent } from "@/content/legal";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type Ctx = { params: Promise<{ id: string }> };
 
-const APP_URL = process.env.APP_URL || "http://localhost:3000";
-
 const BodySchema = z.object({
   documentType: z.enum(["INTERVENTION_ORDER", "INTERVENTION_DELIVERY", "QUOTE"]).default("INTERVENTION_ORDER"),
 }).partial();
+
+// =========== PDF Generation Helpers ===========
+function asText(value: unknown, fallback = "Non renseigné") {
+  if (value === null || value === undefined || value === "") return fallback;
+  return String(value);
+}
+
+function formatDate(date: Date | string | null | undefined) {
+  if (!date) return "Non renseigné";
+  const d = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(d.getTime())) return "Non renseigné";
+  return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
+}
+
+function formatDateTime(date: Date | string | null | undefined) {
+  if (!date) return "Non renseigné";
+  const d = date instanceof Date ? date : new Date(date);
+  if (Number.isNaN(d.getTime())) return "Non renseigné";
+  return d.toLocaleString("fr-FR");
+}
+
+// Generate OR PDF inline (no HTTP fetch needed)
+async function generateOrderPdfBuffer(
+  intervention: any,
+  client: { firstName: string; lastName: string; email?: string; phone?: string; address?: string },
+  garage: any
+): Promise<Buffer> {
+  const doc = new PDFDocument({ size: "A4", margin: 50 });
+  const chunks: Buffer[] = [];
+  
+  doc.on("data", (chunk: Buffer | Uint8Array) => {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  });
+  
+  const done = new Promise<Buffer>((resolve) => {
+    doc.on("end", () => resolve(Buffer.concat(chunks)));
+  });
+
+  const left = doc.page.margins.left;
+  const right = doc.page.width - doc.page.margins.right;
+  const contentWidth = right - left;
+
+  const row = (label: string, value: string, bold = false) => {
+    const labelWidth = 160;
+    const valueWidth = contentWidth - labelWidth;
+    const y = doc.y;
+    doc.font("Helvetica-Bold").fontSize(10).text(label, left, y, { width: labelWidth });
+    doc.font(bold ? "Helvetica-Bold" : "Helvetica").fontSize(10).text(value, left + labelWidth, y, { width: valueWidth });
+    doc.moveDown(0.4);
+  };
+
+  const section = (title: string) => {
+    doc.moveDown(0.6);
+    doc.fontSize(12).font("Helvetica-Bold").text(title);
+    doc.moveTo(left, doc.y + 2).lineTo(right, doc.y + 2).strokeColor("#444").lineWidth(0.5).stroke();
+    doc.moveDown(0.4);
+  };
+
+  // === EN-TÊTE ===
+  doc.fontSize(18).font("Helvetica-Bold").text("ORDRE DE RÉPARATION", left, doc.y, { align: "center" });
+  doc.moveDown(0.3);
+  doc.fontSize(10).font("Helvetica").text(`Date: ${formatDate(new Date())}`, { align: "center" });
+  doc.moveDown(0.8);
+
+  // === INFOS GARAGE ===
+  if (garage) {
+    section("Établissement");
+    row("Raison sociale", asText(garage.name));
+    row("Adresse", asText(garage.address));
+    row("Téléphone", asText(garage.phone));
+    row("Email", asText(garage.email));
+    row("SIRET", asText(garage.siret));
+  }
+
+  // === INFOS CLIENT ===
+  section("Client");
+  row("Nom", `${client.firstName} ${client.lastName}`);
+  row("Téléphone", asText(client.phone));
+  row("Email", asText(client.email));
+  row("Adresse", asText(client.address));
+
+  // === INFOS VÉHICULE ===
+  section("Véhicule");
+  row("Immatriculation", intervention.vehicle.plate, true);
+  row("Marque / Modèle", `${intervention.vehicle.brand} ${intervention.vehicle.model}`);
+  row("VIN", asText(intervention.vehicle.vin));
+  row("Carburant", asText(intervention.vehicle.fuel));
+  row("Année", asText(intervention.vehicle.year));
+  row("Kilométrage entrée", intervention.odometerKm ? `${intervention.odometerKm} km` : "Non renseigné");
+  row("Date réception", formatDateTime(intervention.createdAt));
+
+  // === TYPE D'INTERVENTION ===
+  section("Nature de l'intervention");
+  row("Type principal", intervention.type);
+  if (intervention.tags && intervention.tags.length > 0) {
+    row("Catégories", intervention.tags.join(", "));
+  }
+
+  // === ÉTAT D'ENTRÉE / SYMPTÔMES ===
+  section("État d'entrée et symptômes");
+  
+  if (intervention.intakeChecklist) {
+    const checks = intervention.intakeChecklist;
+    const anomalies: string[] = [];
+    if (checks.lights) anomalies.push("Voyants allumés");
+    if (checks.noises) anomalies.push("Bruits anormaux");
+    if (checks.leaks) anomalies.push("Fuites détectées");
+    if (checks.smoke) anomalies.push("Fumée visible");
+    if (checks.bodyDamage) anomalies.push("Dégâts carrosserie");
+    row("Anomalies constatées", anomalies.length > 0 ? anomalies.join(", ") : "Aucune anomalie signalée");
+  } else {
+    row("Anomalies constatées", "Non renseigné");
+  }
+
+  doc.moveDown(0.3);
+  doc.fontSize(10).font("Helvetica-Bold").text("Symptômes décrits par le client:", left, doc.y);
+  doc.moveDown(0.2);
+  doc.font("Helvetica").fontSize(10).text(asText(intervention.intakeNotes, "Aucun symptôme décrit"), { width: contentWidth });
+
+  // === ESTIMATION / ACCORD ===
+  section("Estimation et accord");
+  if (intervention.amountCents) {
+    row("Montant estimé", `${(intervention.amountCents / 100).toFixed(2)} € TTC`);
+  } else {
+    row("Montant estimé", "À définir après diagnostic");
+  }
+  if (intervention.agreementAt) {
+    row("Accord client", `Validé le ${formatDateTime(intervention.agreementAt)}`);
+    row("Méthode accord", asText(intervention.agreementMethod, "Application"));
+  } else {
+    row("Accord client", "En attente");
+  }
+
+  // === AUTORISATIONS ===
+  section("Autorisations");
+  doc.fontSize(9).font("Helvetica").text(
+    "En signant le présent ordre de réparation, le client autorise l'établissement à:",
+    left, doc.y, { width: contentWidth }
+  );
+  doc.moveDown(0.3);
+  const authorizations = [
+    "• Effectuer les essais routiers nécessaires au diagnostic et à la vérification des réparations",
+    "• Procéder aux démontages requis pour établir un diagnostic précis",
+    "• Réaliser les travaux décrits ci-dessus dans le respect des règles de l'art",
+  ];
+  authorizations.forEach((auth) => {
+    doc.fontSize(9).font("Helvetica").text(auth, left + 10, doc.y, { width: contentWidth - 20 });
+    doc.moveDown(0.2);
+  });
+
+  doc.moveDown(0.3);
+  doc.fontSize(9).font("Helvetica-Bold").text("Note importante:", left, doc.y);
+  doc.font("Helvetica").text(
+    "En cas de refus des réparations après diagnostic, les frais de diagnostic pourront être facturés selon le barème en vigueur.",
+    left, doc.y + 12, { width: contentWidth }
+  );
+
+  // === RÉFÉRENCES LÉGALES ===
+  const legalContent = getLegalContent(intervention.type);
+  doc.moveDown(1);
+  section("Références & clauses");
+  doc.fontSize(9).font("Helvetica-Bold").text(legalContent.title, left, doc.y);
+  doc.moveDown(0.3);
+  legalContent.bullets.forEach((bullet) => {
+    doc.font("Helvetica").fontSize(8).text(`• ${bullet}`, left + 10, doc.y, { width: contentWidth - 20 });
+    doc.moveDown(0.2);
+  });
+
+  // === SIGNATURES ===
+  doc.moveDown(1.5);
+  const sigY = doc.y;
+  const sigWidth = (contentWidth - 40) / 2;
+
+  // Client signature box
+  doc.fontSize(10).font("Helvetica-Bold").text("Signature client", left, sigY);
+  doc.fontSize(8).font("Helvetica").text("(Précédée de la mention \"Lu et approuvé\")", left, sigY + 12);
+  doc.rect(left, sigY + 28, sigWidth, 60).stroke();
+
+  doc.fontSize(10).font("Helvetica-Bold").text("Signature établissement", left + sigWidth + 40, sigY);
+  doc.fontSize(8).font("Helvetica").text("Date et cachet", left + sigWidth + 40, sigY + 12);
+  doc.rect(left + sigWidth + 40, sigY + 28, sigWidth, 60).stroke();
+
+  // === FOOTER ===
+  doc.moveDown(4);
+  doc.fontSize(8).font("Helvetica").fillColor("#666").text(
+    `Document généré le ${formatDateTime(new Date())} - Réf. ${intervention.id}`,
+    left, doc.y, { align: "center", width: contentWidth }
+  );
+
+  doc.end();
+  return done;
+}
+// =========== End PDF Generation ===========
 
 export async function POST(req: Request, ctx: Ctx) {
   try {
@@ -94,7 +288,7 @@ export async function POST(req: Request, ctx: Ctx) {
       );
     }
 
-    // Check if there's already an ongoing signature request
+    // Check if there's already an ongoing signature request for this docType
     const existingRequest = await prisma.eSignatureRequest.findFirst({
       where: {
         interventionId,
@@ -110,26 +304,20 @@ export async function POST(req: Request, ctx: Ctx) {
       );
     }
 
-    // Generate the PDF
-    console.log(`[Yousign] Generating PDF for intervention ${interventionId}`);
-    const pdfUrl = documentType === "INTERVENTION_ORDER"
-      ? `${APP_URL}/api/interventions/${interventionId}/order/pdf`
-      : `${APP_URL}/api/interventions/${interventionId}/pdf`;
-
-    // Fetch the PDF internally
-    const pdfResponse = await fetch(pdfUrl, {
-      headers: {
-        Cookie: req.headers.get("Cookie") || "",
-      },
-    });
-
-    if (!pdfResponse.ok) {
-      console.error(`[Yousign] Failed to generate PDF: ${pdfResponse.status}`);
-      return NextResponse.json(failure("Erreur lors de la génération du PDF"), { status: 500 });
+    // Gate INTERVENTION_DELIVERY: intervention must be closed
+    if (documentType === "INTERVENTION_DELIVERY" && !intervention.closedAt) {
+      return NextResponse.json(
+        failure("L'intervention doit être clôturée pour envoyer le PV de restitution."),
+        { status: 400 }
+      );
     }
 
-    const pdfBuffer = Buffer.from(await pdfResponse.arrayBuffer());
-    const filename = `OR_${intervention.vehicle.plate}_${new Date().toISOString().split("T")[0]}.pdf`;
+    // Generate the PDF INLINE (no HTTP fetch to avoid auth issues)
+    console.log(`[Yousign] Generating PDF inline for intervention ${interventionId}, type: ${documentType}`);
+    
+    const pdfBuffer = await generateOrderPdfBuffer(intervention, client, intervention.garage);
+    const docLabel = documentType === "INTERVENTION_DELIVERY" ? "PV" : "OR";
+    const filename = `${docLabel}_${intervention.vehicle.plate.replace(/[^a-zA-Z0-9]/g, "_")}_${new Date().toISOString().split("T")[0]}.pdf`;
 
     console.log(`[Yousign] PDF generated, size: ${pdfBuffer.length} bytes`);
 

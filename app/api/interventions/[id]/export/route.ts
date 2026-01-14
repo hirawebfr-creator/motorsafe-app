@@ -175,6 +175,27 @@ export async function GET(req: Request, ctx: Ctx) {
       return NextResponse.json(failure("Intervention introuvable"), { status: 404 });
     }
 
+    // Fetch Yousign signatures for this intervention
+    const eSignatures = await prisma.eSignatureRequest.findMany({
+      where: {
+        interventionId: id,
+        status: "DONE",
+      },
+      select: {
+        id: true,
+        documentType: true,
+        status: true,
+        signerEmail: true,
+        signerName: true,
+        signedAt: true,
+        signedDocumentUrl: true,
+        signedDocumentKey: true,
+        auditTrailUrl: true,
+        auditTrailKey: true,
+        providerSignatureRequestId: true,
+      },
+    });
+
     // Decrypt client data
     const client = decryptClientData(intervention.vehicle.client as Record<string, unknown>) as {
       id: number;
@@ -231,6 +252,81 @@ export async function GET(req: Request, ctx: Ctx) {
 
     if (intervention.closedAt) {
       timelineEvents.push(`[${formatDate(intervention.closedAt)}] Clôture de l'intervention`);
+    }
+
+    // 4. Add Yousign signatures (signed documents + audit trails)
+    const signatureSummary: {
+      documentType: string;
+      status: string;
+      signedAt: string | null;
+      signerEmail: string;
+      signerName: string;
+      providerRequestId: string | null;
+      signedDocumentHash?: string;
+      auditTrailHash?: string;
+    }[] = [];
+
+    for (const sig of eSignatures) {
+      const docTypeFolder = sig.documentType === "INTERVENTION_ORDER" ? "OR" : 
+                            sig.documentType === "INTERVENTION_DELIVERY" ? "PV" : 
+                            sig.documentType.replace(/[^a-zA-Z0-9]/g, "_");
+      
+      // Add signed document
+      if (sig.signedDocumentKey) {
+        const signedBuffer = await fetchFileBuffer(`/api/uploads/file/${sig.signedDocumentKey}`);
+        if (signedBuffer) {
+          const signedPath = `signatures/${docTypeFolder}/document_signe.zip`;
+          archive.append(signedBuffer, { name: signedPath });
+          const signedHash = sha256(signedBuffer);
+          hashes.push({ file: signedPath, sha256: signedHash });
+          
+          // Add to summary
+          const summaryEntry = signatureSummary.find(s => s.documentType === sig.documentType);
+          if (summaryEntry) {
+            summaryEntry.signedDocumentHash = signedHash;
+          }
+        }
+      }
+
+      // Add audit trail
+      if (sig.auditTrailKey) {
+        const auditBuffer = await fetchFileBuffer(`/api/uploads/file/${sig.auditTrailKey}`);
+        if (auditBuffer) {
+          const auditPath = `signatures/${docTypeFolder}/certificat_audit.zip`;
+          archive.append(auditBuffer, { name: auditPath });
+          const auditHash = sha256(auditBuffer);
+          hashes.push({ file: auditPath, sha256: auditHash });
+          
+          // Add to summary
+          const summaryEntry = signatureSummary.find(s => s.documentType === sig.documentType);
+          if (summaryEntry) {
+            summaryEntry.auditTrailHash = auditHash;
+          }
+        }
+      }
+
+      // Build summary entry
+      signatureSummary.push({
+        documentType: sig.documentType,
+        status: sig.status,
+        signedAt: sig.signedAt ? formatDate(sig.signedAt) : null,
+        signerEmail: sig.signerEmail,
+        signerName: sig.signerName,
+        providerRequestId: sig.providerSignatureRequestId,
+      });
+
+      // Add to timeline
+      if (sig.signedAt) {
+        timelineEvents.push(`[${formatDate(sig.signedAt)}] Signature électronique: ${sig.documentType} signé par ${sig.signerName}`);
+      }
+    }
+
+    // Add signature summary JSON
+    if (signatureSummary.length > 0) {
+      const summaryJson = JSON.stringify(signatureSummary, null, 2);
+      const summaryBuffer = Buffer.from(summaryJson, "utf-8");
+      archive.append(summaryBuffer, { name: "signatures/summary.json" });
+      hashes.push({ file: "signatures/summary.json", sha256: sha256(summaryBuffer) });
     }
 
     const timelineContent = `TIMELINE - Intervention ${intervention.id}\n${"=".repeat(50)}\n\n${timelineEvents.join("\n")}\n`;

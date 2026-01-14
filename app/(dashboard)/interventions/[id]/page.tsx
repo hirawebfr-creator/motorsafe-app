@@ -463,7 +463,7 @@ function SignaturesSection({
       const res = await fetch("/api/signatures/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ interventionId, documentType }),
+        body: JSON.stringify({ documentId: interventionId, documentType }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
