@@ -128,7 +128,7 @@ async function fetchFileBuffer(fileUrl: string): Promise<Buffer | null> {
     // Local file: /api/uploads/file/uploads/...
     if (fileUrl.startsWith("/api/uploads/file/")) {
       const key = fileUrl.replace("/api/uploads/file/", "");
-      const abs = path.join(process.cwd(), key);
+      const abs = path.join(process.cwd(), "uploads", key);
       return await readFile(abs);
     }
 
