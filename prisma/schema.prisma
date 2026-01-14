@@ -42,6 +42,8 @@ enum DocumentType {
   UPLOAD
   QUOTE_PDF
   INVOICE_PDF
+  SIGNED_DOCUMENT
+  AUDIT_TRAIL
 }
 
 enum GarageStatus {
@@ -100,6 +102,7 @@ model Garage {
   invoices        Invoice[]
   payments        Payment[]
   signatureRequests SignatureRequest[]
+  eSignatureRequests ESignatureRequest[]
 }
 
 model User {
@@ -589,4 +592,94 @@ model SignatureEvent {
   signatureRequest SignatureRequest @relation(fields: [signatureRequestId], references: [id], onDelete: Cascade)
 
   @@index([signatureRequestId])
+}
+
+// ============================================
+// YOUSIGN Integration
+// ============================================
+
+enum ESignProvider {
+  INTERNAL
+  YOUSIGN
+}
+
+enum ESignStatus {
+  DRAFT
+  ONGOING
+  DONE
+  DECLINED
+  EXPIRED
+  CANCELED
+}
+
+model ESignatureRequest {
+  id                          String       @id @default(cuid())
+  provider                    ESignProvider @default(YOUSIGN)
+  providerSignatureRequestId  String?      @unique // Yousign signature_request.id
+  providerDocumentId          String?      // Yousign document.id
+  
+  status                      ESignStatus  @default(DRAFT)
+  
+  // Relations to internal entities
+  garageId                    Int
+  interventionId              String?
+  quoteId                     String?
+  
+  // Signer info
+  signerEmail                 String
+  signerName                  String
+  signerPhone                 String?
+  
+  // Document info
+  documentType                String       // "INTERVENTION_ORDER", "QUOTE", etc.
+  documentFileName            String?
+  
+  // Storage after signature
+  signedDocumentUrl           String?
+  signedDocumentKey           String?
+  auditTrailUrl               String?
+  auditTrailKey               String?
+  
+  // Timestamps
+  activatedAt                 DateTime?
+  signedAt                    DateTime?
+  declinedAt                  DateTime?
+  expiredAt                   DateTime?
+  canceledAt                  DateTime?
+  
+  createdAt                   DateTime     @default(now())
+  updatedAt                   DateTime     @default(now()) @updatedAt
+  
+  // Provider raw data
+  providerMetaJson            Json?
+  
+  garage                      Garage       @relation(fields: [garageId], references: [id], onDelete: Cascade)
+  webhookEvents               YousignWebhookEvent[]
+  
+  @@index([garageId])
+  @@index([interventionId])
+  @@index([quoteId])
+  @@index([providerSignatureRequestId])
+  @@index([status])
+}
+
+model YousignWebhookEvent {
+  id                    String   @id @default(cuid())
+  eventId               String   @unique // Yousign event ID for idempotency
+  eventName             String   // signature_request.done, signer.done, etc.
+  
+  eSignatureRequestId   String?
+  
+  receivedAt            DateTime @default(now())
+  processedAt           DateTime?
+  processedOk           Boolean  @default(false)
+  processingError       String?
+  
+  payloadJson           Json
+  
+  eSignatureRequest     ESignatureRequest? @relation(fields: [eSignatureRequestId], references: [id], onDelete: SetNull)
+  
+  @@index([eventId])
+  @@index([eSignatureRequestId])
+  @@index([eventName])
 }

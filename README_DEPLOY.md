@@ -44,6 +44,71 @@ Voir `.env.example` pour la liste complète.
 
 ---
 
+## 8. Yousign (Signature électronique)
+
+### Configuration
+Ajouter les variables d'environnement suivantes :
+
+```env
+# Clé API Yousign (obtenue depuis le dashboard Yousign)
+YOUSIGN_API_KEY=RGxLXSRoG45efMkcPPhgjITcJwBkVGlh
+
+# Secret pour vérifier les webhooks Yousign (HMAC SHA-256)
+YOUSIGN_WEBHOOK_SECRET=4b514566c4948a5b421b22355fa20ac5
+
+# Environnement Yousign: "sandbox" pour test, "production" pour prod
+YOUSIGN_ENV=sandbox
+
+# URL de l'application (utilisée pour générer le PDF via fetch interne)
+APP_URL=https://votre-app.vercel.app
+```
+
+### Configuration du Webhook Yousign
+1. Connectez-vous au dashboard Yousign (https://app.yousign.com ou https://sandbox.yousign.com)
+2. Allez dans **Paramètres** > **Webhooks**
+3. Créez un nouveau webhook :
+   - **URL** : `{APP_URL}/api/webhooks/yousign`
+   - **Events** à écouter :
+     - `signature_request.done`
+     - `signature_request.declined`
+     - `signature_request.expired`
+     - `signature_request.canceled`
+     - `signer.done`
+     - `signer.declined`
+   - **Secret** : Copiez le secret affiché et mettez-le dans `YOUSIGN_WEBHOOK_SECRET`
+
+### Endpoints API
+
+| Endpoint | Méthode | Description |
+|----------|---------|-------------|
+| `/api/webhooks/yousign` | POST | Réception des webhooks Yousign |
+| `/api/interventions/[id]/signature/yousign` | POST | Créer une demande de signature |
+| `/api/interventions/[id]/signature/yousign` | GET | Lister les demandes de signature |
+
+### Flux de signature
+1. Le garage clique "Demander signature client" sur une intervention
+2. Le système génère le PDF de l'Ordre de Réparation
+3. Le PDF est uploadé sur Yousign
+4. Le client (signer) est ajouté avec un champ signature
+5. La demande est activée → Yousign envoie l'email au client
+6. Le client signe via l'interface Yousign
+7. Webhook `signature_request.done` reçu
+8. Le système télécharge le document signé + audit trail
+9. Les fichiers sont stockés et associés à l'intervention
+
+### Modèles de données
+
+- `ESignatureRequest` : Stocke les demandes de signature Yousign
+- `YousignWebhookEvent` : Audit log de tous les webhooks reçus (idempotence)
+
+### Test HMAC
+Pour tester la vérification HMAC localement :
+```bash
+npx ts-node scripts/test-yousign-hmac.ts
+```
+
+---
+
 ## Checklist Quentin (mise en prod)
 - [ ] Créer le projet Vercel et le lier au repo
 - [ ] Récupérer et ajouter les secrets dans GitHub

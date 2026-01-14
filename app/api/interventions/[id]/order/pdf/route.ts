@@ -6,6 +6,7 @@ import { toErrorResponse } from "@/lib/routeErrors";
 import PDFDocument from "pdfkit/js/pdfkit.standalone";
 import { Buffer } from "buffer";
 import { decryptClientData } from "@/lib/encryption";
+import { getLegalContent } from "@/content/legal";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -225,14 +226,35 @@ export async function GET(req: Request, ctx: Ctx) {
     doc.moveDown(0.5);
     doc.moveTo(left, doc.y).lineTo(right, doc.y).stroke();
 
+    // === RÉFÉRENCES LÉGALES ===
+    const legalContent = getLegalContent(intervention.type);
+    doc.moveDown(1);
+    section("Références & clauses");
+    doc.fontSize(9).font("Helvetica-Bold").text(legalContent.title, left, doc.y);
+    doc.moveDown(0.3);
+    legalContent.bullets.forEach((bullet) => {
+      doc.font("Helvetica").fontSize(8).text(`• ${bullet}`, left + 10, doc.y, { width: contentWidth - 20 });
+      doc.moveDown(0.2);
+    });
+    doc.moveDown(0.3);
+    doc.fontSize(7).fillColor("#888").text(
+      `Version: v1.0 | Date: ${formatDate(new Date())} | Document généré par MotorSafe`,
+      left, doc.y, { width: contentWidth }
+    );
+    doc.fillColor("#000");
+
     // === SIGNATURES ===
     doc.moveDown(1.5);
     const sigY = doc.y;
     const sigWidth = (contentWidth - 40) / 2;
 
+    // Client signature box with Yousign anchor
     doc.fontSize(10).font("Helvetica-Bold").text("Signature client", left, sigY);
     doc.fontSize(8).font("Helvetica").text("(Précédée de la mention \"Lu et approuvé\")", left, sigY + 12);
     doc.rect(left, sigY + 28, sigWidth, 60).stroke();
+    // Yousign Smart Anchor - text invisible ou très petit pour le parsing
+    doc.fontSize(4).fillColor("#fff").text("[[SIGN_CLIENT]]", left + 5, sigY + 35, { width: sigWidth - 10 });
+    doc.fillColor("#000");
 
     doc.fontSize(10).font("Helvetica-Bold").text("Signature établissement", left + sigWidth + 40, sigY);
     doc.fontSize(8).font("Helvetica").text("Date et cachet", left + sigWidth + 40, sigY + 12);
