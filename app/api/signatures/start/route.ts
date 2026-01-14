@@ -1,0 +1,160 @@
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { failure, success } from "@/lib/api";
+import { requireActiveSubscription, requireApprovedTenant, requireUser } from "@/lib/guards";
+import { toErrorResponse } from "@/lib/routeErrors";
+import { randomBytes, createHash } from "crypto";
+import { decryptClientData } from "@/lib/encryption";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+// Token TTL in days (default 7)
+const TOKEN_TTL_DAYS = parseInt(process.env.SIGN_TOKEN_TTL_DAYS || "7", 10);
+
+function generateToken(): string {
+  return randomBytes(32).toString("hex");
+}
+
+async function generatePdfHash(pdfRoute: string, req: Request): Promise<string | null> {
+  try {
+    // Build internal URL to fetch PDF
+    const origin = new URL(req.url).origin;
+    const pdfUrl = `${origin}${pdfRoute}`;
+    
+    // Forward auth cookies
+    const cookies = req.headers.get("cookie") || "";
+    const res = await fetch(pdfUrl, {
+      headers: { cookie: cookies },
+    });
+    
+    if (!res.ok) return null;
+    
+    const buffer = await res.arrayBuffer();
+    return createHash("sha256").update(Buffer.from(buffer)).digest("hex");
+  } catch (err) {
+    console.error("Error generating PDF hash:", err);
+    return null;
+  }
+}
+
+export async function POST(req: Request) {
+  try {
+    const user = requireApprovedTenant(await requireUser(req));
+    requireActiveSubscription(user);
+
+    const body = await req.json();
+    const { documentType, documentId } = body;
+
+    if (!documentType || !documentId) {
+      return NextResponse.json(failure("documentType et documentId requis"), { status: 400 });
+    }
+
+    const validTypes = ["INTERVENTION_ORDER", "INTERVENTION_DELIVERY", "INTERVENTION_DOSSIER", "QUOTE"];
+    if (!validTypes.includes(documentType)) {
+      return NextResponse.json(failure("Type de document invalide"), { status: 400 });
+    }
+
+    // Build PDF route based on document type
+    let pdfRoute: string;
+    let clientId: number | null = null;
+    let clientEmail: string | null = null;
+
+    if (documentType === "INTERVENTION_ORDER") {
+      pdfRoute = `/api/interventions/${documentId}/order/pdf`;
+    } else if (documentType === "INTERVENTION_DELIVERY") {
+      pdfRoute = `/api/interventions/${documentId}/delivery/pdf`;
+    } else if (documentType === "INTERVENTION_DOSSIER") {
+      pdfRoute = `/api/interventions/${documentId}/pdf`;
+    } else if (documentType === "QUOTE") {
+      pdfRoute = `/api/quotes/${documentId}/pdf`;
+    } else {
+      return NextResponse.json(failure("Type non supporté"), { status: 400 });
+    }
+
+    // Verify access to document and get client info
+    if (documentType.startsWith("INTERVENTION_")) {
+      const intervention = await prisma.intervention.findFirst({
+        where: user.role === "ADMIN"
+          ? { id: documentId, deletedAt: null }
+          : { id: documentId, garageId: user.garageId ?? -1, deletedAt: null },
+        include: { vehicle: { include: { client: true } } },
+      });
+
+      if (!intervention) {
+        return NextResponse.json(failure("Intervention introuvable"), { status: 404 });
+      }
+
+      // Check delivery requires closed intervention
+      if (documentType === "INTERVENTION_DELIVERY" && !intervention.closedAt) {
+        return NextResponse.json(failure("L'intervention doit être clôturée pour le PV de restitution"), { status: 400 });
+      }
+
+      clientId = intervention.vehicle.client.id;
+      const clientDecrypted = decryptClientData(intervention.vehicle.client as Record<string, unknown>) as { email?: string };
+      clientEmail = clientDecrypted.email || null;
+    } else if (documentType === "QUOTE") {
+      const quote = await prisma.quote.findFirst({
+        where: user.role === "ADMIN"
+          ? { id: documentId }
+          : { id: documentId, organisationId: user.garageId ?? -1 },
+        include: { client: true },
+      });
+
+      if (!quote) {
+        return NextResponse.json(failure("Devis introuvable"), { status: 404 });
+      }
+
+      clientId = quote.clientId;
+      const clientDecrypted = decryptClientData(quote.client as Record<string, unknown>) as { email?: string };
+      clientEmail = clientDecrypted.email || null;
+    }
+
+    // Generate PDF hash
+    const pdfHash = await generatePdfHash(pdfRoute, req);
+
+    // Generate unique token
+    const token = generateToken();
+    const expiresAt = new Date(Date.now() + TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000);
+
+    // Create signature request
+    const signatureRequest = await prisma.signatureRequest.create({
+      data: {
+        token,
+        expiresAt,
+        documentType: documentType as any,
+        documentId,
+        garageId: user.garageId!,
+        clientId,
+        status: "SENT",
+        pdfHash,
+        pdfRoute,
+        signerEmail: clientEmail,
+        createdByUserId: user.id,
+      },
+    });
+
+    // Create events
+    await prisma.signatureEvent.createMany({
+      data: [
+        { signatureRequestId: signatureRequest.id, type: "CREATED", ip: null, userAgent: null },
+        { signatureRequestId: signatureRequest.id, type: "SENT", ip: null, userAgent: null },
+      ],
+    });
+
+    // Build signing URL
+    const appUrl = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || new URL(req.url).origin;
+    const signingUrl = `${appUrl}/sign/${token}`;
+
+    return NextResponse.json(success({
+      requestId: signatureRequest.id,
+      signingUrl,
+      token,
+      expiresAt: signatureRequest.expiresAt,
+      clientEmail,
+    }));
+  } catch (err) {
+    console.error("Error POST /api/signatures/start:", err);
+    return toErrorResponse(err);
+  }
+}

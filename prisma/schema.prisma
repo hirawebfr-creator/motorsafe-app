@@ -99,6 +99,7 @@ model Garage {
   quotes          Quote[]
   invoices        Invoice[]
   payments        Payment[]
+  signatureRequests SignatureRequest[]
 }
 
 model User {
@@ -528,4 +529,64 @@ model LegalReferenceAssignment {
 
   @@index([referenceId])
   @@index([interventionType])
+}
+
+// ============================================
+// SIGN-CORE-01: Signature System
+// ============================================
+
+enum SignatureDocumentType {
+  INTERVENTION_ORDER
+  INTERVENTION_DELIVERY
+  INTERVENTION_DOSSIER
+  QUOTE
+}
+
+enum SignatureStatus {
+  DRAFT
+  SENT
+  VIEWED
+  SIGNED
+  DECLINED
+  EXPIRED
+}
+
+model SignatureRequest {
+  id               String                @id @default(cuid())
+  token            String                @unique
+  expiresAt        DateTime
+  documentType     SignatureDocumentType
+  documentId       String
+  garageId         Int
+  clientId         Int?
+  status           SignatureStatus       @default(DRAFT)
+  pdfHash          String?
+  pdfRoute         String?
+  signerNameDeclared String?
+  signerEmail      String?
+  signedAt         DateTime?
+  lastViewedAt     DateTime?
+  createdAt        DateTime              @default(now())
+  createdByUserId  String?
+
+  garage Garage @relation(fields: [garageId], references: [id], onDelete: Cascade)
+  events SignatureEvent[]
+
+  @@index([token])
+  @@index([garageId])
+  @@index([documentType, documentId])
+}
+
+model SignatureEvent {
+  id                 String   @id @default(cuid())
+  signatureRequestId String
+  type               String   // CREATED, SENT, VIEWED, SIGNED, DECLINED
+  at                 DateTime @default(now())
+  ip                 String?
+  userAgent          String?
+  metaJson           Json?
+
+  signatureRequest SignatureRequest @relation(fields: [signatureRequestId], references: [id], onDelete: Cascade)
+
+  @@index([signatureRequestId])
 }

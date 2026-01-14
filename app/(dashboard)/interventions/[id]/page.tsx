@@ -31,6 +31,10 @@ import {
   Archive,
   ClipboardList,
   FileCheck,
+  PenTool,
+  Copy,
+  ExternalLink,
+  Eye,
 } from "lucide-react";
 
 // === Types ===
@@ -64,6 +68,25 @@ type OuttakeChecklist = {
   lightsOff?: boolean;
   clean?: boolean;
   clientBriefed?: boolean;
+};
+
+type SignatureEvent = {
+  id: string;
+  eventType: string;
+  createdAt: string;
+};
+
+type SignatureRequest = {
+  id: string;
+  token: string;
+  documentType: string;
+  status: string;
+  createdAt: string;
+  expiresAt: string;
+  viewedAt?: string | null;
+  signedAt?: string | null;
+  signerNameDeclared?: string | null;
+  events: SignatureEvent[];
 };
 
 type Intervention = {
@@ -384,9 +407,236 @@ function DocumentsSection({
   );
 }
 
+// === Signatures Section Component ===
+const SIGNATURE_DOC_TYPES: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
+  INTERVENTION_ORDER: { label: "Ordre de réparation", icon: <ClipboardList size={16} />, color: "var(--ms-primary)" },
+  DELIVERY_REPORT: { label: "PV de restitution", icon: <FileCheck size={16} />, color: "var(--ms-success)" },
+  FULL_DOSSIER: { label: "Dossier complet", icon: <Archive size={16} />, color: "var(--ms-accent)" },
+};
+
+const SIGNATURE_STATUS_CONFIG: Record<string, { label: string; bg: string; text: string }> = {
+  DRAFT: { label: "Brouillon", bg: "var(--ms-bg-subtle)", text: "var(--ms-text-secondary)" },
+  SENT: { label: "Envoyé", bg: "var(--ms-primary-light)", text: "var(--ms-primary)" },
+  VIEWED: { label: "Consulté", bg: "var(--ms-warning-light)", text: "#B45309" },
+  SIGNED: { label: "Signé", bg: "var(--ms-success-light)", text: "var(--ms-success)" },
+  EXPIRED: { label: "Expiré", bg: "var(--ms-error-light)", text: "var(--ms-error)" },
+  CANCELED: { label: "Annulé", bg: "var(--ms-error-light)", text: "var(--ms-error)" },
+};
+
+function SignaturesSection({
+  interventionId,
+  signatures,
+  isClosed,
+  onRefresh,
+}: {
+  interventionId: string;
+  signatures: SignatureRequest[];
+  isClosed: boolean;
+  onRefresh: () => void;
+}) {
+  const [starting, setStarting] = useState<string | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
+
+  const startSignature = async (documentType: string) => {
+    setStarting(documentType);
+    try {
+      const res = await fetch("/api/signatures/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ interventionId, documentType }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error?.message ?? "Erreur création signature");
+      }
+      onRefresh();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Erreur");
+    } finally {
+      setStarting(null);
+    }
+  };
+
+  const copyLink = async (token: string) => {
+    const url = `${window.location.origin}/sign/${token}`;
+    await navigator.clipboard.writeText(url);
+    setCopied(token);
+    setTimeout(() => setCopied(null), 2000);
+  };
+
+  const getSigningUrl = (token: string) => `${window.location.origin}/sign/${token}`;
+
+  const isExpired = (expiresAt: string) => new Date(expiresAt) < new Date();
+
+  // Check if there's already a pending signature for each type
+  const pendingTypes = signatures
+    .filter((s) => s.status !== "SIGNED" && s.status !== "EXPIRED" && s.status !== "CANCELED" && !isExpired(s.expiresAt))
+    .map((s) => s.documentType);
+
+  return (
+    <Card className="p-0 overflow-hidden lg:col-span-2">
+      <div className="ms-cardHeader flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--ms-primary-light)]">
+            <PenTool size={20} className="text-[var(--ms-primary)]" />
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold">7. Signatures</h3>
+            <p className="text-xs text-muted2">Demandes de signature client</p>
+          </div>
+        </div>
+      </div>
+      <div className="ms-cardBody space-y-4">
+        {/* Action buttons */}
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => startSignature("INTERVENTION_ORDER")}
+            disabled={starting === "INTERVENTION_ORDER" || pendingTypes.includes("INTERVENTION_ORDER")}
+          >
+            {starting === "INTERVENTION_ORDER" ? (
+              <RefreshCw size={16} className="animate-spin mr-1" />
+            ) : (
+              <ClipboardList size={16} className="mr-1" />
+            )}
+            Envoyer OR à signer
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => startSignature("DELIVERY_REPORT")}
+            disabled={starting === "DELIVERY_REPORT" || pendingTypes.includes("DELIVERY_REPORT") || !isClosed}
+            title={!isClosed ? "Disponible après clôture" : undefined}
+          >
+            {starting === "DELIVERY_REPORT" ? (
+              <RefreshCw size={16} className="animate-spin mr-1" />
+            ) : (
+              <FileCheck size={16} className="mr-1" />
+            )}
+            Envoyer PV à signer
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => startSignature("FULL_DOSSIER")}
+            disabled={starting === "FULL_DOSSIER" || pendingTypes.includes("FULL_DOSSIER")}
+          >
+            {starting === "FULL_DOSSIER" ? (
+              <RefreshCw size={16} className="animate-spin mr-1" />
+            ) : (
+              <Archive size={16} className="mr-1" />
+            )}
+            Envoyer Dossier à signer
+          </Button>
+        </div>
+
+        {/* Signature requests list */}
+        {signatures.length === 0 ? (
+          <div className="text-center py-6 text-muted2">
+            <PenTool size={32} className="mx-auto mb-2 opacity-50" />
+            <p>Aucune demande de signature</p>
+            <p className="text-xs mt-1">Créez une demande pour obtenir un lien à partager.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {signatures.map((sig) => {
+              const typeConfig = SIGNATURE_DOC_TYPES[sig.documentType] ?? { label: sig.documentType, icon: <FileText size={16} />, color: "var(--ms-text-secondary)" };
+              const expired = isExpired(sig.expiresAt);
+              const status = expired && sig.status !== "SIGNED" ? "EXPIRED" : sig.status;
+              const statusConfig = SIGNATURE_STATUS_CONFIG[status] ?? SIGNATURE_STATUS_CONFIG.SENT;
+
+              return (
+                <div
+                  key={sig.id}
+                  className="rounded-xl border border-[var(--ms-border)] bg-[var(--ms-bg-subtle)] p-4"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div
+                        className="flex h-10 w-10 items-center justify-center rounded-lg"
+                        style={{ backgroundColor: `${typeConfig.color}20`, color: typeConfig.color }}
+                      >
+                        {typeConfig.icon}
+                      </div>
+                      <div>
+                        <p className="font-medium">{typeConfig.label}</p>
+                        <p className="text-xs text-muted2">Créé le {formatDate(sig.createdAt)}</p>
+                      </div>
+                    </div>
+                    <Badge style={{ background: statusConfig.bg, color: statusConfig.text }}>
+                      {statusConfig.label}
+                    </Badge>
+                  </div>
+
+                  {/* Status details */}
+                  <div className="mt-3 grid gap-2 text-sm">
+                    {sig.viewedAt && (
+                      <div className="flex items-center gap-2 text-muted2">
+                        <Eye size={14} />
+                        <span>Consulté le {formatDate(sig.viewedAt)}</span>
+                      </div>
+                    )}
+                    {sig.signedAt && (
+                      <div className="flex items-center gap-2 text-[var(--ms-success)]">
+                        <CheckCircle2 size={14} />
+                        <span>Signé le {formatDate(sig.signedAt)} par {sig.signerNameDeclared || "—"}</span>
+                      </div>
+                    )}
+                    {!sig.signedAt && !expired && (
+                      <div className="flex items-center gap-2 text-muted2">
+                        <Clock size={14} />
+                        <span>Expire le {formatDate(sig.expiresAt)}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Actions */}
+                  {status !== "SIGNED" && status !== "EXPIRED" && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => copyLink(sig.token)}
+                      >
+                        {copied === sig.token ? (
+                          <>
+                            <CheckCircle2 size={14} className="mr-1 text-[var(--ms-success)]" />
+                            Copié !
+                          </>
+                        ) : (
+                          <>
+                            <Copy size={14} className="mr-1" />
+                            Copier lien
+                          </>
+                        )}
+                      </Button>
+                      <a
+                        href={getSigningUrl(sig.token)}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <Button variant="ghost" size="sm">
+                          <ExternalLink size={14} className="mr-1" />
+                          Ouvrir
+                        </Button>
+                      </a>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
 export default function InterventionDetailPage() {
   const { id } = useParams();
   const [intervention, setIntervention] = useState<Intervention | null>(null);
+  const [signatures, setSignatures] = useState<SignatureRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
@@ -404,9 +654,12 @@ export default function InterventionDetailPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/interventions/${id}`);
-      if (!res.ok) throw new Error("Erreur lors du chargement.");
-      const data = await res.json();
+      const [intRes, sigRes] = await Promise.all([
+        fetch(`/api/interventions/${id}`),
+        fetch(`/api/interventions/${id}/signatures`),
+      ]);
+      if (!intRes.ok) throw new Error("Erreur lors du chargement.");
+      const data = await intRes.json();
       const int = data?.data ?? null;
       setIntervention(int);
       if (int) {
@@ -418,6 +671,13 @@ export default function InterventionDetailPage() {
         setWorkNotes(int.workNotes ?? "");
         setPartsNotes(int.partsNotes ?? "");
         setOuttakeChecklist(int.outtakeChecklist ?? {});
+      }
+      // Signatures (may fail if route not yet deployed)
+      if (sigRes.ok) {
+        const sigData = await sigRes.json();
+        setSignatures(sigData?.data ?? []);
+      } else {
+        setSignatures([]);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erreur serveur.");
@@ -646,6 +906,14 @@ export default function InterventionDetailPage() {
         <DocumentsSection
           interventionId={intervention.id}
           documents={intervention.documents ?? []}
+          isClosed={!!isClosed}
+          onRefresh={fetchIntervention}
+        />
+
+        {/* Section 7: Signatures */}
+        <SignaturesSection
+          interventionId={intervention.id}
+          signatures={signatures}
           isClosed={!!isClosed}
           onRefresh={fetchIntervention}
         />
