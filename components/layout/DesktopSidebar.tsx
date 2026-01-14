@@ -11,7 +11,6 @@ import {
   Wrench,
   FileText,
   Settings,
-  CreditCard,
   LogOut,
   Sparkles,
   ChevronRight,
@@ -19,6 +18,8 @@ import {
   Zap,
   CheckCircle,
   ArrowRight,
+  FileCheck,
+  Receipt,
 } from "lucide-react";
 
 type SidebarIcon = React.ComponentType<{ size?: number; className?: string }>;
@@ -28,9 +29,10 @@ const ICONS_BY_HREF: Record<string, SidebarIcon> = {
   "/clients": Users,
   "/vehicules": Car,
   "/interventions": Wrench,
+  "/devis": FileCheck,
+  "/factures": Receipt,
   "/documents": FileText,
   "/parametres": Settings,
-  "/billing": CreditCard,
 };
 
 export function DesktopSidebar({
@@ -58,9 +60,10 @@ export function DesktopSidebar({
     "/clients",
     "/vehicules",
     "/interventions",
+    "/devis",
+    "/factures",
     "/documents",
     "/parametres",
-    "/billing",
   ];
 
   const items = order
@@ -116,7 +119,7 @@ export function DesktopSidebar({
       {/* Upgrade Card - Always show for non-Pro, non-Admin users */}
       {showUpgradeCTA && (
         <div className="mx-3 mb-4">
-          <Link href="/billing" className="block group">
+          <Link href="/parametres?tab=abonnement" className="block group">
             <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#6366F1] via-[#8B5CF6] to-[#A855F7] p-5 shadow-lg shadow-purple-500/20 transition-all duration-300 group-hover:shadow-xl group-hover:shadow-purple-500/30 group-hover:scale-[1.02]">
               {/* Animated background elements */}
               <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-white/20 blur-2xl transition-transform duration-500 group-hover:scale-150" />
@@ -166,7 +169,7 @@ export function DesktopSidebar({
       {/* Pro Badge for Pro users */}
       {isPro && !isAdmin && (
         <div className="mx-3 mb-4">
-          <Link href="/billing" className="block">
+          <Link href="/parametres?tab=abonnement" className="block">
             <div className="flex items-center gap-3 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 p-4 transition-all hover:border-emerald-300 hover:shadow-md">
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 shadow-lg shadow-emerald-500/30">
                 <Crown size={22} className="text-white" />
