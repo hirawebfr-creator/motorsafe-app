@@ -175,24 +175,21 @@ export async function GET(req: Request, ctx: Ctx) {
       return NextResponse.json(failure("Intervention introuvable"), { status: 404 });
     }
 
-    // Fetch Yousign signatures for this intervention
-    const eSignatures = await prisma.eSignatureRequest.findMany({
+    // Fetch internal signatures for this intervention
+    const internalSignatures = await prisma.signatureRequest.findMany({
       where: {
-        interventionId: id,
-        status: "DONE",
+        documentId: id,
+        status: "SIGNED",
       },
       select: {
         id: true,
         documentType: true,
         status: true,
         signerEmail: true,
-        signerName: true,
+        signerNameDeclared: true,
         signedAt: true,
-        signedDocumentUrl: true,
-        signedDocumentKey: true,
-        auditTrailUrl: true,
-        auditTrailKey: true,
-        providerSignatureRequestId: true,
+        pdfHash: true,
+        token: true,
       },
     });
 
@@ -254,70 +251,30 @@ export async function GET(req: Request, ctx: Ctx) {
       timelineEvents.push(`[${formatDate(intervention.closedAt)}] Clôture de l'intervention`);
     }
 
-    // 4. Add Yousign signatures (signed documents + audit trails)
+    // 4. Add internal signatures to archive
     const signatureSummary: {
       documentType: string;
       status: string;
       signedAt: string | null;
-      signerEmail: string;
-      signerName: string;
-      providerRequestId: string | null;
-      signedDocumentHash?: string;
-      auditTrailHash?: string;
+      signerEmail: string | null;
+      signerName: string | null;
+      pdfHash: string | null;
     }[] = [];
 
-    for (const sig of eSignatures) {
-      const docTypeFolder = sig.documentType === "INTERVENTION_ORDER" ? "OR" : 
-                            sig.documentType === "INTERVENTION_DELIVERY" ? "PV" : 
-                            sig.documentType.replace(/[^a-zA-Z0-9]/g, "_");
-      
-      // Add signed document
-      if (sig.signedDocumentKey) {
-        const signedBuffer = await fetchFileBuffer(`/api/uploads/file/${sig.signedDocumentKey}`);
-        if (signedBuffer) {
-          const signedPath = `signatures/${docTypeFolder}/document_signe.zip`;
-          archive.append(signedBuffer, { name: signedPath });
-          const signedHash = sha256(signedBuffer);
-          hashes.push({ file: signedPath, sha256: signedHash });
-          
-          // Add to summary
-          const summaryEntry = signatureSummary.find(s => s.documentType === sig.documentType);
-          if (summaryEntry) {
-            summaryEntry.signedDocumentHash = signedHash;
-          }
-        }
-      }
-
-      // Add audit trail
-      if (sig.auditTrailKey) {
-        const auditBuffer = await fetchFileBuffer(`/api/uploads/file/${sig.auditTrailKey}`);
-        if (auditBuffer) {
-          const auditPath = `signatures/${docTypeFolder}/certificat_audit.zip`;
-          archive.append(auditBuffer, { name: auditPath });
-          const auditHash = sha256(auditBuffer);
-          hashes.push({ file: auditPath, sha256: auditHash });
-          
-          // Add to summary
-          const summaryEntry = signatureSummary.find(s => s.documentType === sig.documentType);
-          if (summaryEntry) {
-            summaryEntry.auditTrailHash = auditHash;
-          }
-        }
-      }
-
+    for (const sig of internalSignatures) {
       // Build summary entry
       signatureSummary.push({
         documentType: sig.documentType,
         status: sig.status,
         signedAt: sig.signedAt ? formatDate(sig.signedAt) : null,
         signerEmail: sig.signerEmail,
-        signerName: sig.signerName,
-        providerRequestId: sig.providerSignatureRequestId,
+        signerName: sig.signerNameDeclared,
+        pdfHash: sig.pdfHash,
       });
 
       // Add to timeline
       if (sig.signedAt) {
-        timelineEvents.push(`[${formatDate(sig.signedAt)}] Signature électronique: ${sig.documentType} signé par ${sig.signerName}`);
+        timelineEvents.push(`[${formatDate(sig.signedAt)}] Signature: ${sig.documentType} signé par ${sig.signerNameDeclared || "Client"}`);
       }
     }
 
@@ -334,7 +291,7 @@ export async function GET(req: Request, ctx: Ctx) {
     archive.append(timelineBuffer, { name: "timeline.txt" });
     hashes.push({ file: "timeline.txt", sha256: sha256(timelineBuffer) });
 
-    // 4. Generate hashes file
+    // 5. Generate hashes file
     const hashesContent = `HASHES SHA-256 - Intervention ${intervention.id}\n${"=".repeat(50)}\nGenere le: ${formatDate(new Date())}\n\n${hashes.map((h) => `${h.sha256}  ${h.file}`).join("\n")}\n`;
     archive.append(Buffer.from(hashesContent, "utf-8"), { name: "hashes.txt" });
 

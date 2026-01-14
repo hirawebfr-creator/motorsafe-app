@@ -35,9 +35,6 @@ import {
   Copy,
   ExternalLink,
   Eye,
-  Send,
-  XCircle,
-  Mail,
 } from "lucide-react";
 
 // === Types ===
@@ -90,23 +87,6 @@ type SignatureRequest = {
   signedAt?: string | null;
   signerNameDeclared?: string | null;
   events: SignatureEvent[];
-};
-
-// Yousign electronic signature
-type ESignatureRequest = {
-  id: string;
-  provider: string;
-  status: string;
-  documentType: string;
-  signerEmail: string;
-  signerName: string;
-  signedDocumentUrl?: string | null;
-  auditTrailUrl?: string | null;
-  activatedAt?: string | null;
-  signedAt?: string | null;
-  declinedAt?: string | null;
-  expiredAt?: string | null;
-  createdAt: string;
 };
 
 type Intervention = {
@@ -653,195 +633,10 @@ function SignaturesSection({
   );
 }
 
-// === Yousign E-Signature Section Component ===
-const ESIGN_STATUS_CONFIG: Record<string, { label: string; bg: string; text: string; icon: React.ReactNode }> = {
-  DRAFT: { label: "Brouillon", bg: "var(--ms-bg-subtle)", text: "var(--ms-text-secondary)", icon: <Clock size={14} /> },
-  ONGOING: { label: "En attente", bg: "var(--ms-warning-light)", text: "#B45309", icon: <Mail size={14} /> },
-  DONE: { label: "Signé", bg: "var(--ms-success-light)", text: "var(--ms-success)", icon: <CheckCircle2 size={14} /> },
-  DECLINED: { label: "Refusé", bg: "var(--ms-error-light)", text: "var(--ms-error)", icon: <XCircle size={14} /> },
-  EXPIRED: { label: "Expiré", bg: "var(--ms-error-light)", text: "var(--ms-error)", icon: <Clock size={14} /> },
-  CANCELED: { label: "Annulé", bg: "var(--ms-bg-subtle)", text: "var(--ms-text-secondary)", icon: <XCircle size={14} /> },
-};
-
-function YousignSection({
-  interventionId,
-  eSignatures,
-  onRefresh,
-}: {
-  interventionId: string;
-  eSignatures: ESignatureRequest[];
-  onRefresh: () => void;
-}) {
-  const [sending, setSending] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
-  const requestSignature = async () => {
-    setSending(true);
-    setErrorMsg(null);
-    try {
-      const res = await fetch(`/api/interventions/${interventionId}/signature/yousign`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ documentType: "INTERVENTION_ORDER" }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data?.error?.message ?? "Erreur lors de l'envoi");
-      }
-      onRefresh();
-    } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : "Erreur");
-    } finally {
-      setSending(false);
-    }
-  };
-
-  // Check if there's an ongoing request
-  const hasOngoing = eSignatures.some((s) => s.status === "ONGOING" || s.status === "DRAFT");
-
-  return (
-    <Card className="p-0 overflow-hidden lg:col-span-2">
-      <div className="ms-cardHeader flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#6366F1] to-[#8B5CF6]">
-            <Send size={20} className="text-white" />
-          </div>
-          <div>
-            <h3 className="text-lg font-semibold">8. Signature électronique</h3>
-            <p className="text-xs text-muted2">Via Yousign - Valeur juridique</p>
-          </div>
-        </div>
-        <Badge variant="accent" className="text-xs">Yousign</Badge>
-      </div>
-      <div className="ms-cardBody space-y-4">
-        {errorMsg && (
-          <div className="rounded-lg bg-[var(--ms-error-light)] border border-[var(--ms-error)] p-3 text-sm text-[var(--ms-error)]">
-            {errorMsg}
-          </div>
-        )}
-
-        {/* Action button */}
-        <div className="flex flex-wrap gap-2">
-          <Button
-            onClick={requestSignature}
-            disabled={sending || hasOngoing}
-            className="bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] hover:from-[#5558E3] hover:to-[#7C4FE0]"
-          >
-            {sending ? (
-              <RefreshCw size={16} className="animate-spin mr-2" />
-            ) : (
-              <Send size={16} className="mr-2" />
-            )}
-            Demander signature client
-          </Button>
-          {hasOngoing && (
-            <span className="text-xs text-muted2 self-center">Une demande est déjà en cours</span>
-          )}
-        </div>
-
-        {/* Existing requests */}
-        {eSignatures.length === 0 ? (
-          <div className="text-center py-6 text-muted2">
-            <Send size={32} className="mx-auto mb-2 opacity-50" />
-            <p>Aucune signature électronique</p>
-            <p className="text-xs mt-1">Le client recevra un email Yousign pour signer le document.</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {eSignatures.map((sig) => {
-              const statusConfig = ESIGN_STATUS_CONFIG[sig.status] ?? ESIGN_STATUS_CONFIG.ONGOING;
-              const docType = SIGNATURE_DOC_TYPES[sig.documentType] ?? { label: sig.documentType, icon: <FileText size={16} />, color: "var(--ms-primary)" };
-
-              return (
-                <div
-                  key={sig.id}
-                  className="rounded-xl border border-[var(--ms-border)] bg-[var(--ms-bg-subtle)] p-4"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <div
-                        className="flex h-10 w-10 items-center justify-center rounded-lg"
-                        style={{ backgroundColor: `${docType.color}20`, color: docType.color }}
-                      >
-                        {docType.icon}
-                      </div>
-                      <div>
-                        <p className="font-medium">{docType.label}</p>
-                        <p className="text-xs text-muted2">
-                          {sig.signerName} ({sig.signerEmail})
-                        </p>
-                      </div>
-                    </div>
-                    <Badge style={{ background: statusConfig.bg, color: statusConfig.text }}>
-                      <span className="mr-1">{statusConfig.icon}</span>
-                      {statusConfig.label}
-                    </Badge>
-                  </div>
-
-                  {/* Status timeline */}
-                  <div className="mt-3 grid gap-2 text-sm">
-                    {sig.activatedAt && (
-                      <div className="flex items-center gap-2 text-muted2">
-                        <Mail size={14} />
-                        <span>Email envoyé le {formatDate(sig.activatedAt)}</span>
-                      </div>
-                    )}
-                    {sig.signedAt && (
-                      <div className="flex items-center gap-2 text-[var(--ms-success)]">
-                        <CheckCircle2 size={14} />
-                        <span>Signé le {formatDate(sig.signedAt)}</span>
-                      </div>
-                    )}
-                    {sig.declinedAt && (
-                      <div className="flex items-center gap-2 text-[var(--ms-error)]">
-                        <XCircle size={14} />
-                        <span>Refusé le {formatDate(sig.declinedAt)}</span>
-                      </div>
-                    )}
-                    {sig.expiredAt && (
-                      <div className="flex items-center gap-2 text-[var(--ms-error)]">
-                        <Clock size={14} />
-                        <span>Expiré le {formatDate(sig.expiredAt)}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Download buttons when signed */}
-                  {sig.status === "DONE" && (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {sig.signedDocumentUrl && (
-                        <a href={sig.signedDocumentUrl} download>
-                          <Button variant="secondary" size="sm">
-                            <Download size={14} className="mr-1" />
-                            Document signé
-                          </Button>
-                        </a>
-                      )}
-                      {sig.auditTrailUrl && (
-                        <a href={sig.auditTrailUrl} download>
-                          <Button variant="ghost" size="sm">
-                            <FileCheck size={14} className="mr-1" />
-                            Certificat (Audit Trail)
-                          </Button>
-                        </a>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </Card>
-  );
-}
-
 export default function InterventionDetailPage() {
   const { id } = useParams();
   const [intervention, setIntervention] = useState<Intervention | null>(null);
   const [signatures, setSignatures] = useState<SignatureRequest[]>([]);
-  const [eSignatures, setESignatures] = useState<ESignatureRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
@@ -859,10 +654,9 @@ export default function InterventionDetailPage() {
     setLoading(true);
     setError(null);
     try {
-      const [intRes, sigRes, eSignRes] = await Promise.all([
+      const [intRes, sigRes] = await Promise.all([
         fetch(`/api/interventions/${id}`),
         fetch(`/api/interventions/${id}/signatures`),
-        fetch(`/api/interventions/${id}/signature/yousign`),
       ]);
       if (!intRes.ok) throw new Error("Erreur lors du chargement.");
       const data = await intRes.json();
@@ -884,13 +678,6 @@ export default function InterventionDetailPage() {
         setSignatures(sigData?.data ?? []);
       } else {
         setSignatures([]);
-      }
-      // Yousign e-signatures
-      if (eSignRes.ok) {
-        const eSignData = await eSignRes.json();
-        setESignatures(eSignData?.data ?? []);
-      } else {
-        setESignatures([]);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erreur serveur.");
@@ -1128,13 +915,6 @@ export default function InterventionDetailPage() {
           interventionId={intervention.id}
           signatures={signatures}
           isClosed={!!isClosed}
-          onRefresh={fetchIntervention}
-        />
-
-        {/* Section 8: Yousign E-Signature */}
-        <YousignSection
-          interventionId={intervention.id}
-          eSignatures={eSignatures}
           onRefresh={fetchIntervention}
         />
       </div>

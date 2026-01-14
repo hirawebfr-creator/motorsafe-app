@@ -1,5 +1,5 @@
 /**
- * Script to create realistic test data for Yousign testing
+ * Script to create realistic test data for signature testing
  */
 
 const { PrismaClient } = require("@prisma/client");
@@ -178,7 +178,7 @@ Client informé et satisfait du service.`,
   console.log(`Type: ${intervention.type}`);
   console.log(`========================================`);
   console.log(`\n✅ Données de test créées avec succès !`);
-  console.log(`\nPour tester Yousign, allez sur :`);
+  console.log(`\nPour tester la signature, allez sur :`);
   console.log(`https://safemotor.fr/interventions/${intervention.id}`);
 }
 

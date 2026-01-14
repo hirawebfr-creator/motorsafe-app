@@ -248,13 +248,10 @@ export async function GET(req: Request, ctx: Ctx) {
     const sigY = doc.y;
     const sigWidth = (contentWidth - 40) / 2;
 
-    // Client signature box with Yousign anchor
+    // Client signature box
     doc.fontSize(10).font("Helvetica-Bold").text("Signature client", left, sigY);
     doc.fontSize(8).font("Helvetica").text("(Précédée de la mention \"Lu et approuvé\")", left, sigY + 12);
     doc.rect(left, sigY + 28, sigWidth, 60).stroke();
-    // Yousign Smart Anchor - text invisible ou très petit pour le parsing
-    doc.fontSize(4).fillColor("#fff").text("[[SIGN_CLIENT]]", left + 5, sigY + 35, { width: sigWidth - 10 });
-    doc.fillColor("#000");
 
     doc.fontSize(10).font("Helvetica-Bold").text("Signature établissement", left + sigWidth + 40, sigY);
     doc.fontSize(8).font("Helvetica").text("Date et cachet", left + sigWidth + 40, sigY + 12);
