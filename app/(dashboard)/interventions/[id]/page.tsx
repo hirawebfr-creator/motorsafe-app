@@ -28,6 +28,7 @@ import {
   FolderOpen,
   Download,
   File,
+  Archive,
 } from "lucide-react";
 
 // === Types ===
@@ -473,7 +474,10 @@ export default function InterventionDetailPage() {
           <div className="flex gap-2">
             <Link href="/interventions"><Button variant="secondary" size="sm">Retour</Button></Link>
             <a href={`/api/interventions/${intervention.id}/pdf`} target="_blank" rel="noreferrer">
-              <Button size="sm"><FileText size={16} className="mr-1" />Dossier PDF</Button>
+              <Button variant="secondary" size="sm"><FileText size={16} className="mr-1" />PDF</Button>
+            </a>
+            <a href={`/api/interventions/${intervention.id}/export`} download>
+              <Button size="sm"><Archive size={16} className="mr-1" />Exporter ZIP</Button>
             </a>
           </div>
         }

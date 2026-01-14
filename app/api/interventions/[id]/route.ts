@@ -6,6 +6,7 @@ import { requireApprovedTenant, requireUser } from "@/lib/guards";
 import { toErrorResponse } from "@/lib/routeErrors";
 import { z } from "zod";
 import type { Prisma } from "@prisma/client";
+import { decryptClientData } from "@/lib/encryption";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -103,7 +104,20 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
       return NextResponse.json(failure("Intervention introuvable."), { status: 404 });
     }
 
-    return NextResponse.json(success(intervention));
+    // Décrypter les données client
+    const result = {
+      ...intervention,
+      vehicle: intervention.vehicle
+        ? {
+            ...intervention.vehicle,
+            client: intervention.vehicle.client
+              ? decryptClientData(intervention.vehicle.client as Record<string, unknown>)
+              : intervention.vehicle.client,
+          }
+        : intervention.vehicle,
+    };
+
+    return NextResponse.json(success(result));
   } catch (err) {
     console.error("Erreur API GET /api/interventions/[id] :", err);
     return toErrorResponse(err);

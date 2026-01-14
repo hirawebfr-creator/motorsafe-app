@@ -4,6 +4,7 @@ import { failure, success } from "@/lib/api";
 import { requireApprovedTenant, requireUser } from "@/lib/guards";
 import { toErrorResponse } from "@/lib/routeErrors";
 import { z } from "zod";
+import { decryptClientData } from "@/lib/encryption";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -50,7 +51,13 @@ export async function GET(req: Request, ctx: Ctx) {
       return NextResponse.json(failure("Vehicule introuvable"), { status: 404 });
     }
 
-    return NextResponse.json(success(vehicle));
+    // Décrypter les données client
+    const result = {
+      ...vehicle,
+      client: vehicle.client ? decryptClientData(vehicle.client as Record<string, unknown>) : vehicle.client,
+    };
+
+    return NextResponse.json(success(result));
   } catch (err) {
     console.error("Erreur API GET /api/vehicules/[id] :", err);
     return toErrorResponse(err);

@@ -6,6 +6,7 @@ import { requireApprovedTenant, requireUser, PLAN_LIMITS, FREE_UPGRADE_MESSAGE, 
 import { toErrorResponse } from "@/lib/routeErrors";
 import { z } from "zod";
 import type { Prisma } from "@prisma/client";
+import { decryptClientData } from "@/lib/encryption";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -84,7 +85,7 @@ export async function GET(req: Request) {
       };
     }
 
-    const [total, items] = await Promise.all([
+    const [total, rawItems] = await Promise.all([
       prisma.intervention.count({ where }),
       prisma.intervention.findMany({
         where,
@@ -94,6 +95,19 @@ export async function GET(req: Request) {
         include: { vehicle: { include: { client: true } } },
       }),
     ]);
+
+    // Décrypter les données clients
+    const items = rawItems.map((itv) => ({
+      ...itv,
+      vehicle: itv.vehicle
+        ? {
+            ...itv.vehicle,
+            client: itv.vehicle.client
+              ? decryptClientData(itv.vehicle.client as Record<string, unknown>)
+              : itv.vehicle.client,
+          }
+        : itv.vehicle,
+    }));
 
     return NextResponse.json(success({ items, page, pageSize, total }));
   } catch (err) {

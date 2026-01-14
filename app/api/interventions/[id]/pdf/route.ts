@@ -7,6 +7,7 @@ import PDFDocument from "pdfkit/js/pdfkit.standalone";
 import { Buffer } from "buffer";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
+import { decryptClientData } from "@/lib/encryption";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -51,6 +52,13 @@ export async function GET(req: Request, ctx: Ctx) {
       return NextResponse.json(failure("Intervention introuvable"), { status: 404 });
     }
 
+    // Décrypter les données client
+    const client = decryptClientData(intervention.vehicle.client as Record<string, unknown>) as {
+      id: number;
+      firstName: string;
+      lastName: string;
+    };
+
     const doc = new PDFDocument({ size: "A4", margin: 50 });
     const chunks: Buffer[] = [];
 
@@ -91,8 +99,8 @@ export async function GET(req: Request, ctx: Ctx) {
     doc.moveDown(0.4);
     doc.fontSize(13).font("Helvetica-Bold").text("Client", { underline: true });
     doc.moveDown(0.2);
-    row("Nom", `${intervention.vehicle.client.firstName} ${intervention.vehicle.client.lastName}`);
-    row("Client ID", String(intervention.vehicle.client.id));
+    row("Nom", `${client.firstName} ${client.lastName}`);
+    row("Client ID", String(client.id));
 
     doc.moveDown(0.3);
     doc.fontSize(13).font("Helvetica-Bold").text("Vehicule", { underline: true });
