@@ -110,10 +110,12 @@ export default function NouveauVehiculePage() {
 
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupError, setLookupError] = useState<string | null>(null);
+  const [lookupErrorCode, setLookupErrorCode] = useState<string | null>(null);
   const [lookupSuccess, setLookupSuccess] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [vehicleDetails, setVehicleDetails] = useState<VehiclePrefill | null>(null);
+  const [quotaInfo, setQuotaInfo] = useState<{ current: number; limit: number; remaining: number } | null>(null);
 
   const debounceRef = useRef<number | null>(null);
 
@@ -157,16 +159,19 @@ export default function NouveauVehiculePage() {
   async function lookupPlate() {
     if (!plate.trim()) {
       setLookupError("Entrez une plaque d'immatriculation.");
+      setLookupErrorCode(null);
       return;
     }
     
     try {
       setLookupLoading(true);
       setLookupError(null);
+      setLookupErrorCode(null);
       setLookupSuccess(false);
       setLogoUrl(null);
       setPhotoUrl(null);
       setVehicleDetails(null);
+      setQuotaInfo(null);
       
       const res = await fetch("/api/vehicules/lookup", {
         method: "POST",
@@ -176,15 +181,23 @@ export default function NouveauVehiculePage() {
       
       const json = await res.json().catch(() => null);
       
+      // Store quota info if present
+      if (json?.quota) {
+        setQuotaInfo(json.quota);
+      }
+      
       if (!res.ok || !json?.ok) {
+        const errorCode = json?.error?.code || "UNKNOWN";
         const errorMsg = json?.error?.message || "Erreur lors de la recherche.";
         setLookupError(errorMsg);
+        setLookupErrorCode(errorCode);
         return;
       }
       
       const prefill = json.data?.data as VehiclePrefill | undefined;
       if (!prefill) {
         setLookupError("Aucune donnée trouvée.");
+        setLookupErrorCode("NO_DATA");
         return;
       }
       
@@ -203,7 +216,8 @@ export default function NouveauVehiculePage() {
       
       setLookupSuccess(true);
     } catch {
-      setLookupError("Erreur de connexion.");
+      setLookupError("Erreur de connexion. Vous pouvez saisir les informations manuellement.");
+      setLookupErrorCode("CONNECTION_ERROR");
     } finally {
       setLookupLoading(false);
     }
@@ -379,17 +393,41 @@ export default function NouveauVehiculePage() {
               onError={() => setLogoUrl(null)}
             />
           )}
+          {/* Show quota info */}
+          {quotaInfo && (
+            <div className="text-[11px]" style={{ color: "#030229", opacity: 0.5 }}>
+              {quotaInfo.remaining}/{quotaInfo.limit} recherches restantes
+            </div>
+          )}
         </div>
         
+        {/* Error messages with contextual UI */}
         {lookupError && (
-          <div className="mb-4 rounded-[10px] border border-[rgba(209,26,42,0.25)] bg-[rgba(209,26,42,0.06)] px-4 py-2 text-[12px]" style={{ color: "#D11A2A" }}>
-            {lookupError}
+          <div className="mb-4 rounded-[10px] border border-[rgba(209,26,42,0.25)] bg-[rgba(209,26,42,0.06)] px-4 py-3" style={{ color: "#D11A2A" }}>
+            <div className="text-[12px] font-medium">{lookupError}</div>
+            {/* Quota exceeded: show manual entry hint */}
+            {lookupErrorCode === "QUOTA_EXCEEDED" && (
+              <div className="mt-2 text-[11px]" style={{ color: "#030229", opacity: 0.7 }}>
+                💡 Vous pouvez toujours créer le véhicule en saisissant les informations manuellement ci-dessous.
+              </div>
+            )}
+            {/* API errors: encourage manual entry */}
+            {(lookupErrorCode === "API_ERROR" || lookupErrorCode === "TIMEOUT" || lookupErrorCode === "CONNECTION_ERROR" || lookupErrorCode === "TOKEN_MISSING") && (
+              <div className="mt-2 text-[11px]" style={{ color: "#030229", opacity: 0.7 }}>
+                💡 Service temporairement indisponible. Saisissez les informations manuellement ci-dessous.
+              </div>
+            )}
           </div>
         )}
         
         {lookupSuccess && (
           <div className="mb-4 rounded-[10px] border border-[rgba(34,197,94,0.25)] bg-[rgba(34,197,94,0.06)] px-4 py-2 text-[12px]" style={{ color: "#16a34a" }}>
             ✓ Véhicule trouvé — champs pré-remplis
+            {quotaInfo && (
+              <span className="ml-2" style={{ opacity: 0.7 }}>
+                ({quotaInfo.remaining} recherches restantes ce mois)
+              </span>
+            )}
           </div>
         )}
 

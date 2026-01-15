@@ -102,6 +102,7 @@ model Garage {
   invoices        Invoice[]
   payments        Payment[]
   signatureRequests SignatureRequest[]
+  vehicleLookupUsage VehicleLookupUsage[]
 }
 
 model User {
@@ -611,8 +612,22 @@ model SignatureEvent {
 }
 
 // ============================================
-// VEHICLE-LOOKUP: Plate lookup cache
+// VEHICLE-LOOKUP: Plate lookup cache, usage quotas, logs
 // ============================================
+
+/// Monthly quota tracking per garage (for billing/rate limiting)
+model VehicleLookupUsage {
+  id        String @id @default(cuid())
+  garageId  Int
+  monthKey  String // "2026-01" format
+  count     Int    @default(0)
+  updatedAt DateTime @updatedAt
+
+  garage    Garage @relation(fields: [garageId], references: [id], onDelete: Cascade)
+
+  @@unique([garageId, monthKey])
+  @@index([garageId])
+}
 
 model VehicleLookupCache {
   id              String   @id @default(cuid())
@@ -636,6 +651,7 @@ model VehicleLookupLog {
   success         Boolean
   source          String?  // "cache" | "api"
   errorCode       String?
+  latencyMs       Int?     // API call duration in milliseconds
   createdAt       DateTime @default(now())
 
   @@index([garageId])

@@ -362,3 +362,36 @@ export async function lookupPlateFR(plateNormalized: string): Promise<LookupResp
     };
   }
 }
+
+// ============================================
+// Quota Management
+// ============================================
+
+// Default quota per garage per month (can be overridden per plan later)
+const DEFAULT_MONTHLY_QUOTA = 200;
+
+/**
+ * Get current month key in YYYY-MM format
+ */
+export function getCurrentMonthKey(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  return `${year}-${month}`;
+}
+
+/**
+ * Get the monthly lookup quota for a garage
+ * Can be extended later to vary by subscription plan
+ */
+export function getMonthlyQuota(_garageId: number): number {
+  // TODO: Could vary by plan (FREE=50, PRO=200, ENTERPRISE=unlimited)
+  return DEFAULT_MONTHLY_QUOTA;
+}
+
+export interface QuotaCheckResult {
+  allowed: boolean;
+  currentCount: number;
+  monthlyLimit: number;
+  remaining: number;
+}

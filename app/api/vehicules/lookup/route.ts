@@ -6,6 +6,8 @@ import { z } from "zod";
 import {
   normalizePlate,
   lookupPlateFR,
+  getCurrentMonthKey,
+  getMonthlyQuota,
   type VehiclePrefill,
 } from "@/lib/vehicleLookup";
 
@@ -13,6 +15,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const CACHE_TTL_DAYS = 30;
+const PROVIDER = "apiplaqueimmatriculation";
 
 const LookupSchema = z.object({
   immatriculation: z.string().trim().min(1).max(20),
@@ -23,7 +26,7 @@ export async function POST(req: Request) {
   try {
     const user = requireApprovedTenant(await requireUser(req));
     
-    // Pour les admins sans garageId, on fait le lookup sans cache
+    // Pour les admins sans garageId, on fait le lookup sans cache/quota
     const garageId = user.garageId;
 
     const body = await req.json().catch(() => null);
@@ -52,7 +55,9 @@ export async function POST(req: Request) {
       );
     }
 
-    // Check cache first (unless forceRefresh or admin without garageId)
+    // ============================
+    // 1. Check cache first (unless forceRefresh or admin without garageId)
+    // ============================
     if (!forceRefresh && garageId) {
       try {
         const cached = await prisma.vehicleLookupCache.findUnique({
@@ -60,7 +65,7 @@ export async function POST(req: Request) {
             garageId_plateNormalized_provider: {
               garageId,
               plateNormalized,
-              provider: "apiplaqueimmatriculation",
+              provider: PROVIDER,
             },
           },
         });
@@ -72,12 +77,13 @@ export async function POST(req: Request) {
               data: {
                 garageId,
                 plateNormalized,
-                provider: "apiplaqueimmatriculation",
+                provider: PROVIDER,
                 success: true,
                 source: "cache",
+                latencyMs: 0,
               },
             });
-          } catch { /* ignore if table doesn't exist yet */ }
+          } catch { /* ignore */ }
 
           const data = JSON.parse(cached.dataJson) as VehiclePrefill;
           return NextResponse.json({
@@ -90,23 +96,94 @@ export async function POST(req: Request) {
       }
     }
 
-    // Call external API
-    const result = await lookupPlateFR(plateNormalized);
+    // ============================
+    // 2. Check quota before API call (only for garages)
+    // ============================
+    if (garageId) {
+      try {
+        const monthKey = getCurrentMonthKey();
+        const monthlyLimit = getMonthlyQuota(garageId);
+        
+        const usage = await prisma.vehicleLookupUsage.findUnique({
+          where: { garageId_monthKey: { garageId, monthKey } },
+        });
+        
+        const currentCount = usage?.count ?? 0;
+        
+        if (currentCount >= monthlyLimit) {
+          // Log quota exceeded
+          try {
+            await prisma.vehicleLookupLog.create({
+              data: {
+                garageId,
+                plateNormalized,
+                provider: PROVIDER,
+                success: false,
+                source: "api",
+                errorCode: "QUOTA_EXCEEDED",
+              },
+            });
+          } catch { /* ignore */ }
+          
+          return NextResponse.json(
+            {
+              ok: false,
+              error: {
+                code: "QUOTA_EXCEEDED",
+                message: `Quota mensuel atteint (${monthlyLimit} recherches/mois). Réessayez le mois prochain ou saisissez les informations manuellement.`,
+              },
+              quota: {
+                current: currentCount,
+                limit: monthlyLimit,
+                remaining: 0,
+              },
+            },
+            { status: 429 }
+          );
+        }
+      } catch {
+        // Usage table might not exist yet, continue to API call
+      }
+    }
 
-    // Log the lookup (only if garageId exists, best effort)
+    // ============================
+    // 3. Call external API with latency measurement
+    // ============================
+    const startTime = Date.now();
+    const result = await lookupPlateFR(plateNormalized);
+    const latencyMs = Date.now() - startTime;
+
+    // ============================
+    // 4. Log the lookup (only if garageId exists)
+    // ============================
     if (garageId) {
       try {
         await prisma.vehicleLookupLog.create({
           data: {
             garageId,
             plateNormalized,
-            provider: "apiplaqueimmatriculation",
+            provider: PROVIDER,
             success: result.success,
             source: "api",
             errorCode: result.success ? null : result.error.code,
+            latencyMs,
           },
         });
-      } catch { /* ignore if table doesn't exist yet */ }
+      } catch { /* ignore */ }
+    }
+
+    // ============================
+    // 5. Increment usage quota on successful API call
+    // ============================
+    if (garageId && result.success) {
+      try {
+        const monthKey = getCurrentMonthKey();
+        await prisma.vehicleLookupUsage.upsert({
+          where: { garageId_monthKey: { garageId, monthKey } },
+          create: { garageId, monthKey, count: 1 },
+          update: { count: { increment: 1 } },
+        });
+      } catch { /* ignore */ }
     }
 
     if (!result.success) {
@@ -116,7 +193,9 @@ export async function POST(req: Request) {
       );
     }
 
-    // Update cache (only if garageId exists, best effort)
+    // ============================
+    // 6. Update cache (only if garageId exists)
+    // ============================
     if (garageId) {
       try {
         const expiresAt = new Date();
@@ -127,13 +206,13 @@ export async function POST(req: Request) {
             garageId_plateNormalized_provider: {
               garageId,
               plateNormalized,
-              provider: "apiplaqueimmatriculation",
+              provider: PROVIDER,
             },
           },
           create: {
             garageId,
             plateNormalized,
-            provider: "apiplaqueimmatriculation",
+            provider: PROVIDER,
             dataJson: JSON.stringify(result.data),
             expiresAt,
           },
@@ -143,12 +222,33 @@ export async function POST(req: Request) {
             expiresAt,
           },
         });
-      } catch { /* ignore if table doesn't exist yet */ }
+      } catch { /* ignore */ }
+    }
+
+    // ============================
+    // 7. Return success with quota info
+    // ============================
+    let quotaInfo = undefined;
+    if (garageId) {
+      try {
+        const monthKey = getCurrentMonthKey();
+        const monthlyLimit = getMonthlyQuota(garageId);
+        const usage = await prisma.vehicleLookupUsage.findUnique({
+          where: { garageId_monthKey: { garageId, monthKey } },
+        });
+        const currentCount = usage?.count ?? 0;
+        quotaInfo = {
+          current: currentCount,
+          limit: monthlyLimit,
+          remaining: Math.max(0, monthlyLimit - currentCount),
+        };
+      } catch { /* ignore */ }
     }
 
     return NextResponse.json({
       ok: true,
       data: { source: "api", data: result.data },
+      quota: quotaInfo,
     });
   } catch (err) {
     console.error("Erreur API POST /api/vehicules/lookup :", err);
