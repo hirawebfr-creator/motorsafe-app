@@ -23,14 +23,7 @@ export async function POST(req: Request) {
   try {
     const user = requireApprovedTenant(await requireUser(req));
     
-    // Pour les admins, on ne peut pas faire de lookup (pas de garageId pour le cache)
-    if (user.role === "ADMIN" || !user.garageId) {
-      return NextResponse.json(
-        { ok: false, error: { code: "FORBIDDEN", message: "Lookup disponible uniquement pour les garages." } },
-        { status: 403 }
-      );
-    }
-    
+    // Pour les admins sans garageId, on fait le lookup sans cache
     const garageId = user.garageId;
 
     const body = await req.json().catch(() => null);
@@ -59,8 +52,8 @@ export async function POST(req: Request) {
       );
     }
 
-    // Check cache first (unless forceRefresh)
-    if (!forceRefresh) {
+    // Check cache first (unless forceRefresh or admin without garageId)
+    if (!forceRefresh && garageId) {
       const cached = await prisma.vehicleLookupCache.findUnique({
         where: {
           garageId_plateNormalized_provider: {
@@ -94,17 +87,19 @@ export async function POST(req: Request) {
     // Call external API
     const result = await lookupPlateFR(plateNormalized);
 
-    // Log the lookup
-    await prisma.vehicleLookupLog.create({
-      data: {
-        garageId,
-        plateNormalized,
-        provider: "apiplaqueimmatriculation",
-        success: result.success,
-        source: "api",
-        errorCode: result.success ? null : result.error.code,
-      },
-    });
+    // Log the lookup (only if garageId exists)
+    if (garageId) {
+      await prisma.vehicleLookupLog.create({
+        data: {
+          garageId,
+          plateNormalized,
+          provider: "apiplaqueimmatriculation",
+          success: result.success,
+          source: "api",
+          errorCode: result.success ? null : result.error.code,
+        },
+      });
+    }
 
     if (!result.success) {
       return NextResponse.json(
@@ -113,31 +108,33 @@ export async function POST(req: Request) {
       );
     }
 
-    // Update cache
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + CACHE_TTL_DAYS);
+    // Update cache (only if garageId exists)
+    if (garageId) {
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + CACHE_TTL_DAYS);
 
-    await prisma.vehicleLookupCache.upsert({
-      where: {
-        garageId_plateNormalized_provider: {
+      await prisma.vehicleLookupCache.upsert({
+        where: {
+          garageId_plateNormalized_provider: {
+            garageId,
+            plateNormalized,
+            provider: "apiplaqueimmatriculation",
+          },
+        },
+        create: {
           garageId,
           plateNormalized,
           provider: "apiplaqueimmatriculation",
+          dataJson: JSON.stringify(result.data),
+          expiresAt,
         },
-      },
-      create: {
-        garageId,
-        plateNormalized,
-        provider: "apiplaqueimmatriculation",
-        dataJson: JSON.stringify(result.data),
-        expiresAt,
-      },
-      update: {
-        dataJson: JSON.stringify(result.data),
-        fetchedAt: new Date(),
-        expiresAt,
-      },
-    });
+        update: {
+          dataJson: JSON.stringify(result.data),
+          fetchedAt: new Date(),
+          expiresAt,
+        },
+      });
+    }
 
     return NextResponse.json({
       ok: true,
