@@ -12,23 +12,51 @@ import "server-only";
 // ============================================
 
 export interface VehiclePrefill {
+  // Identification
   brand: string;
   model: string;
   variant?: string;
+  version?: string;
   vin?: string;
-  fuel?: string;
+  typeMine?: string;
+  cnit?: string;
+  
+  // Dates
+  firstRegistrationDate?: string;
   year?: number;
+  
+  // Motorisation
+  fuel?: string;
   engine?: string;
-  powerFiscal?: number;
-  powerKw?: number;
+  engineCode?: string;
   ccm?: number;
   cylinders?: number;
+  powerFiscal?: number;
+  powerCh?: number;
+  powerKw?: number;
   gearbox?: string;
+  
+  // Carrosserie
+  bodyType?: string;
   color?: string;
+  doors?: number;
+  seats?: number;
+  
+  // Poids & Dimensions
   weightKg?: number;
+  ptacKg?: number;
+  
+  // Environnement
   co2?: number;
-  firstRegistrationDate?: string;
+  
+  // Assurance (SRA)
+  sraId?: string;
+  sraGroup?: string;
+  sraCommercial?: string;
+  
+  // Medias
   logoUrl?: string;
+  photoUrl?: string;
 }
 
 export interface LookupResult {
@@ -52,23 +80,43 @@ interface ApiPlaqueResponse {
   code_erreur?: number;
   data?: {
     erreur?: string;
+    // Identification
     marque?: string;
     modele?: string;
     variante?: string;
     version?: string;
     vin?: string;
-    energieNGC?: string;
+    type_mine?: string;
+    cnit?: string;
+    // Dates
     date1erCir_us?: string;
-    puisFiscReelCH?: string;  // "131 CH"
-    puisFiscReelKW?: string;  // "96 KW"
-    ccm?: string;             // "1870 CM3"
-    cylindres?: string;       // "4"
+    // Motorisation
+    energieNGC?: string;
     code_moteur?: string;
+    ccm?: string;
+    cylindres?: string;
+    puisFisc?: string;
+    puisFiscReelCH?: string;
+    puisFiscReelKW?: string;
     boite_vitesse?: string;
+    // Carrosserie
+    carrosserie?: string;
+    carrosserieCG?: string;
     couleur?: string;
-    poids?: string;           // "1807 KG"
+    nb_portes?: string;
+    nr_passagers?: string;
+    // Poids
+    poids?: string;
+    ptac?: string;
+    // Environnement
     co2?: string;
+    // Assurance
+    sra_id?: string;
+    sra_group?: string;
+    sra_commercial?: string;
+    // Medias
     logo_marque?: string;
+    photo_modele?: string;
     [key: string]: unknown;
   };
 }
@@ -135,24 +183,61 @@ export function mapApiResponseToInternal(data: ApiPlaqueResponse["data"]): Vehic
     engine = data.ccm;
   }
 
+  // Parse gearbox to human readable
+  const gearboxMap: Record<string, string> = {
+    A: "Automatique",
+    M: "Manuelle",
+    S: "Séquentielle",
+    V: "CVT",
+    X: "Robotisée",
+  };
+
   return {
+    // Identification
     brand: data.marque || "",
     model: data.modele || "",
     variant: data.variante || undefined,
+    version: data.version || undefined,
     vin: data.vin || undefined,
-    fuel: data.energieNGC || undefined,
+    typeMine: data.type_mine || undefined,
+    cnit: data.cnit || undefined,
+    
+    // Dates
+    firstRegistrationDate: data.date1erCir_us || undefined,
     year,
+    
+    // Motorisation
+    fuel: data.energieNGC || undefined,
     engine,
-    powerFiscal: parseNumeric(data.puisFiscReelCH),
-    powerKw: parseNumeric(data.puisFiscReelKW),
+    engineCode: data.code_moteur || undefined,
     ccm: parseNumeric(data.ccm),
     cylinders: parseNumeric(data.cylindres),
-    gearbox: data.boite_vitesse || undefined,
+    powerFiscal: parseNumeric(data.puisFisc),
+    powerCh: parseNumeric(data.puisFiscReelCH),
+    powerKw: parseNumeric(data.puisFiscReelKW),
+    gearbox: data.boite_vitesse ? (gearboxMap[data.boite_vitesse] || data.boite_vitesse) : undefined,
+    
+    // Carrosserie
+    bodyType: data.carrosserie || data.carrosserieCG || undefined,
     color: data.couleur || undefined,
+    doors: parseNumeric(data.nb_portes),
+    seats: parseNumeric(data.nr_passagers),
+    
+    // Poids
     weightKg: parseNumeric(data.poids),
+    ptacKg: parseNumeric(data.ptac),
+    
+    // Environnement
     co2: parseNumeric(data.co2),
-    firstRegistrationDate: data.date1erCir_us || undefined,
+    
+    // Assurance
+    sraId: data.sra_id || undefined,
+    sraGroup: data.sra_group || undefined,
+    sraCommercial: data.sra_commercial || undefined,
+    
+    // Medias
     logoUrl: data.logo_marque || undefined,
+    photoUrl: data.photo_modele || undefined,
   };
 }
 

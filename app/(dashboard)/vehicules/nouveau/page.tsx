@@ -25,23 +25,51 @@ type VehicleCreate = {
 };
 
 type VehiclePrefill = {
+  // Identification
   brand: string;
   model: string;
   variant?: string;
+  version?: string;
   vin?: string;
-  fuel?: string;
+  typeMine?: string;
+  cnit?: string;
+  
+  // Dates
+  firstRegistrationDate?: string;
   year?: number;
+  
+  // Motorisation
+  fuel?: string;
   engine?: string;
-  powerFiscal?: number;
-  powerKw?: number;
+  engineCode?: string;
   ccm?: number;
   cylinders?: number;
+  powerFiscal?: number;
+  powerCh?: number;
+  powerKw?: number;
   gearbox?: string;
+  
+  // Carrosserie
+  bodyType?: string;
   color?: string;
+  doors?: number;
+  seats?: number;
+  
+  // Poids
   weightKg?: number;
+  ptacKg?: number;
+  
+  // Environnement
   co2?: number;
-  firstRegistrationDate?: string;
+  
+  // Assurance
+  sraId?: string;
+  sraGroup?: string;
+  sraCommercial?: string;
+  
+  // Medias
   logoUrl?: string;
+  photoUrl?: string;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -84,6 +112,8 @@ export default function NouveauVehiculePage() {
   const [lookupError, setLookupError] = useState<string | null>(null);
   const [lookupSuccess, setLookupSuccess] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [vehicleDetails, setVehicleDetails] = useState<VehiclePrefill | null>(null);
 
   const debounceRef = useRef<number | null>(null);
 
@@ -135,6 +165,8 @@ export default function NouveauVehiculePage() {
       setLookupError(null);
       setLookupSuccess(false);
       setLogoUrl(null);
+      setPhotoUrl(null);
+      setVehicleDetails(null);
       
       const res = await fetch("/api/vehicules/lookup", {
         method: "POST",
@@ -164,6 +196,10 @@ export default function NouveauVehiculePage() {
       if (prefill.year) setYear(String(prefill.year));
       if (prefill.engine) setEngine(prefill.engine);
       if (prefill.logoUrl) setLogoUrl(prefill.logoUrl);
+      if (prefill.photoUrl) setPhotoUrl(prefill.photoUrl);
+      
+      // Store full details for display
+      setVehicleDetails(prefill);
       
       setLookupSuccess(true);
     } catch {
@@ -354,6 +390,166 @@ export default function NouveauVehiculePage() {
         {lookupSuccess && (
           <div className="mb-4 rounded-[10px] border border-[rgba(34,197,94,0.25)] bg-[rgba(34,197,94,0.06)] px-4 py-2 text-[12px]" style={{ color: "#16a34a" }}>
             ✓ Véhicule trouvé — champs pré-remplis
+          </div>
+        )}
+
+        {/* Vehicle details card */}
+        {vehicleDetails && lookupSuccess && (
+          <div className="mb-6 rounded-[10px] border border-[rgba(3,2,41,0.08)] bg-[#FAFAFB] p-4">
+            <div className="flex gap-4">
+              {/* Photo du véhicule */}
+              {photoUrl && (
+                <div className="flex-shrink-0">
+                  <img
+                    src={photoUrl}
+                    alt={`${vehicleDetails.brand} ${vehicleDetails.model}`}
+                    className="h-[100px] w-auto rounded-[8px] object-contain bg-white"
+                    onError={() => setPhotoUrl(null)}
+                  />
+                </div>
+              )}
+              
+              {/* Infos principales */}
+              <div className="flex-1 min-w-0">
+                <div className="mb-3 flex items-center gap-2">
+                  {logoUrl && (
+                    <img src={logoUrl} alt="Logo" className="h-[20px] w-auto object-contain" />
+                  )}
+                  <span className="text-[16px] font-semibold" style={{ color: "#030229" }}>
+                    {vehicleDetails.brand} {vehicleDetails.model}
+                  </span>
+                  {vehicleDetails.version && (
+                    <span className="text-[12px]" style={{ color: "#030229", opacity: 0.6 }}>
+                      {vehicleDetails.version}
+                    </span>
+                  )}
+                </div>
+                
+                {/* Grid de specs */}
+                <div className="grid grid-cols-4 gap-x-4 gap-y-2">
+                  {vehicleDetails.year && (
+                    <div>
+                      <div className="text-[10px] uppercase" style={{ color: "#030229", opacity: 0.5 }}>Année</div>
+                      <div className="text-[13px] font-medium" style={{ color: "#030229" }}>{vehicleDetails.year}</div>
+                    </div>
+                  )}
+                  {vehicleDetails.fuel && (
+                    <div>
+                      <div className="text-[10px] uppercase" style={{ color: "#030229", opacity: 0.5 }}>Énergie</div>
+                      <div className="text-[13px] font-medium" style={{ color: "#030229" }}>{vehicleDetails.fuel}</div>
+                    </div>
+                  )}
+                  {(vehicleDetails.powerCh || vehicleDetails.powerKw) && (
+                    <div>
+                      <div className="text-[10px] uppercase" style={{ color: "#030229", opacity: 0.5 }}>Puissance</div>
+                      <div className="text-[13px] font-medium" style={{ color: "#030229" }}>
+                        {vehicleDetails.powerCh ? `${vehicleDetails.powerCh} ch` : ""}
+                        {vehicleDetails.powerCh && vehicleDetails.powerKw ? " / " : ""}
+                        {vehicleDetails.powerKw ? `${vehicleDetails.powerKw} kW` : ""}
+                      </div>
+                    </div>
+                  )}
+                  {vehicleDetails.powerFiscal && (
+                    <div>
+                      <div className="text-[10px] uppercase" style={{ color: "#030229", opacity: 0.5 }}>Puissance fiscale</div>
+                      <div className="text-[13px] font-medium" style={{ color: "#030229" }}>{vehicleDetails.powerFiscal} CV</div>
+                    </div>
+                  )}
+                  {vehicleDetails.ccm && (
+                    <div>
+                      <div className="text-[10px] uppercase" style={{ color: "#030229", opacity: 0.5 }}>Cylindrée</div>
+                      <div className="text-[13px] font-medium" style={{ color: "#030229" }}>{vehicleDetails.ccm} cm³</div>
+                    </div>
+                  )}
+                  {vehicleDetails.cylinders && (
+                    <div>
+                      <div className="text-[10px] uppercase" style={{ color: "#030229", opacity: 0.5 }}>Cylindres</div>
+                      <div className="text-[13px] font-medium" style={{ color: "#030229" }}>{vehicleDetails.cylinders}</div>
+                    </div>
+                  )}
+                  {vehicleDetails.gearbox && (
+                    <div>
+                      <div className="text-[10px] uppercase" style={{ color: "#030229", opacity: 0.5 }}>Boîte</div>
+                      <div className="text-[13px] font-medium" style={{ color: "#030229" }}>{vehicleDetails.gearbox}</div>
+                    </div>
+                  )}
+                  {vehicleDetails.bodyType && (
+                    <div>
+                      <div className="text-[10px] uppercase" style={{ color: "#030229", opacity: 0.5 }}>Carrosserie</div>
+                      <div className="text-[13px] font-medium" style={{ color: "#030229" }}>{vehicleDetails.bodyType}</div>
+                    </div>
+                  )}
+                  {vehicleDetails.doors && (
+                    <div>
+                      <div className="text-[10px] uppercase" style={{ color: "#030229", opacity: 0.5 }}>Portes</div>
+                      <div className="text-[13px] font-medium" style={{ color: "#030229" }}>{vehicleDetails.doors}</div>
+                    </div>
+                  )}
+                  {vehicleDetails.seats && (
+                    <div>
+                      <div className="text-[10px] uppercase" style={{ color: "#030229", opacity: 0.5 }}>Places</div>
+                      <div className="text-[13px] font-medium" style={{ color: "#030229" }}>{vehicleDetails.seats}</div>
+                    </div>
+                  )}
+                  {vehicleDetails.color && (
+                    <div>
+                      <div className="text-[10px] uppercase" style={{ color: "#030229", opacity: 0.5 }}>Couleur</div>
+                      <div className="text-[13px] font-medium" style={{ color: "#030229" }}>{vehicleDetails.color}</div>
+                    </div>
+                  )}
+                  {vehicleDetails.co2 && (
+                    <div>
+                      <div className="text-[10px] uppercase" style={{ color: "#030229", opacity: 0.5 }}>CO₂</div>
+                      <div className="text-[13px] font-medium" style={{ color: "#030229" }}>{vehicleDetails.co2} g/km</div>
+                    </div>
+                  )}
+                  {vehicleDetails.weightKg && (
+                    <div>
+                      <div className="text-[10px] uppercase" style={{ color: "#030229", opacity: 0.5 }}>Poids</div>
+                      <div className="text-[13px] font-medium" style={{ color: "#030229" }}>{vehicleDetails.weightKg} kg</div>
+                    </div>
+                  )}
+                  {vehicleDetails.ptacKg && (
+                    <div>
+                      <div className="text-[10px] uppercase" style={{ color: "#030229", opacity: 0.5 }}>PTAC</div>
+                      <div className="text-[13px] font-medium" style={{ color: "#030229" }}>{vehicleDetails.ptacKg} kg</div>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Ligne technique: VIN, Type Mine, CNIT */}
+                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 border-t border-[rgba(3,2,41,0.06)] pt-3">
+                  {vehicleDetails.vin && (
+                    <div className="text-[11px]" style={{ color: "#030229", opacity: 0.7 }}>
+                      <span style={{ opacity: 0.6 }}>VIN:</span> <span className="font-mono">{vehicleDetails.vin}</span>
+                    </div>
+                  )}
+                  {vehicleDetails.typeMine && (
+                    <div className="text-[11px]" style={{ color: "#030229", opacity: 0.7 }}>
+                      <span style={{ opacity: 0.6 }}>Type mine:</span> {vehicleDetails.typeMine}
+                    </div>
+                  )}
+                  {vehicleDetails.cnit && (
+                    <div className="text-[11px]" style={{ color: "#030229", opacity: 0.7 }}>
+                      <span style={{ opacity: 0.6 }}>CNIT:</span> {vehicleDetails.cnit}
+                    </div>
+                  )}
+                  {vehicleDetails.engineCode && (
+                    <div className="text-[11px]" style={{ color: "#030229", opacity: 0.7 }}>
+                      <span style={{ opacity: 0.6 }}>Code moteur:</span> {vehicleDetails.engineCode}
+                    </div>
+                  )}
+                </div>
+                
+                {/* SRA (assurance) */}
+                {vehicleDetails.sraCommercial && (
+                  <div className="mt-2 text-[11px]" style={{ color: "#605BFF" }}>
+                    SRA: {vehicleDetails.sraCommercial}
+                    {vehicleDetails.sraGroup && ` (Groupe ${vehicleDetails.sraGroup})`}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
