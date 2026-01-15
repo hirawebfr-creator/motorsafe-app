@@ -116,6 +116,7 @@ export default function NouveauVehiculePage() {
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [vehicleDetails, setVehicleDetails] = useState<VehiclePrefill | null>(null);
   const [quotaInfo, setQuotaInfo] = useState<{ current: number; limit: number; remaining: number } | null>(null);
+  const [lookupSource, setLookupSource] = useState<"cache" | "api" | null>(null);
 
   const debounceRef = useRef<number | null>(null);
 
@@ -156,7 +157,7 @@ export default function NouveauVehiculePage() {
     };
   }, [clientQuery]);
 
-  async function lookupPlate() {
+  async function lookupPlate(forceRefresh = false) {
     if (!plate.trim()) {
       setLookupError("Entrez une plaque d'immatriculation.");
       setLookupErrorCode(null);
@@ -172,11 +173,12 @@ export default function NouveauVehiculePage() {
       setPhotoUrl(null);
       setVehicleDetails(null);
       setQuotaInfo(null);
+      setLookupSource(null);
       
       const res = await fetch("/api/vehicules/lookup", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ immatriculation: plate.trim() }),
+        body: JSON.stringify({ immatriculation: plate.trim(), forceRefresh }),
       });
       
       const json = await res.json().catch(() => null);
@@ -184,6 +186,11 @@ export default function NouveauVehiculePage() {
       // Store quota info if present
       if (json?.quota) {
         setQuotaInfo(json.quota);
+      }
+      
+      // Store source info
+      if (json?.data?.source) {
+        setLookupSource(json.data.source as "cache" | "api");
       }
       
       if (!res.ok || !json?.ok) {
@@ -373,7 +380,7 @@ export default function NouveauVehiculePage() {
           </label>
           <button
             type="button"
-            onClick={lookupPlate}
+            onClick={() => lookupPlate(false)}
             disabled={lookupLoading || !plate.trim()}
             className="flex h-[40px] items-center gap-2 rounded-[10px] px-4 text-[12px] font-semibold text-white disabled:opacity-50"
             style={{ background: "#605BFF" }}
@@ -385,6 +392,19 @@ export default function NouveauVehiculePage() {
             )}
             Rechercher
           </button>
+          {/* Force refresh button - shown only after successful lookup from cache */}
+          {lookupSuccess && lookupSource === "cache" && (
+            <button
+              type="button"
+              onClick={() => lookupPlate(true)}
+              disabled={lookupLoading}
+              className="flex h-[40px] items-center gap-2 rounded-[10px] border border-[rgba(3,2,41,0.08)] bg-white px-3 text-[11px] font-medium disabled:opacity-50"
+              style={{ color: "#030229" }}
+              title="Forcer une nouvelle recherche (ignore le cache)"
+            >
+              ↻ Actualiser
+            </button>
+          )}
           {logoUrl && (
             <img
               src={logoUrl}
@@ -417,12 +437,23 @@ export default function NouveauVehiculePage() {
                 💡 Service temporairement indisponible. Saisissez les informations manuellement ci-dessous.
               </div>
             )}
+            {/* Provider no credits */}
+            {lookupErrorCode === "PROVIDER_NO_CREDITS" && (
+              <div className="mt-2 text-[11px]" style={{ color: "#030229", opacity: 0.7 }}>
+                💡 Crédits du service de recherche épuisés. Saisissez les informations manuellement ci-dessous.
+              </div>
+            )}
           </div>
         )}
         
         {lookupSuccess && (
           <div className="mb-4 rounded-[10px] border border-[rgba(34,197,94,0.25)] bg-[rgba(34,197,94,0.06)] px-4 py-2 text-[12px]" style={{ color: "#16a34a" }}>
             ✓ Véhicule trouvé — champs pré-remplis
+            {lookupSource && (
+              <span className="ml-2 rounded bg-white/50 px-1.5 py-0.5 text-[10px] font-medium" style={{ color: lookupSource === "cache" ? "#0284c7" : "#16a34a" }}>
+                {lookupSource === "cache" ? "📦 cache" : "🌐 api"}
+              </span>
+            )}
             {quotaInfo && (
               <span className="ml-2" style={{ opacity: 0.7 }}>
                 ({quotaInfo.remaining} recherches restantes ce mois)

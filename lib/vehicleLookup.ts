@@ -67,7 +67,7 @@ export interface LookupResult {
 export interface LookupError {
   success: false;
   error: {
-    code: "PLATE_NOT_FOUND" | "API_ERROR" | "TOKEN_MISSING" | "INVALID_PLATE" | "TIMEOUT";
+    code: "PLATE_NOT_FOUND" | "API_ERROR" | "TOKEN_MISSING" | "INVALID_PLATE" | "TIMEOUT" | "PROVIDER_NO_CREDITS";
     message: string;
   };
 }
@@ -316,7 +316,20 @@ export async function lookupPlateFR(plateNormalized: string): Promise<LookupResp
 
     // Check for API-level errors (erreur field is empty string if OK)
     if (json.data?.erreur && json.data.erreur !== "") {
+      const erreurLower = json.data.erreur.toLowerCase();
       console.warn(`[VehicleLookup] API error for plate ${plateNormalized}: ${json.data.erreur}`);
+      
+      // Check for credits/quota exhausted from provider
+      if (erreurLower.includes("credit") || erreurLower.includes("quota") || erreurLower.includes("limit")) {
+        return {
+          success: false,
+          error: {
+            code: "PROVIDER_NO_CREDITS",
+            message: "Crédits du fournisseur épuisés. Saisissez les informations manuellement.",
+          },
+        };
+      }
+      
       return {
         success: false,
         error: {
