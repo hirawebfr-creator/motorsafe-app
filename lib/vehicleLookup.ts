@@ -47,24 +47,27 @@ export interface LookupError {
 export type LookupResponse = LookupResult | LookupError;
 
 interface ApiPlaqueResponse {
-  success?: boolean;
-  error?: string;
+  "api-version"?: string;
+  message?: string;
+  code_erreur?: number;
   data?: {
+    erreur?: string;
     marque?: string;
     modele?: string;
     variante?: string;
+    version?: string;
     vin?: string;
     energieNGC?: string;
     date1erCir_us?: string;
-    puisFiscReelCH?: number;
-    puisFiscReelKW?: number;
-    ccm?: number;
-    cylindres?: number;
+    puisFiscReelCH?: string;  // "131 CH"
+    puisFiscReelKW?: string;  // "96 KW"
+    ccm?: string;             // "1870 CM3"
+    cylindres?: string;       // "4"
     code_moteur?: string;
     boite_vitesse?: string;
     couleur?: string;
-    poids?: number;
-    co2?: number;
+    poids?: string;           // "1807 KG"
+    co2?: string;
     logo_marque?: string;
     [key: string]: unknown;
   };
@@ -112,15 +115,24 @@ export function mapApiResponseToInternal(data: ApiPlaqueResponse["data"]): Vehic
     }
   }
 
-  // Build engine string from code_moteur + ccm
+  // Parse numeric values from strings like "1870 CM3", "131 CH", "96 KW"
+  const parseNumeric = (val: string | undefined): number | undefined => {
+    if (!val) return undefined;
+    const match = val.match(/^[\d.]+/);
+    return match ? parseFloat(match[0]) : undefined;
+  };
+
+  // Build engine string from version or code_moteur + ccm
   let engine: string | undefined;
-  if (data.code_moteur) {
+  if (data.version) {
+    engine = data.version;
+  } else if (data.code_moteur) {
     engine = data.code_moteur;
     if (data.ccm) {
-      engine += ` (${data.ccm}cc)`;
+      engine += ` (${data.ccm})`;
     }
   } else if (data.ccm) {
-    engine = `${data.ccm}cc`;
+    engine = data.ccm;
   }
 
   return {
@@ -131,14 +143,14 @@ export function mapApiResponseToInternal(data: ApiPlaqueResponse["data"]): Vehic
     fuel: data.energieNGC || undefined,
     year,
     engine,
-    powerFiscal: data.puisFiscReelCH || undefined,
-    powerKw: data.puisFiscReelKW || undefined,
-    ccm: data.ccm || undefined,
-    cylinders: data.cylindres || undefined,
+    powerFiscal: parseNumeric(data.puisFiscReelCH),
+    powerKw: parseNumeric(data.puisFiscReelKW),
+    ccm: parseNumeric(data.ccm),
+    cylinders: parseNumeric(data.cylindres),
     gearbox: data.boite_vitesse || undefined,
     color: data.couleur || undefined,
-    weightKg: data.poids || undefined,
-    co2: data.co2 || undefined,
+    weightKg: parseNumeric(data.poids),
+    co2: parseNumeric(data.co2),
     firstRegistrationDate: data.date1erCir_us || undefined,
     logoUrl: data.logo_marque || undefined,
   };
@@ -217,9 +229,9 @@ export async function lookupPlateFR(plateNormalized: string): Promise<LookupResp
 
     const json: ApiPlaqueResponse = await response.json();
 
-    // Check for API-level errors
-    if (json.error || json.success === false) {
-      console.warn(`[VehicleLookup] API error for plate ${plateNormalized}: ${json.error}`);
+    // Check for API-level errors (erreur field is empty string if OK)
+    if (json.data?.erreur && json.data.erreur !== "") {
+      console.warn(`[VehicleLookup] API error for plate ${plateNormalized}: ${json.data.erreur}`);
       return {
         success: false,
         error: {
