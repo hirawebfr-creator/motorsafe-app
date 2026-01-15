@@ -609,3 +609,35 @@ model SignatureEvent {
 
   @@index([signatureRequestId])
 }
+
+// ============================================
+// VEHICLE-LOOKUP: Plate lookup cache
+// ============================================
+
+model VehicleLookupCache {
+  id              String   @id @default(cuid())
+  garageId        Int
+  plateNormalized String
+  provider        String   @default("apiplaqueimmatriculation")
+  dataJson        String   // JSON string of VehiclePrefill
+  fetchedAt       DateTime @default(now())
+  expiresAt       DateTime
+
+  @@unique([garageId, plateNormalized, provider])
+  @@index([garageId])
+  @@index([expiresAt])
+}
+
+model VehicleLookupLog {
+  id              String   @id @default(cuid())
+  garageId        Int
+  plateNormalized String
+  provider        String
+  success         Boolean
+  source          String?  // "cache" | "api"
+  errorCode       String?
+  createdAt       DateTime @default(now())
+
+  @@index([garageId])
+  @@index([createdAt])
+}

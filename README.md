@@ -41,6 +41,9 @@ S3_BUCKET=""
 S3_REGION=""
 S3_ENDPOINT=""          # ex: https://<accountid>.r2.cloudflarestorage.com
 S3_FORCE_PATH_STYLE="0" # mettre 1 pour certains endpoints
+
+# Vehicle Lookup API (optionnel - apiplaqueimmatriculation.com)
+APIPLAQUE_TOKEN=""      # Token API pour lookup par plaque
 ```
 
 En production, adaptez `DATABASE_URL` vers le chemin de la base (ex: `/var/lib/motorsafe/prod.db`).

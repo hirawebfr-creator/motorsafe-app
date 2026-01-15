@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search } from "lucide-react";
+import { Search, Loader2 } from "lucide-react";
 
 type ClientLite = {
   id: number;
@@ -22,6 +22,26 @@ type VehicleCreate = {
   fuel?: string;
   year?: number;
   engine?: string;
+};
+
+type VehiclePrefill = {
+  brand: string;
+  model: string;
+  variant?: string;
+  vin?: string;
+  fuel?: string;
+  year?: number;
+  engine?: string;
+  powerFiscal?: number;
+  powerKw?: number;
+  ccm?: number;
+  cylinders?: number;
+  gearbox?: string;
+  color?: string;
+  weightKg?: number;
+  co2?: number;
+  firstRegistrationDate?: string;
+  logoUrl?: string;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -59,6 +79,11 @@ export default function NouveauVehiculePage() {
   const [fuel, setFuel] = useState("");
   const [year, setYear] = useState("");
   const [engine, setEngine] = useState("");
+
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [lookupError, setLookupError] = useState<string | null>(null);
+  const [lookupSuccess, setLookupSuccess] = useState(false);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
   const debounceRef = useRef<number | null>(null);
 
@@ -98,6 +123,55 @@ export default function NouveauVehiculePage() {
       if (debounceRef.current) window.clearTimeout(debounceRef.current);
     };
   }, [clientQuery]);
+
+  async function lookupPlate() {
+    if (!plate.trim()) {
+      setLookupError("Entrez une plaque d'immatriculation.");
+      return;
+    }
+    
+    try {
+      setLookupLoading(true);
+      setLookupError(null);
+      setLookupSuccess(false);
+      setLogoUrl(null);
+      
+      const res = await fetch("/api/vehicules/lookup", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ immatriculation: plate.trim() }),
+      });
+      
+      const json = await res.json().catch(() => null);
+      
+      if (!res.ok || !json?.ok) {
+        const errorMsg = json?.error?.message || "Erreur lors de la recherche.";
+        setLookupError(errorMsg);
+        return;
+      }
+      
+      const prefill = json.data?.data as VehiclePrefill | undefined;
+      if (!prefill) {
+        setLookupError("Aucune donnée trouvée.");
+        return;
+      }
+      
+      // Auto-fill form fields
+      if (prefill.brand) setBrand(prefill.brand);
+      if (prefill.model) setModel(prefill.model);
+      if (prefill.vin) setVin(prefill.vin);
+      if (prefill.fuel) setFuel(prefill.fuel);
+      if (prefill.year) setYear(String(prefill.year));
+      if (prefill.engine) setEngine(prefill.engine);
+      if (prefill.logoUrl) setLogoUrl(prefill.logoUrl);
+      
+      setLookupSuccess(true);
+    } catch {
+      setLookupError("Erreur de connexion.");
+    } finally {
+      setLookupLoading(false);
+    }
+  }
 
   const selectedClientLabel = useMemo(() => {
     if (!selectedClient) return "Aucun client sélectionné";
@@ -229,6 +303,60 @@ export default function NouveauVehiculePage() {
       </div>
 
       <div className="absolute left-0 top-[360px] w-[1162px] rounded-[10px] border border-[rgba(3,2,41,0.08)] bg-white px-6 py-5">
+        {/* Lookup section */}
+        <div className="mb-6 flex items-end gap-3">
+          <label className="grid flex-1 gap-2">
+            <span className="text-[12px] font-semibold" style={{ color: "#030229", opacity: 0.7 }}>
+              Immatriculation
+            </span>
+            <input
+              value={plate}
+              onChange={(e) => {
+                setPlate(e.target.value);
+                setLookupSuccess(false);
+                setLookupError(null);
+              }}
+              className="h-[40px] rounded-[10px] border border-[rgba(3,2,41,0.08)] px-3 text-[12px] outline-none"
+              style={{ color: "#030229" }}
+              placeholder="Ex: AB-123-CD"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={lookupPlate}
+            disabled={lookupLoading || !plate.trim()}
+            className="flex h-[40px] items-center gap-2 rounded-[10px] px-4 text-[12px] font-semibold text-white disabled:opacity-50"
+            style={{ background: "#605BFF" }}
+          >
+            {lookupLoading ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <Search size={14} />
+            )}
+            Rechercher
+          </button>
+          {logoUrl && (
+            <img
+              src={logoUrl}
+              alt="Logo marque"
+              className="h-[40px] w-auto object-contain"
+              onError={() => setLogoUrl(null)}
+            />
+          )}
+        </div>
+        
+        {lookupError && (
+          <div className="mb-4 rounded-[10px] border border-[rgba(209,26,42,0.25)] bg-[rgba(209,26,42,0.06)] px-4 py-2 text-[12px]" style={{ color: "#D11A2A" }}>
+            {lookupError}
+          </div>
+        )}
+        
+        {lookupSuccess && (
+          <div className="mb-4 rounded-[10px] border border-[rgba(34,197,94,0.25)] bg-[rgba(34,197,94,0.06)] px-4 py-2 text-[12px]" style={{ color: "#16a34a" }}>
+            ✓ Véhicule trouvé — champs pré-remplis
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-6">
           <label className="grid gap-2">
             <span className="text-[12px] font-semibold" style={{ color: "#030229", opacity: 0.7 }}>
@@ -253,19 +381,6 @@ export default function NouveauVehiculePage() {
               className="h-[40px] rounded-[10px] border border-[rgba(3,2,41,0.08)] px-3 text-[12px] outline-none"
               style={{ color: "#030229" }}
               placeholder="Ex: Clio"
-            />
-          </label>
-
-          <label className="grid gap-2">
-            <span className="text-[12px] font-semibold" style={{ color: "#030229", opacity: 0.7 }}>
-              Immatriculation
-            </span>
-            <input
-              value={plate}
-              onChange={(e) => setPlate(e.target.value)}
-              className="h-[40px] rounded-[10px] border border-[rgba(3,2,41,0.08)] px-3 text-[12px] outline-none"
-              style={{ color: "#030229" }}
-              placeholder="Ex: AB-123-CD"
             />
           </label>
 
