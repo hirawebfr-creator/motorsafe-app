@@ -54,51 +54,59 @@ export async function POST(req: Request) {
 
     // Check cache first (unless forceRefresh or admin without garageId)
     if (!forceRefresh && garageId) {
-      const cached = await prisma.vehicleLookupCache.findUnique({
-        where: {
-          garageId_plateNormalized_provider: {
-            garageId,
-            plateNormalized,
-            provider: "apiplaqueimmatriculation",
-          },
-        },
-      });
-
-      if (cached && cached.expiresAt > new Date()) {
-        // Log cache hit
-        await prisma.vehicleLookupLog.create({
-          data: {
-            garageId,
-            plateNormalized,
-            provider: "apiplaqueimmatriculation",
-            success: true,
-            source: "cache",
+      try {
+        const cached = await prisma.vehicleLookupCache.findUnique({
+          where: {
+            garageId_plateNormalized_provider: {
+              garageId,
+              plateNormalized,
+              provider: "apiplaqueimmatriculation",
+            },
           },
         });
 
-        const data = JSON.parse(cached.dataJson) as VehiclePrefill;
-        return NextResponse.json({
-          ok: true,
-          data: { source: "cache", data },
-        });
+        if (cached && cached.expiresAt > new Date()) {
+          // Log cache hit (best effort)
+          try {
+            await prisma.vehicleLookupLog.create({
+              data: {
+                garageId,
+                plateNormalized,
+                provider: "apiplaqueimmatriculation",
+                success: true,
+                source: "cache",
+              },
+            });
+          } catch { /* ignore if table doesn't exist yet */ }
+
+          const data = JSON.parse(cached.dataJson) as VehiclePrefill;
+          return NextResponse.json({
+            ok: true,
+            data: { source: "cache", data },
+          });
+        }
+      } catch {
+        // Cache table might not exist yet, continue to API call
       }
     }
 
     // Call external API
     const result = await lookupPlateFR(plateNormalized);
 
-    // Log the lookup (only if garageId exists)
+    // Log the lookup (only if garageId exists, best effort)
     if (garageId) {
-      await prisma.vehicleLookupLog.create({
-        data: {
-          garageId,
-          plateNormalized,
-          provider: "apiplaqueimmatriculation",
-          success: result.success,
-          source: "api",
-          errorCode: result.success ? null : result.error.code,
-        },
-      });
+      try {
+        await prisma.vehicleLookupLog.create({
+          data: {
+            garageId,
+            plateNormalized,
+            provider: "apiplaqueimmatriculation",
+            success: result.success,
+            source: "api",
+            errorCode: result.success ? null : result.error.code,
+          },
+        });
+      } catch { /* ignore if table doesn't exist yet */ }
     }
 
     if (!result.success) {
@@ -108,32 +116,34 @@ export async function POST(req: Request) {
       );
     }
 
-    // Update cache (only if garageId exists)
+    // Update cache (only if garageId exists, best effort)
     if (garageId) {
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + CACHE_TTL_DAYS);
+      try {
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + CACHE_TTL_DAYS);
 
-      await prisma.vehicleLookupCache.upsert({
-        where: {
-          garageId_plateNormalized_provider: {
+        await prisma.vehicleLookupCache.upsert({
+          where: {
+            garageId_plateNormalized_provider: {
+              garageId,
+              plateNormalized,
+              provider: "apiplaqueimmatriculation",
+            },
+          },
+          create: {
             garageId,
             plateNormalized,
             provider: "apiplaqueimmatriculation",
+            dataJson: JSON.stringify(result.data),
+            expiresAt,
           },
-        },
-        create: {
-          garageId,
-          plateNormalized,
-          provider: "apiplaqueimmatriculation",
-          dataJson: JSON.stringify(result.data),
-          expiresAt,
-        },
-        update: {
-          dataJson: JSON.stringify(result.data),
-          fetchedAt: new Date(),
-          expiresAt,
-        },
-      });
+          update: {
+            dataJson: JSON.stringify(result.data),
+            fetchedAt: new Date(),
+            expiresAt,
+          },
+        });
+      } catch { /* ignore if table doesn't exist yet */ }
     }
 
     return NextResponse.json({
