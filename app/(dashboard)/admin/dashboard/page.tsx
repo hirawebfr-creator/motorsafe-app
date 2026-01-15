@@ -21,6 +21,7 @@ import {
   Shield,
   Crown,
   Star,
+  CreditCard,
 } from "lucide-react";
 import { useUser } from "@/components/user-context";
 import { fetcher } from "@/lib/fetcher";
@@ -60,6 +61,12 @@ type AdminStats = {
     pendingRevenue: number;
     paidInvoices: number;
     unpaidInvoices: number;
+  };
+  subscriptions: {
+    active: number;
+    trialing: number;
+    mrr: number;
+    arr: number;
   };
   plans: {
     FREE: number;
@@ -263,7 +270,7 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* Stats Garages */}
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-6 lg:grid-cols-4">
         <Card className="p-6">
           <h3 className="mb-4 flex items-center gap-2 font-semibold">
             <Building2 className="h-5 w-5 text-indigo-500" />
@@ -345,6 +352,32 @@ export default function AdminDashboardPage() {
                 </div>
               );
             })()}
+          </div>
+        </Card>
+
+        <Card className="p-6">
+          <h3 className="mb-4 flex items-center gap-2 font-semibold">
+            <CreditCard className="h-5 w-5 text-cyan-500" />
+            Abonnements Stripe
+          </h3>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-muted2">MRR</span>
+              <span className="font-bold text-cyan-600">{fmtEur(stats.subscriptions.mrr)}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-muted2">ARR</span>
+              <span className="font-bold text-cyan-600">{fmtEur(stats.subscriptions.arr)}</span>
+            </div>
+            <hr className="border-border" />
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted2">Abos actifs</span>
+              <span className="text-green-600">{stats.subscriptions.active}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted2">Essais en cours</span>
+              <span className="text-blue-600">{stats.subscriptions.trialing}</span>
+            </div>
           </div>
         </Card>
 

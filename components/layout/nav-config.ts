@@ -8,9 +8,12 @@ import {
   Bell,
   Settings,
   CreditCard,
-  ShieldCheck,
   Receipt,
   FileCheck,
+  Building2,
+  BarChart3,
+  UserCheck,
+  Scale,
 } from "lucide-react";
 import type React from "react";
 
@@ -25,6 +28,7 @@ export type NavItem = {
 };
 
 export const NAV_ITEMS: NavItem[] = [
+  // ===== Section Garage (main) =====
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, group: "main" },
   { label: "Clients", href: "/clients", icon: Users, group: "main" },
   { label: "Véhicules", href: "/vehicules", icon: Car, group: "main" },
@@ -36,6 +40,11 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Notifications", href: "/notifications", icon: Bell, group: "main" },
   { label: "Paramètres", href: "/parametres", icon: Settings, group: "main" },
   { label: "Facturation", href: "/billing", icon: CreditCard, group: "main" },
-  { label: "Demandes pro", href: "/admin/pro-demandes", icon: ShieldCheck, adminOnly: true, group: "admin" },
-  { label: "Références légales", href: "/admin/references", icon: ShieldCheck, adminOnly: true, group: "admin" },
+  
+  // ===== Section Admin (admin only) =====
+  { label: "Vue globale", href: "/admin/dashboard", icon: BarChart3, adminOnly: true, group: "admin" },
+  { label: "Garages", href: "/admin/garages", icon: Building2, adminOnly: true, group: "admin" },
+  { label: "Demandes pro", href: "/admin/pro-demandes", icon: UserCheck, adminOnly: true, group: "admin" },
+  { label: "Tous les clients", href: "/admin/clients", icon: Users, adminOnly: true, group: "admin" },
+  { label: "Références légales", href: "/admin/references", icon: Scale, adminOnly: true, group: "admin" },
 ];

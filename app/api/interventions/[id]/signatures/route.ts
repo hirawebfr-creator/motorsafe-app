@@ -46,7 +46,9 @@ export async function GET(req: Request, ctx: Ctx) {
       signerEmail: sr.signerEmail,
       signerNameDeclared: sr.signerNameDeclared,
       signedAt: sr.signedAt,
-      lastViewedAt: sr.lastViewedAt,
+      sentAt: sr.sentAt,
+      voidedAt: sr.voidedAt,
+      viewedAt: sr.lastViewedAt,
       createdAt: sr.createdAt,
       pdfHash: sr.pdfHash,
       events: sr.events.map((e) => ({

@@ -189,6 +189,9 @@ export async function GET(req: Request, ctx: Ctx) {
         signerNameDeclared: true,
         signedAt: true,
         pdfHash: true,
+        signedPdfHash: true,
+        signedPdfKey: true,
+        revision: true,
         token: true,
       },
     });
@@ -259,6 +262,8 @@ export async function GET(req: Request, ctx: Ctx) {
       signerEmail: string | null;
       signerName: string | null;
       pdfHash: string | null;
+      signedPdfHash: string | null;
+      revision: number;
     }[] = [];
 
     for (const sig of internalSignatures) {
@@ -270,11 +275,28 @@ export async function GET(req: Request, ctx: Ctx) {
         signerEmail: sig.signerEmail,
         signerName: sig.signerNameDeclared,
         pdfHash: sig.pdfHash,
+        signedPdfHash: sig.signedPdfHash,
+        revision: sig.revision || 1,
       });
 
       // Add to timeline
       if (sig.signedAt) {
         timelineEvents.push(`[${formatDate(sig.signedAt)}] Signature: ${sig.documentType} signé par ${sig.signerNameDeclared || "Client"}`);
+      }
+
+      // HARDEN-01: Add signed PDF to archive if available
+      if (sig.signedPdfKey) {
+        try {
+          const signedPdfBuffer = await fetchFileBuffer(`/api/uploads/file/${sig.signedPdfKey}`);
+          if (signedPdfBuffer) {
+            const signedPdfName = `signatures/${sig.documentType.toLowerCase()}_signe_rev${sig.revision || 1}.pdf`;
+            archive.append(signedPdfBuffer, { name: signedPdfName });
+            hashes.push({ file: signedPdfName, sha256: sig.signedPdfHash || sha256(signedPdfBuffer) });
+            timelineEvents.push(`[${formatDate(sig.signedAt)}] PDF signé archivé: ${signedPdfName}`);
+          }
+        } catch (pdfErr) {
+          console.warn(`Could not fetch signed PDF for ${sig.id}:`, pdfErr);
+        }
       }
     }
 

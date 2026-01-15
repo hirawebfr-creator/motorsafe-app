@@ -141,3 +141,36 @@ export function requirePro(user: SessionUser) {
 export function requireActiveSubscription(user: SessionUser) {
   requireStarterOrHigher(user);
 }
+
+// ============================================
+// GUARDS POUR ROUTES PUBLIQUES (tokenisées)
+// ============================================
+
+type GarageSubscriptionStatus = "INCOMPLETE" | "INCOMPLETE_EXPIRED" | "TRIALING" | "ACTIVE" | "PAST_DUE" | "CANCELED" | "UNPAID";
+type GaragePlan = "FREE" | "STARTER" | "PRO";
+
+interface GarageSubscriptionInfo {
+  subscriptionStatus: GarageSubscriptionStatus;
+  plan: GaragePlan;
+}
+
+/** Vérifie si un garage a un abonnement actif (pour routes publiques tokenisées) */
+export function isGarageSubscriptionActive(garage: GarageSubscriptionInfo): boolean {
+  const status = garage.subscriptionStatus;
+  const isActive = status === "ACTIVE" || status === "TRIALING" || status === "PAST_DUE";
+  if (!isActive) return false;
+  // Check plan is at least STARTER
+  const plan = garage.plan;
+  return plan === "STARTER" || plan === "PRO";
+}
+
+/** Throws SUBSCRIPTION_INACTIVE si le garage n'a pas d'abonnement actif (pour routes publiques) */
+export function assertGarageHasActiveSubscription(garage: GarageSubscriptionInfo): void {
+  if (!isGarageSubscriptionActive(garage)) {
+    throw new RouteError(
+      402,
+      "SUBSCRIPTION_INACTIVE",
+      "Le garage n'a pas d'abonnement actif. Veuillez contacter le garage pour qu'il active son abonnement."
+    );
+  }
+}

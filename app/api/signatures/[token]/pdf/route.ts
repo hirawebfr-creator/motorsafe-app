@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { failure } from "@/lib/api";
+import { buildOrderMasterPdf } from "@/lib/pdf/orderMaster";
+import { isGarageSubscriptionActive } from "@/lib/guards";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type Ctx = { params: Promise<{ token: string }> };
 
-export async function GET(req: Request, ctx: Ctx) {
+export async function GET(_req: Request, ctx: Ctx) {
   try {
     const { token } = await ctx.params;
 
@@ -17,10 +19,19 @@ export async function GET(req: Request, ctx: Ctx) {
 
     const signatureRequest = await prisma.signatureRequest.findUnique({
       where: { token },
+      include: { garage: { select: { id: true, plan: true, subscriptionStatus: true } } },
     });
 
     if (!signatureRequest) {
       return NextResponse.json(failure("Demande de signature introuvable"), { status: 404 });
+    }
+
+    // BILLING-GUARD-01: Check garage subscription (allow viewing already signed docs)
+    if (signatureRequest.status !== "SIGNED" && !isGarageSubscriptionActive(signatureRequest.garage)) {
+      return NextResponse.json(
+        { ok: false, error: { code: "SUBSCRIPTION_INACTIVE", message: "Le garage n'a pas d'abonnement actif." } },
+        { status: 402 }
+      );
     }
 
     // Check expiration
@@ -28,61 +39,35 @@ export async function GET(req: Request, ctx: Ctx) {
       return NextResponse.json(failure("Ce lien de signature a expiré"), { status: 410 });
     }
 
-    if (!signatureRequest.pdfRoute) {
-      return NextResponse.json(failure("PDF non disponible"), { status: 404 });
+    // Only support INTERVENTION_ORDER for now (the master document)
+    if (!signatureRequest.documentType.startsWith("INTERVENTION_")) {
+      return NextResponse.json(failure("Type de document non supporté pour l'aperçu PDF"), { status: 400 });
     }
 
-    // Build internal PDF route (bypass auth for signature token)
-    const origin = new URL(req.url).origin;
-    const pdfUrl = `${origin}${signatureRequest.pdfRoute}?signatureToken=${token}`;
-
-    // Proxy the PDF request
+    // Generate PDF using the shared function
     try {
-      const pdfRes = await fetch(pdfUrl);
-      
-      if (!pdfRes.ok) {
-        // Fallback: try without token (internal fetch)
-        const internalRes = await fetchPdfInternal(signatureRequest);
-        if (internalRes) {
-          return internalRes;
-        }
-        return NextResponse.json(failure("Impossible de récupérer le PDF"), { status: 500 });
-      }
+      const result = await buildOrderMasterPdf(signatureRequest.documentId, {
+        // For preview, don't include signature
+        showSignedWatermark: signatureRequest.status === "SIGNED",
+        signerName: signatureRequest.status === "SIGNED" ? signatureRequest.signerNameDeclared || undefined : undefined,
+        signedAt: signatureRequest.status === "SIGNED" && signatureRequest.signedAt ? signatureRequest.signedAt : undefined,
+      });
 
-      const pdfBuffer = await pdfRes.arrayBuffer();
-
-      return new NextResponse(new Uint8Array(pdfBuffer), {
+      return new NextResponse(new Uint8Array(result.pdfBuffer), {
         status: 200,
         headers: {
           "Content-Type": "application/pdf",
-          "Content-Disposition": `inline; filename="document.pdf"`,
+          "Content-Disposition": `inline; filename="${result.filename}"`,
           "Cache-Control": "private, no-store",
+          "X-PDF-Hash": result.sha256,
         },
       });
-    } catch (fetchErr) {
-      console.error("PDF fetch error:", fetchErr);
-      // Try internal generation
-      const internalRes = await fetchPdfInternal(signatureRequest);
-      if (internalRes) {
-        return internalRes;
-      }
-      return NextResponse.json(failure("Erreur lors de la récupération du PDF"), { status: 500 });
+    } catch (pdfErr) {
+      console.error("PDF generation error:", pdfErr);
+      return NextResponse.json(failure("Erreur lors de la génération du PDF"), { status: 500 });
     }
   } catch (err) {
     console.error("Error GET /api/signatures/[token]/pdf:", err);
     return NextResponse.json(failure("Erreur serveur"), { status: 500 });
-  }
-}
-
-// Fallback: generate PDF internally if proxy fails
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function fetchPdfInternal(_signatureRequest: { documentType: string; documentId: string }): Promise<NextResponse | null> {
-  try {
-    // For now, return null to indicate we should use the proxy method
-    // The PDF routes handle their own generation
-    // In future, could add direct PDF generation here
-    return null;
-  } catch {
-    return null;
   }
 }

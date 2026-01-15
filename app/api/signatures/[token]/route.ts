@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { failure, success } from "@/lib/api";
 import { decryptClientData } from "@/lib/encryption";
+import { selectLegalModules } from "@/lib/legal/selectLegalModules";
+import { isGarageSubscriptionActive } from "@/lib/guards";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,23 +27,38 @@ export async function GET(_req: Request, ctx: Ctx) {
 
     const signatureRequest = await prisma.signatureRequest.findUnique({
       where: { token },
-      include: { garage: true },
+      include: { garage: { select: { id: true, name: true, plan: true, subscriptionStatus: true } } },
     });
 
     if (!signatureRequest) {
       return NextResponse.json(failure("Demande de signature introuvable"), { status: 404 });
     }
 
+    // BILLING-GUARD-01: Check garage subscription (allow viewing already signed docs)
+    if (signatureRequest.status !== "SIGNED" && !isGarageSubscriptionActive(signatureRequest.garage)) {
+      return NextResponse.json(
+        { ok: false, error: { code: "SUBSCRIPTION_INACTIVE", message: "Le garage n'a pas d'abonnement actif. Veuillez contacter le garage." } },
+        { status: 402 }
+      );
+    }
+
+    // Check if voided
+    if (signatureRequest.status === "VOID") {
+      return NextResponse.json(failure("Cette demande de signature a été annulée par le garage"), { status: 410 });
+    }
+
     // Check expiration
     if (signatureRequest.expiresAt < new Date()) {
       // Update status if not already
-      if (signatureRequest.status !== "EXPIRED") {
+      if (signatureRequest.status !== "EXPIRED" && signatureRequest.status !== "SIGNED") {
         await prisma.signatureRequest.update({
           where: { id: signatureRequest.id },
           data: { status: "EXPIRED" },
         });
       }
-      return NextResponse.json(failure("Ce lien de signature a expiré"), { status: 410 });
+      if (signatureRequest.status !== "SIGNED") {
+        return NextResponse.json(failure("Ce lien de signature a expiré. Demandez au garage de renvoyer un nouveau lien."), { status: 410 });
+      }
     }
 
     // Get document summary (non-sensitive)
@@ -66,6 +83,7 @@ export async function GET(_req: Request, ctx: Ctx) {
           clientName: `${clientDecrypted.firstName} ${clientDecrypted.lastName}`,
           createdAt: intervention.createdAt,
           type: intervention.type,
+          tags: intervention.tags || [],
         };
       }
     } else if (signatureRequest.documentType === "QUOTE") {
@@ -90,6 +108,10 @@ export async function GET(_req: Request, ctx: Ctx) {
       }
     }
 
+    // Build legal clauses from tags
+    const tags = (documentSummary.tags as string[]) || [];
+    const legalSelection = selectLegalModules(tags);
+
     return NextResponse.json(success({
       id: signatureRequest.id,
       documentType: signatureRequest.documentType,
@@ -102,6 +124,8 @@ export async function GET(_req: Request, ctx: Ctx) {
       signerNameDeclared: signatureRequest.signerNameDeclared,
       documentSummary,
       pdfUrl: `/api/signatures/${token}/pdf`,
+      legalClauses: legalSelection.clauses,
+      legalModules: legalSelection.modules,
     }));
   } catch (err) {
     console.error("Error GET /api/signatures/[token]:", err);

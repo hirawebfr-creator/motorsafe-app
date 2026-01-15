@@ -152,6 +152,48 @@ async function updateIntervention(req: Request, ctx: { params: Promise<{ id: str
       return NextResponse.json(failure("Intervention introuvable."), { status: 404 });
     }
 
+    // HARDEN-01: Check if intervention is locked by a signed signature
+    const signedSignature = await prisma.signatureRequest.findFirst({
+      where: {
+        documentId: interventionId,
+        status: "SIGNED",
+      },
+      select: { id: true, signedAt: true, documentType: true },
+    });
+
+    // Fields locked when signed (cannot be modified after signature)
+    const LOCKED_WHEN_SIGNED = [
+      "tags",
+      "intakeChecklist",
+      "intakeNotes",
+      "odometerKm",
+      "agreementAt",
+      "agreementMethod",
+      "amountCents",
+      "type",
+    ] as const;
+
+    if (signedSignature) {
+      const attemptedLockedFields = LOCKED_WHEN_SIGNED.filter(
+        (field) => input[field as keyof typeof input] !== undefined
+      );
+
+      if (attemptedLockedFields.length > 0) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: {
+              code: "LOCKED_BY_SIGNATURE",
+              message: `Dossier signé le ${signedSignature.signedAt?.toLocaleDateString("fr-FR")}. Les champs suivants sont verrouillés: ${attemptedLockedFields.join(", ")}.`,
+              lockedFields: attemptedLockedFields,
+              signedAt: signedSignature.signedAt,
+            },
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     const type = normalizeText(input.type ?? existing.type);
     const title =
       input.title === undefined

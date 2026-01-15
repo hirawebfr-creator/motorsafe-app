@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { failure, success } from "@/lib/api";
+import { isGarageSubscriptionActive } from "@/lib/guards";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,10 +18,19 @@ export async function POST(req: Request, ctx: Ctx) {
 
     const signatureRequest = await prisma.signatureRequest.findUnique({
       where: { token },
+      include: { garage: { select: { id: true, plan: true, subscriptionStatus: true } } },
     });
 
     if (!signatureRequest) {
       return NextResponse.json(failure("Demande introuvable"), { status: 404 });
+    }
+
+    // BILLING-GUARD-01: Check garage subscription (allow if already signed)
+    if (signatureRequest.status !== "SIGNED" && !isGarageSubscriptionActive(signatureRequest.garage)) {
+      return NextResponse.json(
+        { ok: false, error: { code: "SUBSCRIPTION_INACTIVE", message: "Le garage n'a pas d'abonnement actif." } },
+        { status: 402 }
+      );
     }
 
     // Check expiration

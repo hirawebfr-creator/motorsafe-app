@@ -20,6 +20,7 @@ import {
   ArrowRight,
   FileCheck,
   Receipt,
+  ShieldCheck,
 } from "lucide-react";
 
 type SidebarIcon = React.ComponentType<{ size?: number; className?: string }>;
@@ -70,6 +71,9 @@ export function DesktopSidebar({
     .map((href) => navItems.find((n) => n.href === href))
     .filter(Boolean) as NavItem[];
 
+  // Admin items (only visible to admin)
+  const adminItems = navItems.filter((n) => n.group === "admin" && n.adminOnly);
+
   return (
     <aside className="fixed left-0 top-0 z-40 flex h-screen w-[260px] flex-col border-r border-[var(--ms-border)] bg-white">
       {/* Brand */}
@@ -85,6 +89,7 @@ export function DesktopSidebar({
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-3 py-4">
+        {/* Main navigation */}
         <div className="space-y-1">
           {items.map((item) => {
             const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -114,6 +119,47 @@ export function DesktopSidebar({
             );
           })}
         </div>
+
+        {/* Admin section */}
+        {isAdmin && adminItems.length > 0 && (
+          <>
+            <div className="my-4 px-3">
+              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[var(--ms-text-muted)]">
+                <ShieldCheck size={14} />
+                Administration
+              </div>
+            </div>
+            <div className="space-y-1">
+              {adminItems.map((item) => {
+                const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                const Icon = item.icon ?? LayoutDashboard;
+
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150 ${
+                      isActive
+                        ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/25"
+                        : "text-[var(--ms-text-secondary)] hover:bg-amber-50 hover:text-amber-700"
+                    }`}
+                  >
+                    <Icon
+                      size={20}
+                      className={`transition-colors ${
+                        isActive ? "text-white" : "text-amber-500/70 group-hover:text-amber-600"
+                      }`}
+                    />
+                    <span>{item.label}</span>
+                    {isActive && (
+                      <ChevronRight size={16} className="ml-auto text-white/80" />
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+          </>
+        )}
       </nav>
 
       {/* Upgrade Card - Always show for non-Pro, non-Admin users */}

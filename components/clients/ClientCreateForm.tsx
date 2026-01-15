@@ -294,7 +294,7 @@ export function ClientCreateForm() {
 
                   <div className={UI.field}>
                     <label className={UI.label} htmlFor="email">
-                      Email
+                      Email <span className="font-normal text-[#605BFF]">(requis pour signature)</span>
                     </label>
                     <input id="email" className={UI.input} placeholder="exemple@gmail.com" {...form.register("email")} />
                     {form.formState.errors.email?.message ? <div className={UI.error}>{form.formState.errors.email.message}</div> : null}

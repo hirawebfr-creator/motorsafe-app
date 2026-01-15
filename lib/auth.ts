@@ -17,7 +17,7 @@ export type SessionUser = {
     name: string;
     email: string;
     status: "PENDING" | "ACTIVE" | "REJECTED";
-    plan?: "FREE" | "PRO";
+    plan?: "FREE" | "STARTER" | "PRO";
     subscriptionStatus?:
       | "INCOMPLETE"
       | "INCOMPLETE_EXPIRED"

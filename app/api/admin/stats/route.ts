@@ -107,6 +107,47 @@ export async function GET(req: Request) {
       }
     }
 
+    // Subscriptions Stripe (MRR)
+    const activeSubscriptions = await prisma.garage.count({
+      where: {
+        stripeSubscriptionId: { not: null },
+        subscriptionStatus: "ACTIVE",
+        status: "ACTIVE",
+      },
+    });
+
+    const trialingSubscriptions = await prisma.garage.count({
+      where: {
+        stripeSubscriptionId: { not: null },
+        subscriptionStatus: "TRIALING",
+        status: "ACTIVE",
+      },
+    });
+
+    // Prix des plans (en centimes -> euros)
+    const PLAN_PRICES = {
+      FREE: 0,
+      STARTER: 9, // 9€/mois
+      PRO: 29, // 29€/mois
+    };
+
+    // Calcul MRR basé sur les plans actifs avec abonnement Stripe
+    const subscriptionsByPlan = await prisma.garage.groupBy({
+      by: ["plan"],
+      _count: { plan: true },
+      where: {
+        stripeSubscriptionId: { not: null },
+        subscriptionStatus: "ACTIVE",
+        status: "ACTIVE",
+      },
+    });
+
+    let mrr = 0;
+    for (const sub of subscriptionsByPlan) {
+      const planPrice = PLAN_PRICES[sub.plan as keyof typeof PLAN_PRICES] || 0;
+      mrr += planPrice * sub._count.plan;
+    }
+
     // Top garages par activité
     const topGarages = await prisma.garage.findMany({
       where: { status: "ACTIVE" },
@@ -183,6 +224,13 @@ export async function GET(req: Request) {
           pendingRevenue: pendingRevenue._sum.totalIncl || 0,
           paidInvoices,
           unpaidInvoices,
+        },
+        // Abonnements Stripe
+        subscriptions: {
+          active: activeSubscriptions,
+          trialing: trialingSubscriptions,
+          mrr, // Monthly Recurring Revenue en euros
+          arr: mrr * 12, // Annual Recurring Revenue
         },
         // Plans
         plans,

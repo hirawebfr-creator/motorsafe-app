@@ -5,6 +5,7 @@ import { requireActiveSubscription, requireApprovedTenant, requireUser } from "@
 import { toErrorResponse } from "@/lib/routeErrors";
 import { randomBytes, createHash } from "crypto";
 import { decryptClientData } from "@/lib/encryption";
+import { sendSignatureEmail } from "@/lib/email";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -59,6 +60,8 @@ export async function POST(req: Request) {
     let pdfRoute: string;
     let clientId: number | null = null;
     let clientEmail: string | null = null;
+    let clientName: string | null = null;
+    let garageName: string | null = null;
 
     if (documentType === "INTERVENTION_ORDER") {
       pdfRoute = `/api/interventions/${documentId}/order/pdf`;
@@ -78,7 +81,7 @@ export async function POST(req: Request) {
         where: user.role === "ADMIN"
           ? { id: documentId, deletedAt: null }
           : { id: documentId, garageId: user.garageId ?? -1, deletedAt: null },
-        include: { vehicle: { include: { client: true } } },
+        include: { vehicle: { include: { client: true } }, garage: true },
       });
 
       if (!intervention) {
@@ -91,14 +94,24 @@ export async function POST(req: Request) {
       }
 
       clientId = intervention.vehicle.client.id;
-      const clientDecrypted = decryptClientData(intervention.vehicle.client as Record<string, unknown>) as { email?: string };
+      const clientDecrypted = decryptClientData(intervention.vehicle.client as Record<string, unknown>) as { email?: string; firstName?: string; lastName?: string };
       clientEmail = clientDecrypted.email || null;
+      clientName = [clientDecrypted.firstName, clientDecrypted.lastName].filter(Boolean).join(" ") || null;
+      garageName = intervention.garage?.name || null;
+
+      // CLIENT-EMAIL-REQUIRED-01: Block signature if client email is missing
+      if (!clientEmail) {
+        return NextResponse.json(
+          { ok: false, error: { code: "CLIENT_EMAIL_REQUIRED", message: "L'email du client est requis pour envoyer une demande de signature.", clientId } },
+          { status: 400 }
+        );
+      }
     } else if (documentType === "QUOTE") {
       const quote = await prisma.quote.findFirst({
         where: user.role === "ADMIN"
           ? { id: documentId }
           : { id: documentId, organisationId: user.garageId ?? -1 },
-        include: { client: true },
+        include: { client: true, organisation: true },
       });
 
       if (!quote) {
@@ -106,8 +119,18 @@ export async function POST(req: Request) {
       }
 
       clientId = quote.clientId;
-      const clientDecrypted = decryptClientData(quote.client as Record<string, unknown>) as { email?: string };
+      const clientDecrypted = decryptClientData(quote.client as Record<string, unknown>) as { email?: string; firstName?: string; lastName?: string };
       clientEmail = clientDecrypted.email || null;
+      clientName = [clientDecrypted.firstName, clientDecrypted.lastName].filter(Boolean).join(" ") || null;
+      garageName = quote.organisation?.name || null;
+
+      // CLIENT-EMAIL-REQUIRED-01: Block signature if client email is missing
+      if (!clientEmail) {
+        return NextResponse.json(
+          { ok: false, error: { code: "CLIENT_EMAIL_REQUIRED", message: "L'email du client est requis pour envoyer une demande de signature.", clientId } },
+          { status: 400 }
+        );
+      }
     }
 
     // Generate PDF hash
@@ -146,12 +169,34 @@ export async function POST(req: Request) {
     const appUrl = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || new URL(req.url).origin;
     const signingUrl = `${appUrl}/sign/${token}`;
 
+    // Send email to client if email is available
+    let emailSent = false;
+    let emailError: string | null = null;
+    if (clientEmail) {
+      const emailResult = await sendSignatureEmail({
+        to: clientEmail,
+        signingUrl,
+        clientName: clientName || undefined,
+        garageName: garageName || undefined,
+        documentType,
+        expiresAt,
+      });
+      emailSent = emailResult.success;
+      emailError = emailResult.error || null;
+      
+      if (!emailResult.success) {
+        console.warn(`[Signature] Email failed for ${clientEmail}: ${emailResult.error}`);
+      }
+    }
+
     return NextResponse.json(success({
       requestId: signatureRequest.id,
       signingUrl,
       token,
       expiresAt: signatureRequest.expiresAt,
       clientEmail,
+      emailSent,
+      emailError,
     }));
   } catch (err) {
     console.error("Error POST /api/signatures/start:", err);

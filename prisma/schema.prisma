@@ -551,6 +551,8 @@ enum SignatureStatus {
   SIGNED
   DECLINED
   EXPIRED
+  VOID
+  SUPERSEDED  // HARDEN-01: When replaced by a new revision
 }
 
 model SignatureRequest {
@@ -562,14 +564,29 @@ model SignatureRequest {
   garageId         Int
   clientId         Int?
   status           SignatureStatus       @default(DRAFT)
-  pdfHash          String?
+  pdfHash          String?               // Hash du PDF avant signature
   pdfRoute         String?
   signerNameDeclared String?
   signerEmail      String?
   signedAt         DateTime?
   lastViewedAt     DateTime?
+  sentAt           DateTime?             // Date d'envoi
+  voidedAt         DateTime?             // Date d'annulation
   createdAt        DateTime              @default(now())
   createdByUserId  String?
+  
+  // HARDEN-01: Revision tracking
+  revision         Int                   @default(1)
+  supersededById   String?               // ID of the new revision that replaced this one
+  
+  // Signed PDF storage
+  signedPdfHash    String?               // SHA256 du PDF signé final
+  signedPdfKey     String?               // Clé de stockage (local ou S3)
+  signedPdfUrl     String?               // URL publique ou route
+  
+  // Legal snapshot at signature time
+  legalSnapshotJson String?              // JSON des clauses exactes signées
+  legalSnapshotHash String?              // SHA256 du snapshot légal
 
   garage Garage @relation(fields: [garageId], references: [id], onDelete: Cascade)
   events SignatureEvent[]
