@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireApprovedTenant, requireUser, getTenantId } from "@/lib/guards";
+import { requireApprovedTenant, requireUser } from "@/lib/guards";
 import { toErrorResponse } from "@/lib/routeErrors";
 import { z } from "zod";
 import {
@@ -22,7 +22,16 @@ const LookupSchema = z.object({
 export async function POST(req: Request) {
   try {
     const user = requireApprovedTenant(await requireUser(req));
-    const garageId = getTenantId(user);
+    
+    // Pour les admins, on ne peut pas faire de lookup (pas de garageId pour le cache)
+    if (user.role === "ADMIN" || !user.garageId) {
+      return NextResponse.json(
+        { ok: false, error: { code: "FORBIDDEN", message: "Lookup disponible uniquement pour les garages." } },
+        { status: 403 }
+      );
+    }
+    
+    const garageId = user.garageId;
 
     const body = await req.json().catch(() => null);
     const parsed = LookupSchema.safeParse(body);
