@@ -17,7 +17,7 @@ import { prisma } from "@/lib/prisma";
 import { getSessionUser, isApprovedGarage } from "@/lib/auth";
 import { success } from "@/lib/api";
 import { RouteError, toErrorResponse, unauthorized, forbidden, notFound, badRequest } from "@/lib/routeErrors";
-import { requireFeature, FeatureKey, assertGarageScope, requireQuota, checkQuota } from "@/lib/entitlements";
+import { requireFeature, FeatureKey, requireQuota, checkQuota } from "@/lib/entitlements";
 import { generateCompletion, getAIStatus, AIMode } from "@/lib/ai/provider";
 import { createSafeContext, maskPlate } from "@/lib/ai/redact";
 
@@ -101,9 +101,11 @@ export async function POST(
       throw new RouteError(503, "AI_DISABLED", "L'assistance IA n'est pas configurée sur ce serveur");
     }
     
-    // 4. Fetch intervention with garage scope
-    const intervention = await prisma.intervention.findUnique({
-      where: { id: interventionId },
+    // 4. Fetch intervention with garage scope filter (SECURITY: prevents loading data before auth)
+    const intervention = await prisma.intervention.findFirst({
+      where: user.role === "ADMIN"
+        ? { id: interventionId, deletedAt: null }
+        : { id: interventionId, garageId: garageId ?? -1, deletedAt: null },
       select: {
         id: true,
         garageId: true,
@@ -127,14 +129,9 @@ export async function POST(
       throw notFound("Intervention introuvable");
     }
     
-    // 5. Enforce garage scope (CRITICAL: no cross-tenant access)
-    if (user.role !== "ADMIN") {
-      assertGarageScope(intervention.garageId, garageId!);
-    }
-    
     const effectiveGarageId = intervention.garageId!;
     
-    // 6. Feature gate: AI_ASSIST
+    // 5. Feature gate: AI_ASSIST
     if (user.role !== "ADMIN") {
       await requireFeature(effectiveGarageId, FeatureKey.AI_ASSIST);
     }

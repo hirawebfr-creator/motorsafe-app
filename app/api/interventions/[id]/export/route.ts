@@ -136,8 +136,11 @@ export async function GET(req: Request, ctx: Ctx) {
     }
 
     // Fetch all signature requests for this intervention (including events)
+    // SECURITY: Filter by garageId to prevent cross-tenant data leakage
     const signatureRequests = await prisma.signatureRequest.findMany({
-      where: { documentId: id },
+      where: user.role === "ADMIN"
+        ? { documentId: id }
+        : { documentId: id, garageId: user.garageId ?? -1 },
       include: {
         events: { orderBy: { at: "asc" } },
       },

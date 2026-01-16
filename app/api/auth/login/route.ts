@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { success, failure } from "@/lib/api";
 import { createSession, setSessionCookie, verifyPassword } from "@/lib/auth";
+import { checkIpRateLimit, rateLimitHeaders } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,6 +13,15 @@ function normalizeEmail(value: unknown) {
 
 export async function POST(req: Request) {
   try {
+    // Rate limit: 10 attempts per 10 minutes per IP
+    const rateLimit = await checkIpRateLimit(req, "login", 10, 600);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        failure("Trop de tentatives. Réessayez plus tard."),
+        { status: 429, headers: rateLimitHeaders(rateLimit) }
+      );
+    }
+
     const body = await req.json();
     const email = normalizeEmail(body.email);
     const password = String(body.password ?? "");

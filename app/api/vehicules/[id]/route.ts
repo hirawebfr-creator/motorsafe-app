@@ -117,8 +117,11 @@ async function updateVehicle(req: Request, ctx: Ctx) {
         }
       }
 
+      // SECURITY: Include garageId in where clause to prevent TOCTOU race condition
       const vehicle = await tx.vehicle.update({
-        where: { id },
+        where: user.role === "ADMIN"
+          ? { id }
+          : { id, garageId: user.garageId ?? -1 },
         data: {
           ...(nextClientId !== undefined ? { clientId: nextClientId } : {}),
           ...(nextGarageId !== undefined ? { garageId: nextGarageId } : {}),
@@ -187,7 +190,13 @@ export async function DELETE(req: Request, ctx: Ctx) {
     }
 
     await prisma.$transaction(async (tx) => {
-      await tx.vehicle.update({ where: { id }, data: { deletedAt: new Date() } });
+      // SECURITY: Include garageId in where clause to prevent TOCTOU race condition
+      await tx.vehicle.update({
+        where: user.role === "ADMIN"
+          ? { id }
+          : { id, garageId: user.garageId ?? -1 },
+        data: { deletedAt: new Date() },
+      });
       await tx.auditLog.create({
         data: {
           garageId: existing.garageId ?? user.garageId ?? null,

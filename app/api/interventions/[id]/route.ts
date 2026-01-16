@@ -321,8 +321,11 @@ async function updateIntervention(req: Request, ctx: { params: Promise<{ id: str
     });
 
     const updated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      // SECURITY: Include garageId in where clause to prevent TOCTOU race condition
       const intervention = await tx.intervention.update({
-        where: { id: interventionId },
+        where: user.role === "ADMIN"
+          ? { id: interventionId }
+          : { id: interventionId, garageId: user.garageId ?? -1 },
         data: {
           type,
           title,
@@ -410,7 +413,13 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
     }
 
     await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      await tx.intervention.update({ where: { id: interventionId }, data: { deletedAt: new Date() } });
+      // SECURITY: Include garageId in where clause to prevent TOCTOU race condition
+      await tx.intervention.update({
+        where: user.role === "ADMIN"
+          ? { id: interventionId }
+          : { id: interventionId, garageId: user.garageId ?? -1 },
+        data: { deletedAt: new Date() },
+      });
       await tx.auditLog.create({
         data: {
           garageId: existing.garageId ?? user.garageId ?? null,
