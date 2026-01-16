@@ -23,6 +23,8 @@ import {
   Crown,
   Star,
   Shield,
+  Award,
+  Gift,
 } from "lucide-react";
 
 type GarageItem = {
@@ -37,6 +39,13 @@ type GarageItem = {
   createdAt: string;
   stripeCustomerId?: string | null;
   stripeSubscriptionId?: string | null;
+  partnerBadgeEnabled?: boolean;
+  partnerBadgeAdminOverride?: string;
+  referralCode?: string | null;
+  referredByGarageId?: number | null;
+  referralStatus?: string | null;
+  referralRewardMonths?: number;
+  referredByGarage?: { id: number; name: string } | null;
   users: Array<{ id: string; email: string; role: string; createdAt: string }>;
   _count?: {
     clients: number;
@@ -61,6 +70,7 @@ export default function AdminGaragesPage() {
   const [error, setError] = useState<string | null>(null);
   const [adminKey, setAdminKey] = useState("");
   const [keyReady, setKeyReady] = useState(false);
+  const [updatingBadge, setUpdatingBadge] = useState<number | null>(null);
   const isAdmin = user?.role === "ADMIN";
 
   useEffect(() => {
@@ -87,6 +97,28 @@ export default function AdminGaragesPage() {
       setLoading(false);
     }
   }, [adminKey, isAdmin]);
+
+  // Update partner badge override
+  const updateBadgeOverride = async (garageId: number, override: "NONE" | "FORCE_ON" | "FORCE_OFF") => {
+    setUpdatingBadge(garageId);
+    try {
+      const res = await fetch(`/api/admin/garages/${garageId}/partner-badge`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...(!isAdmin && adminKey ? { "x-admin-key": adminKey } : {}),
+        },
+        body: JSON.stringify({ override }),
+      });
+      if (!res.ok) throw new Error("Erreur mise à jour badge");
+      // Reload garages
+      await loadGarages();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur");
+    } finally {
+      setUpdatingBadge(null);
+    }
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -160,6 +192,8 @@ export default function AdminGaragesPage() {
               <th>Garage</th>
               <th>Plan</th>
               <th>Statut</th>
+              <th className="text-center">Badge</th>
+              <th className="text-center">Parrainage</th>
               <th className="text-center">Stats</th>
               <th>Responsable</th>
               <th className="text-right">Création</th>
@@ -168,13 +202,13 @@ export default function AdminGaragesPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={6}>
+                <td colSpan={8}>
                   <Loading />
                 </td>
               </tr>
             ) : garages.length === 0 ? (
               <tr>
-                <td colSpan={6}>
+                <td colSpan={8}>
                   <EmptyState title="Aucun garage" description="Les garages apparaitront ici." />
                 </td>
               </tr>
@@ -218,6 +252,54 @@ export default function AdminGaragesPage() {
                           ? "Refusé"
                           : "En attente"}
                       </Badge>
+                    </td>
+                    <td className="text-center">
+                      {/* Partner Badge */}
+                      {(() => {
+                        const override = garage.partnerBadgeAdminOverride || "NONE";
+                        const enabled = garage.partnerBadgeEnabled ?? false;
+                        const effective = override === "FORCE_ON" ? true : override === "FORCE_OFF" ? false : enabled;
+                        return (
+                          <div className="flex flex-col items-center gap-1">
+                            {effective ? (
+                              <Award className="h-4 w-4 text-green-500" />
+                            ) : (
+                              <Award className="h-4 w-4 text-gray-300" />
+                            )}
+                            <select
+                              value={override}
+                              onChange={(e) => updateBadgeOverride(garage.id, e.target.value as "NONE" | "FORCE_ON" | "FORCE_OFF")}
+                              disabled={updatingBadge === garage.id}
+                              className="text-xs border rounded px-1 py-0.5 bg-white"
+                            >
+                              <option value="NONE">Auto ({enabled ? "ON" : "OFF"})</option>
+                              <option value="FORCE_ON">Forcer ON</option>
+                              <option value="FORCE_OFF">Forcer OFF</option>
+                            </select>
+                          </div>
+                        );
+                      })()}
+                    </td>
+                    <td className="text-center">
+                      {/* Referral */}
+                      <div className="flex flex-col items-center gap-0.5 text-xs">
+                        {garage.referredByGarage ? (
+                          <span className="text-green-600 flex items-center gap-1" title={`Parrainé par ${garage.referredByGarage.name}`}>
+                            <Gift className="h-3 w-3" />
+                            {garage.referredByGarage.name.slice(0, 15)}
+                          </span>
+                        ) : null}
+                        {garage.referralCode && (
+                          <span className="text-muted2 font-mono text-[10px]">
+                            {garage.referralCode}
+                          </span>
+                        )}
+                        {(garage.referralRewardMonths ?? 0) > 0 && (
+                          <span className="text-amber-600" title="Récompenses gagnées">
+                            +{garage.referralRewardMonths} mois
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td>
                       {garage._count ? (

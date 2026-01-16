@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireApprovedTenant, requireUser, getTenantId, PLAN_LIMITS, FREE_UPGRADE_MESSAGE } from "@/lib/guards";
 import { RouteError, toErrorResponse } from "@/lib/routeErrors";
+import { requireFeature, FeatureKey } from "@/lib/entitlements";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import type { Plan } from "@/lib/guards";
 import { decryptClientData } from "@/lib/encryption";
@@ -19,6 +20,11 @@ export async function GET(req: Request, ctx: Ctx) {
   try {
     const user = requireApprovedTenant(await requireUser(req));
     const organisationId = getTenantId(user);
+    
+    // Feature gate: DEVIS_FACTURES required
+    if (user.role !== "ADMIN") {
+      await requireFeature(organisationId, FeatureKey.DEVIS_FACTURES);
+    }
 
     // Vérifier la limite PDF pour le plan FREE (7 jours glissants)
     const garage = await prisma.garage.findUnique({ where: { id: organisationId } });

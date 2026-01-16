@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { failure, success } from "@/lib/api";
-import { requireActiveSubscription, requireApprovedTenant, requireUser } from "@/lib/guards";
+import { requireApprovedTenant, requireUser, getTenantId } from "@/lib/guards";
 import { toErrorResponse } from "@/lib/routeErrors";
+import { requireFeature, FeatureKey } from "@/lib/entitlements";
 import { randomBytes, createHash } from "crypto";
 import { decryptClientData } from "@/lib/encryption";
 import { sendSignatureEmail } from "@/lib/email";
@@ -42,7 +43,11 @@ async function generatePdfHash(pdfRoute: string, req: Request): Promise<string |
 export async function POST(req: Request) {
   try {
     const user = requireApprovedTenant(await requireUser(req));
-    requireActiveSubscription(user);
+    
+    // Feature gate: SIGNATURE required
+    if (user.role !== "ADMIN") {
+      await requireFeature(getTenantId(user), FeatureKey.SIGNATURE);
+    }
 
     const body = await req.json();
     const { documentType, documentId } = body;

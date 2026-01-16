@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireApprovedTenant, requireUser } from "@/lib/guards";
+import { requireApprovedTenant, requireUser, getTenantId } from "@/lib/guards";
 import { toErrorResponse } from "@/lib/routeErrors";
+import { requireFeature, FeatureKey, checkQuota, incrementLookupUsage } from "@/lib/entitlements";
 import { z } from "zod";
 import {
   normalizePlate,
   lookupPlateFR,
-  getCurrentMonthKey,
-  getMonthlyQuota,
   type VehiclePrefill,
 } from "@/lib/vehicleLookup";
 
@@ -25,6 +24,11 @@ const LookupSchema = z.object({
 export async function POST(req: Request) {
   try {
     const user = requireApprovedTenant(await requireUser(req));
+    
+    // Feature gate: VEHICLE_LOOKUP required
+    if (user.role !== "ADMIN") {
+      await requireFeature(getTenantId(user), FeatureKey.VEHICLE_LOOKUP);
+    }
     
     // Pour les admins sans garageId, on fait le lookup sans cache/quota
     const garageId = user.garageId;
@@ -100,49 +104,38 @@ export async function POST(req: Request) {
     // 2. Check quota before API call (only for garages)
     // ============================
     if (garageId) {
-      try {
-        const monthKey = getCurrentMonthKey();
-        const monthlyLimit = getMonthlyQuota(garageId);
-        
-        const usage = await prisma.vehicleLookupUsage.findUnique({
-          where: { garageId_monthKey: { garageId, monthKey } },
-        });
-        
-        const currentCount = usage?.count ?? 0;
-        
-        if (currentCount >= monthlyLimit) {
-          // Log quota exceeded
-          try {
-            await prisma.vehicleLookupLog.create({
-              data: {
-                garageId,
-                plateNormalized,
-                provider: PROVIDER,
-                success: false,
-                source: "api",
-                errorCode: "QUOTA_EXCEEDED",
-              },
-            });
-          } catch { /* ignore */ }
-          
-          return NextResponse.json(
-            {
-              ok: false,
-              error: {
-                code: "QUOTA_EXCEEDED",
-                message: `Quota mensuel atteint (${monthlyLimit} recherches/mois). Réessayez le mois prochain ou saisissez les informations manuellement.`,
-              },
-              quota: {
-                current: currentCount,
-                limit: monthlyLimit,
-                remaining: 0,
-              },
+      const quotaCheck = await checkQuota(garageId, "vehicleLookupPerMonth");
+      
+      if (!quotaCheck.allowed) {
+        // Log quota exceeded
+        try {
+          await prisma.vehicleLookupLog.create({
+            data: {
+              garageId,
+              plateNormalized,
+              provider: PROVIDER,
+              success: false,
+              source: "api",
+              errorCode: "QUOTA_EXCEEDED",
             },
-            { status: 429 }
-          );
-        }
-      } catch {
-        // Usage table might not exist yet, continue to API call
+          });
+        } catch { /* ignore */ }
+        
+        return NextResponse.json(
+          {
+            ok: false,
+            error: {
+              code: "QUOTA_EXCEEDED",
+              message: `Quota mensuel atteint (${quotaCheck.limit} recherches/mois). Réessayez le mois prochain ou passez au plan supérieur.`,
+            },
+            quota: {
+              current: quotaCheck.used,
+              limit: quotaCheck.limit,
+              remaining: 0,
+            },
+          },
+          { status: 429 }
+        );
       }
     }
 
@@ -177,12 +170,7 @@ export async function POST(req: Request) {
     // ============================
     if (garageId && result.success) {
       try {
-        const monthKey = getCurrentMonthKey();
-        await prisma.vehicleLookupUsage.upsert({
-          where: { garageId_monthKey: { garageId, monthKey } },
-          create: { garageId, monthKey, count: 1 },
-          update: { count: { increment: 1 } },
-        });
+        await incrementLookupUsage(garageId);
       } catch { /* ignore */ }
     }
 
@@ -231,16 +219,11 @@ export async function POST(req: Request) {
     let quotaInfo = undefined;
     if (garageId) {
       try {
-        const monthKey = getCurrentMonthKey();
-        const monthlyLimit = getMonthlyQuota(garageId);
-        const usage = await prisma.vehicleLookupUsage.findUnique({
-          where: { garageId_monthKey: { garageId, monthKey } },
-        });
-        const currentCount = usage?.count ?? 0;
+        const quotaCheck = await checkQuota(garageId, "vehicleLookupPerMonth");
         quotaInfo = {
-          current: currentCount,
-          limit: monthlyLimit,
-          remaining: Math.max(0, monthlyLimit - currentCount),
+          current: quotaCheck.used,
+          limit: quotaCheck.limit,
+          remaining: quotaCheck.remaining,
         };
       } catch { /* ignore */ }
     }

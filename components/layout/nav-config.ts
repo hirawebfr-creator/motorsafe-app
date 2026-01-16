@@ -14,6 +14,7 @@ import {
   BarChart3,
   UserCheck,
   Scale,
+  Store,
 } from "lucide-react";
 import type React from "react";
 
@@ -39,6 +40,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Messages", href: "/messages", icon: MessageSquare, group: "main" },
   { label: "Notifications", href: "/notifications", icon: Bell, group: "main" },
   { label: "Paramètres", href: "/parametres", icon: Settings, group: "main" },
+  { label: "Mon garage", href: "/garage", icon: Store, group: "main" },
   { label: "Facturation", href: "/billing", icon: CreditCard, group: "main" },
   
   // ===== Section Admin (admin only) =====

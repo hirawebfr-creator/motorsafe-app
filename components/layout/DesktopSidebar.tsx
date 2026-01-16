@@ -34,6 +34,7 @@ const ICONS_BY_HREF: Record<string, SidebarIcon> = {
   "/factures": Receipt,
   "/documents": FileText,
   "/parametres": Settings,
+  "/garage": ShieldCheck,
 };
 
 export function DesktopSidebar({
@@ -64,6 +65,7 @@ export function DesktopSidebar({
     "/devis",
     "/factures",
     "/documents",
+    "/garage",
     "/parametres",
   ];
 

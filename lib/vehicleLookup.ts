@@ -248,10 +248,73 @@ export function mapApiResponseToInternal(data: ApiPlaqueResponse["data"]): Vehic
 const LOOKUP_TIMEOUT_MS = 10000; // 10 seconds
 
 /**
+ * Check if mock mode is enabled for vehicle lookup
+ */
+function isLookupMockMode(): boolean {
+  return process.env.VEHICLE_LOOKUP_PROVIDER === "mock" || process.env.NODE_ENV === "test";
+}
+
+/**
+ * Generate mock vehicle data for testing
+ */
+function getMockVehicleData(plateNormalized: string): VehiclePrefill {
+  return {
+    brand: "Peugeot",
+    model: "208",
+    variant: "Active",
+    version: "1.2 PureTech 100",
+    vin: `VF3MOCK${plateNormalized.replace(/[^A-Z0-9]/g, "").slice(0, 10)}`,
+    typeMine: "M10PEGVP",
+    cnit: "M10PEGVP000T123",
+    firstRegistrationDate: "2020-06-15",
+    year: 2020,
+    fuel: "Essence",
+    engine: "1.2 PureTech",
+    engineCode: "HN01",
+    ccm: 1199,
+    cylinders: 3,
+    powerFiscal: 5,
+    powerCh: 100,
+    powerKw: 74,
+    gearbox: "Manuelle 6",
+    bodyType: "Berline 5 portes",
+    color: "Blanc",
+    doors: 5,
+    seats: 5,
+    weightKg: 1050,
+    ptacKg: 1600,
+    co2: 93,
+    sraId: "PE208E0",
+    sraGroup: "10",
+    sraCommercial: "208 1.2 PURETECH 100",
+  };
+}
+
+/**
  * Lookup vehicle by French plate via apiplaqueimmatriculation.com
  * Server-only function
  */
 export async function lookupPlateFR(plateNormalized: string): Promise<LookupResponse> {
+  // Mock mode for testing
+  if (isLookupMockMode()) {
+    console.log(`[VehicleLookup:Mock] Returning mock data for plate ${plateNormalized}`);
+    
+    if (!isValidFrenchPlate(plateNormalized)) {
+      return {
+        success: false,
+        error: {
+          code: "INVALID_PLATE",
+          message: "Format de plaque invalide.",
+        },
+      };
+    }
+    
+    return {
+      success: true,
+      data: getMockVehicleData(plateNormalized),
+    };
+  }
+
   const token = process.env.APIPLAQUE_TOKEN;
   
   if (!token) {

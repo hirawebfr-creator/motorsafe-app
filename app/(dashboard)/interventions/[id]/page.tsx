@@ -40,8 +40,11 @@ import {
   Mail,
   XCircle,
   CreditCard,
+  Shield,
 } from "lucide-react";
 import { QRCodeDialog } from "@/components/common/QRCodeDialog";
+import { AIAssistCard } from "@/components/common/AIAssistCard";
+import { TAG_OPTIONS, INTERVENTION_TAGS } from "@/lib/legal/tags";
 
 // === Types ===
 type Vehicle = {
@@ -123,16 +126,7 @@ type Intervention = {
   closedAt?: string | null;
 };
 
-const TAG_OPTIONS = [
-  { value: "MAINTENANCE", label: "Maintenance" },
-  { value: "DIAGNOSTIC", label: "Diagnostic" },
-  { value: "REPAIR_GENERAL", label: "Réparation" },
-  { value: "E85_BOITIER", label: "E85 Boîtier" },
-  { value: "E85_CARTO", label: "E85 Carto" },
-  { value: "REPROG_ECU", label: "Reprog ECU" },
-  { value: "REPROG_PERF", label: "Reprog Perf" },
-  { value: "OTHER_MODIF", label: "Autre modif" },
-];
+// TAG_OPTIONS imported from @/lib/legal/tags
 
 const DOCUMENT_CATEGORIES = [
   { value: "ENTREE", label: "Entrée", color: "var(--ms-primary)" },
@@ -838,6 +832,7 @@ export default function InterventionDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
   const [creatingRevision, setCreatingRevision] = useState(false);
+  const [sendingInsuranceEmail, setSendingInsuranceEmail] = useState(false);
 
   const [intakeKm, setIntakeKm] = useState<string>("");
   const [intakeNotes, setIntakeNotes] = useState<string>("");
@@ -958,6 +953,39 @@ export default function InterventionDetailPage() {
     }
   };
 
+  // INSURANCE-DOC-01: Check if intervention requires insurance declaration
+  const interventionTags = intervention?.tags ?? [];
+  const requiresInsuranceDoc = interventionTags.some((tag) => {
+    const tagInfo = INTERVENTION_TAGS.find((t) => t.value === tag);
+    return tagInfo?.requiresInsuranceDeclaration === true;
+  });
+
+  // Send insurance document by email
+  const sendInsuranceEmail = async () => {
+    if (!intervention) return;
+    setSendingInsuranceEmail(true);
+    try {
+      const res = await fetch(`/api/interventions/${id}/insurance/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error?.message ?? "Erreur envoi email");
+      }
+      const data = await res.json();
+      if (data.data?.sent) {
+        alert(`Email envoyé à ${data.data.email}`);
+      } else {
+        alert("Email non configuré sur le serveur");
+      }
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Erreur");
+    } finally {
+      setSendingInsuranceEmail(false);
+    }
+  };
+
   if (loading) return <div className="flex justify-center py-12"><Loading /></div>;
   if (error) return <ErrorBanner message={error} />;
   if (!intervention) return <EmptyState title="Intervention introuvable" description="Ce dossier n'existe pas." />;
@@ -1009,6 +1037,32 @@ export default function InterventionDetailPage() {
                 <Archive size={16} className="mr-1" />Exporter ZIP
               </Button>
             )}
+            {/* INSURANCE-DOC-01: Insurance document buttons */}
+            {requiresInsuranceDoc && hasActiveSubscription ? (
+              <>
+                <a href={`/api/interventions/${intervention.id}/insurance/pdf`} target="_blank" rel="noreferrer">
+                  <Button variant="secondary" size="sm"><Shield size={16} className="mr-1" />Doc assurance</Button>
+                </a>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={sendInsuranceEmail}
+                  disabled={sendingInsuranceEmail}
+                  title="Envoyer le document par email au client"
+                >
+                  {sendingInsuranceEmail ? (
+                    <RefreshCw size={16} className="mr-1 animate-spin" />
+                  ) : (
+                    <Mail size={16} className="mr-1" />
+                  )}
+                  Envoyer
+                </Button>
+              </>
+            ) : requiresInsuranceDoc ? (
+              <Button variant="secondary" size="sm" disabled title="Abonnement requis">
+                <Shield size={16} className="mr-1" />Doc assurance
+              </Button>
+            ) : null}
           </div>
         }
       />
@@ -1209,6 +1263,13 @@ export default function InterventionDetailPage() {
           clientEmail={intervention.vehicle.client.email || null}
           clientId={intervention.vehicle.client.id}
           onRefresh={fetchIntervention}
+        />
+
+        {/* Section 8: AI Assist (PRO only) */}
+        <AIAssistCard
+          interventionId={intervention.id}
+          hasActiveSubscription={hasActiveSubscription}
+          hasPlan={plan ?? "FREE"}
         />
       </div>
 

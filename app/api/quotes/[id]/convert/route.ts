@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireApprovedTenant, requireUser, getTenantId } from "@/lib/guards";
 import { RouteError, toErrorResponse } from "@/lib/routeErrors";
+import { requireFeature, FeatureKey } from "@/lib/entitlements";
 import { convertQuoteToInvoiceTx } from "@/lib/quoteInvoice";
 
 export const runtime = "nodejs";
@@ -13,6 +14,11 @@ export async function POST(req: Request, ctx: Ctx) {
   try {
     const user = requireApprovedTenant(await requireUser(req));
     const organisationId = getTenantId(user);
+    
+    // Feature gate: DEVIS_FACTURES required
+    if (user.role !== "ADMIN") {
+      await requireFeature(organisationId, FeatureKey.DEVIS_FACTURES);
+    }
 
     const { id } = await ctx.params;
     const quoteId = String(id);

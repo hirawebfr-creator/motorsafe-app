@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { failure, success } from "@/lib/api";
-import { requireActiveSubscription, requireApprovedTenant, requireUser } from "@/lib/guards";
+import { requireApprovedTenant, requireUser, getTenantId } from "@/lib/guards";
 import { toErrorResponse } from "@/lib/routeErrors";
+import { requireFeature, FeatureKey } from "@/lib/entitlements";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,7 +13,11 @@ type Ctx = { params: Promise<{ id: string }> };
 export async function GET(req: Request, ctx: Ctx) {
   try {
     const user = requireApprovedTenant(await requireUser(req));
-    requireActiveSubscription(user);
+    
+    // Feature gate: SIGNATURE required
+    if (user.role !== "ADMIN") {
+      await requireFeature(getTenantId(user), FeatureKey.SIGNATURE);
+    }
 
     const { id: documentId } = await ctx.params;
 

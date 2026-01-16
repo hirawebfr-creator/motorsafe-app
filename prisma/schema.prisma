@@ -72,6 +72,16 @@ model Garage {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @default(now()) @updatedAt
 
+  // Branding / Profile
+  displayName   String?   // Nom commercial affiché
+  legalName     String?   // Raison sociale complète
+  addressLine1  String?   // Adresse ligne 1
+  addressLine2  String?   // Adresse ligne 2 (optionnel)
+  postalCode    String?   // Code postal
+  city          String?   // Ville
+  country       String    @default("France")
+  logoKey       String?   // Clé S3/local du logo
+
   // Organisation settings (quotes/invoices)
   defaultVatRate  Float  @default(0.20)
   defaultVatMode  String @default("EXCL")
@@ -79,6 +89,26 @@ model Garage {
   quotePrefix     String @default("DEV")
   invoicePrefix   String @default("FAC")
   numberPadding   Int    @default(4)
+
+  // Partner badge (SafeMotor Partner)
+  partnerBadgeEnabled       Boolean @default(false)  // Opt-in by garage
+  partnerBadgeAdminOverride String  @default("NONE") // NONE | FORCE_ON | FORCE_OFF
+
+  // Public profile (displayed on /garages-partenaires)
+  publicProfileEnabled Boolean @default(false)  // Opt-in for public listing
+  publicPhone          String?                  // Public phone (optional, distinct from internal)
+  publicWebsite        String?                  // Public website URL
+
+  // Referral program
+  referralCode          String?  @unique        // Unique code for this garage (e.g., SAFE-XXXX)
+  referredByGarageId    Int?                    // Garage that referred this one
+  referralStatus        String   @default("NONE") // NONE | PENDING | APPROVED | ACTIVE_SUB
+  referralRewardMonths  Int      @default(0)    // Free months earned from referrals
+  pendingReferralCouponId       String?         // Stripe coupon ID awaiting confirmation
+  pendingReferralMonthsApplied  Int?            // Months being applied (pending confirmation)
+
+  referredByGarage      Garage?  @relation("GarageReferrals", fields: [referredByGarageId], references: [id])
+  referredGarages       Garage[] @relation("GarageReferrals")
 
   plan                Plan               @default(FREE)
   stripeCustomerId    String?            @unique
@@ -162,6 +192,7 @@ model Client {
 
   @@index([garageId])
   @@index([garageId, deletedAt])
+  @@index([garageId, lastName, firstName])
 }
 
 model Vehicle {
@@ -250,6 +281,7 @@ model Intervention {
   revisions InterventionRevision[]
 
   documents Document[]
+  downloadTokens DownloadToken[]
 
   garage  Garage? @relation(fields: [garageId], references: [id], onDelete: Cascade)
   vehicle Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
@@ -257,6 +289,8 @@ model Intervention {
   @@index([garageId])
   @@index([vehicleId])
   @@index([garageId, deletedAt])
+  @@index([garageId, createdAt(sort: Desc)])
+  @@index([garageId, status])
 }
 
 model Document {
@@ -283,6 +317,7 @@ model Document {
   @@index([vehicleId])
   @@index([interventionId])
   @@index([garageId, deletedAt])
+  @@index([garageId, createdAt(sort: Desc)])
 }
 
 model Notification {
@@ -383,6 +418,7 @@ model Quote {
   client       Client  @relation(fields: [clientId], references: [id], onDelete: Cascade)
   vehicle      Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
   lines        QuoteLine[]
+  downloadTokens QuoteDownloadToken[]
 
   @@index([organisationId])
   @@index([organisationId, deletedAt])
@@ -445,6 +481,7 @@ model Invoice {
 
   lines    InvoiceLine[]
   payments Payment[]
+  downloadTokens InvoiceDownloadToken[]
 
   @@index([organisationId])
   @@index([organisationId, deletedAt])
@@ -489,6 +526,38 @@ model Payment {
   @@index([organisationId])
   @@index([invoiceId])
   @@index([organisationId, invoiceId])
+}
+
+// ============================================
+// DOWNLOAD TOKENS FOR QUOTES/INVOICES: Secure email links
+// ============================================
+
+model QuoteDownloadToken {
+  id        String   @id @default(cuid())
+  quoteId   String
+  tokenHash String   @unique // SHA256 of the actual token
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  usedAt    DateTime? // Track first download
+
+  quote Quote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+
+  @@index([tokenHash])
+  @@index([quoteId])
+}
+
+model InvoiceDownloadToken {
+  id        String   @id @default(cuid())
+  invoiceId String
+  tokenHash String   @unique // SHA256 of the actual token
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  usedAt    DateTime? // Track first download
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([tokenHash])
+  @@index([invoiceId])
 }
 
 model InterventionRevision {
@@ -595,6 +664,8 @@ model SignatureRequest {
   @@index([token])
   @@index([garageId])
   @@index([documentType, documentId])
+  @@index([status])
+  @@index([garageId, status])
 }
 
 model SignatureEvent {
@@ -609,6 +680,26 @@ model SignatureEvent {
   signatureRequest SignatureRequest @relation(fields: [signatureRequestId], references: [id], onDelete: Cascade)
 
   @@index([signatureRequestId])
+}
+
+// ============================================
+// DOWNLOAD TOKENS: Secure download links for signed documents
+// ============================================
+
+model DownloadToken {
+  id             String   @id @default(cuid())
+  interventionId String
+  purpose        String   // SIGNED_PDF, DOSSIER_ZIP
+  tokenHash      String   @unique // SHA256 of the actual token
+  expiresAt      DateTime
+  createdAt      DateTime @default(now())
+  usedAt         DateTime? // Optional: mark first download
+
+  intervention Intervention @relation(fields: [interventionId], references: [id], onDelete: Cascade)
+
+  @@unique([interventionId, purpose])
+  @@index([tokenHash])
+  @@index([interventionId])
 }
 
 // ============================================
@@ -656,4 +747,53 @@ model VehicleLookupLog {
 
   @@index([garageId])
   @@index([createdAt])
+}
+
+// ============================================================
+// Referral Events (tracking)
+// ============================================================
+model ReferralEvent {
+  id               String   @id @default(cuid())
+  referrerGarageId Int
+  refereeGarageId  Int
+  eventType        String   // REF_APPLIED | REF_APPROVED | REWARD_GRANTED
+  createdAt        DateTime @default(now())
+  metaJson         String?  // Optional JSON metadata
+
+  @@index([referrerGarageId])
+  @@index([refereeGarageId])
+  @@index([createdAt])
+}
+
+// ============================================================
+// AI Usage Tracking (quota enforcement)
+// ============================================================
+model AiUsageLog {
+  id             String   @id @default(cuid())
+  garageId       Int
+  interventionId String?  // Optional: may be used outside interventions in future
+  mode           String   // CHECKLIST | SUMMARY | RISKS
+  provider       String   // openai | anthropic | mock
+  tokensUsed     Int      @default(0)
+  success        Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  @@index([garageId, createdAt])
+  @@index([createdAt])
+}
+
+// ============================================================
+// Rate Limiting Buckets (anti-abuse)
+// ============================================================
+model RateLimitBucket {
+  id          String   @id @default(cuid())
+  key         String   // e.g., "ip:1.2.3.4:sign_get" or "garage:123:send_email"
+  windowStart DateTime // Start of the rate limit window (rounded to window size)
+  count       Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([key, windowStart])
+  @@index([key])
+  @@index([windowStart])
 }

@@ -11,6 +11,11 @@ jobs:
     runs-on: ubuntu-latest
     env:
       NODE_ENV: development
+      # Mock providers for tests
+      EMAIL_PROVIDER: mock
+      STRIPE_MODE: mock
+      VEHICLE_LOOKUP_PROVIDER: mock
+      DISABLE_RATE_LIMIT: true
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -30,8 +35,9 @@ jobs:
       - name: Typecheck
         run: npm run typecheck || echo "No typecheck script"
 
-      - name: Test
-        run: npm test || echo "No test script"
-
       - name: Build
         run: npm run build
+
+      # Note: Full E2E tests require a running server and DB
+      # They should be run in a separate workflow with proper setup
+      # For now, we just verify the build passes

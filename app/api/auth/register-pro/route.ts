@@ -14,6 +14,16 @@ function normalizeEmail(value: unknown) {
   return normalizeText(value).toLowerCase();
 }
 
+// Generate a unique referral code (SAFE-XXXX)
+function generateReferralCode(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // Avoid confusing chars (0/O, 1/I/L)
+  let code = "";
+  for (let i = 0; i < 4; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return `SAFE-${code}`;
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -23,6 +33,7 @@ export async function POST(req: Request) {
     const phone = body.phone ? normalizeText(body.phone) : null;
     const address = body.address ? normalizeText(body.address) : null;
     const siret = body.siret ? normalizeText(body.siret) : null;
+    const referralCodeInput = body.referralCode ? normalizeText(body.referralCode).toUpperCase() : null;
 
     const userEmail = normalizeEmail(body.email);
     const password = String(body.password ?? "");
@@ -56,7 +67,30 @@ export async function POST(req: Request) {
       return NextResponse.json(failure("Cet email est deja utilise."), { status: 409 });
     }
 
+    // Check referral code if provided
+    let referrerGarage: { id: number } | null = null;
+    if (referralCodeInput) {
+      referrerGarage = await prisma.garage.findUnique({
+        where: { referralCode: referralCodeInput },
+        select: { id: true },
+      });
+      // Silently ignore invalid codes (don't block registration)
+    }
+
     const passwordHash = await hashPassword(password);
+
+    // Generate unique referral code for new garage
+    let referralCode: string;
+    let attempts = 0;
+    do {
+      referralCode = generateReferralCode();
+      const existing = await prisma.garage.findUnique({
+        where: { referralCode },
+        select: { id: true },
+      });
+      if (!existing) break;
+      attempts++;
+    } while (attempts < 10);
 
     const garage = await prisma.$transaction(async (tx) => {
       const createdGarage = await tx.garage.create({
@@ -67,6 +101,9 @@ export async function POST(req: Request) {
           address,
           siret,
           status: "PENDING",
+          referralCode,
+          referredByGarageId: referrerGarage?.id ?? null,
+          referralStatus: referrerGarage ? "PENDING" : "NONE",
         },
       });
 
@@ -78,6 +115,17 @@ export async function POST(req: Request) {
           garageId: createdGarage.id,
         },
       });
+
+      // Log referral event if applicable
+      if (referrerGarage) {
+        await tx.referralEvent.create({
+          data: {
+            referrerGarageId: referrerGarage.id,
+            refereeGarageId: createdGarage.id,
+            eventType: "REF_APPLIED",
+          },
+        });
+      }
 
       return createdGarage;
     });

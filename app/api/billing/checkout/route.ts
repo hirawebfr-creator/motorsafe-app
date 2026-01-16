@@ -46,7 +46,14 @@ export async function POST(req: Request) {
 
     const garage = await prisma.garage.findUnique({
       where: { id: garageId },
-      select: { id: true, name: true, stripeCustomerId: true },
+      select: { 
+        id: true, 
+        name: true, 
+        stripeCustomerId: true,
+        stripeSubscriptionId: true,
+        referralRewardMonths: true,
+        pendingReferralCouponId: true,
+      },
     });
     if (!garage) throw new RouteError(404, "NOT_FOUND", "Garage introuvable");
 
@@ -67,11 +74,52 @@ export async function POST(req: Request) {
       });
     }
 
+    // Prepare discounts for referral reward (free months)
+    const discounts: Array<{ coupon: string }> = [];
+    let referralCouponId: string | null = null;
+    let referralMonthsApplied: number | null = null;
+
+    // Only apply referral discount if:
+    // 1. Garage has reward months available
+    // 2. No active subscription yet
+    // 3. No pending coupon already in flight
+    if (
+      garage.referralRewardMonths > 0 &&
+      !garage.stripeSubscriptionId &&
+      !garage.pendingReferralCouponId
+    ) {
+      // Create a 100% off coupon for X months
+      const coupon = await stripe.coupons.create({
+        percent_off: 100,
+        duration: "repeating",
+        duration_in_months: garage.referralRewardMonths,
+        name: `Parrainage SafeMotor (${garage.referralRewardMonths} mois offerts)`,
+        metadata: { 
+          garageId: String(garage.id),
+          type: "referral_reward",
+        },
+      });
+
+      discounts.push({ coupon: coupon.id });
+      referralCouponId = coupon.id;
+      referralMonthsApplied = garage.referralRewardMonths;
+
+      // Store pending state (will be confirmed by webhook)
+      await prisma.garage.update({
+        where: { id: garage.id },
+        data: {
+          pendingReferralCouponId: referralCouponId,
+          pendingReferralMonthsApplied: referralMonthsApplied,
+        },
+      });
+    }
+
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       customer: customerId,
       line_items: [{ price: priceId, quantity: 1 }],
-      allow_promotion_codes: true,
+      allow_promotion_codes: discounts.length === 0, // Disable promo codes if we already have a discount
+      ...(discounts.length > 0 ? { discounts } : {}),
       subscription_data: {
         trial_period_days: 14,
         metadata: { garageId: String(garage.id) },
@@ -83,7 +131,10 @@ export async function POST(req: Request) {
 
     if (!session.url) throw new RouteError(500, "STRIPE", "Checkout session sans URL");
 
-    return NextResponse.json(success({ url: session.url }));
+    return NextResponse.json(success({ 
+      url: session.url,
+      referralMonthsApplied: referralMonthsApplied,
+    }));
   } catch (err) {
     console.error("Erreur API POST /api/billing/checkout:", err);
     return toErrorResponse(err);

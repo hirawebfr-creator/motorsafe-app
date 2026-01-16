@@ -46,6 +46,15 @@ export async function GET(req: Request) {
         createdAt: true,
         stripeCustomerId: true,
         stripeSubscriptionId: true,
+        partnerBadgeEnabled: true,
+        partnerBadgeAdminOverride: true,
+        referralCode: true,
+        referredByGarageId: true,
+        referralStatus: true,
+        referralRewardMonths: true,
+        referredByGarage: {
+          select: { id: true, name: true },
+        },
         users: {
           select: { id: true, email: true, role: true, createdAt: true },
         },

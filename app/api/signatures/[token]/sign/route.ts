@@ -4,24 +4,48 @@ import { failure, success } from "@/lib/api";
 import { buildOrderMasterPdf } from "@/lib/pdf/orderMaster";
 import { buildLegalSnapshot } from "@/lib/legal/selectLegalModules";
 import { isGarageSubscriptionActive } from "@/lib/guards";
+import { sendSignatureConfirmationEmail } from "@/lib/email";
 import { writeFile, mkdir } from "fs/promises";
 import { join } from "path";
 import { existsSync } from "fs";
+import { randomBytes, createHash } from "crypto";
+import { checkIpRateLimit, rateLimitHeaders } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// Rate limit: 10 requests per 10 minutes per IP (stricter for POST)
+const RATE_LIMIT = 10;
+const RATE_WINDOW_SEC = 10 * 60;
+
 type Ctx = { params: Promise<{ token: string }> };
+
+// Generate a secure random token and its hash
+function generateDownloadToken(): { token: string; hash: string } {
+  const token = randomBytes(32).toString("hex");
+  const hash = createHash("sha256").update(token).digest("hex");
+  return { token, hash };
+}
 
 // Local storage path for signed PDFs
 const SIGNED_PDF_DIR = join(process.cwd(), "uploads", "signed");
 
 export async function POST(req: Request, ctx: Ctx) {
   try {
+    // Rate limit check (IP-based, stricter for signature)
+    const rl = await checkIpRateLimit(req, "sign_complete", RATE_LIMIT, RATE_WINDOW_SEC);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { ok: false, error: { code: "RATE_LIMITED", message: "Trop de tentatives. Réessayez plus tard." } },
+        { status: 429, headers: rateLimitHeaders(rl) }
+      );
+    }
+
     const { token } = await ctx.params;
 
     if (!token) {
-      return NextResponse.json(failure("Token manquant"), { status: 400 });
+      // Generic error
+      return NextResponse.json(failure("Lien invalide ou expiré"), { status: 400 });
     }
 
     const body = await req.json();
@@ -41,7 +65,8 @@ export async function POST(req: Request, ctx: Ctx) {
     });
 
     if (!signatureRequest) {
-      return NextResponse.json(failure("Demande de signature introuvable"), { status: 404 });
+      // Generic error (don't reveal if token exists)
+      return NextResponse.json(failure("Lien invalide ou expiré"), { status: 404 });
     }
 
     // BILLING-GUARD-01: Check garage subscription before allowing signature
@@ -168,6 +193,97 @@ export async function POST(req: Request, ctx: Ctx) {
         },
       },
     });
+
+    // ============================================================
+    // NOTIF-CLIENT-01: Send confirmation email with download links
+    // ============================================================
+    const finalSignerEmail = signerEmail?.trim() || signatureRequest.signerEmail;
+    
+    if (finalSignerEmail && signatureRequest.documentType.startsWith("INTERVENTION_")) {
+      try {
+        const appUrl = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || "https://app.motorsafe.fr";
+        const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+        // Generate download tokens (upsert to handle retries)
+        const pdfToken = generateDownloadToken();
+        const zipToken = generateDownloadToken();
+
+        await prisma.downloadToken.upsert({
+          where: { interventionId_purpose: { interventionId: signatureRequest.documentId, purpose: "SIGNED_PDF" } },
+          create: {
+            interventionId: signatureRequest.documentId,
+            purpose: "SIGNED_PDF",
+            tokenHash: pdfToken.hash,
+            expiresAt,
+          },
+          update: {
+            tokenHash: pdfToken.hash,
+            expiresAt,
+            usedAt: null,
+          },
+        });
+
+        await prisma.downloadToken.upsert({
+          where: { interventionId_purpose: { interventionId: signatureRequest.documentId, purpose: "DOSSIER_ZIP" } },
+          create: {
+            interventionId: signatureRequest.documentId,
+            purpose: "DOSSIER_ZIP",
+            tokenHash: zipToken.hash,
+            expiresAt,
+          },
+          update: {
+            tokenHash: zipToken.hash,
+            expiresAt,
+            usedAt: null,
+          },
+        });
+
+        // Get garage info for email
+        const garage = await prisma.garage.findUnique({
+          where: { id: signatureRequest.garageId },
+          select: { name: true, displayName: true, phone: true, email: true },
+        });
+
+        const garageName = garage?.displayName || garage?.name || undefined;
+
+        // Build download URLs
+        const signedPdfUrl = `${appUrl}/api/download/pdf/${pdfToken.token}`;
+        const dossierZipUrl = `${appUrl}/api/download/zip/${zipToken.token}`;
+
+        // Send confirmation email
+        await sendSignatureConfirmationEmail({
+          to: finalSignerEmail,
+          clientName: signerName.trim(),
+          garageName,
+          garagePhone: garage?.phone || undefined,
+          garageEmail: garage?.email || undefined,
+          signedPdfUrl,
+          dossierZipUrl,
+          expiresAt,
+        });
+
+        // Create audit event for email sent
+        await prisma.signatureEvent.create({
+          data: {
+            signatureRequestId: signatureRequest.id,
+            type: "CONFIRMATION_EMAIL_SENT",
+            ip,
+            userAgent,
+            metaJson: {
+              recipientEmail: finalSignerEmail,
+              pdfTokenCreated: true,
+              zipTokenCreated: true,
+              expiresAt: expiresAt.toISOString(),
+            },
+          },
+        });
+
+        console.log(`[Signature] Confirmation email sent to ${finalSignerEmail}`);
+      } catch (emailErr) {
+        // Log but don't fail the signature
+        console.error("[Signature] Failed to send confirmation email:", emailErr);
+      }
+    }
 
     return NextResponse.json(success({
       status: "SIGNED",

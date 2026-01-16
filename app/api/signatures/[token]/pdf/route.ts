@@ -3,18 +3,33 @@ import { prisma } from "@/lib/prisma";
 import { failure } from "@/lib/api";
 import { buildOrderMasterPdf } from "@/lib/pdf/orderMaster";
 import { isGarageSubscriptionActive } from "@/lib/guards";
+import { checkIpRateLimit, rateLimitHeaders } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// Rate limit: 30 requests per 5 minutes per IP
+const RATE_LIMIT = 30;
+const RATE_WINDOW_SEC = 5 * 60;
+
 type Ctx = { params: Promise<{ token: string }> };
 
-export async function GET(_req: Request, ctx: Ctx) {
+export async function GET(req: Request, ctx: Ctx) {
   try {
+    // Rate limit check (IP-based)
+    const rl = await checkIpRateLimit(req, "sign_pdf", RATE_LIMIT, RATE_WINDOW_SEC);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { ok: false, error: { code: "RATE_LIMITED", message: "Trop de requêtes. Réessayez plus tard." } },
+        { status: 429, headers: rateLimitHeaders(rl) }
+      );
+    }
+
     const { token } = await ctx.params;
 
     if (!token) {
-      return NextResponse.json(failure("Token manquant"), { status: 400 });
+      // Generic error
+      return NextResponse.json(failure("Lien invalide ou expiré"), { status: 400 });
     }
 
     const signatureRequest = await prisma.signatureRequest.findUnique({
@@ -23,7 +38,8 @@ export async function GET(_req: Request, ctx: Ctx) {
     });
 
     if (!signatureRequest) {
-      return NextResponse.json(failure("Demande de signature introuvable"), { status: 404 });
+      // Generic error (don't reveal if token exists)
+      return NextResponse.json(failure("Lien invalide ou expiré"), { status: 404 });
     }
 
     // BILLING-GUARD-01: Check garage subscription (allow viewing already signed docs)

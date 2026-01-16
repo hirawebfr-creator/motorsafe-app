@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { failure } from "@/lib/api";
-import { requireActiveSubscription, requireApprovedTenant, requireUser } from "@/lib/guards";
+import { requireApprovedTenant, requireUser, getTenantId } from "@/lib/guards";
 import { toErrorResponse } from "@/lib/routeErrors";
+import { requireFeature, FeatureKey } from "@/lib/entitlements";
 import PDFDocument from "pdfkit/js/pdfkit.standalone";
 import { Buffer } from "buffer";
 import { decryptClientData } from "@/lib/encryption";
@@ -34,7 +35,11 @@ function formatDateTime(date: Date | string | null | undefined) {
 export async function GET(req: Request, ctx: Ctx) {
   try {
     const user = requireApprovedTenant(await requireUser(req));
-    requireActiveSubscription(user);
+    
+    // Feature gate: PDF_MASTER required
+    if (user.role !== "ADMIN") {
+      await requireFeature(getTenantId(user), FeatureKey.PDF_MASTER);
+    }
 
     const { id } = await ctx.params;
 

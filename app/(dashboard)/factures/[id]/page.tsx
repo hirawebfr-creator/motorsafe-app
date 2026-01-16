@@ -15,6 +15,7 @@ import {
   CreditCard,
   Clock,
   Send,
+  Mail,
 } from "lucide-react";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { Card } from "@/components/ui/Card";
@@ -200,11 +201,17 @@ export default function FactureDetailPage() {
                 Émettre
               </Button>
             )}
-            {invoice.status === "ISSUED" && (
-              <Button onClick={() => handleAction("mark-paid")} disabled={!!actionLoading}>
-                {actionLoading === "mark-paid" ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={16} />}
-                Marquer payée
-              </Button>
+            {(invoice.status === "ISSUED" || invoice.status === "OVERDUE" || invoice.status === "PARTIALLY_PAID") && (
+              <>
+                <Button variant="secondary" onClick={() => handleAction("send")} disabled={!!actionLoading}>
+                  {actionLoading === "send" ? <Loader2 size={16} className="animate-spin" /> : <Mail size={16} />}
+                  Envoyer
+                </Button>
+                <Button onClick={() => handleAction("mark-paid")} disabled={!!actionLoading}>
+                  {actionLoading === "mark-paid" ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={16} />}
+                  Marquer payée
+                </Button>
+              </>
             )}
           </div>
         }

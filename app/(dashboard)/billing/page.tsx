@@ -21,11 +21,21 @@ import {
   ExternalLink,
   RefreshCw,
   Info,
+  Car,
+  Brain,
+  FileSignature,
 } from "lucide-react";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { useUser } from "@/components/user-context";
+
+type QuotaUsage = {
+  used: number;
+  limit: number;
+  remaining: number;
+  unlimited: boolean;
+};
 
 type BillingStatus = {
   plan: "FREE" | "STARTER" | "PRO" | "ADMIN";
@@ -36,6 +46,16 @@ type BillingStatus = {
   hasPaymentMethod: boolean;
   hasSubscription: boolean;
   canManageBilling: boolean;
+  referralRewardMonths: number;
+  pendingReferralMonthsApplied: number | null;
+  // Quotas
+  quotaUsage?: Record<string, QuotaUsage>;
+  limits?: {
+    clients: number | null;
+    vehicules: number | null;
+    interventionsPerWeek: number | null;
+    users: number;
+  };
 };
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
@@ -58,6 +78,64 @@ function formatDate(iso: string | null) {
 }
 
 type BillingPeriod = "monthly" | "yearly";
+
+// Component to display quota usage with progress bar
+function QuotaProgress({ 
+  label, 
+  icon: Icon,
+  usage 
+}: { 
+  label: string; 
+  icon: React.ComponentType<{ size?: number; className?: string }>;
+  usage?: QuotaUsage;
+}) {
+  if (!usage) return null;
+  
+  const { used, limit, remaining, unlimited } = usage;
+  
+  // Calculate percentage (cap at 100%)
+  const percentage = unlimited ? 0 : Math.min(100, (used / limit) * 100);
+  
+  // Determine color based on usage
+  let colorClass = "bg-green-500";
+  if (!unlimited) {
+    if (percentage >= 90) colorClass = "bg-red-500";
+    else if (percentage >= 70) colorClass = "bg-orange-500";
+    else if (percentage >= 50) colorClass = "bg-yellow-500";
+  }
+  
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-sm font-medium">
+          <Icon size={16} className="text-muted2" />
+          {label}
+        </div>
+        <span className="text-sm text-muted2">
+          {unlimited ? (
+            <span className="text-green-600">Illimité</span>
+          ) : (
+            <>
+              <span className="font-medium text-foreground">{used}</span>
+              <span className="text-muted2"> / {limit}</span>
+              <span className="ml-2 text-xs">
+                ({remaining} restant{remaining > 1 ? "s" : ""})
+              </span>
+            </>
+          )}
+        </span>
+      </div>
+      {!unlimited && (
+        <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
+          <div
+            className={`h-full rounded-full transition-all ${colorClass}`}
+            style={{ width: `${percentage}%` }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function BillingPage() {
   const user = useUser();
@@ -228,6 +306,36 @@ export default function BillingPage() {
         </div>
       )}
 
+      {/* Referral Reward Banner */}
+      {status && status.referralRewardMonths > 0 && !status.pendingReferralMonthsApplied && (
+        <div className="mb-6 flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 p-4 text-green-700">
+          <Gift size={20} />
+          <div className="flex-1">
+            <p className="font-medium">
+              🎁 Vous avez {status.referralRewardMonths} mois offert{status.referralRewardMonths > 1 ? "s" : ""} !
+            </p>
+            <p className="text-sm text-green-600">
+              Récompense de parrainage — Elle sera appliquée automatiquement lors de votre prochain abonnement.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Pending Coupon Banner */}
+      {status && status.pendingReferralMonthsApplied && (
+        <div className="mb-6 flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-700">
+          <Gift size={20} />
+          <div className="flex-1">
+            <p className="font-medium">
+              Remise en attente d&apos;activation
+            </p>
+            <p className="text-sm text-amber-600">
+              {status.pendingReferralMonthsApplied} mois offert{status.pendingReferralMonthsApplied > 1 ? "s" : ""} sera appliqué{status.pendingReferralMonthsApplied > 1 ? "s" : ""} dès la confirmation de votre abonnement.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Current Status Card */}
       {status && (
         <Card className="mb-8 p-6">
@@ -300,6 +408,36 @@ export default function BillingPage() {
               </Button>
             </div>
           </div>
+        </Card>
+      )}
+
+      {/* Quota Usage Section - Always show if we have status */}
+      {status && status.quotaUsage && (
+        <Card className="mb-8 p-6">
+          <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold">
+            <TrendingUp size={20} className="text-indigo-600" />
+            Consommation du mois
+          </h3>
+          <div className="grid gap-6 md:grid-cols-3">
+            <QuotaProgress
+              label="Recherches plaques"
+              icon={Car}
+              usage={status.quotaUsage.vehicleLookupPerMonth}
+            />
+            <QuotaProgress
+              label="Assistants IA"
+              icon={Brain}
+              usage={status.quotaUsage.aiRequestsPerMonth}
+            />
+            <QuotaProgress
+              label="Signatures électroniques"
+              icon={FileSignature}
+              usage={status.quotaUsage.signaturesPerMonth}
+            />
+          </div>
+          <p className="mt-4 text-xs text-muted2">
+            Les quotas sont réinitialisés le 1er de chaque mois.
+          </p>
         </Card>
       )}
 

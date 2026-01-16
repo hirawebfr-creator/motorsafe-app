@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { failure, success } from "@/lib/api";
-import { requireActiveSubscription, requireApprovedTenant, requireUser } from "@/lib/guards";
+import { requireApprovedTenant, requireUser, getTenantId } from "@/lib/guards";
 import { toErrorResponse } from "@/lib/routeErrors";
+import { requireFeature, FeatureKey } from "@/lib/entitlements";
 import { randomBytes } from "crypto";
 import { sendSignatureEmail } from "@/lib/email";
 import { decryptClientData } from "@/lib/encryption";
+import { checkInterventionRateLimit, checkGarageRateLimit, rateLimitHeaders } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,6 +16,14 @@ type Ctx = { params: Promise<{ id: string }> };
 
 // Token TTL in days (default 7)
 const TOKEN_TTL_DAYS = parseInt(process.env.SIGN_TOKEN_TTL_DAYS || "7", 10);
+
+// Anti-spam: max resends per intervention
+const RESEND_PER_INTERVENTION_LIMIT = 3;
+const RESEND_PER_INTERVENTION_WINDOW_SEC = 60 * 60; // 1 hour
+
+// Anti-spam: max emails per garage per day
+const EMAIL_PER_GARAGE_LIMIT = 50;
+const EMAIL_PER_GARAGE_WINDOW_SEC = 24 * 60 * 60; // 24 hours
 
 function generateToken(): string {
   return randomBytes(32).toString("hex");
@@ -28,7 +38,11 @@ function generateToken(): string {
 export async function POST(req: Request, ctx: Ctx) {
   try {
     const user = requireApprovedTenant(await requireUser(req));
-    requireActiveSubscription(user);
+    
+    // Feature gate: SIGNATURE required
+    if (user.role !== "ADMIN") {
+      await requireFeature(getTenantId(user), FeatureKey.SIGNATURE);
+    }
 
     const { id: interventionId } = await ctx.params;
     const body = await req.json().catch(() => ({}));
@@ -40,6 +54,40 @@ export async function POST(req: Request, ctx: Ctx) {
 
     if (!signatureRequestId) {
       return NextResponse.json(failure("signatureRequestId requis"), { status: 400 });
+    }
+
+    // Anti-spam: check per-intervention resend limit (3/hour)
+    const rlIntervention = await checkInterventionRateLimit(
+      interventionId, 
+      "resend_email", 
+      RESEND_PER_INTERVENTION_LIMIT, 
+      RESEND_PER_INTERVENTION_WINDOW_SEC
+    );
+    if (!rlIntervention.allowed) {
+      return NextResponse.json(
+        { ok: false, error: { 
+          code: "RATE_LIMITED", 
+          message: `Maximum ${RESEND_PER_INTERVENTION_LIMIT} renvois par heure atteint pour cette intervention` 
+        }},
+        { status: 429, headers: rateLimitHeaders(rlIntervention) }
+      );
+    }
+
+    // Anti-spam: check per-garage daily limit (50/day)
+    const rlGarage = await checkGarageRateLimit(
+      user.garageId ?? -1,
+      "resend_email",
+      EMAIL_PER_GARAGE_LIMIT,
+      EMAIL_PER_GARAGE_WINDOW_SEC
+    );
+    if (!rlGarage.allowed) {
+      return NextResponse.json(
+        { ok: false, error: { 
+          code: "RATE_LIMITED", 
+          message: `Limite quotidienne de ${EMAIL_PER_GARAGE_LIMIT} emails de rappel atteinte` 
+        }},
+        { status: 429, headers: rateLimitHeaders(rlGarage) }
+      );
     }
 
     // Verify intervention exists and belongs to garage

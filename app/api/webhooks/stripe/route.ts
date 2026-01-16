@@ -157,8 +157,37 @@ export async function POST(req: Request) {
       const priceId = sub.items?.data?.[0]?.price?.id ?? null;
       const plan = isActiveStatus(status) ? planFromPriceId(priceId) : "FREE";
 
-      const garage = await upsertGarageByCustomer(customerId);
+      const garage = await prisma.garage.findFirst({
+        where: { stripeCustomerId: customerId },
+        select: { 
+          id: true, 
+          referralStatus: true, 
+          referredByGarageId: true,
+          subscriptionStatus: true,
+          pendingReferralCouponId: true,
+          pendingReferralMonthsApplied: true,
+          referralRewardMonths: true,
+        },
+      });
+      
       if (garage) {
+        // Check if this is a transition to active status (for referral reward)
+        const wasInactive = !isActiveStatus(garage.subscriptionStatus);
+        const isNowActive = isActiveStatus(status);
+        const shouldReward = wasInactive && isNowActive && 
+          garage.referredByGarageId && 
+          (garage.referralStatus === "PENDING" || garage.referralStatus === "APPROVED");
+
+        // Check if we should consume pending referral coupon (mois offerts)
+        const shouldConsumeCoupon = isNowActive && 
+          garage.pendingReferralCouponId && 
+          garage.pendingReferralMonthsApplied;
+
+        // Calculate new referralRewardMonths after consuming coupon
+        const newReferralRewardMonths = shouldConsumeCoupon
+          ? Math.max(0, (garage.referralRewardMonths ?? 0) - (garage.pendingReferralMonthsApplied ?? 0))
+          : undefined;
+
         await prisma.garage.update({
           where: { id: garage.id },
           data: {
@@ -168,9 +197,52 @@ export async function POST(req: Request) {
             currentPeriodEnd,
             trialEnd,
             plan,
+            // Update referral status if becoming active
+            ...(shouldReward ? { referralStatus: "ACTIVE_SUB" } : {}),
+            // Consume pending referral coupon if subscription is now active
+            ...(shouldConsumeCoupon ? {
+              referralRewardMonths: newReferralRewardMonths,
+              pendingReferralCouponId: null,
+              pendingReferralMonthsApplied: null,
+            } : {}),
           },
           select: { id: true },
         });
+
+        // Log referral coupon consumption event
+        if (shouldConsumeCoupon) {
+          await prisma.referralEvent.create({
+            data: {
+              referrerGarageId: garage.id, // The garage consuming its own reward
+              refereeGarageId: garage.id,
+              eventType: "REWARD_CONSUMED",
+              metaJson: JSON.stringify({ 
+                monthsConsumed: garage.pendingReferralMonthsApplied,
+                couponId: garage.pendingReferralCouponId,
+              }),
+            },
+          });
+        }
+
+        // Grant referral reward to the referrer
+        if (shouldReward && garage.referredByGarageId) {
+          await prisma.garage.update({
+            where: { id: garage.referredByGarageId },
+            data: {
+              referralRewardMonths: { increment: 1 },
+            },
+          });
+
+          // Log the reward event
+          await prisma.referralEvent.create({
+            data: {
+              referrerGarageId: garage.referredByGarageId,
+              refereeGarageId: garage.id,
+              eventType: "REWARD_GRANTED",
+              metaJson: JSON.stringify({ rewardMonths: 1 }),
+            },
+          });
+        }
 
         await prisma.stripeEvent.update({
           where: { id: event.id },

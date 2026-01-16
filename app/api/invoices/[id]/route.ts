@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireApprovedTenant, requireUser, getTenantId } from "@/lib/guards";
 import { RouteError, toErrorResponse } from "@/lib/routeErrors";
+import { requireFeature, FeatureKey } from "@/lib/entitlements";
 import { z } from "zod";
 import { computeLinesWithTotals, normalizeVatMode } from "@/lib/quoteInvoice";
 import type { Prisma } from "@prisma/client";
@@ -31,6 +32,11 @@ export async function GET(req: Request, ctx: Ctx) {
   try {
     const user = requireApprovedTenant(await requireUser(req));
     const organisationId = getTenantId(user);
+    
+    // Feature gate: DEVIS_FACTURES required
+    if (user.role !== "ADMIN") {
+      await requireFeature(organisationId, FeatureKey.DEVIS_FACTURES);
+    }
 
     const { id } = await ctx.params;
     const invoice = await prisma.invoice.findFirst({

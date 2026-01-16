@@ -10,6 +10,7 @@ import { prisma } from "@/lib/prisma";
 import { decryptClientData } from "@/lib/encryption";
 import { selectLegalModules } from "@/lib/legal/selectLegalModules";
 import { createHash } from "crypto";
+import { isPartnerBadgeActive, loadPartnerBadgeSvg } from "@/lib/pdf/partnerBadge";
 
 // Types
 export interface OrderMasterOptions {
@@ -127,7 +128,80 @@ export async function buildOrderMasterPdf(
     doc.moveDown(0.4);
   };
 
-  // === HEADER ===
+  // === HEADER with garage branding ===
+  // Try to load garage logo if available
+  let hasLogo = false;
+  if (garage?.logoKey) {
+    try {
+      const logoPath = require("path").join(process.cwd(), "uploads", garage.logoKey);
+      const fs = require("fs");
+      if (fs.existsSync(logoPath)) {
+        const logoBuffer = fs.readFileSync(logoPath);
+        doc.image(logoBuffer, left, doc.y, { width: 80, height: 40, fit: [80, 40] });
+        hasLogo = true;
+      }
+    } catch (logoErr) {
+      console.warn("Failed to load garage logo:", logoErr);
+    }
+  }
+
+  // Garage name/info in header (next to logo or centered)
+  const headerY = doc.y;
+  const garageName = garage?.displayName || garage?.name || "MotorSafe";
+  
+  if (hasLogo) {
+    // Logo on left, text on right
+    doc.fontSize(14).font("Helvetica-Bold").text(garageName, left + 90, headerY, { width: contentWidth - 100 });
+    
+    // Build address line
+    const addrParts = [
+      garage?.addressLine1,
+      garage?.addressLine2,
+      [garage?.postalCode, garage?.city].filter(Boolean).join(" "),
+    ].filter(Boolean);
+    if (addrParts.length > 0 || garage?.phone || garage?.email) {
+      doc.fontSize(8).font("Helvetica").fillColor("#666");
+      if (addrParts.length > 0) {
+        doc.text(addrParts.join(" — "), left + 90, doc.y, { width: contentWidth - 100 });
+      }
+      const contactParts = [garage?.phone, garage?.email].filter(Boolean);
+      if (contactParts.length > 0) {
+        doc.text(contactParts.join(" • "), left + 90, doc.y, { width: contentWidth - 100 });
+      }
+      doc.fillColor("#000");
+    }
+    doc.y = Math.max(doc.y, headerY + 45);
+  } else {
+    // Centered header without logo
+    doc.fontSize(14).font("Helvetica-Bold").text(garageName, left, doc.y, { align: "center", width: contentWidth });
+    
+    const addrParts = [
+      garage?.addressLine1,
+      [garage?.postalCode, garage?.city].filter(Boolean).join(" "),
+    ].filter(Boolean);
+    if (addrParts.length > 0) {
+      doc.fontSize(8).font("Helvetica").fillColor("#666").text(addrParts.join(" — "), { align: "center", width: contentWidth });
+      doc.fillColor("#000");
+    }
+  }
+  
+  doc.moveDown(0.5);
+  doc.moveTo(left, doc.y).lineTo(right, doc.y).strokeColor("#ccc").lineWidth(0.5).stroke();
+  doc.moveDown(0.5);
+
+  // Partner badge (top right corner)
+  if (isPartnerBadgeActive(garage)) {
+    const badgeBuffer = loadPartnerBadgeSvg();
+    if (badgeBuffer) {
+      try {
+        doc.image(badgeBuffer, right - 60, 12, { width: 55 });
+      } catch (e) {
+        console.warn("Failed to render partner badge:", e);
+      }
+    }
+  }
+
+  // === DOCUMENT TITLE ===
   doc.fontSize(18).font("Helvetica-Bold").text("ORDRE DE RÉPARATION", left, doc.y, { align: "center" });
   
   // Show "SIGNÉ" watermark if signed
@@ -143,11 +217,18 @@ export async function buildOrderMasterPdf(
   doc.fontSize(10).font("Helvetica").text(`Date: ${formatDate(new Date())}`, { align: "center" });
   doc.moveDown(0.8);
 
-  // === GARAGE INFO ===
+  // === GARAGE INFO (detailed) ===
   if (garage) {
     section("Établissement");
-    row("Raison sociale", asText(garage.name));
-    row("Adresse", asText(garage.address));
+    row("Raison sociale", asText(garage.legalName || garage.displayName || garage.name));
+    
+    // Build full address
+    const fullAddress = [
+      garage.addressLine1,
+      garage.addressLine2,
+      [garage.postalCode, garage.city, garage.country !== "France" ? garage.country : null].filter(Boolean).join(" "),
+    ].filter(Boolean).join(", ") || garage.address;
+    row("Adresse", asText(fullAddress));
     row("Téléphone", asText(garage.phone));
     row("Email", asText(garage.email));
     row("SIRET", asText(garage.siret));

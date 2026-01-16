@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { failure } from "@/lib/api";
-import { requireActiveSubscription, requireApprovedTenant, requireUser } from "@/lib/guards";
+import { requireApprovedTenant, requireUser, getTenantId } from "@/lib/guards";
 import { toErrorResponse } from "@/lib/routeErrors";
-import { decryptClientData } from "@/lib/encryption";
-import PDFDocument from "pdfkit/js/pdfkit.standalone";
+import { requireFeature, FeatureKey } from "@/lib/entitlements";
+import { buildOrderMasterPdf } from "@/lib/pdf/orderMaster";
+import { buildLegalMemoPdf } from "@/lib/pdf/legalMemo";
 import { Buffer } from "buffer";
 import { createHash } from "crypto";
 import { readFile } from "fs/promises";
@@ -18,108 +19,18 @@ export const dynamic = "force-dynamic";
 type Ctx = { params: Promise<{ id: string }> };
 
 function formatDate(date: Date | string | null | undefined) {
-  if (!date) return "-";
+  if (!date) return null;
   const d = date instanceof Date ? date : new Date(date);
-  if (Number.isNaN(d.getTime())) return "-";
-  return d.toLocaleString("fr-FR");
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString();
 }
 
-function asText(value: unknown, fallback = "-") {
-  if (value === null || value === undefined || value === "") return fallback;
-  return String(value);
-}
-
-// Generate PDF buffer (simplified version of the main PDF route)
-async function generatePdfBuffer(intervention: any, client: any): Promise<Buffer> {
-  const doc = new PDFDocument({ size: "A4", margin: 50 });
-  const chunks: Buffer[] = [];
-
-  doc.on("data", (chunk: Buffer | Uint8Array) => {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-  });
-
-  const done = new Promise<Buffer>((resolve) => {
-    doc.on("end", () => resolve(Buffer.concat(chunks)));
-  });
-
-  const left = doc.page.margins.left;
-  const right = doc.page.width - doc.page.margins.right;
-
-  const row = (label: string, value: string) => {
-    const labelWidth = 150;
-    const valueWidth = right - left - labelWidth;
-    const y = doc.y;
-    doc.font("Helvetica-Bold").text(label, left, y, { width: labelWidth });
-    doc.font("Helvetica").text(value, left + labelWidth, y, { width: valueWidth });
-    doc.moveDown(0.3);
-  };
-
-  doc.fontSize(18).font("Helvetica-Bold").text("MotorSafe", left, doc.y);
-  doc.fontSize(10).font("Helvetica").text(formatDate(new Date()), right - 160, doc.y - 18, {
-    width: 160,
-    align: "right",
-  });
-
-  doc.moveDown(0.4);
-  doc.fontSize(16).font("Helvetica-Bold").text("Dossier d'intervention");
-  doc.moveTo(left, doc.y + 4).lineTo(right, doc.y + 4).strokeColor("#444").stroke();
-  doc.moveDown(0.8);
-
-  row("ID intervention", intervention.id);
-  row("Cree le", formatDate(intervention.createdAt));
-  row("Statut", intervention.status);
-
-  doc.moveDown(0.4);
-  doc.fontSize(13).font("Helvetica-Bold").text("Client", { underline: true });
-  doc.moveDown(0.2);
-  row("Nom", `${client.firstName} ${client.lastName}`);
-  row("Client ID", String(client.id));
-
-  doc.moveDown(0.3);
-  doc.fontSize(13).font("Helvetica-Bold").text("Vehicule", { underline: true });
-  doc.moveDown(0.2);
-  row("Immatriculation", intervention.vehicle.plate);
-  row("Marque / Modele", `${intervention.vehicle.brand} ${intervention.vehicle.model}`);
-  row("VIN", asText(intervention.vehicle.vin));
-
-  doc.moveDown(0.3);
-  doc.fontSize(13).font("Helvetica-Bold").text("Intervention", { underline: true });
-  doc.moveDown(0.2);
-  row("Type", intervention.type);
-  row("Kilometrage", intervention.odometerKm ? `${intervention.odometerKm} km` : "-");
-
-  if (intervention.agreementAt) {
-    doc.moveDown(0.3);
-    doc.fontSize(13).font("Helvetica-Bold").text("Accord client", { underline: true });
-    doc.moveDown(0.2);
-    row("Date accord", formatDate(intervention.agreementAt));
-    row("Montant", intervention.amountCents ? `${(intervention.amountCents / 100).toFixed(2)} EUR` : "-");
-  }
-
-  if (intervention.workNotes) {
-    doc.moveDown(0.3);
-    doc.fontSize(13).font("Helvetica-Bold").text("Travaux effectues", { underline: true });
-    doc.moveDown(0.2);
-    doc.fontSize(11).font("Helvetica").text(intervention.workNotes, { width: right - left });
-  }
-
-  if (intervention.closedAt) {
-    doc.moveDown(0.3);
-    row("Cloturee le", formatDate(intervention.closedAt));
-  }
-
-  if (intervention.documents && intervention.documents.length > 0) {
-    doc.moveDown(0.3);
-    doc.fontSize(13).font("Helvetica-Bold").text("Documents lies", { underline: true });
-    doc.moveDown(0.2);
-    intervention.documents.forEach((d: any, idx: number) => {
-      const catLabel = d.category || "Divers";
-      row(`Doc ${idx + 1}`, `[${catLabel}] ${d.fileName}`);
-    });
-  }
-
-  doc.end();
-  return done;
+function maskEmail(email: string | null | undefined): string | null {
+  if (!email) return null;
+  const [local, domain] = email.split("@");
+  if (!domain) return "***@***";
+  const masked = local.length > 2 ? `${local.slice(0, 2)}***` : "***";
+  return `${masked}@${domain}`;
 }
 
 // Fetch file content from local storage or S3
@@ -150,10 +61,58 @@ function sha256(buffer: Buffer): string {
   return createHash("sha256").update(buffer).digest("hex");
 }
 
+// ============================================================
+// Types for audit.json
+// ============================================================
+
+interface AuditFile {
+  path: string;
+  sha256: string;
+  sizeBytes: number;
+}
+
+interface AuditSignature {
+  documentType: string;
+  status: string;
+  sentAt: string | null;
+  viewedAt: string | null;
+  signedAt: string | null;
+  signerName: string | null;
+  signerEmailMasked: string | null;
+  pdfHash: string | null;
+  signedPdfHash: string | null;
+  legalSnapshotHash: string | null;
+  revision: number;
+}
+
+interface AuditJson {
+  exportVersion: string;
+  generatedAt: string;
+  interventionId: string;
+  garageId: number | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+  closedAt: string | null;
+  status: string;
+  isSigned: boolean;
+  signatures: AuditSignature[];
+  files: AuditFile[];
+  errors: string[];
+}
+
+// ============================================================
+// GET /api/interventions/[id]/export
+// Export ZIP "justice-ready" with signed PDF, attachments, audit
+// ============================================================
+
 export async function GET(req: Request, ctx: Ctx) {
   try {
     const user = requireApprovedTenant(await requireUser(req));
-    requireActiveSubscription(user);
+    
+    // Feature gate: EXPORT_ZIP required
+    if (user.role !== "ADMIN") {
+      await requireFeature(getTenantId(user), FeatureKey.EXPORT_ZIP);
+    }
 
     const { id } = await ctx.params;
 
@@ -167,7 +126,8 @@ export async function GET(req: Request, ctx: Ctx) {
         : { id, garageId: user.garageId ?? -1, deletedAt: null },
       include: {
         vehicle: { include: { client: true } },
-        documents: { where: { deletedAt: null }, orderBy: { createdAt: "desc" } },
+        documents: { where: { deletedAt: null }, orderBy: { createdAt: "asc" } },
+        garage: true,
       },
     });
 
@@ -175,33 +135,21 @@ export async function GET(req: Request, ctx: Ctx) {
       return NextResponse.json(failure("Intervention introuvable"), { status: 404 });
     }
 
-    // Fetch internal signatures for this intervention
-    const internalSignatures = await prisma.signatureRequest.findMany({
-      where: {
-        documentId: id,
-        status: "SIGNED",
+    // Fetch all signature requests for this intervention (including events)
+    const signatureRequests = await prisma.signatureRequest.findMany({
+      where: { documentId: id },
+      include: {
+        events: { orderBy: { at: "asc" } },
       },
-      select: {
-        id: true,
-        documentType: true,
-        status: true,
-        signerEmail: true,
-        signerNameDeclared: true,
-        signedAt: true,
-        pdfHash: true,
-        signedPdfHash: true,
-        signedPdfKey: true,
-        revision: true,
-        token: true,
-      },
+      orderBy: { createdAt: "asc" },
     });
 
-    // Decrypt client data
-    const client = decryptClientData(intervention.vehicle.client as Record<string, unknown>) as {
-      id: number;
-      firstName: string;
-      lastName: string;
-    };
+    // Find signed signature (highest revision with status SIGNED)
+    const signedSig = signatureRequests
+      .filter((s) => s.status === "SIGNED")
+      .sort((a, b) => (b.revision || 1) - (a.revision || 1))[0];
+
+    const isClosed = intervention.status === "DONE";
 
     // Prepare archive
     const passThrough = new PassThrough();
@@ -211,121 +159,180 @@ export async function GET(req: Request, ctx: Ctx) {
     passThrough.on("data", (chunk) => chunks.push(chunk));
     archive.pipe(passThrough);
 
-    const hashes: { file: string; sha256: string }[] = [];
+    const files: AuditFile[] = [];
+    const errors: string[] = [];
 
-    // 1. Generate and add PDF
-    const pdfBuffer = await generatePdfBuffer(intervention, client);
-    const pdfName = `dossier_${intervention.id}.pdf`;
-    archive.append(pdfBuffer, { name: pdfName });
-    hashes.push({ file: pdfName, sha256: sha256(pdfBuffer) });
+    // ============================================================
+    // 01_documents/ - Main PDFs
+    // ============================================================
 
-    // 2. Add documents by category
-    const categoryFolders: Record<string, string> = {
-      ENTREE: "01_entree",
-      SORTIE: "02_sortie",
-      DIAGNOSTIC: "03_diagnostic",
-      PIECES: "04_pieces",
-      DIVERS: "05_divers",
-    };
+    // 01_document_signe.pdf - Signed PDF if available
+    if (signedSig?.signedPdfKey) {
+      try {
+        const signedPdfBuffer = await fetchFileBuffer(`/api/uploads/file/${signedSig.signedPdfKey}`);
+        if (signedPdfBuffer) {
+          const filePath = "01_documents/01_document_signe.pdf";
+          archive.append(signedPdfBuffer, { name: filePath });
+          files.push({ path: filePath, sha256: signedSig.signedPdfHash || sha256(signedPdfBuffer), sizeBytes: signedPdfBuffer.length });
+        } else {
+          errors.push("Signed PDF key exists but file not found");
+        }
+      } catch (err) {
+        errors.push(`Failed to fetch signed PDF: ${err instanceof Error ? err.message : "unknown"}`);
+      }
+    }
 
+    // 02_ordre_reparation_preview.pdf - If not signed, include preview
+    if (!signedSig) {
+      try {
+        const orderPdf = await buildOrderMasterPdf(id, {});
+        const filePath = "01_documents/02_ordre_reparation_preview.pdf";
+        archive.append(orderPdf.pdfBuffer, { name: filePath });
+        files.push({ path: filePath, sha256: orderPdf.sha256, sizeBytes: orderPdf.pdfBuffer.length });
+      } catch (err) {
+        errors.push(`Failed to generate order preview: ${err instanceof Error ? err.message : "unknown"}`);
+      }
+    }
+
+    // NOTE: Quote/Invoice PDFs are generated on-demand and not stored
+    // If needed in the future, add pdfKey fields to Quote/Invoice models
+
+    // 03_pv_restitution.pdf - If closed, try to generate delivery PDF
+    if (isClosed) {
+      try {
+        // Use internal fetch to get delivery PDF
+        const deliveryUrl = `${process.env.NEXTAUTH_URL || "http://localhost:3000"}/api/interventions/${id}/delivery/pdf`;
+        const deliveryRes = await fetch(deliveryUrl, {
+          headers: { Cookie: req.headers.get("cookie") || "" },
+        });
+        if (deliveryRes.ok) {
+          const buffer = Buffer.from(await deliveryRes.arrayBuffer());
+          const filePath = "01_documents/03_pv_restitution.pdf";
+          archive.append(buffer, { name: filePath });
+          files.push({ path: filePath, sha256: sha256(buffer), sizeBytes: buffer.length });
+        }
+      } catch (err) {
+        errors.push(`Failed to generate delivery PDF: ${err instanceof Error ? err.message : "unknown"}`);
+      }
+    }
+
+    // 04_dossier_intervention.pdf - Summary PDF
+    try {
+      const dossierUrl = `${process.env.NEXTAUTH_URL || "http://localhost:3000"}/api/interventions/${id}/pdf`;
+      const dossierRes = await fetch(dossierUrl, {
+        headers: { Cookie: req.headers.get("cookie") || "" },
+      });
+      if (dossierRes.ok) {
+        const buffer = Buffer.from(await dossierRes.arrayBuffer());
+        const filePath = "01_documents/04_dossier_intervention.pdf";
+        archive.append(buffer, { name: filePath });
+        files.push({ path: filePath, sha256: sha256(buffer), sizeBytes: buffer.length });
+      }
+    } catch (err) {
+      errors.push(`Failed to fetch dossier PDF: ${err instanceof Error ? err.message : "unknown"}`);
+    }
+
+    // ============================================================
+    // 02_pieces_jointes/ - All attached documents
+    // ============================================================
+
+    let pieceIndex = 0;
     for (const doc of intervention.documents) {
-      const buffer = await fetchFileBuffer(doc.fileUrl);
-      if (!buffer) continue;
+      try {
+        const buffer = await fetchFileBuffer(doc.fileUrl);
+        if (!buffer) {
+          errors.push(`Document not found: ${doc.fileName}`);
+          continue;
+        }
 
-      const folder = categoryFolders[doc.category ?? "DIVERS"] ?? "05_divers";
-      const filePath = `${folder}/${doc.fileName}`;
-      archive.append(buffer, { name: filePath });
-      hashes.push({ file: filePath, sha256: sha256(buffer) });
+        pieceIndex++;
+        const safeName = doc.fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
+        const filePath = `02_pieces_jointes/${String(pieceIndex).padStart(2, "0")}_${safeName}`;
+        archive.append(buffer, { name: filePath });
+        files.push({ path: filePath, sha256: sha256(buffer), sizeBytes: buffer.length });
+      } catch {
+        errors.push(`Failed to fetch document: ${doc.fileName}`);
+      }
     }
 
-    // 3. Generate timeline
-    const timelineEvents: string[] = [];
-    timelineEvents.push(`[${formatDate(intervention.createdAt)}] Création du dossier`);
+    // ============================================================
+    // 03_preuves/ - Legal memo, audit.json, hashes.txt
+    // ============================================================
 
-    if (intervention.agreementAt) {
-      timelineEvents.push(`[${formatDate(intervention.agreementAt)}] Accord client validé`);
+    // 01_legal_memo.pdf - Legal proof memo (signed clauses, hashes, timeline)
+    try {
+      const legalMemo = await buildLegalMemoPdf(id);
+      const filePath = "03_preuves/01_legal_memo.pdf";
+      archive.append(legalMemo.pdfBuffer, { name: filePath });
+      files.push({ path: filePath, sha256: legalMemo.sha256, sizeBytes: legalMemo.pdfBuffer.length });
+    } catch (err) {
+      errors.push(`Failed to generate legal memo: ${err instanceof Error ? err.message : "unknown"}`);
     }
 
-    for (const doc of intervention.documents) {
-      timelineEvents.push(`[${formatDate(doc.createdAt)}] Document ajouté: ${doc.fileName} (${doc.category ?? "DIVERS"})`);
-    }
+    // Build signatures audit data
+    const signaturesAudit: AuditSignature[] = signatureRequests.map((sig) => {
+      const sentEvent = sig.events.find((e) => e.type === "SENT");
+      const viewedEvent = sig.events.find((e) => e.type === "VIEWED");
+      const signedEvent = sig.events.find((e) => e.type === "SIGNED");
 
-    if (intervention.closedAt) {
-      timelineEvents.push(`[${formatDate(intervention.closedAt)}] Clôture de l'intervention`);
-    }
-
-    // 4. Add internal signatures to archive
-    const signatureSummary: {
-      documentType: string;
-      status: string;
-      signedAt: string | null;
-      signerEmail: string | null;
-      signerName: string | null;
-      pdfHash: string | null;
-      signedPdfHash: string | null;
-      revision: number;
-    }[] = [];
-
-    for (const sig of internalSignatures) {
-      // Build summary entry
-      signatureSummary.push({
+      return {
         documentType: sig.documentType,
         status: sig.status,
-        signedAt: sig.signedAt ? formatDate(sig.signedAt) : null,
-        signerEmail: sig.signerEmail,
-        signerName: sig.signerNameDeclared,
-        pdfHash: sig.pdfHash,
-        signedPdfHash: sig.signedPdfHash,
+        sentAt: formatDate(sig.sentAt || sentEvent?.at),
+        viewedAt: formatDate(sig.lastViewedAt || viewedEvent?.at),
+        signedAt: formatDate(sig.signedAt || signedEvent?.at),
+        signerName: sig.signerNameDeclared || null,
+        signerEmailMasked: maskEmail(sig.signerEmail),
+        pdfHash: sig.pdfHash || null,
+        signedPdfHash: sig.signedPdfHash || null,
+        legalSnapshotHash: sig.legalSnapshotHash || null,
         revision: sig.revision || 1,
-      });
+      };
+    });
 
-      // Add to timeline
-      if (sig.signedAt) {
-        timelineEvents.push(`[${formatDate(sig.signedAt)}] Signature: ${sig.documentType} signé par ${sig.signerNameDeclared || "Client"}`);
-      }
+    // Build audit.json
+    const auditJson: AuditJson = {
+      exportVersion: "1.0.0",
+      generatedAt: new Date().toISOString(),
+      interventionId: intervention.id,
+      garageId: intervention.garageId,
+      createdAt: formatDate(intervention.createdAt),
+      updatedAt: formatDate(intervention.updatedAt),
+      closedAt: formatDate(intervention.closedAt),
+      status: intervention.status,
+      isSigned: !!signedSig,
+      signatures: signaturesAudit,
+      files: [], // Will be populated after all files added
+      errors,
+    };
 
-      // HARDEN-01: Add signed PDF to archive if available
-      if (sig.signedPdfKey) {
-        try {
-          const signedPdfBuffer = await fetchFileBuffer(`/api/uploads/file/${sig.signedPdfKey}`);
-          if (signedPdfBuffer) {
-            const signedPdfName = `signatures/${sig.documentType.toLowerCase()}_signe_rev${sig.revision || 1}.pdf`;
-            archive.append(signedPdfBuffer, { name: signedPdfName });
-            hashes.push({ file: signedPdfName, sha256: sig.signedPdfHash || sha256(signedPdfBuffer) });
-            timelineEvents.push(`[${formatDate(sig.signedAt)}] PDF signé archivé: ${signedPdfName}`);
-          }
-        } catch (pdfErr) {
-          console.warn(`Could not fetch signed PDF for ${sig.id}:`, pdfErr);
-        }
-      }
-    }
+    // Add audit.json (with files list)
+    auditJson.files = files.map((f) => ({ ...f }));
+    const auditBuffer = Buffer.from(JSON.stringify(auditJson, null, 2), "utf-8");
+    const auditPath = "03_preuves/audit.json";
+    archive.append(auditBuffer, { name: auditPath });
+    files.push({ path: auditPath, sha256: sha256(auditBuffer), sizeBytes: auditBuffer.length });
 
-    // Add signature summary JSON
-    if (signatureSummary.length > 0) {
-      const summaryJson = JSON.stringify(signatureSummary, null, 2);
-      const summaryBuffer = Buffer.from(summaryJson, "utf-8");
-      archive.append(summaryBuffer, { name: "signatures/summary.json" });
-      hashes.push({ file: "signatures/summary.json", sha256: sha256(summaryBuffer) });
-    }
+    // Generate hashes.txt
+    const hashesContent = [
+      `HASHES SHA-256 - Dossier Intervention`,
+      `${"=".repeat(60)}`,
+      `Intervention: ${intervention.id}`,
+      `Généré le: ${new Date().toISOString()}`,
+      ``,
+      ...files.map((f) => `${f.sha256}  ${f.path}`),
+      ``,
+    ].join("\n");
+    const hashesBuffer = Buffer.from(hashesContent, "utf-8");
+    archive.append(hashesBuffer, { name: "03_preuves/hashes.txt" });
 
-    const timelineContent = `TIMELINE - Intervention ${intervention.id}\n${"=".repeat(50)}\n\n${timelineEvents.join("\n")}\n`;
-    const timelineBuffer = Buffer.from(timelineContent, "utf-8");
-    archive.append(timelineBuffer, { name: "timeline.txt" });
-    hashes.push({ file: "timeline.txt", sha256: sha256(timelineBuffer) });
-
-    // 5. Generate hashes file
-    const hashesContent = `HASHES SHA-256 - Intervention ${intervention.id}\n${"=".repeat(50)}\nGenere le: ${formatDate(new Date())}\n\n${hashes.map((h) => `${h.sha256}  ${h.file}`).join("\n")}\n`;
-    archive.append(Buffer.from(hashesContent, "utf-8"), { name: "hashes.txt" });
-
-    // Finalize
+    // Finalize archive
     await archive.finalize();
-
-    // Wait for all data
     await new Promise<void>((resolve) => passThrough.on("end", resolve));
 
     const zipBuffer = Buffer.concat(chunks);
     const plate = intervention.vehicle.plate.replace(/[^a-zA-Z0-9]/g, "_");
-    const filename = `dossier_${plate}_${intervention.id.slice(0, 8)}.zip`;
+    const filename = `dossier-intervention-${plate}-${intervention.id.slice(0, 8)}.zip`;
 
     return new NextResponse(new Uint8Array(zipBuffer), {
       status: 200,
