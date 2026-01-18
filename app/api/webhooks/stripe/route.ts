@@ -252,16 +252,79 @@ export async function POST(req: Request) {
       }
     }
 
-    // Optional: invoice events can refine status.
+    // Optional: invoice events can refine status + PARTNER-PROGRAM-01: Commission tracking
     if (event.type === "invoice.payment_failed" || event.type === "invoice.payment_succeeded") {
       const invoice = event.data.object as any;
       const customerId = invoice.customer as string;
-      const garage = await upsertGarageByCustomer(customerId);
+      const garage = await prisma.garage.findFirst({
+        where: { stripeCustomerId: customerId },
+        select: { 
+          id: true,
+          partnerAttribution: {
+            select: {
+              partnerId: true,
+              partner: {
+                select: {
+                  id: true,
+                  commissionMode: true,
+                  commissionPercent: true,
+                  isActive: true,
+                }
+              }
+            }
+          }
+        },
+      });
+      
       if (garage) {
         await prisma.stripeEvent.update({
           where: { id: event.id },
           data: { garageId: garage.id, processedAt: new Date() },
         });
+
+        // PARTNER-PROGRAM-01: Track commission on successful payment
+        if (event.type === "invoice.payment_succeeded" && garage.partnerAttribution?.partner?.isActive) {
+          const partner = garage.partnerAttribution.partner;
+          const stripeInvoiceId = invoice.id as string;
+          const amountPaidCents = invoice.amount_paid as number; // TTC amount in cents
+          
+          // Check if commission already exists (idempotent)
+          const existingCommission = await prisma.partnerCommissionLine.findUnique({
+            where: { stripeInvoiceId },
+          });
+          
+          if (!existingCommission && amountPaidCents > 0) {
+            // For FIRST_MONTH_PERCENT: only credit first invoice
+            // Check if this is the first successful invoice for this garage
+            const existingCommissions = await prisma.partnerCommissionLine.count({
+              where: { 
+                garageId: garage.id,
+                isValid: true,
+              },
+            });
+            
+            const shouldCredit = partner.commissionMode === "THREE_MONTHS_PERCENT" 
+              ? existingCommissions < 3  // First 3 invoices
+              : existingCommissions < 1; // First invoice only
+            
+            if (shouldCredit) {
+              const commissionCents = Math.round(amountPaidCents * (partner.commissionPercent / 100));
+              
+              await prisma.partnerCommissionLine.create({
+                data: {
+                  partnerId: partner.id,
+                  garageId: garage.id,
+                  stripeInvoiceId,
+                  invoiceAmountCents: amountPaidCents,
+                  commissionCents,
+                  commissionPercent: partner.commissionPercent,
+                },
+              });
+              
+              console.log(`[PARTNER] Commission created: partner=${partner.id}, garage=${garage.id}, amount=${commissionCents}c`);
+            }
+          }
+        }
       }
     }
 

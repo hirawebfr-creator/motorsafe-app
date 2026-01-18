@@ -1,13 +1,43 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
 
-export default function ProInscriptionPage() {
+// PARTNER-PROGRAM-01: Cookie utilities for ref tracking
+const REF_COOKIE_NAME = "sm_ref";
+const REF_COOKIE_DAYS = 30;
+
+function setRefCookie(refCode: string) {
+  const expires = new Date();
+  expires.setDate(expires.getDate() + REF_COOKIE_DAYS);
+  document.cookie = `${REF_COOKIE_NAME}=${encodeURIComponent(refCode)};expires=${expires.toUTCString()};path=/;SameSite=Lax`;
+  // Also store in localStorage as fallback
+  try {
+    localStorage.setItem(REF_COOKIE_NAME, refCode);
+  } catch {
+    // Ignore localStorage errors
+  }
+}
+
+function getRefCode(): string | null {
+  // Try cookie first
+  const match = document.cookie.match(new RegExp(`${REF_COOKIE_NAME}=([^;]+)`));
+  if (match) return decodeURIComponent(match[1]);
+  // Fallback to localStorage
+  try {
+    return localStorage.getItem(REF_COOKIE_NAME);
+  } catch {
+    return null;
+  }
+}
+
+function ProInscriptionContent() {
+  const searchParams = useSearchParams();
   const [form, setForm] = useState({
     garageName: "",
     garageEmail: "",
@@ -19,7 +49,23 @@ export default function ProInscriptionPage() {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [partnerRef, setPartnerRef] = useState<string | null>(null);
   const toast = useToast();
+
+  // PARTNER-PROGRAM-01: Capture ref from URL and store in cookie
+  useEffect(() => {
+    const refFromUrl = searchParams.get("ref");
+    if (refFromUrl) {
+      setRefCookie(refFromUrl.toUpperCase());
+      setPartnerRef(refFromUrl.toUpperCase());
+    } else {
+      // Check if we already have a ref stored
+      const storedRef = getRefCode();
+      if (storedRef) {
+        setPartnerRef(storedRef);
+      }
+    }
+  }, [searchParams]);
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -27,10 +73,14 @@ export default function ProInscriptionPage() {
     setLoading(true);
 
     try {
+      // Include partnerRef in the request
       const res = await fetch("/api/auth/register-pro", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ 
+          ...form,
+          partnerRef: partnerRef || undefined,
+        }),
       });
       const json = await res.json();
       if (!res.ok || !json.ok) {
@@ -177,5 +227,17 @@ export default function ProInscriptionPage() {
         </Card>
       </div>
     </main>
+  );
+}
+
+export default function ProInscriptionPage() {
+  return (
+    <Suspense fallback={
+      <main className="min-h-screen w-full bg-bg text-text flex items-center justify-center">
+        <p className="text-muted2">Chargement...</p>
+      </main>
+    }>
+      <ProInscriptionContent />
+    </Suspense>
   );
 }

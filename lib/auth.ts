@@ -10,7 +10,7 @@ const SESSION_TTL_DAYS = 30;
 export type SessionUser = {
   id: string;
   email: string;
-  role: "ADMIN" | "GARAGE" | "OWNER" | "STAFF";
+  role: "ADMIN" | "GARAGE" | "OWNER" | "STAFF" | "PARTNER";
   garageId: number | null;
   garage?: {
     id: number;

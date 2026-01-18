@@ -34,6 +34,8 @@ export async function POST(req: Request) {
     const address = body.address ? normalizeText(body.address) : null;
     const siret = body.siret ? normalizeText(body.siret) : null;
     const referralCodeInput = body.referralCode ? normalizeText(body.referralCode).toUpperCase() : null;
+    // PARTNER-PROGRAM-01: Partner ref code (external affiliates)
+    const partnerRefInput = body.partnerRef ? normalizeText(body.partnerRef).toUpperCase() : null;
 
     const userEmail = normalizeEmail(body.email);
     const password = String(body.password ?? "");
@@ -67,7 +69,7 @@ export async function POST(req: Request) {
       return NextResponse.json(failure("Cet email est deja utilise."), { status: 409 });
     }
 
-    // Check referral code if provided
+    // Check referral code if provided (garage-to-garage)
     let referrerGarage: { id: number } | null = null;
     if (referralCodeInput) {
       referrerGarage = await prisma.garage.findUnique({
@@ -75,6 +77,16 @@ export async function POST(req: Request) {
         select: { id: true },
       });
       // Silently ignore invalid codes (don't block registration)
+    }
+
+    // PARTNER-PROGRAM-01: Check external partner ref code
+    let partner: { id: number } | null = null;
+    if (partnerRefInput) {
+      partner = await prisma.partner.findFirst({
+        where: { refCode: partnerRefInput, isActive: true },
+        select: { id: true },
+      });
+      // Silently ignore invalid partner codes
     }
 
     const passwordHash = await hashPassword(password);
@@ -116,13 +128,25 @@ export async function POST(req: Request) {
         },
       });
 
-      // Log referral event if applicable
+      // Log referral event if applicable (garage-to-garage)
       if (referrerGarage) {
         await tx.referralEvent.create({
           data: {
             referrerGarageId: referrerGarage.id,
             refereeGarageId: createdGarage.id,
             eventType: "REF_APPLIED",
+          },
+        });
+      }
+
+      // PARTNER-PROGRAM-01: Create partner attribution if applicable
+      if (partner) {
+        await tx.partnerAttribution.create({
+          data: {
+            partnerId: partner.id,
+            garageId: createdGarage.id,
+            source: "REF_LINK",
+            refCodeUsed: partnerRefInput,
           },
         });
       }

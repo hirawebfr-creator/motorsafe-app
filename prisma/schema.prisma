@@ -12,6 +12,7 @@ enum UserRole {
   GARAGE
   OWNER
   STAFF
+  PARTNER   // PARTNER-PROGRAM-01: External partner/affiliate
 }
 
 enum Plan {
@@ -165,6 +166,10 @@ model Garage {
   isDemo             Boolean  @default(false)   // True = demo garage (protected)
   demoSeedVersion    Int      @default(1)       // Seed version for reset
   demoState          DemoState?
+  
+  // PARTNER-PROGRAM-01: Partner attributions and commissions
+  partnerAttribution PartnerAttribution?
+  partnerCommissions PartnerCommissionLine[] @relation("GarageCommissions")
 }
 
 model User {
@@ -197,6 +202,9 @@ model User {
   
   // DEMO-SCENARIO-01: Demo mode activation
   demoModeEnabledAt DateTime?   // When demo mode was enabled
+  
+  // PARTNER-PROGRAM-01: If this user is a partner
+  partner          Partner?
 
   @@index([garageId])
 }
@@ -1511,3 +1519,123 @@ model DemoState {
   
   garage        Garage   @relation(fields: [garageId], references: [id], onDelete: Cascade)
 }
+
+// ============================================
+// PARTNER-PROGRAM-01: Partner Affiliate System
+// ============================================
+
+enum PartnerType {
+  GARAGE      // Garage owner becoming affiliate
+  INFLUENCER  // Content creator / YouTuber
+  AGENCY      // Marketing agency
+  OTHER
+}
+
+enum CommissionMode {
+  FIRST_MONTH_PERCENT    // 20% of first month payment
+  THREE_MONTHS_PERCENT   // X% of first 3 months (more complex)
+}
+
+enum PayoutStatus {
+  DUE
+  PAID
+  CANCELLED
+}
+
+/// External partner (distinct from garage-to-garage referral)
+model Partner {
+  id               Int             @id @default(autoincrement())
+  name             String          // Partner name or company
+  email            String          @unique
+  type             PartnerType     @default(OTHER)
+  
+  // Affiliate tracking
+  refCode          String          @unique  // Unique ref code (e.g., PARTNER-XXXX)
+  stripeCouponId   String?                  // Optional Stripe coupon for this partner
+  
+  // Commission settings
+  commissionMode   CommissionMode  @default(FIRST_MONTH_PERCENT)
+  commissionPercent Int            @default(20)  // Percentage (20 = 20%)
+  minPayoutCents   Int             @default(5000) // Min payout threshold (5000 = 50€)
+  
+  // Status
+  isActive         Boolean         @default(true)
+  
+  // If partner is also a garage user (optional link)
+  userId           String?         @unique
+  user             User?           @relation(fields: [userId], references: [id])
+  
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  
+  attributions     PartnerAttribution[]
+  commissionLines  PartnerCommissionLine[]
+  payouts          PartnerPayout[]
+
+  @@index([refCode])
+  @@index([isActive])
+}
+
+/// Links a garage to the partner who referred them
+model PartnerAttribution {
+  id             Int      @id @default(autoincrement())
+  partnerId      Int
+  garageId       Int      @unique  // 1 garage = 1 partner attribution only
+  
+  source         String   // REF_LINK | COUPON
+  refCodeUsed    String?  // The ref code used (if via link)
+  couponCodeUsed String?  // The Stripe coupon code used (if via coupon)
+  
+  attributedAt   DateTime @default(now())
+  
+  partner        Partner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  garage         Garage   @relation(fields: [garageId], references: [id], onDelete: Cascade)
+
+  @@index([partnerId])
+}
+
+/// Individual commission earned per Stripe invoice
+model PartnerCommissionLine {
+  id              Int      @id @default(autoincrement())
+  partnerId       Int
+  garageId        Int
+  stripeInvoiceId String   @unique  // Stripe invoice ID (prevents duplicates)
+  
+  invoiceAmountCents  Int      // Total invoice amount TTC
+  commissionCents     Int      // Commission earned
+  commissionPercent   Int      // Rate at time of calculation
+  
+  // Anti-fraud: track if refunded within grace period
+  isValid         Boolean  @default(true)
+  invalidatedAt   DateTime?
+  invalidReason   String?
+  
+  createdAt       DateTime @default(now())
+  
+  partner         Partner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  garage          Garage   @relation("GarageCommissions", fields: [garageId], references: [id], onDelete: Cascade)
+
+  @@index([partnerId, createdAt])
+  @@index([garageId])
+}
+
+/// Aggregated payout to partner (manual processing MVP)
+model PartnerPayout {
+  id          Int          @id @default(autoincrement())
+  partnerId   Int
+  
+  periodStart DateTime     // Payout period start
+  periodEnd   DateTime     // Payout period end
+  amountCents Int          // Total payout amount
+  
+  status      PayoutStatus @default(DUE)
+  paidAt      DateTime?
+  note        String?      // Admin notes
+  
+  createdAt   DateTime     @default(now())
+  
+  partner     Partner      @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@index([partnerId, status])
+}
+
