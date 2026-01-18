@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -16,6 +16,10 @@ import {
   Clock,
   Send,
   Mail,
+  Copy,
+  ExternalLink,
+  AlertCircle,
+  Check,
 } from "lucide-react";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { Card } from "@/components/ui/Card";
@@ -39,12 +43,24 @@ type InvoiceDetail = {
   subtotalExcl: number;
   totalVat: number;
   totalIncl: number;
+  amountPaid: number;
   createdAt: string;
   issuedAt: string | null;
   paidAt: string | null;
   dueAt: string | null;
   quoteId: string | null;
+  // PAYMENTS-01
+  paymentLinkUrl: string | null;
+  paymentLinkExpiresAt: string | null;
   lines: InvoiceLine[];
+  payments: Array<{
+    id: string;
+    amount: number;
+    method: string;
+    status: string;
+    paymentType: string | null;
+    paidAt: string;
+  }>;
   client: {
     id: number;
     firstName: string;
@@ -81,6 +97,7 @@ function fmtEur(amount: number) {
 const STATUS_CONFIG: Record<string, { bg: string; text: string; label: string }> = {
   DRAFT: { bg: "bg-gray-100", text: "text-gray-700", label: "Brouillon" },
   ISSUED: { bg: "bg-blue-100", text: "text-blue-700", label: "Émise" },
+  PARTIALLY_PAID: { bg: "bg-amber-100", text: "text-amber-700", label: "Partiellement payée" },
   PAID: { bg: "bg-green-100", text: "text-green-700", label: "Payée" },
   OVERDUE: { bg: "bg-red-100", text: "text-red-700", label: "En retard" },
   CANCELLED: { bg: "bg-gray-100", text: "text-gray-500", label: "Annulée" },
@@ -88,12 +105,34 @@ const STATUS_CONFIG: Record<string, { bg: string; text: string; label: string }>
 
 export default function FactureDetailPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const id = params.id as string;
 
   const [invoice, setInvoice] = useState<InvoiceDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  
+  // PAYMENTS-01: Payment link states
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentType, setPaymentType] = useState<"FULL" | "DEPOSIT">("FULL");
+  const [depositAmount, setDepositAmount] = useState("");
+  const [generatedPayUrl, setGeneratedPayUrl] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  // Check for payment success/cancelled from URL
+  useEffect(() => {
+    const payment = searchParams.get("payment");
+    if (payment === "success") {
+      setSuccess("Paiement effectué avec succès !");
+      // Clear URL params
+      window.history.replaceState({}, "", `/factures/${id}`);
+    } else if (payment === "cancelled") {
+      setError("Paiement annulé");
+      window.history.replaceState({}, "", `/factures/${id}`);
+    }
+  }, [searchParams, id]);
 
   const loadInvoice = useCallback(async () => {
     try {
@@ -120,6 +159,7 @@ export default function FactureDetailPage() {
     try {
       setActionLoading(action);
       setError(null);
+      setSuccess(null);
       const res = await fetch(`/api/invoices/${id}/${action}`, { method: "POST" });
       const json = await res.json();
       if (!res.ok || !json.ok) {
@@ -149,6 +189,75 @@ export default function FactureDetailPage() {
       setError(e instanceof Error ? e.message : "Erreur PDF");
     } finally {
       setActionLoading(null);
+    }
+  };
+
+  // PAYMENTS-01: Create payment link
+  const handleCreatePaymentLink = async () => {
+    try {
+      setActionLoading("payment-link");
+      setError(null);
+      
+      const amountCents = paymentType === "DEPOSIT" && depositAmount 
+        ? Math.round(parseFloat(depositAmount) * 100) 
+        : undefined;
+      
+      const res = await fetch(`/api/invoices/${id}/payments/create-link`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: paymentType, amountCents }),
+      });
+      const json = await res.json();
+      
+      if (!res.ok || !json.ok) {
+        throw new Error(json.error?.message || "Erreur création lien");
+      }
+      
+      setGeneratedPayUrl(json.data.payUrl);
+      await loadInvoice();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // PAYMENTS-01: Send payment link via email
+  const handleSendPaymentLink = async () => {
+    try {
+      setActionLoading("send-payment");
+      setError(null);
+      
+      const payUrl = generatedPayUrl || invoice?.paymentLinkUrl;
+      
+      const res = await fetch(`/api/invoices/${id}/payments/send-link`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ payUrl }),
+      });
+      const json = await res.json();
+      
+      if (!res.ok || !json.ok) {
+        throw new Error(json.error?.message || "Erreur envoi email");
+      }
+      
+      setSuccess("Lien de paiement envoyé par email !");
+      setShowPaymentModal(false);
+      setGeneratedPayUrl(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // Copy payment link to clipboard
+  const handleCopyLink = async () => {
+    const url = generatedPayUrl || invoice?.paymentLinkUrl;
+    if (url) {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     }
   };
 
@@ -207,6 +316,10 @@ export default function FactureDetailPage() {
                   {actionLoading === "send" ? <Loader2 size={16} className="animate-spin" /> : <Mail size={16} />}
                   Envoyer
                 </Button>
+                <Button variant="secondary" onClick={() => setShowPaymentModal(true)} disabled={!!actionLoading}>
+                  <CreditCard size={16} />
+                  Paiement en ligne
+                </Button>
                 <Button onClick={() => handleAction("mark-paid")} disabled={!!actionLoading}>
                   {actionLoading === "mark-paid" ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle size={16} />}
                   Marquer payée
@@ -219,6 +332,13 @@ export default function FactureDetailPage() {
 
       {error && (
         <Card className="border-red-200 bg-red-50 p-4 text-red-700">{error}</Card>
+      )}
+
+      {success && (
+        <Card className="border-green-200 bg-green-50 p-4 text-green-700 flex items-center gap-2">
+          <Check size={18} />
+          {success}
+        </Card>
       )}
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -330,20 +450,96 @@ export default function FactureDetailPage() {
                 <CheckCircle size={18} />
                 <span>Payée le {fmtDate(invoice.paidAt)}</span>
               </div>
-            ) : invoice.status === "ISSUED" ? (
-              <div>
+            ) : invoice.status === "PARTIALLY_PAID" ? (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-orange-600">
+                  <AlertCircle size={18} />
+                  <span>Partiellement payée</span>
+                </div>
+                <p className="text-sm text-muted2">
+                  Payé: {fmtEur(invoice.amountPaid)} / {fmtEur(invoice.totalIncl)}
+                </p>
+                <p className="text-sm text-muted2">
+                  Reste: {fmtEur(invoice.totalIncl - invoice.amountPaid)}
+                </p>
+              </div>
+            ) : invoice.status === "ISSUED" || invoice.status === "OVERDUE" ? (
+              <div className="space-y-3">
                 <div className="flex items-center gap-2 text-blue-600">
                   <Clock size={18} />
                   <span>En attente de paiement</span>
                 </div>
                 {invoice.dueAt && (
-                  <p className="mt-2 text-sm text-muted2">
+                  <p className="text-sm text-muted2">
                     Échéance: {fmtDate(invoice.dueAt)}
+                  </p>
+                )}
+                {invoice.amountPaid > 0 && (
+                  <p className="text-sm text-muted2">
+                    Déjà payé: {fmtEur(invoice.amountPaid)}
                   </p>
                 )}
               </div>
             ) : (
               <p className="text-sm text-muted2">Facture non émise</p>
+            )}
+
+            {/* Payment Link Status */}
+            {invoice.paymentLinkUrl && invoice.status !== "PAID" && (
+              <div className="mt-4 border-t border-border pt-4">
+                <p className="text-xs font-medium text-muted2 uppercase mb-2">Lien de paiement</p>
+                <div className="flex items-center gap-2">
+                  <ExternalLink size={14} className="text-indigo-500" />
+                  <a 
+                    href={invoice.paymentLinkUrl} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-sm text-indigo-600 hover:underline truncate flex-1"
+                  >
+                    Ouvrir
+                  </a>
+                  <button 
+                    onClick={handleCopyLink}
+                    className="p-1 hover:bg-surface2 rounded"
+                    title="Copier le lien"
+                  >
+                    {copied ? <Check size={14} className="text-green-600" /> : <Copy size={14} className="text-muted2" />}
+                  </button>
+                </div>
+                {invoice.paymentLinkExpiresAt && (
+                  <p className="text-xs text-muted2 mt-1">
+                    Expire le {fmtDate(invoice.paymentLinkExpiresAt)}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Payment History */}
+            {invoice.payments && invoice.payments.length > 0 && (
+              <div className="mt-4 border-t border-border pt-4">
+                <p className="text-xs font-medium text-muted2 uppercase mb-2">Historique</p>
+                <div className="space-y-2">
+                  {invoice.payments.map((p) => (
+                    <div key={p.id} className="flex items-center justify-between text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className={`h-2 w-2 rounded-full ${
+                          p.status === "SUCCEEDED" ? "bg-green-500" :
+                          p.status === "PENDING" ? "bg-yellow-500" : "bg-red-500"
+                        }`} />
+                        <span className="text-muted2">
+                          {p.paymentType === "DEPOSIT" ? "Acompte" : "Total"}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className="font-medium">{fmtEur(p.amount)}</span>
+                        {p.paidAt && (
+                          <span className="text-xs text-muted2 ml-2">{fmtDate(p.paidAt)}</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
           </Card>
 
@@ -361,6 +557,154 @@ export default function FactureDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Payment Modal */}
+      {showPaymentModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <Card className="w-full max-w-md p-6">
+            <h3 className="text-lg font-semibold mb-4">Créer un lien de paiement</h3>
+            
+            {!generatedPayUrl ? (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Type de paiement</label>
+                  <div className="flex gap-4">
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="paymentType"
+                        value="FULL"
+                        checked={paymentType === "FULL"}
+                        onChange={(e) => setPaymentType(e.target.value as "FULL" | "DEPOSIT")}
+                        className="h-4 w-4 text-indigo-600"
+                      />
+                      <span>Montant total</span>
+                    </label>
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="paymentType"
+                        value="DEPOSIT"
+                        checked={paymentType === "DEPOSIT"}
+                        onChange={(e) => setPaymentType(e.target.value as "FULL" | "DEPOSIT")}
+                        className="h-4 w-4 text-indigo-600"
+                      />
+                      <span>Acompte</span>
+                    </label>
+                  </div>
+                </div>
+
+                {paymentType === "FULL" ? (
+                  <div className="p-4 bg-surface2 rounded-lg">
+                    <p className="text-sm text-muted2">Montant à payer</p>
+                    <p className="text-2xl font-bold">{fmtEur(invoice.totalIncl - invoice.amountPaid)}</p>
+                    {invoice.amountPaid > 0 && (
+                      <p className="text-xs text-muted2 mt-1">
+                        Total {fmtEur(invoice.totalIncl)} - déjà payé {fmtEur(invoice.amountPaid)}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Montant de l&apos;acompte (€)</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max={(invoice.totalIncl - invoice.amountPaid) / 100}
+                      step="0.01"
+                      value={depositAmount}
+                      onChange={(e) => setDepositAmount(e.target.value)}
+                      placeholder="Ex: 150.00"
+                      className="w-full rounded-lg border border-border bg-surface px-4 py-2 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    />
+                    <p className="text-xs text-muted2 mt-1">
+                      Maximum: {fmtEur(invoice.totalIncl - invoice.amountPaid)}
+                    </p>
+                  </div>
+                )}
+
+                <div className="flex gap-3 pt-2">
+                  <Button 
+                    variant="secondary" 
+                    onClick={() => {
+                      setShowPaymentModal(false);
+                      setPaymentType("FULL");
+                      setDepositAmount("");
+                    }}
+                    className="flex-1"
+                  >
+                    Annuler
+                  </Button>
+                  <Button 
+                    onClick={handleCreatePaymentLink}
+                    disabled={actionLoading === "payment-link" || (paymentType === "DEPOSIT" && !depositAmount)}
+                    className="flex-1"
+                  >
+                    {actionLoading === "payment-link" ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <>
+                        <ExternalLink size={16} />
+                        Générer le lien
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="flex items-center gap-2 text-green-700 mb-2">
+                    <Check size={18} />
+                    <span className="font-medium">Lien créé avec succès !</span>
+                  </div>
+                  <div className="flex items-center gap-2 bg-white rounded border px-3 py-2">
+                    <input
+                      type="text"
+                      readOnly
+                      value={generatedPayUrl}
+                      className="flex-1 text-sm bg-transparent outline-none truncate"
+                    />
+                    <button onClick={handleCopyLink} className="p-1 hover:bg-surface2 rounded">
+                      {copied ? <Check size={16} className="text-green-600" /> : <Copy size={16} className="text-muted2" />}
+                    </button>
+                  </div>
+                  <p className="text-xs text-muted2 mt-2">Ce lien est valable 24 heures</p>
+                </div>
+
+                <div className="flex gap-3">
+                  <Button 
+                    variant="secondary"
+                    onClick={() => {
+                      setShowPaymentModal(false);
+                      setGeneratedPayUrl(null);
+                      setPaymentType("FULL");
+                      setDepositAmount("");
+                    }}
+                    className="flex-1"
+                  >
+                    Fermer
+                  </Button>
+                  <Button 
+                    onClick={handleSendPaymentLink}
+                    disabled={actionLoading === "send-payment"}
+                    className="flex-1"
+                  >
+                    {actionLoading === "send-payment" ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <>
+                        <Mail size={16} />
+                        Envoyer par email
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

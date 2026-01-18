@@ -60,11 +60,12 @@ export async function GET(req: Request) {
     };
 
     if (q) {
-      const qUpper = q.toUpperCase();
       where.OR = [
-        { plate: { contains: qUpper } },
-        { brand: { contains: q } },
-        { model: { contains: q } },
+        { plate: { contains: q, mode: "insensitive" } },
+        { brand: { contains: q, mode: "insensitive" } },
+        { model: { contains: q, mode: "insensitive" } },
+        { client: { firstName: { contains: q, mode: "insensitive" } } },
+        { client: { lastName: { contains: q, mode: "insensitive" } } },
       ];
     }
 

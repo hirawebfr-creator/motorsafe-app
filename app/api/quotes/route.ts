@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireApprovedTenant, requireUser, getTenantId } from "@/lib/guards";
+import { requireApprovedTenant, requireUser } from "@/lib/guards";
 import { RouteError, toErrorResponse } from "@/lib/routeErrors";
 import { requireFeature, FeatureKey } from "@/lib/entitlements";
 import { z } from "zod";
@@ -37,10 +37,13 @@ const CreateSchema = z.object({
 export async function GET(req: Request) {
   try {
     const user = requireApprovedTenant(await requireUser(req));
-    const organisationId = getTenantId(user);
     
-    // Feature gate: DEVIS_FACTURES required
-    if (user.role !== "ADMIN") {
+    // ADMIN can see all, others need garageId
+    const isAdmin = user.role === "ADMIN";
+    const organisationId = isAdmin ? undefined : (user.garageId ?? -1);
+    
+    // Feature gate: DEVIS_FACTURES required (skip for ADMIN)
+    if (!isAdmin && organisationId) {
       await requireFeature(organisationId, FeatureKey.DEVIS_FACTURES);
     }
 
@@ -56,7 +59,7 @@ export async function GET(req: Request) {
     const query = (q ?? "").trim();
 
     const where: any = {
-      organisationId,
+      ...(isAdmin ? {} : { organisationId }),
       deletedAt: null,
       ...(query
         ? {
@@ -64,6 +67,9 @@ export async function GET(req: Request) {
               { quoteNumber: { contains: query, mode: "insensitive" } },
               { client: { firstName: { contains: query, mode: "insensitive" } } },
               { client: { lastName: { contains: query, mode: "insensitive" } } },
+              { vehicle: { plate: { contains: query, mode: "insensitive" } } },
+              { vehicle: { brand: { contains: query, mode: "insensitive" } } },
+              { vehicle: { model: { contains: query, mode: "insensitive" } } },
             ],
           }
         : {}),
@@ -94,12 +100,16 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const user = requireApprovedTenant(await requireUser(req));
-    const organisationId = getTenantId(user);
+    
+    // ADMIN cannot create quotes (no garage context)
+    if (user.role === "ADMIN") {
+      throw new RouteError(403, "FORBIDDEN", "Accès réservé aux gestionnaires de garage");
+    }
+    
+    const organisationId = user.garageId ?? -1;
     
     // Feature gate: DEVIS_FACTURES required
-    if (user.role !== "ADMIN") {
-      await requireFeature(organisationId, FeatureKey.DEVIS_FACTURES);
-    }
+    await requireFeature(organisationId, FeatureKey.DEVIS_FACTURES);
 
     const body = await req.json().catch(() => null);
     const parsed = CreateSchema.safeParse(body);

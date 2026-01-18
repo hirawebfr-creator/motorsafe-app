@@ -1,0 +1,231 @@
+name: Backup
+
+on:
+  # Daily backup at 03:00 Europe/Paris (02:00 UTC in winter, 01:00 UTC in summer)
+  schedule:
+    - cron: '0 2 * * *'
+  
+  # Manual trigger for testing
+  workflow_dispatch:
+    inputs:
+      include_uploads:
+        description: 'Include uploads folder in backup'
+        type: boolean
+        default: false
+      environment:
+        description: 'Environment name'
+        type: string
+        default: 'production'
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Install AWS CLI
+        run: |
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          unzip -q awscliv2.zip
+          sudo ./aws/install --update
+          aws --version
+
+      - name: Run backup script
+        env:
+          # Database - NEVER log this value
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          
+          # Encryption
+          BACKUP_ENCRYPTION_PASS: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+          
+          # S3-compatible storage (Cloudflare R2 recommended)
+          BACKUP_S3_ENDPOINT: ${{ secrets.BACKUP_S3_ENDPOINT }}
+          BACKUP_S3_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_ACCESS_KEY_ID }}
+          BACKUP_S3_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_SECRET_ACCESS_KEY }}
+          BACKUP_S3_BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
+          
+          # Options
+          BACKUP_ENV: ${{ github.event.inputs.environment || 'production' }}
+          BACKUP_INCLUDE_UPLOADS: ${{ github.event.inputs.include_uploads || 'false' }}
+        run: |
+          chmod +x scripts/backup/run-backup.sh
+          ./scripts/backup/run-backup.sh
+
+      - name: Apply retention policy
+        if: success()
+        env:
+          BACKUP_S3_ENDPOINT: ${{ secrets.BACKUP_S3_ENDPOINT }}
+          BACKUP_S3_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_ACCESS_KEY_ID }}
+          BACKUP_S3_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_SECRET_ACCESS_KEY }}
+          BACKUP_S3_BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
+          BACKUP_ENV: ${{ github.event.inputs.environment || 'production' }}
+        run: |
+          chmod +x scripts/backup/retention.sh
+          ./scripts/backup/retention.sh
+
+      - name: Upload backup artifact (for verification)
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-manifest
+          path: |
+            backups/*.sha256
+          retention-days: 7
+
+  # Restore test - manual only
+  restore-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: github.event_name == 'workflow_dispatch'
+    needs: backup
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install PostgreSQL
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql postgresql-client
+          sudo systemctl start postgresql
+
+      - name: Setup test database
+        run: |
+          sudo -u postgres psql -c "CREATE DATABASE motorsafe_restore_test;"
+          sudo -u postgres psql -c "CREATE USER restore_test WITH PASSWORD 'test123';"
+          sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE motorsafe_restore_test TO restore_test;"
+
+      - name: Install AWS CLI
+        run: |
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+          unzip -q awscliv2.zip
+          sudo ./aws/install --update
+
+      - name: Download latest backup
+        env:
+          BACKUP_S3_ENDPOINT: ${{ secrets.BACKUP_S3_ENDPOINT }}
+          BACKUP_S3_ACCESS_KEY_ID: ${{ secrets.BACKUP_S3_ACCESS_KEY_ID }}
+          BACKUP_S3_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_S3_SECRET_ACCESS_KEY }}
+          BACKUP_S3_BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
+          BACKUP_ENV: ${{ github.event.inputs.environment || 'production' }}
+        run: |
+          export AWS_ACCESS_KEY_ID="${BACKUP_S3_ACCESS_KEY_ID}"
+          export AWS_SECRET_ACCESS_KEY="${BACKUP_S3_SECRET_ACCESS_KEY}"
+          
+          ENDPOINT_ARG=""
+          if [ -n "${BACKUP_S3_ENDPOINT}" ]; then
+            ENDPOINT_ARG="--endpoint-url ${BACKUP_S3_ENDPOINT}"
+          fi
+          
+          S3_PREFIX="s3://${BACKUP_S3_BUCKET}/motorsafe/${BACKUP_ENV}/"
+          
+          # Get latest backup
+          LATEST=$(aws s3 ls ${ENDPOINT_ARG} "${S3_PREFIX}" | grep "\.tar\.gz\.enc$" | sort | tail -1 | awk '{print $4}')
+          
+          if [ -z "${LATEST}" ]; then
+            echo "No backup found!"
+            exit 1
+          fi
+          
+          echo "Downloading: ${LATEST}"
+          mkdir -p restore-test
+          aws s3 cp ${ENDPOINT_ARG} "${S3_PREFIX}${LATEST}" restore-test/
+          aws s3 cp ${ENDPOINT_ARG} "${S3_PREFIX}${LATEST}.sha256" restore-test/
+          
+          echo "BACKUP_FILE=restore-test/${LATEST}" >> $GITHUB_ENV
+
+      - name: Verify checksum
+        run: |
+          cd restore-test
+          EXPECTED=$(cat *.sha256)
+          ACTUAL=$(sha256sum *.enc | cut -d' ' -f1)
+          
+          if [ "${EXPECTED}" != "${ACTUAL}" ]; then
+            echo "Checksum mismatch!"
+            echo "Expected: ${EXPECTED}"
+            echo "Actual: ${ACTUAL}"
+            exit 1
+          fi
+          
+          echo "✓ Checksum verified"
+
+      - name: Decrypt backup
+        env:
+          BACKUP_ENCRYPTION_PASS: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+        run: |
+          cd restore-test
+          
+          ENC_FILE=$(ls *.enc)
+          TAR_FILE="${ENC_FILE%.enc}"
+          
+          openssl enc -aes-256-cbc -d -salt -pbkdf2 -iter 100000 \
+            -in "${ENC_FILE}" \
+            -out "${TAR_FILE}" \
+            -pass env:BACKUP_ENCRYPTION_PASS
+          
+          tar -xzf "${TAR_FILE}"
+          
+          echo "✓ Backup decrypted"
+          ls -la
+
+      - name: Restore database
+        run: |
+          cd restore-test
+          
+          # Find the backup directory
+          BACKUP_DIR=$(ls -d backup-* 2>/dev/null | head -1)
+          
+          if [ -z "${BACKUP_DIR}" ]; then
+            echo "No backup directory found"
+            exit 1
+          fi
+          
+          cd "${BACKUP_DIR}"
+          
+          # Check manifest
+          if [ -f "manifest.json" ]; then
+            echo "Manifest:"
+            cat manifest.json
+          fi
+          
+          # Restore database
+          if [ -f "database.dump" ]; then
+            echo "Restoring PostgreSQL dump..."
+            PGPASSWORD=test123 pg_restore \
+              --host=localhost \
+              --username=restore_test \
+              --dbname=motorsafe_restore_test \
+              --no-owner \
+              --no-acl \
+              --clean \
+              --if-exists \
+              database.dump || true
+            echo "✓ Database restored"
+          else
+            echo "No database.dump found"
+            exit 1
+          fi
+
+      - name: Run restore checks
+        run: |
+          chmod +x scripts/backup/restore-check.sh
+          PGPASSWORD=test123 ./scripts/backup/restore-check.sh \
+            --host=localhost \
+            --user=restore_test \
+            --dbname=motorsafe_restore_test
+
+      - name: Cleanup
+        if: always()
+        run: |
+          sudo -u postgres psql -c "DROP DATABASE IF EXISTS motorsafe_restore_test;"
+          sudo -u postgres psql -c "DROP USER IF EXISTS restore_test;"

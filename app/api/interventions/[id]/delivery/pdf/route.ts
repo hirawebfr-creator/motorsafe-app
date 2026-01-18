@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { failure } from "@/lib/api";
-import { requireApprovedTenant, requireUser, getTenantId } from "@/lib/guards";
+import { requireApprovedTenant, requireUser } from "@/lib/guards";
 import { toErrorResponse } from "@/lib/routeErrors";
 import { requireFeature, FeatureKey } from "@/lib/entitlements";
 import PDFDocument from "pdfkit/js/pdfkit.standalone";
@@ -38,7 +38,7 @@ export async function GET(req: Request, ctx: Ctx) {
     
     // Feature gate: PDF_MASTER required
     if (user.role !== "ADMIN") {
-      await requireFeature(getTenantId(user), FeatureKey.PDF_MASTER);
+      await requireFeature(user.garageId ?? -1, FeatureKey.PDF_MASTER);
     }
 
     const { id } = await ctx.params;

@@ -17,6 +17,7 @@
  */
 
 import "server-only";
+import { trackError } from "@/lib/observability";
 
 // ============================================
 // Types
@@ -180,7 +181,14 @@ async function callOpenAI(prompt: string, model: string | null): Promise<AICompl
       tokensUsed,
     };
   } catch (err) {
-    console.error("[AI:OpenAI] Request failed:", err instanceof Error ? err.message : "Unknown error");
+    const errorMessage = err instanceof Error ? err.message : "Unknown error";
+    console.error("[AI:OpenAI] Request failed:", errorMessage);
+    // Track AI errors (no PII)
+    trackError(err instanceof Error ? err : new Error(errorMessage), {
+      area: 'ai',
+      severity: 'warning',
+      operation: 'openai_completion',
+    });
     return { success: false, error: "Request failed", provider: "openai" };
   }
 }

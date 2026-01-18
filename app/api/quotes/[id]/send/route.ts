@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireApprovedTenant, requireUser, getTenantId } from "@/lib/guards";
+import { requireApprovedTenant, requireUser } from "@/lib/guards";
 import { RouteError, toErrorResponse } from "@/lib/routeErrors";
 import { requireFeature, FeatureKey, getGarageEntitlements } from "@/lib/entitlements";
 import { sendQuoteEmail } from "@/lib/email";
@@ -8,6 +8,7 @@ import { decryptClientData } from "@/lib/encryption";
 import { checkIpRateLimit } from "@/lib/rateLimit";
 import { createHash, randomBytes } from "crypto";
 import type { Prisma } from "@prisma/client";
+import { createQuoteReminderJobs } from "@/lib/automations";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,32 +26,43 @@ function formatEur(amount: number): string {
 export async function POST(req: Request, ctx: Ctx) {
   try {
     const user = requireApprovedTenant(await requireUser(req));
-    const organisationId = getTenantId(user);
+    const isAdmin = user.role === "ADMIN";
+    const organisationId = isAdmin ? undefined : (user.garageId ?? -1);
     
-    // Feature gate: DEVIS_FACTURES required
-    if (user.role !== "ADMIN") {
+    // Feature gate: DEVIS_FACTURES required (non-admin only)
+    if (!isAdmin && organisationId) {
       await requireFeature(organisationId, FeatureKey.DEVIS_FACTURES);
     }
 
+    // For ADMIN, we need to get the quote first to determine the organisationId for rate limiting
+    const { id } = await ctx.params;
+    const quoteId = String(id);
+
+    // First, fetch the quote to get its organisationId (needed for rate limits and plan checks)
+    const prelimQuote = await prisma.quote.findFirst({
+      where: { id: quoteId, ...(isAdmin ? {} : { organisationId }), deletedAt: null },
+      select: { organisationId: true },
+    });
+    if (!prelimQuote) throw new RouteError(404, "NOT_FOUND", "Devis introuvable");
+
+    const effectiveOrgId = isAdmin ? prelimQuote.organisationId : organisationId!;
+
     // Rate limit check (per garage)
-    const rl = await checkIpRateLimit(req, `quote_send:${organisationId}`, RATE_LIMIT, RATE_WINDOW_SEC);
+    const rl = await checkIpRateLimit(req, `quote_send:${effectiveOrgId}`, RATE_LIMIT, RATE_WINDOW_SEC);
     if (!rl.allowed) {
       throw new RouteError(429, "RATE_LIMITED", "Trop d'envois. Réessayez dans quelques minutes.");
     }
 
     // Check if plan allows sending emails (FREE plan cannot send emails)
-    const entitlements = await getGarageEntitlements(organisationId);
+    const entitlements = await getGarageEntitlements(effectiveOrgId);
     const canSendEmail = entitlements.planKey !== "FREE";
     if (!canSendEmail) {
       throw new RouteError(403, "PLAN_UPGRADE_REQUIRED", "L'envoi d'email nécessite un abonnement payant.");
     }
 
-    const { id } = await ctx.params;
-    const quoteId = String(id);
-
     const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const quote = await tx.quote.findFirst({
-        where: { id: quoteId, organisationId, deletedAt: null },
+        where: { id: quoteId, organisationId: effectiveOrgId, deletedAt: null },
         include: {
           client: true,
           organisation: { select: { name: true, displayName: true, phone: true, email: true } },
@@ -95,7 +107,7 @@ export async function POST(req: Request, ctx: Ctx) {
       // Create audit log
       await tx.auditLog.create({
         data: {
-          garageId: organisationId,
+          garageId: effectiveOrgId,
           userId: user.id,
           action: "QUOTE_SEND",
           entityType: "Quote",
@@ -127,6 +139,13 @@ export async function POST(req: Request, ctx: Ctx) {
     if (!emailResult.success) {
       console.error("[QuoteSend] Email failed:", emailResult.error);
       // Don't throw - quote is already marked as sent
+    }
+
+    // AUTOMATIONS-01: Create reminder jobs for this quote
+    try {
+      await createQuoteReminderJobs(effectiveOrgId, result.quote.id, new Date());
+    } catch (jobErr) {
+      console.warn("[QuoteSend] Failed to create reminder jobs:", jobErr);
     }
 
     return NextResponse.json({ 

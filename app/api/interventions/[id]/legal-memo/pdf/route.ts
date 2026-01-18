@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { failure } from "@/lib/api";
-import { requireApprovedTenant, requireUser, getTenantId } from "@/lib/guards";
+import { requireApprovedTenant, requireUser } from "@/lib/guards";
 import { toErrorResponse } from "@/lib/routeErrors";
 import { requireFeature, FeatureKey } from "@/lib/entitlements";
 import { buildLegalMemoPdf } from "@/lib/pdf/legalMemo";
@@ -20,7 +20,7 @@ export async function GET(req: Request, ctx: Ctx) {
     
     // Feature gate: LEGAL_MEMO required (PRO plan only)
     if (user.role !== "ADMIN") {
-      await requireFeature(getTenantId(user), FeatureKey.LEGAL_MEMO);
+      await requireFeature(user.garageId ?? -1, FeatureKey.LEGAL_MEMO);
     }
 
     const { id } = await ctx.params;

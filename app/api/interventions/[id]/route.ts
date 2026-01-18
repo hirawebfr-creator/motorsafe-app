@@ -152,6 +152,22 @@ async function updateIntervention(req: Request, ctx: { params: Promise<{ id: str
       return NextResponse.json(failure("Intervention introuvable."), { status: 404 });
     }
 
+    // LEGAL-RETENTION-01: Check if intervention is locked by dispute
+    if (existing.disputeStatus === "OPEN") {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: {
+            code: "LOCKED_BY_DISPUTE",
+            message: `Cette intervention est verrouillée en raison d'un litige ouvert. Résolvez le litige avant de modifier.`,
+            disputeOpenedAt: existing.disputeOpenedAt,
+            disputeReason: existing.disputeReason,
+          },
+        },
+        { status: 400 }
+      );
+    }
+
     // HARDEN-01: Check if intervention is locked by a signed signature
     const signedSignature = await prisma.signatureRequest.findFirst({
       where: {
@@ -405,11 +421,27 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
       where: user.role === "ADMIN"
         ? { id: interventionId, deletedAt: null }
         : { id: interventionId, garageId: user.garageId ?? -1, deletedAt: null },
-      select: { id: true, garageId: true },
+      select: { id: true, garageId: true, disputeStatus: true, disputeReason: true, disputeOpenedAt: true },
     });
 
     if (!existing) {
       return NextResponse.json(failure("Intervention introuvable."), { status: 404 });
+    }
+
+    // LEGAL-RETENTION-01: Check if intervention is locked by dispute
+    if (existing.disputeStatus === "OPEN") {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: {
+            code: "LOCKED_BY_DISPUTE",
+            message: `Cette intervention est verrouillée en raison d'un litige ouvert. Résolvez le litige avant de supprimer.`,
+            disputeOpenedAt: existing.disputeOpenedAt,
+            disputeReason: existing.disputeReason,
+          },
+        },
+        { status: 400 }
+      );
     }
 
     await prisma.$transaction(async (tx: Prisma.TransactionClient) => {

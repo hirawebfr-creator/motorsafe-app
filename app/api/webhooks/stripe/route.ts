@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getStripe } from "@/lib/stripe";
+import { trackCriticalError } from "@/lib/observability";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -264,9 +265,140 @@ export async function POST(req: Request) {
       }
     }
 
+    // ============================================
+    // PAYMENTS-01: Handle invoice payment checkout sessions
+    // ============================================
+    if (event.type === "checkout.session.completed") {
+      const session = event.data.object as any;
+      
+      // Check if this is a motorsafe invoice payment (not subscription)
+      if (session.metadata?.source === "motorsafe" && session.metadata?.invoiceId) {
+        const invoiceId = session.metadata.invoiceId;
+        const garageId = parseInt(session.metadata.garageId, 10);
+        const paymentType = session.metadata.paymentType || "FULL";
+        const paymentIntentId = session.payment_intent as string | null;
+
+        // Update payment record
+        const payment = await prisma.payment.findFirst({
+          where: { stripeCheckoutSessionId: session.id },
+        });
+
+        if (payment) {
+          await prisma.payment.update({
+            where: { id: payment.id },
+            data: {
+              status: "SUCCEEDED",
+              stripePaymentIntentId: paymentIntentId,
+              paidAt: new Date(),
+            },
+          });
+
+          // Update invoice amounts
+          const invoice = await prisma.invoice.findUnique({
+            where: { id: invoiceId },
+            select: { id: true, totalIncl: true, amountPaid: true, status: true },
+          });
+
+          if (invoice) {
+            const newAmountPaid = invoice.amountPaid + payment.amount;
+            const isPaidInFull = newAmountPaid >= invoice.totalIncl;
+            const newStatus = isPaidInFull ? "PAID" : "PARTIALLY_PAID";
+
+            await prisma.invoice.update({
+              where: { id: invoiceId },
+              data: {
+                amountPaid: newAmountPaid,
+                status: newStatus,
+                ...(isPaidInFull ? { paidAt: new Date() } : {}),
+                // Clear payment link after successful payment
+                paymentLinkUrl: null,
+                paymentLinkExpiresAt: null,
+              },
+            });
+
+            // Audit log
+            await prisma.auditLog.create({
+              data: {
+                garageId,
+                action: "INVOICE_PAYMENT_SUCCEEDED",
+                entityType: "Invoice",
+                entityId: invoiceId,
+                metadata: {
+                  paymentId: payment.id,
+                  paymentType,
+                  amountPaid: payment.amount,
+                  totalPaid: newAmountPaid,
+                  newStatus,
+                  paymentIntentId,
+                },
+              },
+            });
+
+            // Cancel pending invoice reminder jobs if fully paid
+            if (isPaidInFull) {
+              try {
+                const { cancelPendingJobs } = await import("@/lib/automations");
+                await cancelPendingJobs("invoice", invoiceId);
+              } catch (e) {
+                console.warn("[Webhook] Failed to cancel reminder jobs:", e);
+              }
+            }
+          }
+        }
+
+        await prisma.stripeEvent.update({
+          where: { id: event.id },
+          data: { garageId, processedAt: new Date() },
+        });
+      }
+    }
+
+    // PAYMENTS-01: Handle payment_intent.payment_failed for invoice payments
+    if (event.type === "payment_intent.payment_failed") {
+      const paymentIntent = event.data.object as any;
+      
+      // Find payment by stripePaymentIntentId
+      const payment = await prisma.payment.findFirst({
+        where: { stripePaymentIntentId: paymentIntent.id },
+      });
+
+      if (payment) {
+        await prisma.payment.update({
+          where: { id: payment.id },
+          data: { status: "FAILED" },
+        });
+
+        await prisma.auditLog.create({
+          data: {
+            garageId: payment.organisationId,
+            action: "INVOICE_PAYMENT_FAILED",
+            entityType: "Payment",
+            entityId: payment.id,
+            metadata: {
+              invoiceId: payment.invoiceId,
+              error: paymentIntent.last_payment_error?.message,
+            },
+          },
+        });
+
+        await prisma.stripeEvent.update({
+          where: { id: event.id },
+          data: { garageId: payment.organisationId, processedAt: new Date() },
+        });
+      }
+    }
+
     // Always 200 to stop retries once stored.
     return NextResponse.json({ ok: true, received: true });
   } catch (err: any) {
+    // Track to Sentry + SystemEvent (FATAL for webhook errors)
+    await trackCriticalError(
+      err instanceof Error ? err : new Error(String(err?.message || 'Webhook error')),
+      'stripe',
+      'webhook_processing',
+      { eventId: event.id, eventType: event.type }
+    );
+    
     await prisma.stripeEvent.update({
       where: { id: event.id },
       data: { processedAt: new Date(), lastError: err?.message ? String(err.message) : "Webhook error" },

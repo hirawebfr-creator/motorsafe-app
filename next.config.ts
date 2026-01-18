@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
 
 // Content Security Policy - allows scripts/styles from self and trusted sources
 // Note: 'unsafe-inline' needed for Next.js inline styles and some scripts
@@ -8,7 +9,7 @@ const cspValue = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: https: blob:",
   "font-src 'self' data:",
-  "connect-src 'self' https://api.resend.com https://api.openai.com https://api.anthropic.com",
+  "connect-src 'self' https://api.resend.com https://api.openai.com https://api.anthropic.com https://*.ingest.sentry.io",
   "frame-ancestors 'none'", // Stricter than X-Frame-Options
   "base-uri 'self'",
   "form-action 'self'",
@@ -71,4 +72,32 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Sentry configuration
+const sentryConfig = {
+  // For all available options, see:
+  // https://github.com/getsentry/sentry-webpack-plugin#options
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  
+  // Only upload source maps in production
+  silent: !process.env.CI,
+  
+  // Upload source maps for better error traces
+  widenClientFileUpload: true,
+  
+  // Hides source maps from generated client bundles
+  hideSourceMaps: true,
+  
+  // Automatically tree-shake Sentry logger statements
+  disableLogger: true,
+  
+  // Enables automatic instrumentation of Vercel Cron Monitors
+  automaticVercelMonitors: false,
+};
+
+// Only wrap with Sentry if DSN is configured
+const exportedConfig = process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN
+  ? withSentryConfig(nextConfig, sentryConfig)
+  : nextConfig;
+
+export default exportedConfig;

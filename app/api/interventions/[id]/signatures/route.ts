@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { failure, success } from "@/lib/api";
-import { requireApprovedTenant, requireUser, getTenantId } from "@/lib/guards";
+import { requireApprovedTenant, requireUser } from "@/lib/guards";
 import { toErrorResponse } from "@/lib/routeErrors";
 import { requireFeature, FeatureKey } from "@/lib/entitlements";
 
@@ -16,7 +16,7 @@ export async function GET(req: Request, ctx: Ctx) {
     
     // Feature gate: SIGNATURE required
     if (user.role !== "ADMIN") {
-      await requireFeature(getTenantId(user), FeatureKey.SIGNATURE);
+      await requireFeature(user.garageId ?? -1, FeatureKey.SIGNATURE);
     }
 
     const { id: documentId } = await ctx.params;

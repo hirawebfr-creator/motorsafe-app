@@ -327,6 +327,14 @@ export async function buildInsuranceInfoPdf(interventionId: string): Promise<Ins
     doc.fontSize(8).fillColor("#888").text(`SIRET: ${garage.siret}`, { align: "right" });
   }
 
+  // SafeMotor branding footer
+  doc.moveDown(0.5);
+  doc.fontSize(7).fillColor("#999").text(
+    "Généré avec SafeMotor — motorsafe.fr",
+    left, doc.y, { align: "center", width: contentWidth }
+  );
+  doc.fillColor("#000");
+
   // End document
   doc.end();
 

@@ -6,6 +6,7 @@
  */
 
 import "server-only";
+import { trackError } from "@/lib/observability";
 
 // ============================================
 // Types
@@ -429,6 +430,12 @@ export async function lookupPlateFR(plateNormalized: string): Promise<LookupResp
     }
 
     console.error("[VehicleLookup] Fetch error:", err);
+    // Track lookup errors (no plate/PII logged)
+    trackError(err instanceof Error ? err : new Error("VehicleLookup fetch error"), {
+      area: 'lookup',
+      severity: 'warning',
+      operation: 'plate_lookup',
+    });
     return {
       success: false,
       error: {

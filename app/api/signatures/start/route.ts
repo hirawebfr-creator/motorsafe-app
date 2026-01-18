@@ -6,10 +6,16 @@ import { toErrorResponse } from "@/lib/routeErrors";
 import { requireFeature, FeatureKey } from "@/lib/entitlements";
 import { randomBytes, createHash } from "crypto";
 import { decryptClientData } from "@/lib/encryption";
-import { sendSignatureEmail } from "@/lib/email";
+import { sendSignatureEmail, getGarageLogoUrl } from "@/lib/email";
+import { checkIpRateLimit, rateLimitHeaders } from "@/lib/rateLimit";
+import { createSignatureReminderJobs } from "@/lib/automations";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+// Rate limit: 10 signature emails per 10 minutes per garage
+const RATE_LIMIT = 10;
+const RATE_WINDOW_SEC = 10 * 60;
 
 // Token TTL in days (default 7)
 const TOKEN_TTL_DAYS = parseInt(process.env.SIGN_TOKEN_TTL_DAYS || "7", 10);
@@ -44,6 +50,16 @@ export async function POST(req: Request) {
   try {
     const user = requireApprovedTenant(await requireUser(req));
     
+    // Rate limit check (per garage)
+    const garageIdForRateLimit = user.garageId ?? 0;
+    const rl = await checkIpRateLimit(req, `signature_start:${garageIdForRateLimit}`, RATE_LIMIT, RATE_WINDOW_SEC);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { ok: false, error: { code: "RATE_LIMITED", message: "Trop de demandes de signature. Réessayez plus tard." } },
+        { status: 429, headers: rateLimitHeaders(rl) }
+      );
+    }
+    
     // Feature gate: SIGNATURE required
     if (user.role !== "ADMIN") {
       await requireFeature(getTenantId(user), FeatureKey.SIGNATURE);
@@ -67,6 +83,8 @@ export async function POST(req: Request) {
     let clientEmail: string | null = null;
     let clientName: string | null = null;
     let garageName: string | null = null;
+    let effectiveGarageId: number | null = null;
+    let garageLogoKey: string | null = null; // WHITE-LABEL-PARTNERS-01
 
     if (documentType === "INTERVENTION_ORDER") {
       pdfRoute = `/api/interventions/${documentId}/order/pdf`;
@@ -103,6 +121,8 @@ export async function POST(req: Request) {
       clientEmail = clientDecrypted.email || null;
       clientName = [clientDecrypted.firstName, clientDecrypted.lastName].filter(Boolean).join(" ") || null;
       garageName = intervention.garage?.name || null;
+      garageLogoKey = intervention.garage?.logoKey || null; // WHITE-LABEL-PARTNERS-01
+      effectiveGarageId = intervention.garageId;
 
       // CLIENT-EMAIL-REQUIRED-01: Block signature if client email is missing
       if (!clientEmail) {
@@ -128,6 +148,8 @@ export async function POST(req: Request) {
       clientEmail = clientDecrypted.email || null;
       clientName = [clientDecrypted.firstName, clientDecrypted.lastName].filter(Boolean).join(" ") || null;
       garageName = quote.organisation?.name || null;
+      garageLogoKey = quote.organisation?.logoKey || null; // WHITE-LABEL-PARTNERS-01
+      effectiveGarageId = quote.organisationId;
 
       // CLIENT-EMAIL-REQUIRED-01: Block signature if client email is missing
       if (!clientEmail) {
@@ -145,6 +167,12 @@ export async function POST(req: Request) {
     const token = generateToken();
     const expiresAt = new Date(Date.now() + TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000);
 
+    // Determine garageId: use from document if ADMIN (since admin has no garageId)
+    const signatureGarageId = effectiveGarageId ?? user.garageId;
+    if (!signatureGarageId) {
+      return NextResponse.json(failure("Garage non déterminé pour la signature"), { status: 400 });
+    }
+
     // Create signature request
     const signatureRequest = await prisma.signatureRequest.create({
       data: {
@@ -152,7 +180,7 @@ export async function POST(req: Request) {
         expiresAt,
         documentType: documentType as any,
         documentId,
-        garageId: user.garageId!,
+        garageId: signatureGarageId,
         clientId,
         status: "SENT",
         pdfHash,
@@ -185,6 +213,7 @@ export async function POST(req: Request) {
         garageName: garageName || undefined,
         documentType,
         expiresAt,
+        garageLogoUrl: getGarageLogoUrl(effectiveGarageId, !!garageLogoKey), // WHITE-LABEL-PARTNERS-01
       });
       emailSent = emailResult.success;
       emailError = emailResult.error || null;
@@ -192,6 +221,13 @@ export async function POST(req: Request) {
       if (!emailResult.success) {
         console.warn(`[Signature] Email failed for ${clientEmail}: ${emailResult.error}`);
       }
+    }
+
+    // AUTOMATIONS-01: Create reminder jobs for this signature
+    try {
+      await createSignatureReminderJobs(signatureGarageId, signatureRequest.id, new Date());
+    } catch (jobErr) {
+      console.warn("[Signature] Failed to create reminder jobs:", jobErr);
     }
 
     return NextResponse.json(success({

@@ -450,6 +450,11 @@ export async function buildOrderMasterPdf(
     `Document généré le ${formatDateTime(new Date())} - Réf. ${intervention.id}`,
     left, doc.y, { align: "center", width: contentWidth }
   );
+  doc.fontSize(7).fillColor("#999").text(
+    "Généré avec SafeMotor — motorsafe.fr",
+    left, doc.y + 4, { align: "center", width: contentWidth }
+  );
+  doc.fillColor("#000");
 
   // 4. Finalize PDF
   doc.end();

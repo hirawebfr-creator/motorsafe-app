@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { success } from "@/lib/api";
-import { requireApprovedTenant, requireUser, getTenantId } from "@/lib/guards";
+import { requireApprovedTenant, requireUser } from "@/lib/guards";
 import { toErrorResponse, RouteError } from "@/lib/routeErrors";
 import { getOrSet } from "@/lib/cache";
 import { getEntitlementsForResponse } from "@/lib/entitlements";
@@ -56,7 +56,7 @@ export async function GET(req: Request) {
       );
     }
 
-    const garageId = getTenantId(user);
+    const garageId = user.garageId ?? -1;
 
     // Use cache to reduce DB load (billing status changes rarely)
     const garage = await getOrSet(

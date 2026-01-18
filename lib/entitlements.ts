@@ -30,6 +30,24 @@ export const FeatureKey = {
   MULTI_USERS: "MULTI_USERS",
   PRIORITY_SUPPORT: "PRIORITY_SUPPORT",
   
+  // PAYMENTS-01: Online invoice payments via Stripe
+  PAYMENTS: "PAYMENTS",
+  
+  // APPOINTMENTS-01: Appointment scheduling with reminders
+  APPOINTMENTS: "APPOINTMENTS",
+  
+  // WORKSHOP-OPS-01: Workshop operations features
+  REPAIR_ORDER: "REPAIR_ORDER",       // Ordre de Réparation
+  RETURN_REPORT: "RETURN_REPORT",     // PV de restitution
+  LOAN_VEHICLE: "LOAN_VEHICLE",       // Véhicule de prêt
+  
+  // WHITE-LABEL-PARTNERS-01: Branding features
+  BRANDING: "BRANDING",               // Logo sur PDF/emails (STARTER+)
+  PARTNER_BADGE: "PARTNER_BADGE",     // Badge partenaire + page publique (PRO)
+  
+  // IMPORT-ONBOARDING-01: CSV import feature
+  IMPORT: "IMPORT",                   // CSV import clients/vehicles (STARTER+)
+  
   // Future (gated but not implemented)
   AI_ASSIST: "AI_ASSIST",
 } as const;
@@ -63,6 +81,7 @@ export interface PlanEntitlements {
     vehicleLookupPerMonth: number;
     aiRequestsPerMonth: number;
     signaturesPerMonth: number;  // -1 = unlimited
+    importRowsPerBatch: number;  // IMPORT-ONBOARDING-01: max rows per CSV import
   };
   limits: {
     clients: number;
@@ -85,6 +104,7 @@ export const PLAN_ENTITLEMENTS: Record<PlanKey, PlanEntitlements> = {
       vehicleLookupPerMonth: 20,
       aiRequestsPerMonth: 30,
       signaturesPerMonth: 20,
+      importRowsPerBatch: 20,  // IMPORT-ONBOARDING-01: Trial limit
     },
     limits: {
       clients: 30,
@@ -103,11 +123,17 @@ export const PLAN_ENTITLEMENTS: Record<PlanKey, PlanEntitlements> = {
       FeatureKey.VEHICLE_LOOKUP,
       FeatureKey.INSURANCE_DOC,
       FeatureKey.DEVIS_FACTURES,
+      FeatureKey.APPOINTMENTS, // APPOINTMENTS-01: ESSENTIAL+
+      FeatureKey.REPAIR_ORDER, // WORKSHOP-OPS-01: OR + signatures
+      FeatureKey.RETURN_REPORT, // WORKSHOP-OPS-01: PV restitution
+      FeatureKey.BRANDING, // WHITE-LABEL-PARTNERS-01: Logo sur PDF/emails
+      FeatureKey.IMPORT, // IMPORT-ONBOARDING-01: CSV import
     ],
     quotas: {
       vehicleLookupPerMonth: 60,
       aiRequestsPerMonth: 150,
       signaturesPerMonth: -1,  // unlimited
+      importRowsPerBatch: 2000,  // IMPORT-ONBOARDING-01: ESSENTIAL limit
     },
     limits: {
       clients: Infinity,
@@ -132,11 +158,20 @@ export const PLAN_ENTITLEMENTS: Record<PlanKey, PlanEntitlements> = {
       FeatureKey.MULTI_USERS,
       FeatureKey.PRIORITY_SUPPORT,
       FeatureKey.AI_ASSIST,
+      FeatureKey.PAYMENTS, // PAYMENTS-01: PRO only for MVP
+      FeatureKey.APPOINTMENTS, // APPOINTMENTS-01: ESSENTIAL+
+      FeatureKey.REPAIR_ORDER, // WORKSHOP-OPS-01: OR + signatures
+      FeatureKey.RETURN_REPORT, // WORKSHOP-OPS-01: PV restitution
+      FeatureKey.LOAN_VEHICLE, // WORKSHOP-OPS-01: Véhicule de prêt (PRO only)
+      FeatureKey.BRANDING, // WHITE-LABEL-PARTNERS-01: Logo sur PDF/emails
+      FeatureKey.PARTNER_BADGE, // WHITE-LABEL-PARTNERS-01: Badge partenaire + page publique
+      FeatureKey.IMPORT, // IMPORT-ONBOARDING-01: CSV import
     ],
     quotas: {
       vehicleLookupPerMonth: 400,
       aiRequestsPerMonth: 800,
       signaturesPerMonth: -1,  // unlimited
+      importRowsPerBatch: -1,  // IMPORT-ONBOARDING-01: PRO unlimited
     },
     limits: {
       clients: Infinity,
@@ -215,6 +250,23 @@ export async function getGarageEntitlements(garageId: number): Promise<GarageEnt
 export async function hasFeature(garageId: number, feature: FeatureKeyType): Promise<boolean> {
   const entitlements = await getGarageEntitlements(garageId);
   return entitlements.features.includes(feature);
+}
+
+/**
+ * Get display name for a plan (used in UI)
+ * WHITE-LABEL-PARTNERS-01
+ */
+export function getPlanDisplayName(plan: PlanKey | string): string {
+  switch (plan) {
+    case "FREE":
+      return "Essai";
+    case "STARTER":
+      return "Essentiel";
+    case "PRO":
+      return "Pro";
+    default:
+      return "Essai";
+  }
 }
 
 // ============================================
@@ -389,15 +441,38 @@ export async function getAllQuotaUsages(garageId: number): Promise<QuotaUsageRes
 /**
  * Increment vehicle lookup usage
  * Uses upsert for atomic operation
+ * AUTOMATIONS-01: Creates quota alert job if threshold reached
  */
 export async function incrementLookupUsage(garageId: number): Promise<void> {
   const monthKey = getCurrentMonthKey();
   
-  await prisma.vehicleLookupUsage.upsert({
+  const result = await prisma.vehicleLookupUsage.upsert({
     where: { garageId_monthKey: { garageId, monthKey } },
     create: { garageId, monthKey, count: 1 },
     update: { count: { increment: 1 } },
   });
+  
+  // Check if we crossed quota threshold (80% or 100%)
+  try {
+    const entitlements = await getGarageEntitlements(garageId);
+    const limit = entitlements.quotas.vehicleLookupPerMonth;
+    if (limit > 0) { // Not unlimited
+      const usage = result.count;
+      const pct = (usage / limit) * 100;
+      
+      if (pct >= 80 && pct < 100) {
+        // Dynamically import to avoid circular dependency
+        const { createQuotaAlertJob } = await import("@/lib/automations");
+        await createQuotaAlertJob(garageId, "vehicleLookup", 80, monthKey);
+      } else if (pct >= 100) {
+        const { createQuotaAlertJob } = await import("@/lib/automations");
+        await createQuotaAlertJob(garageId, "vehicleLookup", 100, monthKey);
+      }
+    }
+  } catch (alertErr) {
+    // Don't fail the main operation if alert fails
+    console.warn("[Quota] Failed to create quota alert:", alertErr);
+  }
 }
 
 // ============================================
@@ -436,6 +511,7 @@ export async function requireQuota(
       vehicleLookupPerMonth: "Recherches véhicule",
       aiRequestsPerMonth: "Requêtes IA",
       signaturesPerMonth: "Signatures",
+      importRowsPerBatch: "Lignes par import CSV",
     };
     
     throw new RouteError(

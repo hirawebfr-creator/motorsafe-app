@@ -4,7 +4,7 @@
  */
 
 import { NextResponse } from "next/server";
-import { requireApprovedTenant, requireUser, getTenantId } from "@/lib/guards";
+import { requireApprovedTenant, requireUser } from "@/lib/guards";
 import { toErrorResponse } from "@/lib/routeErrors";
 import { requireFeature, FeatureKey } from "@/lib/entitlements";
 import { failure } from "@/lib/api";
@@ -22,7 +22,7 @@ export async function GET(req: Request, ctx: Ctx) {
     
     // Feature gate: INSURANCE_DOC required
     if (user.role !== "ADMIN") {
-      await requireFeature(getTenantId(user), FeatureKey.INSURANCE_DOC);
+      await requireFeature(user.garageId ?? -1, FeatureKey.INSURANCE_DOC);
     }
 
     const { id } = await ctx.params;

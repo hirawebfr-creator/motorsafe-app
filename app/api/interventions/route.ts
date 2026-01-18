@@ -27,6 +27,7 @@ function normalizeText(value: unknown) {
 const QuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  q: z.string().trim().max(120).optional(),
   vehicleId: z.string().trim().min(1).optional(),
   status: z.enum(["DRAFT", "OPEN", "DONE", "CANCELED"]).optional(),
   from: z.string().datetime().optional(),
@@ -56,6 +57,7 @@ export async function GET(req: Request) {
     const parsed = QuerySchema.safeParse({
       page: url.searchParams.get("page") ?? undefined,
       pageSize: url.searchParams.get("pageSize") ?? undefined,
+      q: url.searchParams.get("q") ?? undefined,
       vehicleId: url.searchParams.get("vehicleId") ?? undefined,
       status: url.searchParams.get("status") ?? undefined,
       from: url.searchParams.get("from") ?? undefined,
@@ -69,13 +71,27 @@ export async function GET(req: Request) {
       );
     }
 
-    const { page, pageSize, vehicleId, status, from, to } = parsed.data;
+    const { page, pageSize, q, vehicleId, status, from, to } = parsed.data;
+    const query = (q ?? "").trim();
 
     const where: any = {
       deletedAt: null,
       ...(user.role === "ADMIN" ? {} : { garageId: user.garageId ?? -1 }),
       ...(vehicleId ? { vehicleId } : {}),
       ...(status ? { status } : {}),
+      ...(query
+        ? {
+            OR: [
+              { type: { contains: query, mode: "insensitive" } },
+              { title: { contains: query, mode: "insensitive" } },
+              { vehicle: { plate: { contains: query, mode: "insensitive" } } },
+              { vehicle: { brand: { contains: query, mode: "insensitive" } } },
+              { vehicle: { model: { contains: query, mode: "insensitive" } } },
+              { vehicle: { client: { firstName: { contains: query, mode: "insensitive" } } } },
+              { vehicle: { client: { lastName: { contains: query, mode: "insensitive" } } } },
+            ],
+          }
+        : {}),
     };
 
     if (from || to) {

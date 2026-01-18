@@ -8,6 +8,7 @@ import { Buffer } from "buffer";
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { decryptClientData } from "@/lib/encryption";
+import { buildPdfBrandingContext, renderPdfHeader, renderPdfFooter } from "@/lib/pdf/branding";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -81,16 +82,35 @@ export async function GET(req: Request, ctx: Ctx) {
       doc.moveDown(0.3);
     };
 
-    doc.fontSize(18).font("Helvetica-Bold").text("MotorSafe", left, doc.y);
-    doc.fontSize(10).font("Helvetica").text(formatDate(new Date()), right - 160, doc.y - 18, {
-      width: 160,
-      align: "right",
-    });
+    // WHITE-LABEL-PARTNERS-01: Load branding context
+    const brandingCtx = intervention.garageId 
+      ? await buildPdfBrandingContext(intervention.garageId)
+      : null;
+    
+    if (brandingCtx) {
+      // Render branded header
+      const contentY = renderPdfHeader(doc, brandingCtx, {
+        title: "Dossier d'intervention",
+        documentNumber: `N° ${intervention.id.slice(0, 8).toUpperCase()}`,
+        date: formatDate(new Date()),
+      });
+      doc.y = contentY;
+      
+      // Setup footer on page end
+      renderPdfFooter(doc, brandingCtx);
+    } else {
+      // Fallback: original header
+      doc.fontSize(18).font("Helvetica-Bold").text("MotorSafe", left, doc.y);
+      doc.fontSize(10).font("Helvetica").text(formatDate(new Date()), right - 160, doc.y - 18, {
+        width: 160,
+        align: "right",
+      });
 
-    doc.moveDown(0.4);
-    doc.fontSize(16).font("Helvetica-Bold").text("Dossier d'intervention");
-    doc.moveTo(left, doc.y + 4).lineTo(right, doc.y + 4).strokeColor("#444").stroke();
-    doc.moveDown(0.8);
+      doc.moveDown(0.4);
+      doc.fontSize(16).font("Helvetica-Bold").text("Dossier d'intervention");
+      doc.moveTo(left, doc.y + 4).lineTo(right, doc.y + 4).strokeColor("#444").stroke();
+      doc.moveDown(0.8);
+    }
 
     row("ID intervention", intervention.id);
     row("Cree le", formatDate(intervention.createdAt));

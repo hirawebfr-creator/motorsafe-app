@@ -276,6 +276,11 @@ export async function buildLegalMemoPdf(interventionId: string): Promise<LegalMe
   doc.moveDown(0.2);
   doc.text("Ce document constitue une synthèse du dossier. Les hashes SHA-256 garantissent l'intégrité des fichiers.");
   doc.text("Toute modification des documents originaux invalide les hashes de vérification.");
+  doc.moveDown(0.3);
+  doc.fontSize(7).fillColor("#999").text(
+    "Généré avec SafeMotor — motorsafe.fr",
+    left, doc.y, { align: "center", width: right - left }
+  );
   doc.fillColor("#000");
 
   doc.end();

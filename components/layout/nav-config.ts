@@ -15,6 +15,8 @@ import {
   UserCheck,
   Scale,
   Store,
+  CalendarDays,
+  UsersRound,
 } from "lucide-react";
 import type React from "react";
 
@@ -34,9 +36,11 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Clients", href: "/clients", icon: Users, group: "main" },
   { label: "Véhicules", href: "/vehicules", icon: Car, group: "main" },
   { label: "Interventions", href: "/interventions", icon: Wrench, group: "main" },
+  { label: "Planning", href: "/planning", icon: CalendarDays, group: "main" },
   { label: "Devis", href: "/devis", icon: FileCheck, group: "main" },
   { label: "Factures", href: "/factures", icon: Receipt, group: "main" },
   { label: "Documents", href: "/documents", icon: FileText, group: "main" },
+  { label: "Équipe", href: "/equipe", icon: UsersRound, group: "main" },
   { label: "Messages", href: "/messages", icon: MessageSquare, group: "main" },
   { label: "Notifications", href: "/notifications", icon: Bell, group: "main" },
   { label: "Paramètres", href: "/parametres", icon: Settings, group: "main" },

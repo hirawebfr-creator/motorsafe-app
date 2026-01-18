@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireApprovedTenant, requireUser, getTenantId } from "@/lib/guards";
+import { requireApprovedTenant, requireUser } from "@/lib/guards";
 import { RouteError, toErrorResponse } from "@/lib/routeErrors";
 import { requireFeature, FeatureKey } from "@/lib/entitlements";
 import { z } from "zod";
@@ -31,16 +31,17 @@ const PatchSchema = z.object({
 export async function GET(req: Request, ctx: Ctx) {
   try {
     const user = requireApprovedTenant(await requireUser(req));
-    const organisationId = getTenantId(user);
+    const isAdmin = user.role === "ADMIN";
+    const organisationId = isAdmin ? undefined : (user.garageId ?? -1);
     
     // Feature gate: DEVIS_FACTURES required
-    if (user.role !== "ADMIN") {
+    if (!isAdmin && organisationId) {
       await requireFeature(organisationId, FeatureKey.DEVIS_FACTURES);
     }
 
     const { id } = await ctx.params;
     const invoice = await prisma.invoice.findFirst({
-      where: { id: String(id), organisationId, deletedAt: null },
+      where: { id: String(id), ...(isAdmin ? {} : { organisationId }), deletedAt: null },
       include: {
         lines: { where: { deletedAt: null }, orderBy: { createdAt: "asc" } },
         client: true,
@@ -60,7 +61,8 @@ export async function GET(req: Request, ctx: Ctx) {
 export async function PATCH(req: Request, ctx: Ctx) {
   try {
     const user = requireApprovedTenant(await requireUser(req));
-    const organisationId = getTenantId(user);
+    const isAdmin = user.role === "ADMIN";
+    const organisationId = isAdmin ? undefined : (user.garageId ?? -1);
 
     const { id } = await ctx.params;
     const invoiceId = String(id);
@@ -76,7 +78,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
 
     const updated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const existing = await tx.invoice.findFirst({
-        where: { id: invoiceId, organisationId, deletedAt: null },
+        where: { id: invoiceId, ...(isAdmin ? {} : { organisationId }), deletedAt: null },
         include: { lines: { where: { deletedAt: null } } },
       });
       if (!existing) throw new RouteError(404, "NOT_FOUND", "Facture introuvable");
@@ -85,8 +87,11 @@ export async function PATCH(req: Request, ctx: Ctx) {
         throw new RouteError(409, "CONFLICT", "Facture non modifiable");
       }
 
+      // For ADMIN, use the invoice's organisationId for org lookup
+      const effectiveOrgId = isAdmin ? existing.organisationId : organisationId!;
+
       const org = await tx.garage.findFirst({
-        where: { id: organisationId },
+        where: { id: effectiveOrgId },
         select: { defaultVatRate: true, defaultVatMode: true },
       });
       if (!org) throw new RouteError(404, "NOT_FOUND", "Organisation introuvable");
@@ -94,7 +99,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
       const clientId = input.clientId ?? existing.clientId;
 
       const client = await tx.client.findFirst({
-        where: { id: clientId, garageId: organisationId, deletedAt: null },
+        where: { id: clientId, garageId: effectiveOrgId, deletedAt: null },
         select: { id: true, vatProfile: true, vatNumber: true, countryCode: true },
       });
       if (!client) throw new RouteError(404, "NOT_FOUND", "Client introuvable");
@@ -102,7 +107,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
       const nextVehicleId = vehicleId === undefined ? existing.vehicleId : vehicleId || null;
       if (nextVehicleId) {
         const vehicle = await tx.vehicle.findFirst({
-          where: { id: nextVehicleId, garageId: organisationId, deletedAt: null },
+          where: { id: nextVehicleId, garageId: effectiveOrgId, deletedAt: null },
           select: { id: true, clientId: true },
         });
         if (!vehicle) throw new RouteError(404, "NOT_FOUND", "Vehicule introuvable");
@@ -169,7 +174,7 @@ export async function PATCH(req: Request, ctx: Ctx) {
 
       await tx.auditLog.create({
         data: {
-          garageId: organisationId,
+          garageId: effectiveOrgId,
           userId: user.id,
           action: "INVOICE_UPDATE",
           entityType: "Invoice",
@@ -197,24 +202,27 @@ export async function PATCH(req: Request, ctx: Ctx) {
 export async function DELETE(req: Request, ctx: Ctx) {
   try {
     const user = requireApprovedTenant(await requireUser(req));
-    const organisationId = getTenantId(user);
+    const isAdmin = user.role === "ADMIN";
+    const organisationId = isAdmin ? undefined : (user.garageId ?? -1);
 
     const { id } = await ctx.params;
     const invoiceId = String(id);
 
     await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const existing = await tx.invoice.findFirst({
-        where: { id: invoiceId, organisationId, deletedAt: null },
-        select: { id: true },
+        where: { id: invoiceId, ...(isAdmin ? {} : { organisationId }), deletedAt: null },
+        select: { id: true, organisationId: true },
       });
       if (!existing) throw new RouteError(404, "NOT_FOUND", "Facture introuvable");
+
+      const effectiveOrgId = isAdmin ? existing.organisationId : organisationId!;
 
       await tx.invoice.update({ where: { id: invoiceId }, data: { deletedAt: new Date() } });
       await tx.invoiceLine.updateMany({ where: { invoiceId, deletedAt: null }, data: { deletedAt: new Date() } });
 
       await tx.auditLog.create({
         data: {
-          garageId: organisationId,
+          garageId: effectiveOrgId,
           userId: user.id,
           action: "INVOICE_DELETE",
           entityType: "Invoice",

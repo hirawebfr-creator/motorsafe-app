@@ -11,9 +11,14 @@ import { prisma } from "@/lib/prisma";
 import { decryptClientData } from "@/lib/encryption";
 import { randomBytes, createHash } from "crypto";
 import { Resend } from "resend";
+import { checkIpRateLimit, rateLimitHeaders } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+// Rate limit: 10 insurance emails per 10 minutes per garage
+const RATE_LIMIT = 10;
+const RATE_WINDOW_SEC = 10 * 60;
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -46,6 +51,16 @@ export async function POST(req: Request, ctx: Ctx) {
 
     if (!id || typeof id !== "string") {
       return NextResponse.json(failure("ID invalide"), { status: 400 });
+    }
+    
+    // Rate limit check (per garage)
+    const garageIdForRateLimit = user.garageId ?? 0;
+    const rl = await checkIpRateLimit(req, `insurance_send:${garageIdForRateLimit}`, RATE_LIMIT, RATE_WINDOW_SEC);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { ok: false, error: { code: "RATE_LIMITED", message: "Trop d'envois. Réessayez plus tard." } },
+        { status: 429, headers: rateLimitHeaders(rl) }
+      );
     }
 
     // Fetch intervention with client and garage

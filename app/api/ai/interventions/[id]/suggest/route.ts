@@ -20,6 +20,11 @@ import { RouteError, toErrorResponse, unauthorized, forbidden, notFound, badRequ
 import { requireFeature, FeatureKey, requireQuota, checkQuota } from "@/lib/entitlements";
 import { generateCompletion, getAIStatus, AIMode } from "@/lib/ai/provider";
 import { createSafeContext, maskPlate } from "@/lib/ai/redact";
+import { checkIpRateLimit, rateLimitHeaders } from "@/lib/rateLimit";
+
+// Rate limit: 20 requests per minute per garage
+const RATE_LIMIT = 20;
+const RATE_WINDOW_SEC = 60;
 
 // ============================================
 // Types
@@ -82,6 +87,15 @@ export async function POST(
     const garageId = user.garageId;
     if (!garageId && user.role !== "ADMIN") {
       throw forbidden("Garage non associé");
+    }
+    
+    // Rate limit check (per garage)
+    const rl = await checkIpRateLimit(req, `ai_suggest:${garageId ?? 'admin'}`, RATE_LIMIT, RATE_WINDOW_SEC);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { ok: false, error: { code: "RATE_LIMITED", message: "Trop de requêtes IA. Réessayez dans quelques instants." } },
+        { status: 429, headers: rateLimitHeaders(rl) }
+      );
     }
     
     // 2. Parse request body

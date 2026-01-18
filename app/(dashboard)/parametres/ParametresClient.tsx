@@ -26,14 +26,17 @@ import {
   Zap,
 } from "lucide-react";
 import { ComplianceToggles } from "@/components/parametres/ComplianceToggles";
+import { BrandingSettings } from "@/components/parametres/BrandingSettings";
 
 type GarageInfo = {
+  id?: number | null;
   name: string;
   email?: string | null;
   phone?: string | null;
   address?: string | null;
   siret?: string | null;
   status?: "PENDING" | "ACTIVE" | "REJECTED" | string | null;
+  logoKey?: string | null;
 } | null;
 
 type TabKey = "garage" | "users" | "security" | "notifications" | "abonnement";
@@ -50,10 +53,14 @@ export function ParametresClient({
   role,
   userEmail,
   garage,
+  hasBrandingFeature = false,
+  planName = "Essai",
 }: {
   role: "ADMIN" | "GARAGE" | string;
   userEmail: string;
   garage: GarageInfo;
+  hasBrandingFeature?: boolean;
+  planName?: string;
 }) {
   const searchParams = useSearchParams();
   const tabFromUrl = searchParams.get("tab") as TabKey | null;
@@ -183,6 +190,14 @@ export function ParametresClient({
               </button>
             </div>
           </div>
+
+          {/* Branding Card - WHITE-LABEL-PARTNERS-01 */}
+          <BrandingSettings
+            garageId={garage?.id ?? null}
+            currentLogoKey={garage?.logoKey ?? null}
+            hasBrandingFeature={hasBrandingFeature}
+            planName={planName}
+          />
         </div>
       )}
 
@@ -295,9 +310,79 @@ function InfoRow({
 }
 
 function NotificationsPanel() {
-  const [mailOnCritical, setMailOnCritical] = useState(true);
-  const [mailOnPdf, setMailOnPdf] = useState(false);
-  const [digest, setDigest] = useState(false);
+  const [settings, setSettings] = useState({
+    signatureReminders: true,
+    quoteReminders: false,
+    invoiceReminders: false,
+    quotaAlerts: true,
+    appointmentsReminders: false,
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  // Fetch settings on mount
+  useEffect(() => {
+    async function fetchSettings() {
+      try {
+        const res = await fetch("/api/settings/notifications");
+        if (res.ok) {
+          const json = await res.json();
+          if (json.ok && json.data) {
+            setSettings({
+              signatureReminders: json.data.signatureReminders ?? true,
+              quoteReminders: json.data.quoteReminders ?? false,
+              invoiceReminders: json.data.invoiceReminders ?? false,
+              quotaAlerts: json.data.quotaAlerts ?? true,
+              appointmentsReminders: json.data.appointmentsReminders ?? false,
+            });
+          }
+        }
+      } catch {
+        // Keep defaults
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchSettings();
+  }, []);
+
+  const updateSetting = async (key: keyof typeof settings, value: boolean) => {
+    const prevSettings = { ...settings };
+    setSettings({ ...settings, [key]: value });
+    setSaving(true);
+    setError(null);
+    setSaved(false);
+
+    try {
+      const res = await fetch("/api/settings/notifications", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ [key]: value }),
+      });
+      if (!res.ok) {
+        throw new Error("Erreur de sauvegarde");
+      }
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch {
+      setSettings(prevSettings);
+      setError("Erreur de sauvegarde");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="ms-card max-w-lg">
+        <div className="p-6 flex items-center justify-center">
+          <Loader2 className="animate-spin text-[var(--ms-primary)]" size={24} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="ms-card max-w-lg">
@@ -308,37 +393,70 @@ function NotificationsPanel() {
           </div>
           <div>
             <h3 className="font-semibold text-[var(--ms-text)]">
-              Préférences email
+              Relances automatiques
             </h3>
             <p className="text-sm text-[var(--ms-text-secondary)]">
-              Gérez vos notifications
+              Gérez les emails de relance envoyés automatiquement
             </p>
           </div>
         </div>
 
         <div className="space-y-4">
           <ToggleRow
-            checked={mailOnCritical}
-            onChange={setMailOnCritical}
-            label="Alertes sur dossier critique"
-            description="Recevez une notification pour les dossiers urgents"
+            checked={settings.signatureReminders}
+            onChange={(v) => updateSetting("signatureReminders", v)}
+            label="Relances signature"
+            description="Rappel automatique J+1 et J+3 si signature en attente"
           />
           <ToggleRow
-            checked={mailOnPdf}
-            onChange={setMailOnPdf}
-            label="Confirmation génération PDF"
-            description="Email de confirmation après chaque PDF généré"
+            checked={settings.quoteReminders}
+            onChange={(v) => updateSetting("quoteReminders", v)}
+            label="Relances devis"
+            description="Rappel automatique J+2 et J+7 si devis non accepté"
           />
           <ToggleRow
-            checked={digest}
-            onChange={setDigest}
-            label="Récapitulatif hebdomadaire"
-            description="Résumé de l'activité chaque lundi"
+            checked={settings.invoiceReminders}
+            onChange={(v) => updateSetting("invoiceReminders", v)}
+            label="Relances factures"
+            description="Rappel automatique J+7 et J+14 si facture impayée"
           />
+          <ToggleRow
+            checked={settings.appointmentsReminders}
+            onChange={(v) => updateSetting("appointmentsReminders", v)}
+            label="Rappels RDV"
+            description="Rappel automatique J-1 et H-2 avant un rendez-vous"
+          />
+          <div className="border-t border-[var(--ms-border-light)] pt-4 mt-4">
+            <ToggleRow
+              checked={settings.quotaAlerts}
+              onChange={(v) => updateSetting("quotaAlerts", v)}
+              label="Alertes quotas"
+              description="Notification quand vous atteignez 80% de vos quotas"
+            />
+          </div>
         </div>
 
-        <p className="mt-6 text-xs text-[var(--ms-text-muted)]">
-          Ces préférences sont enregistrées localement pour le moment.
+        <div className="mt-6 flex items-center gap-2">
+          {saving && (
+            <span className="text-xs text-[var(--ms-text-muted)] flex items-center gap-1">
+              <Loader2 className="animate-spin" size={12} /> Enregistrement...
+            </span>
+          )}
+          {saved && (
+            <span className="text-xs text-[var(--ms-success)] flex items-center gap-1">
+              <CheckCircle size={12} /> Enregistré
+            </span>
+          )}
+          {error && (
+            <span className="text-xs text-[var(--ms-error)] flex items-center gap-1">
+              <AlertTriangle size={12} /> {error}
+            </span>
+          )}
+        </div>
+
+        <p className="mt-4 text-xs text-[var(--ms-text-muted)]">
+          Les relances sont envoyées uniquement si le client a une adresse email valide.
+          Max 50 emails automatiques par jour.
         </p>
       </div>
     </div>

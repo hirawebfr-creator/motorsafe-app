@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireApprovedTenant, requireUser, getTenantId } from "@/lib/guards";
+import { requireApprovedTenant, requireUser } from "@/lib/guards";
 import { RouteError, toErrorResponse } from "@/lib/routeErrors";
 import { requireFeature, FeatureKey } from "@/lib/entitlements";
 import type { Prisma } from "@prisma/client";
@@ -19,10 +19,11 @@ function addDays(d: Date, days: number) {
 export async function POST(req: Request, ctx: Ctx) {
   try {
     const user = requireApprovedTenant(await requireUser(req));
-    const organisationId = getTenantId(user);
+    const isAdmin = user.role === "ADMIN";
+    const organisationId = isAdmin ? undefined : (user.garageId ?? -1);
     
     // Feature gate: DEVIS_FACTURES required
-    if (user.role !== "ADMIN") {
+    if (!isAdmin && organisationId) {
       await requireFeature(organisationId, FeatureKey.DEVIS_FACTURES);
     }
 
@@ -31,11 +32,13 @@ export async function POST(req: Request, ctx: Ctx) {
 
     const updated = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const invoice = await tx.invoice.findFirst({
-        where: { id: invoiceId, organisationId, deletedAt: null },
-        select: { id: true, status: true, issuedAt: true, dueAt: true },
+        where: { id: invoiceId, ...(isAdmin ? {} : { organisationId }), deletedAt: null },
+        select: { id: true, status: true, issuedAt: true, dueAt: true, organisationId: true },
       });
       if (!invoice) throw new RouteError(404, "NOT_FOUND", "Facture introuvable");
       if (invoice.status !== "DRAFT") throw new RouteError(409, "CONFLICT", "Facture non emissible");
+
+      const effectiveOrgId = isAdmin ? invoice.organisationId : organisationId!;
 
       const now = new Date();
       const dueAt = invoice.dueAt ?? addDays(now, 30);
@@ -47,7 +50,7 @@ export async function POST(req: Request, ctx: Ctx) {
 
       await tx.auditLog.create({
         data: {
-          garageId: organisationId,
+          garageId: effectiveOrgId,
           userId: user.id,
           action: "INVOICE_ISSUE",
           entityType: "Invoice",

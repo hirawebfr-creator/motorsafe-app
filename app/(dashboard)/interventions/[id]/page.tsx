@@ -41,10 +41,12 @@ import {
   XCircle,
   CreditCard,
   Shield,
+  CalendarDays,
 } from "lucide-react";
 import { QRCodeDialog } from "@/components/common/QRCodeDialog";
 import { AIAssistCard } from "@/components/common/AIAssistCard";
 import { TAG_OPTIONS, INTERVENTION_TAGS } from "@/lib/legal/tags";
+import { WorkshopSection } from "@/components/interventions/WorkshopSection";
 
 // === Types ===
 type Vehicle = {
@@ -851,6 +853,11 @@ export default function InterventionDetailPage() {
     ((subscriptionStatus === "ACTIVE" || subscriptionStatus === "TRIALING" || subscriptionStatus === "PAST_DUE") &&
      (plan === "STARTER" || plan === "PRO"));
 
+  // WORKSHOP-OPS-01: Feature flags for workshop operations
+  const hasRepairOrderFeature = hasActiveSubscription && (plan === "STARTER" || plan === "PRO");
+  const hasReturnReportFeature = hasActiveSubscription && (plan === "STARTER" || plan === "PRO");
+  const hasLoanVehicleFeature = hasActiveSubscription && plan === "PRO";
+
   const fetchIntervention = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -1037,6 +1044,14 @@ export default function InterventionDetailPage() {
                 <Archive size={16} className="mr-1" />Exporter ZIP
               </Button>
             )}
+            {/* APPOINTMENTS-01: Schedule appointment button */}
+            <Link 
+              href={`/planning?clientId=${intervention.vehicle.client.id}&vehicleId=${intervention.vehicle.id}&interventionId=${intervention.id}&title=${encodeURIComponent(intervention.type)}`}
+            >
+              <Button variant="secondary" size="sm">
+                <CalendarDays size={16} className="mr-1" />Planifier RDV
+              </Button>
+            </Link>
             {/* INSURANCE-DOC-01: Insurance document buttons */}
             {requiresInsuranceDoc && hasActiveSubscription ? (
               <>
@@ -1265,7 +1280,18 @@ export default function InterventionDetailPage() {
           onRefresh={fetchIntervention}
         />
 
-        {/* Section 8: AI Assist (PRO only) */}
+        {/* Section 8: Atelier (WORKSHOP-OPS-01) */}
+        {(hasRepairOrderFeature || hasReturnReportFeature || hasLoanVehicleFeature) && (
+          <WorkshopSection
+            interventionId={intervention.id}
+            isClosed={!!isClosed}
+            hasRepairOrderFeature={hasRepairOrderFeature}
+            hasReturnReportFeature={hasReturnReportFeature}
+            hasLoanVehicleFeature={hasLoanVehicleFeature}
+          />
+        )}
+
+        {/* Section 9: AI Assist (PRO only) */}
         <AIAssistCard
           interventionId={intervention.id}
           hasActiveSubscription={hasActiveSubscription}

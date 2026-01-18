@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireApprovedTenant, requireUser, getTenantId, PLAN_LIMITS, FREE_UPGRADE_MESSAGE } from "@/lib/guards";
+import { requireApprovedTenant, requireUser, PLAN_LIMITS, FREE_UPGRADE_MESSAGE } from "@/lib/guards";
 import { RouteError, toErrorResponse } from "@/lib/routeErrors";
 import { requireFeature, FeatureKey } from "@/lib/entitlements";
-import { PDFDocument, StandardFonts } from "pdf-lib";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import type { Plan } from "@/lib/guards";
 import { decryptClientData } from "@/lib/encryption";
+import { buildPdfBrandingContext, renderPdfLibHeader, renderPdfLibFooter } from "@/lib/pdf/branding";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,44 +20,20 @@ function safeFilePart(s: string) {
 export async function GET(req: Request, ctx: Ctx) {
   try {
     const user = requireApprovedTenant(await requireUser(req));
-    const organisationId = getTenantId(user);
+    const isAdmin = user.role === "ADMIN";
+    const organisationId = isAdmin ? undefined : (user.garageId ?? -1);
     
-    // Feature gate: DEVIS_FACTURES required
-    if (user.role !== "ADMIN") {
+    // Feature gate: DEVIS_FACTURES required (non-admin only)
+    if (!isAdmin && organisationId) {
       await requireFeature(organisationId, FeatureKey.DEVIS_FACTURES);
-    }
-
-    // Vérifier la limite PDF pour le plan FREE (7 jours glissants)
-    const garage = await prisma.garage.findUnique({ where: { id: organisationId } });
-    const plan = (garage?.plan || "FREE") as Plan;
-    const limit = PLAN_LIMITS[plan].pdfDownloadsPer7Days;
-
-    if (limit !== Infinity) {
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-      const pdfCount = await prisma.document.count({
-        where: {
-          garageId: organisationId,
-          type: { in: ["QUOTE_PDF", "INVOICE_PDF"] },
-          createdAt: { gte: sevenDaysAgo },
-        },
-      });
-
-      if (pdfCount >= limit) {
-        throw new RouteError(
-          403,
-          "LIMIT_REACHED",
-          `Limite de ${limit} téléchargements PDF par semaine atteinte. ${FREE_UPGRADE_MESSAGE}`
-        );
-      }
     }
 
     const { id } = await ctx.params;
     const quoteId = String(id);
 
+    // First fetch the quote to get its organisationId (needed for plan limits)
     const quote = await prisma.quote.findFirst({
-      where: { id: quoteId, organisationId, deletedAt: null },
+      where: { id: quoteId, ...(isAdmin ? {} : { organisationId }), deletedAt: null },
       include: {
         lines: { where: { deletedAt: null }, orderBy: { createdAt: "asc" } },
         client: true,
@@ -67,6 +44,36 @@ export async function GET(req: Request, ctx: Ctx) {
 
     if (!quote) throw new RouteError(404, "NOT_FOUND", "Devis introuvable");
 
+    const effectiveOrgId = isAdmin ? quote.organisationId : organisationId!;
+
+    // Vérifier la limite PDF pour le plan FREE (7 jours glissants) - skip for ADMIN
+    if (!isAdmin) {
+      const garage = await prisma.garage.findUnique({ where: { id: effectiveOrgId } });
+      const plan = (garage?.plan || "FREE") as Plan;
+      const limit = PLAN_LIMITS[plan].pdfDownloadsPer7Days;
+
+      if (limit !== Infinity) {
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+        const pdfCount = await prisma.document.count({
+          where: {
+            garageId: effectiveOrgId,
+            type: { in: ["QUOTE_PDF", "INVOICE_PDF"] },
+            createdAt: { gte: sevenDaysAgo },
+          },
+        });
+
+        if (pdfCount >= limit) {
+          throw new RouteError(
+            403,
+            "LIMIT_REACHED",
+            `Limite de ${limit} téléchargements PDF par semaine atteinte. ${FREE_UPGRADE_MESSAGE}`
+          );
+        }
+      }
+    }
+
     // Déchiffrer les données du client
     const client = decryptClientData(quote.client as Record<string, unknown>) as typeof quote.client;
 
@@ -75,19 +82,34 @@ export async function GET(req: Request, ctx: Ctx) {
     const font = await pdf.embedFont(StandardFonts.Helvetica);
     const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
 
-    let y = 800;
     const left = 50;
     const lineH = 14;
+
+    // WHITE-LABEL-PARTNERS-01: Load branding and render header
+    const brandingCtx = await buildPdfBrandingContext(effectiveOrgId);
+    let y: number;
+    
+    if (brandingCtx) {
+      y = await renderPdfLibHeader(page, { regular: font, bold }, brandingCtx, {
+        title: "DEVIS",
+        documentNumber: quote.quoteNumber ?? quote.id,
+        date: new Date().toLocaleDateString("fr-FR"),
+      });
+      renderPdfLibFooter(page, { regular: font }, brandingCtx);
+    } else {
+      y = 800;
+      page.drawText("MotorSafe", { x: left, y, size: 18, font: bold });
+      y -= lineH;
+      page.drawText(`DEVIS ${quote.quoteNumber ?? quote.id}`, { x: left, y, size: 14, font: bold });
+      y -= lineH;
+      page.drawText(`Date: ${new Date().toLocaleDateString("fr-FR")}`, { x: left, y, size: 12, font });
+      y -= lineH + 8;
+    }
 
     const draw = (text: string, isBold = false, size = 12) => {
       page.drawText(text, { x: left, y, size, font: isBold ? bold : font });
       y -= lineH;
     };
-
-    draw("MotorSafe", true, 18);
-    draw(`DEVIS ${quote.quoteNumber ?? quote.id}`, true, 14);
-    draw(`Date: ${new Date().toLocaleDateString("fr-FR")}`);
-    y -= 8;
 
     draw("Client", true);
     draw(`${client.firstName} ${client.lastName}`);
@@ -115,6 +137,17 @@ export async function GET(req: Request, ctx: Ctx) {
     draw(`TVA: ${quote.totalVat.toFixed(2)} ${quote.currency}`, true);
     draw(`Total TTC: ${quote.totalIncl.toFixed(2)} ${quote.currency}`, true);
 
+    // Footer is already added by renderPdfLibFooter if branding is available
+    if (!brandingCtx) {
+      page.drawText("Généré avec SafeMotor — motorsafe.fr", {
+        x: left,
+        y: 30,
+        size: 8,
+        font,
+        color: rgb(0.6, 0.6, 0.6),
+      });
+    }
+
     const bytes = await pdf.save();
     const buffer = Buffer.from(bytes);
 
@@ -125,7 +158,7 @@ export async function GET(req: Request, ctx: Ctx) {
     try {
       await prisma.document.create({
         data: {
-          garageId: organisationId,
+          garageId: effectiveOrgId,
           type: "QUOTE_PDF",
           fileUrl: `generated:${fileName}`,
           fileName,

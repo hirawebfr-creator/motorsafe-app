@@ -10,6 +10,7 @@ import { join } from "path";
 import { existsSync } from "fs";
 import { randomBytes, createHash } from "crypto";
 import { checkIpRateLimit, rateLimitHeaders } from "@/lib/rateLimit";
+import { cancelPendingJobs } from "@/lib/automations";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -283,6 +284,13 @@ export async function POST(req: Request, ctx: Ctx) {
         // Log but don't fail the signature
         console.error("[Signature] Failed to send confirmation email:", emailErr);
       }
+    }
+
+    // AUTOMATIONS-01: Cancel pending reminder jobs for this signature
+    try {
+      await cancelPendingJobs("signature_request", signatureRequest.id);
+    } catch (cancelErr) {
+      console.warn("[Signature] Failed to cancel reminder jobs:", cancelErr);
     }
 
     return NextResponse.json(success({

@@ -4,6 +4,7 @@ import { success } from "@/lib/api";
 import { requireApprovedTenant, requireUser } from "@/lib/guards";
 import { toErrorResponse, RouteError } from "@/lib/routeErrors";
 import { getStripe } from "@/lib/stripe";
+import { requirePermission, Permission } from "@/lib/permissions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,6 +25,9 @@ const PRICE_KEYS: Record<string, string | undefined> = {
 export async function POST(req: Request) {
   try {
     const user = requireApprovedTenant(await requireUser(req));
+    
+    // MULTI-USER-ROLES-01: Only OWNER/MANAGER can manage billing
+    await requirePermission(user, Permission.BILLING_MANAGE);
 
     if (user.role === "ADMIN") {
       throw new RouteError(400, "BAD_REQUEST", "Un compte tenant est requis.");

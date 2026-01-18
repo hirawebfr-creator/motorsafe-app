@@ -234,3 +234,132 @@ export function getLegalContent(type?: string | null): LegalBlock {
   if (!type) return DEFAULT_LEGAL;
   return LEGAL_BY_TYPE[type] ?? DEFAULT_LEGAL;
 }
+
+// ============================================
+// WORKSHOP-OPS-01: Repair Order Clauses
+// ============================================
+
+export interface RepairOrderClause {
+  id: string;
+  title: string;
+  text: string;
+}
+
+const REPAIR_ORDER_CLAUSES: RepairOrderClause[] = [
+  {
+    id: "RO_ACCORD",
+    title: "Accord pour réparation",
+    text: "Le client autorise l'établissement à effectuer les travaux décrits sur le présent document. L'acceptation vaut ordre de réparation.",
+  },
+  {
+    id: "RO_DEVIS",
+    title: "Estimation et dépassement",
+    text: "Le montant estimé est indicatif. En cas de dépassement supérieur à 10%, le client sera contacté pour accord préalable.",
+  },
+  {
+    id: "RO_ESSAI",
+    title: "Essais routiers",
+    text: "Le client autorise les essais routiers nécessaires au diagnostic et à la vérification des réparations.",
+  },
+  {
+    id: "RO_PIECES",
+    title: "Pièces détachées",
+    text: "Sauf demande contraire, l'établissement peut utiliser des pièces de qualité équivalente. Les pièces remplacées sont disponibles sur demande.",
+  },
+  {
+    id: "RO_DELAI",
+    title: "Délai d'intervention",
+    text: "Le délai estimé est donné à titre indicatif et peut être modifié en fonction des constatations techniques.",
+  },
+  {
+    id: "RO_GARDE",
+    title: "Garde du véhicule",
+    text: "L'établissement assure la garde du véhicule pendant la durée des travaux dans des conditions normales de sécurité.",
+  },
+  {
+    id: "RO_RESPONSABILITE",
+    title: "Responsabilité",
+    text: "L'établissement n'est pas responsable des objets laissés dans le véhicule ni des dommages préexistants non signalés.",
+  },
+  {
+    id: "RO_PAIEMENT",
+    title: "Conditions de paiement",
+    text: "Le règlement est dû à la restitution du véhicule. L'établissement se réserve un droit de rétention jusqu'au paiement complet.",
+  },
+];
+
+export function getRepairOrderClauses(): RepairOrderClause[] {
+  return REPAIR_ORDER_CLAUSES;
+}
+
+// ============================================
+// WORKSHOP-OPS-01: Loan Contract Clauses
+// ============================================
+
+const LOAN_CONTRACT_CLAUSES: RepairOrderClause[] = [
+  {
+    id: "LC_USAGE",
+    title: "Usage du véhicule",
+    text: "Le véhicule de courtoisie est mis à disposition pour un usage personnel uniquement. Tout usage professionnel est interdit.",
+  },
+  {
+    id: "LC_CONDUCTEUR",
+    title: "Conducteur autorisé",
+    text: "Seul le signataire du présent contrat est autorisé à conduire le véhicule de prêt.",
+  },
+  {
+    id: "LC_ASSURANCE",
+    title: "Assurance",
+    text: "Le véhicule est assuré par l'établissement. En cas de sinistre responsable, la franchise reste à la charge de l'emprunteur.",
+  },
+  {
+    id: "LC_CARBURANT",
+    title: "Carburant",
+    text: "Le véhicule doit être restitué avec le même niveau de carburant qu'au départ. Tout manque sera facturé.",
+  },
+  {
+    id: "LC_ETAT",
+    title: "État du véhicule",
+    text: "L'emprunteur s'engage à restituer le véhicule dans le même état qu'à la réception. Tout dommage constaté sera à sa charge.",
+  },
+  {
+    id: "LC_ACCIDENT",
+    title: "En cas d'accident",
+    text: "L'emprunteur s'engage à prévenir immédiatement l'établissement et à remplir un constat amiable.",
+  },
+];
+
+export function getLoanContractClauses(): RepairOrderClause[] {
+  return LOAN_CONTRACT_CLAUSES;
+}
+
+// ============================================
+// WORKSHOP-OPS-01: Return Report Clauses
+// ============================================
+
+const RETURN_REPORT_CLAUSES: RepairOrderClause[] = [
+  {
+    id: "RR_VERIFICATION",
+    title: "Vérification contradictoire",
+    text: "Le client reconnaît avoir vérifié le véhicule en présence du représentant de l'établissement.",
+  },
+  {
+    id: "RR_TRAVAUX",
+    title: "Travaux effectués",
+    text: "Le client reconnaît avoir été informé des travaux réalisés conformément à l'ordre de réparation.",
+  },
+  {
+    id: "RR_GARANTIE",
+    title: "Garantie",
+    text: "Les travaux effectués bénéficient de la garantie légale. Les conditions sont précisées sur la facture.",
+  },
+  {
+    id: "RR_RESERVE",
+    title: "Réserves",
+    text: "Toute réserve doit être mentionnée par écrit lors de la restitution. Aucune réclamation ultérieure ne sera recevable.",
+  },
+];
+
+export function getReturnReportClauses(): RepairOrderClause[] {
+  return RETURN_REPORT_CLAUSES;
+}

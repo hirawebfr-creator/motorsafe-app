@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { failure } from "@/lib/api";
-import { requireApprovedTenant, requireUser, getTenantId } from "@/lib/guards";
+import { requireApprovedTenant, requireUser } from "@/lib/guards";
 import { toErrorResponse } from "@/lib/routeErrors";
 import { requireFeature, FeatureKey } from "@/lib/entitlements";
+import { requirePermission, Permission } from "@/lib/permissions";
 import { buildOrderMasterPdf } from "@/lib/pdf/orderMaster";
 import { buildLegalMemoPdf } from "@/lib/pdf/legalMemo";
 import { Buffer } from "buffer";
@@ -109,9 +110,12 @@ export async function GET(req: Request, ctx: Ctx) {
   try {
     const user = requireApprovedTenant(await requireUser(req));
     
+    // MULTI-USER-ROLES-01: Only OWNER/MANAGER can export
+    await requirePermission(user, Permission.EXPORT_ZIP);
+    
     // Feature gate: EXPORT_ZIP required
     if (user.role !== "ADMIN") {
-      await requireFeature(getTenantId(user), FeatureKey.EXPORT_ZIP);
+      await requireFeature(user.garageId ?? -1, FeatureKey.EXPORT_ZIP);
     }
 
     const { id } = await ctx.params;
@@ -216,6 +220,112 @@ export async function GET(req: Request, ctx: Ctx) {
         }
       } catch (err) {
         errors.push(`Failed to generate delivery PDF: ${err instanceof Error ? err.message : "unknown"}`);
+      }
+    }
+
+    // ============================================================
+    // WORKSHOP-OPS-01: Repair Order PDF (if exists)
+    // ============================================================
+    const repairOrder = await prisma.repairOrder.findUnique({
+      where: { interventionId: id },
+    });
+    if (repairOrder?.pdfKey) {
+      try {
+        const roBuffer = await fetchFileBuffer(`/api/uploads/file/${repairOrder.pdfKey}`);
+        if (roBuffer) {
+          const filePath = "01_documents/05_ordre_reparation.pdf";
+          archive.append(roBuffer, { name: filePath });
+          files.push({ path: filePath, sha256: repairOrder.pdfHashSha256 || sha256(roBuffer), sizeBytes: roBuffer.length });
+        }
+      } catch (err) {
+        errors.push(`Failed to fetch repair order PDF: ${err instanceof Error ? err.message : "unknown"}`);
+      }
+    }
+
+    // ============================================================
+    // WORKSHOP-OPS-01: Return Report metadata (if exists)
+    // ============================================================
+    const returnReport = await prisma.returnReport.findUnique({
+      where: { interventionId: id },
+    });
+    if (returnReport) {
+      // Include checklist and photos info in a JSON file
+      const rrData = {
+        id: returnReport.id,
+        status: returnReport.status,
+        issuedAt: formatDate(returnReport.issuedAt),
+        signedAt: formatDate(returnReport.signedAt),
+        checklist: returnReport.checklistJson ? JSON.parse(returnReport.checklistJson as string) : null,
+        photosCount: returnReport.photosKeys.length,
+        photos: returnReport.photosKeys,
+      };
+      const rrBuffer = Buffer.from(JSON.stringify(rrData, null, 2), "utf-8");
+      const filePath = "01_documents/06_pv_restitution_atelier.json";
+      archive.append(rrBuffer, { name: filePath });
+      files.push({ path: filePath, sha256: sha256(rrBuffer), sizeBytes: rrBuffer.length });
+
+      // Add return report photos to 02_photos_restitution/
+      let photoIndex = 0;
+      for (const photoKey of returnReport.photosKeys) {
+        try {
+          const photoBuffer = await fetchFileBuffer(`/api/uploads/file/${photoKey}`);
+          if (photoBuffer) {
+            photoIndex++;
+            const ext = photoKey.split(".").pop() || "jpg";
+            const photoPath = `02_photos_restitution/${String(photoIndex).padStart(2, "0")}_photo.${ext}`;
+            archive.append(photoBuffer, { name: photoPath });
+            files.push({ path: photoPath, sha256: sha256(photoBuffer), sizeBytes: photoBuffer.length });
+          }
+        } catch {
+          errors.push(`Failed to fetch return report photo: ${photoKey}`);
+        }
+      }
+    }
+
+    // ============================================================
+    // WORKSHOP-OPS-01: Loan Contract info (if exists)
+    // ============================================================
+    const loanContracts = await prisma.loanContract.findMany({
+      where: { interventionId: id },
+      include: { loanVehicle: true },
+      orderBy: { startAt: "asc" },
+    });
+    if (loanContracts.length > 0) {
+      const lcData = loanContracts.map((lc) => ({
+        id: lc.id,
+        status: lc.status,
+        vehicle: lc.loanVehicle ? { plate: lc.loanVehicle.plate, make: lc.loanVehicle.make, model: lc.loanVehicle.model } : null,
+        departureAt: formatDate(lc.startAt),
+        returnAt: formatDate(lc.returnAt),
+        kmOut: lc.kmOut,
+        kmIn: lc.kmIn,
+        fuelOut: lc.fuelOut,
+        fuelIn: lc.fuelIn,
+        photosOutCount: lc.photosOutKeys.length,
+        photosInCount: lc.photosInKeys.length,
+      }));
+      const lcBuffer = Buffer.from(JSON.stringify(lcData, null, 2), "utf-8");
+      const filePath = "01_documents/07_vehicule_pret.json";
+      archive.append(lcBuffer, { name: filePath });
+      files.push({ path: filePath, sha256: sha256(lcBuffer), sizeBytes: lcBuffer.length });
+
+      // Add loan contract photos
+      let lcPhotoIndex = 0;
+      for (const lc of loanContracts) {
+        for (const photoKey of [...lc.photosOutKeys, ...lc.photosInKeys]) {
+          try {
+            const photoBuffer = await fetchFileBuffer(`/api/uploads/file/${photoKey}`);
+            if (photoBuffer) {
+              lcPhotoIndex++;
+              const ext = photoKey.split(".").pop() || "jpg";
+              const photoPath = `02_photos_pret/${String(lcPhotoIndex).padStart(2, "0")}_photo.${ext}`;
+              archive.append(photoBuffer, { name: photoPath });
+              files.push({ path: photoPath, sha256: sha256(photoBuffer), sizeBytes: photoBuffer.length });
+            }
+          } catch {
+            errors.push(`Failed to fetch loan contract photo: ${photoKey}`);
+          }
+        }
       }
     }
 

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireApprovedTenant, requireUser, getTenantId } from "@/lib/guards";
+import { requireApprovedTenant, requireUser } from "@/lib/guards";
 import { RouteError, toErrorResponse } from "@/lib/routeErrors";
 import { z } from "zod";
 
@@ -16,7 +16,13 @@ const PutSchema = z.object({
 export async function GET(req: Request) {
   try {
     const user = requireApprovedTenant(await requireUser(req));
-    const organisationId = getTenantId(user);
+    
+    // ADMIN cannot access garage-specific settings
+    if (user.role === "ADMIN") {
+      throw new RouteError(403, "FORBIDDEN", "Accès réservé aux gestionnaires de garage");
+    }
+    
+    const organisationId = user.garageId ?? -1;
 
     const org = await prisma.garage.findFirst({
       where: { id: organisationId },
@@ -34,7 +40,13 @@ export async function GET(req: Request) {
 export async function PUT(req: Request) {
   try {
     const user = requireApprovedTenant(await requireUser(req));
-    const organisationId = getTenantId(user);
+    
+    // ADMIN cannot modify garage-specific settings
+    if (user.role === "ADMIN") {
+      throw new RouteError(403, "FORBIDDEN", "Accès réservé aux gestionnaires de garage");
+    }
+    
+    const organisationId = user.garageId ?? -1;
 
     const body = await req.json().catch(() => null);
     const parsed = PutSchema.safeParse(body);

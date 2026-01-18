@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireApprovedTenant, requireUser, getTenantId } from "@/lib/guards";
-import { toErrorResponse } from "@/lib/routeErrors";
+import { requireApprovedTenant, requireUser } from "@/lib/guards";
+import { toErrorResponse, RouteError } from "@/lib/routeErrors";
 import { requireFeature, FeatureKey, checkQuota, incrementLookupUsage } from "@/lib/entitlements";
 import { z } from "zod";
 import {
@@ -9,9 +9,14 @@ import {
   lookupPlateFR,
   type VehiclePrefill,
 } from "@/lib/vehicleLookup";
+import { checkIpRateLimit } from "@/lib/rateLimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+// Rate limit: 60 requests per hour per garage (in addition to monthly quota)
+const RATE_LIMIT = 60;
+const RATE_WINDOW_SEC = 60 * 60;
 
 const CACHE_TTL_DAYS = 30;
 const PROVIDER = "apiplaqueimmatriculation";
@@ -27,11 +32,17 @@ export async function POST(req: Request) {
     
     // Feature gate: VEHICLE_LOOKUP required
     if (user.role !== "ADMIN") {
-      await requireFeature(getTenantId(user), FeatureKey.VEHICLE_LOOKUP);
+      await requireFeature(user.garageId ?? -1, FeatureKey.VEHICLE_LOOKUP);
     }
     
     // Pour les admins sans garageId, on fait le lookup sans cache/quota
     const garageId = user.garageId;
+    
+    // Rate limit check (per garage, in addition to monthly quota)
+    const rl = await checkIpRateLimit(req, `vehicle_lookup:${garageId ?? 'admin'}`, RATE_LIMIT, RATE_WINDOW_SEC);
+    if (!rl.allowed) {
+      throw new RouteError(429, "RATE_LIMITED", "Trop de recherches de plaques. Réessayez plus tard.");
+    }
 
     const body = await req.json().catch(() => null);
     const parsed = LookupSchema.safeParse(body);

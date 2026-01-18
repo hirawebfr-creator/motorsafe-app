@@ -81,14 +81,22 @@ model Garage {
   city          String?   // Ville
   country       String    @default("France")
   logoKey       String?   // Clé S3/local du logo
+  brandColor    String?   // Couleur accent (hex, ex: #4ADE80) - PRO only
 
   // Organisation settings (quotes/invoices)
+  vatNumber       String?                     // Numéro TVA intracommunautaire (ex: FR12345678901)
   defaultVatRate  Float  @default(0.20)
   defaultVatMode  String @default("EXCL")
   vatRatesAllowed Json   @default("[0,0.055,0.10,0.20]")
-  quotePrefix     String @default("DEV")
-  invoicePrefix   String @default("FAC")
+  quotePrefix       String @default("DEV")
+  invoicePrefix     String @default("FAC")
+  interventionPrefix String @default("INT")
   numberPadding   Int    @default(4)
+
+  // LEGAL-RETENTION-01: Data retention policy settings
+  retentionSignedDocsYears   Int @default(10)   // Signed documents (5-10 years legal)
+  retentionAccountingYears   Int @default(10)   // Invoices/quotes (10 years fiscal)
+  retentionOperationalDays   Int @default(365)  // Operational data (1 year default)
 
   // Partner badge (SafeMotor Partner)
   partnerBadgeEnabled       Boolean @default(false)  // Opt-in by garage
@@ -133,6 +141,21 @@ model Garage {
   payments        Payment[]
   signatureRequests SignatureRequest[]
   vehicleLookupUsage VehicleLookupUsage[]
+  evidenceChain   EvidenceChain[]
+  automationJobs  AutomationJob[]
+  notificationSettings GarageNotificationSettings?
+  appointments    Appointment[]
+  repairOrders    RepairOrder[]
+  loanVehicles    LoanVehicle[]
+  loanContracts   LoanContract[]
+  returnReports   ReturnReport[]
+  
+  // MULTI-USER-ROLES-01: Team members
+  members         GarageMember[]
+  
+  // IMPORT-ONBOARDING-01: Onboarding wizard status and import batches
+  onboardingStatus   String   @default("NEW") // NEW | IN_PROGRESS | DONE
+  importBatches      ImportBatch[]
 }
 
 model User {
@@ -148,6 +171,13 @@ model User {
 
   notifications Notification[]
   auditLogs      AuditLog[]
+  createdAppointments Appointment[]
+  
+  // MULTI-USER-ROLES-01: Team memberships
+  memberships   GarageMember[]
+  
+  // IMPORT-ONBOARDING-01: Import batches created by this user
+  importBatches ImportBatch[]
 
   @@index([garageId])
 }
@@ -163,6 +193,54 @@ model Session {
 
   @@index([userId])
   @@index([expiresAt])
+}
+
+// ============================================
+// MULTI-USER-ROLES-01: Team membership
+// ============================================
+
+enum GarageRole {
+  OWNER       // Propriétaire - accès complet
+  MANAGER     // Chef d'atelier - gestion équipe, billing
+  STAFF       // Mécano - interventions, véhicules
+  RECEPTION   // Secrétaire - clients, planning
+  READONLY    // Consultation seule
+}
+
+enum MemberStatus {
+  INVITED     // Invitation envoyée, pas encore acceptée
+  ACTIVE      // Membre actif
+  DISABLED    // Désactivé par admin
+}
+
+model GarageMember {
+  id              String       @id @default(cuid())
+  garageId        Int
+  userId          String?      // Null si invitation en attente
+  role            GarageRole   @default(STAFF)
+  status          MemberStatus @default(INVITED)
+  
+  // Invitation fields
+  invitedEmail    String?      // Email utilisé pour l'invitation
+  inviteTokenHash String?      // SHA256 du token d'invitation
+  inviteExpiresAt DateTime?    // Expiration de l'invitation (7 jours)
+  
+  // Timestamps
+  invitedAt       DateTime     @default(now())
+  acceptedAt      DateTime?    // Quand l'invitation a été acceptée
+  disabledAt      DateTime?    // Quand le membre a été désactivé
+  disabledReason  String?      // Motif de désactivation
+  
+  // Relations
+  garage          Garage       @relation(fields: [garageId], references: [id], onDelete: Cascade)
+  user            User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  
+  // Unique constraints
+  @@unique([garageId, userId])           // Un user ne peut être membre qu'une fois par garage
+  @@unique([garageId, invitedEmail])     // Un email ne peut être invité qu'une fois par garage
+  @@index([garageId])
+  @@index([userId])
+  @@index([inviteTokenHash])
 }
 
 model Client {
@@ -184,11 +262,17 @@ model Client {
   address String?
   notes   String?
 
+  // LEGAL-RETENTION-01: GDPR anonymization tracking
+  anonymizedAt   DateTime?  // When client was anonymized (GDPR request)
+  anonymizedBy   String?    // userId who performed anonymization
+
   garage   Garage?  @relation(fields: [garageId], references: [id], onDelete: Cascade)
   vehicles Vehicle[]
 
   quotes   Quote[]
   invoices Invoice[]
+  appointments Appointment[]
+  loanContracts LoanContract[]
 
   @@index([garageId])
   @@index([garageId, deletedAt])
@@ -219,6 +303,7 @@ model Vehicle {
   invoices Invoice[]
 
   documents Document[]
+  appointments Appointment[]
 
   @@index([garageId])
   @@index([clientId])
@@ -277,11 +362,24 @@ model Intervention {
   outtakeChecklist Json?     // { roadTest: bool, lights: bool, clean: bool, ... }
   closedAt         DateTime?
 
+  // LEGAL-RETENTION-01: Dispute mode (tamper-evident lock)
+  disputeStatus     String?    // null = normal, "OPEN" = locked, "CLOSED" = resolved
+  disputeOpenedAt   DateTime?  // When dispute was opened
+  disputeOpenedBy   String?    // userId who opened dispute
+  disputeClosedAt   DateTime?  // When dispute was closed
+  disputeClosedBy   String?    // userId who closed dispute
+  disputeReason     String?    // Why dispute was opened
+  disputeResolution String?    // How dispute was resolved
+  disputeSnapshotHash String?  // SHA256 of intervention state at dispute open
+
   // revisions store immutable snapshots when interventions are created/edited
   revisions InterventionRevision[]
 
   documents Document[]
   downloadTokens DownloadToken[]
+  appointments Appointment[]
+  repairOrder  RepairOrder?
+  returnReport ReturnReport?
 
   garage  Garage? @relation(fields: [garageId], references: [id], onDelete: Cascade)
   vehicle Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
@@ -352,6 +450,52 @@ model AuditLog {
   @@index([garageId])
   @@index([userId])
   @@index([entityType, entityId])
+}
+
+// ============================================
+// IMPORT-ONBOARDING-01: Import Batch Tracking
+// ============================================
+
+enum ImportKind {
+  CLIENTS
+  VEHICULES
+}
+
+enum ImportStatus {
+  DRAFT           // Just created, mapping in progress
+  DRY_RUN_DONE    // Dry-run completed, ready for commit
+  IMPORTED        // Successfully imported
+  ROLLED_BACK     // Rolled back by user
+  FAILED          // Import failed
+}
+
+model ImportBatch {
+  id              String       @id @default(cuid())
+  garageId        Int
+  kind            ImportKind
+  status          ImportStatus @default(DRAFT)
+  createdByUserId String?
+  
+  // Column mapping: { csvColumn: fieldName }
+  mappingJson     Json?
+  
+  // Stats: { totalRows, created, updated, skipped, errorsCount }
+  statsJson       Json?
+  
+  // Error samples (max 50): [{ row, field, message }]
+  errorSampleJson Json?
+  
+  // Track created entity IDs for rollback
+  createdIdsJson  Json?        // Array of created client/vehicle IDs
+  
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @default(now()) @updatedAt
+  
+  garage          Garage       @relation(fields: [garageId], references: [id], onDelete: Cascade)
+  createdByUser   User?        @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  
+  @@index([garageId, createdAt])
+  @@index([garageId, status])
 }
 
 model StripeEvent {
@@ -454,7 +598,7 @@ model Invoice {
   vehicleId      String?
   quoteId        String? @unique
 
-  status        String  @default("DRAFT")
+  status        String  @default("DRAFT")  // DRAFT, ISSUED, PARTIALLY_PAID, PAID, OVERDUE, CANCELED
   invoiceNumber String?
   invoiceYear   Int?
   invoiceSeq    Int?
@@ -469,6 +613,10 @@ model Invoice {
   issuedAt DateTime?
   dueAt    DateTime?
   paidAt   DateTime?
+
+  // PAYMENTS-01: Payment link for online payments
+  paymentLinkUrl       String?   // Current active Stripe Checkout URL
+  paymentLinkExpiresAt DateTime? // Link expiration (24h by default)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
@@ -515,10 +663,16 @@ model Payment {
   organisationId Int
   invoiceId      String
   amount         Float
-  method         String
-  status         String   @default("SUCCEEDED")
+  method         String   // CASH, CARD, TRANSFER, STRIPE, OTHER
+  status         String   @default("SUCCEEDED") // PENDING, SUCCEEDED, FAILED, CANCELED
+  paymentType    String?  // FULL, DEPOSIT (for Stripe payments)
   paidAt         DateTime @default(now())
   createdAt      DateTime @default(now())
+
+  // PAYMENTS-01: Stripe fields for online payments
+  stripePaymentIntentId   String?  @unique
+  stripeCheckoutSessionId String?  @unique
+  currency                String?  @default("eur")
 
   organisation Garage  @relation(fields: [organisationId], references: [id], onDelete: Cascade)
   invoice      Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
@@ -526,6 +680,7 @@ model Payment {
   @@index([organisationId])
   @@index([invoiceId])
   @@index([organisationId, invoiceId])
+  @@index([stripePaymentIntentId])
 }
 
 // ============================================
@@ -612,6 +767,10 @@ enum SignatureDocumentType {
   INTERVENTION_DELIVERY
   INTERVENTION_DOSSIER
   QUOTE
+  REPAIR_ORDER          // WORKSHOP-OPS-01: Ordre de Réparation
+  RETURN_REPORT         // WORKSHOP-OPS-01: PV de restitution
+  LOAN_CONTRACT_OUT     // WORKSHOP-OPS-01: Contrat prêt (départ)
+  LOAN_CONTRACT_IN      // WORKSHOP-OPS-01: Contrat prêt (retour)
 }
 
 enum SignatureStatus {
@@ -796,4 +955,342 @@ model RateLimitBucket {
   @@unique([key, windowStart])
   @@index([key])
   @@index([windowStart])
+}
+
+// System health events for admin monitoring (no PII)
+model SystemEvent {
+  id        String   @id @default(cuid())
+  type      String   // "health_check" | "alert" | "recovery" | "startup"
+  service   String   // "db" | "stripe" | "email" | "ai" | "storage" | "system"
+  status    String   // "ok" | "degraded" | "down"
+  message   String?  // Generic message, no PII
+  metadata  Json?    // Metrics only (latency, counts)
+  createdAt DateTime @default(now())
+
+  @@index([type])
+  @@index([service])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// ============================================================
+// LEGAL-RETENTION-01: EvidenceChain - Tamper-evident hash chain
+// ============================================================
+// Each entry contains hash of (previous_hash + payload) creating a chain.
+// Used for: dispute snapshots, critical legal events, GDPR actions.
+// Any tampering breaks the chain - detectible by verification.
+
+model EvidenceChain {
+  id           String   @id @default(cuid())
+  garageId     Int
+  entityType   String   // "intervention" | "client" | "signature" | "invoice"
+  entityId     String   // ID of the entity (interventionId, clientId, etc.)
+  eventType    String   // "dispute_open" | "dispute_close" | "anonymize" | "export" | "snapshot"
+  
+  payload      String   // JSON snapshot of entity state at this moment
+  payloadHash  String   // SHA256(payload)
+  previousHash String?  // Hash of previous entry in chain (null for first entry per entity)
+  chainHash    String   // SHA256(previousHash + payloadHash) - the immutable chain link
+  
+  userId       String?  // Who performed the action
+  ip           String?  // IP address (for legal traceability)
+  userAgent    String?  // Browser/client info
+  reason       String?  // Why this event occurred (dispute reason, etc.)
+  
+  createdAt    DateTime @default(now())
+
+  garage       Garage   @relation(fields: [garageId], references: [id], onDelete: Cascade)
+
+  @@index([garageId])
+  @@index([entityType, entityId])
+  @@index([eventType])
+  @@index([createdAt])
+  @@index([chainHash])
+}
+
+// ============================================================
+// AUTOMATIONS-01: Job scheduler for reminders and alerts
+// ============================================================
+
+enum AutomationJobKind {
+  SIGN_REMINDER
+  QUOTE_REMINDER
+  INVOICE_REMINDER
+  QUOTA_ALERT
+  ADMIN_DIGEST
+  APPOINTMENT_REMINDER
+}
+
+enum AutomationJobStatus {
+  PENDING
+  RUNNING
+  DONE
+  FAILED
+  CANCELLED
+}
+
+model AutomationJob {
+  id         String              @id @default(cuid())
+  kind       AutomationJobKind
+  garageId   Int
+  targetType String              // "signature_request" | "quote" | "invoice" | "garage"
+  targetId   String              // ID of the target entity
+  
+  runAt      DateTime            // When to execute
+  status     AutomationJobStatus @default(PENDING)
+  attempts   Int                 @default(0)
+  lastError  String?             // Redacted error message
+  
+  // Deduplication key for quota alerts (e.g., "garage:1:quota:vehicleLookup:80:2026-01")
+  dedupKey   String?             @unique
+  
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+
+  garage     Garage              @relation(fields: [garageId], references: [id], onDelete: Cascade)
+
+  @@index([status, runAt])
+  @@index([garageId])
+  @@index([kind])
+  @@index([targetType, targetId])
+}
+
+// Garage notification preferences (opt-in toggles)
+model GarageNotificationSettings {
+  id                    String   @id @default(cuid())
+  garageId              Int      @unique
+  
+  // Reminder toggles
+  signatureReminders    Boolean  @default(true)
+  quoteReminders        Boolean  @default(false)
+  invoiceReminders      Boolean  @default(false)
+  quotaAlerts           Boolean  @default(true)
+  appointmentsReminders Boolean  @default(true)
+  
+  // Daily email limit to prevent spam (per garage)
+  dailyEmailLimit       Int      @default(50)
+  
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  garage                Garage   @relation(fields: [garageId], references: [id], onDelete: Cascade)
+}
+
+// ============================================================
+// APPOINTMENTS-01: Appointment scheduling
+// ============================================================
+
+enum AppointmentStatus {
+  SCHEDULED
+  DONE
+  CANCELLED
+  NO_SHOW
+}
+
+enum ReminderPolicy {
+  NONE
+  STANDARD  // J-1 + H-2
+}
+
+model Appointment {
+  id              String            @id @default(cuid())
+  garageId        Int
+  clientId        Int
+  vehicleId       String?
+  interventionId  String?
+  
+  title           String            // "Diag", "E85", "Reprog", etc.
+  startAt         DateTime
+  endAt           DateTime
+  status          AppointmentStatus @default(SCHEDULED)
+  notes           String?
+  
+  // Reminder configuration
+  reminderPolicy      ReminderPolicy @default(NONE)
+  reminderSentJ1At    DateTime?      // J-1 reminder sent timestamp
+  reminderSentH2At    DateTime?      // H-2 reminder sent timestamp
+  
+  createdByUserId String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  garage          Garage            @relation(fields: [garageId], references: [id], onDelete: Cascade)
+  client          Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  vehicle         Vehicle?          @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  intervention    Intervention?     @relation(fields: [interventionId], references: [id], onDelete: SetNull)
+  createdByUser   User?             @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([garageId, startAt])
+  @@index([garageId, clientId])
+  @@index([interventionId])
+}
+
+// ============================================
+// WORKSHOP-OPS-01: Repair Order (Ordre de Réparation)
+// ============================================
+
+enum RepairOrderStatus {
+  DRAFT
+  SENT
+  SIGNED
+  CANCELLED
+}
+
+model RepairOrder {
+  id             String            @id @default(cuid())
+  garageId       Int
+  interventionId String            @unique
+  status         RepairOrderStatus @default(DRAFT)
+  
+  // Snapshot of intervention data at issue time
+  snapshotJson   String?           // JSON: vehicle, client, items, prices, clauses
+  
+  // PDF storage
+  pdfKey         String?           // Storage key (local or S3)
+  pdfHashSha256  String?           // SHA256 of the PDF
+  
+  // Signature
+  signatureRequestId String?       // FK to SignatureRequest
+  
+  // Timestamps
+  issuedAt       DateTime?         // When OR was frozen and sent
+  signedAt       DateTime?         // When client signed
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  garage         Garage            @relation(fields: [garageId], references: [id], onDelete: Cascade)
+  intervention   Intervention      @relation(fields: [interventionId], references: [id], onDelete: Cascade)
+
+  @@index([garageId])
+  @@index([garageId, interventionId])
+}
+
+// ============================================
+// WORKSHOP-OPS-01: Loan Vehicle (Véhicule de prêt)
+// ============================================
+
+model LoanVehicle {
+  id           String   @id @default(cuid())
+  garageId     Int
+  plate        String   // License plate (stored for identification)
+  make         String?  // Brand
+  model        String?
+  year         Int?
+  active       Boolean  @default(true)
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  garage       Garage   @relation(fields: [garageId], references: [id], onDelete: Cascade)
+  contracts    LoanContract[]
+
+  @@index([garageId])
+  @@index([garageId, active])
+}
+
+// ============================================
+// WORKSHOP-OPS-01: Loan Contract (Contrat de prêt)
+// ============================================
+
+enum LoanContractStatus {
+  OUT        // Vehicle is out with client
+  RETURNED   // Vehicle returned normally
+  DISPUTE    // Issue with return
+}
+
+enum FuelLevel {
+  EMPTY      // 0%
+  QUARTER    // 25%
+  HALF       // 50%
+  THREE_QUARTERS // 75%
+  FULL       // 100%
+}
+
+model LoanContract {
+  id              String             @id @default(cuid())
+  garageId        Int
+  loanVehicleId   String
+  clientId        Int
+  interventionId  String?            // Optional link to intervention
+  
+  // Departure (OUT)
+  startAt         DateTime
+  endAtPlanned    DateTime?          // Planned return date
+  kmOut           Int                // Odometer at departure
+  fuelOut         FuelLevel          @default(HALF)
+  conditionOut    String?            // Text description of vehicle state
+  photosOutKeys   String[]           @default([]) // Storage keys for photos
+  
+  // Return (IN)
+  returnAt        DateTime?          // Actual return date
+  kmIn            Int?               // Odometer at return
+  fuelIn          FuelLevel?
+  conditionIn     String?            // Text description at return
+  photosInKeys    String[]           @default([]) // Storage keys for photos
+  
+  status          LoanContractStatus @default(OUT)
+  
+  // PDF storage
+  pdfKey          String?            // Contract PDF storage key
+  pdfHashSha256   String?            // SHA256 of the PDF
+  
+  // Signatures (two: one at departure, one at return)
+  signatureRequestOutId String?      // Signature for departure
+  signatureRequestInId  String?      // Signature for return
+  
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  garage          Garage             @relation(fields: [garageId], references: [id], onDelete: Cascade)
+  loanVehicle     LoanVehicle        @relation(fields: [loanVehicleId], references: [id], onDelete: Cascade)
+  client          Client             @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([garageId])
+  @@index([garageId, clientId])
+  @@index([garageId, loanVehicleId])
+  @@index([garageId, startAt])
+}
+
+// ============================================
+// WORKSHOP-OPS-01: Return Report (PV de restitution)
+// ============================================
+
+enum ReturnReportStatus {
+  DRAFT
+  SENT
+  SIGNED
+}
+
+model ReturnReport {
+  id             String             @id @default(cuid())
+  garageId       Int
+  interventionId String             @unique
+  
+  // Checklist data
+  checklistJson  String?            // JSON: { roadTest: bool, lights: bool, clean: bool, damages: [], ... }
+  notes          String?
+  
+  // Photos
+  photosKeys     String[]           @default([]) // Storage keys for photos
+  
+  status         ReturnReportStatus @default(DRAFT)
+  
+  // PDF storage
+  pdfKey         String?            // Storage key (local or S3)
+  pdfHashSha256  String?            // SHA256 of the PDF
+  
+  // Signature
+  signatureRequestId String?        // FK to SignatureRequest
+  
+  // Timestamps
+  issuedAt       DateTime?          // When PV was frozen and sent
+  signedAt       DateTime?          // When client signed
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  garage         Garage             @relation(fields: [garageId], references: [id], onDelete: Cascade)
+  intervention   Intervention       @relation(fields: [interventionId], references: [id], onDelete: Cascade)
+
+  @@index([garageId])
+  @@index([garageId, interventionId])
 }

@@ -106,10 +106,13 @@ export async function GET(req: Request) {
 
     if (q) {
       baseWhere.OR = [
-        { firstName: { contains: q } },
-        { lastName: { contains: q } },
-        { email: { contains: q } },
-        { phone: { contains: q } },
+        { firstName: { contains: q, mode: "insensitive" } },
+        { lastName: { contains: q, mode: "insensitive" } },
+        { email: { contains: q, mode: "insensitive" } },
+        { phone: { contains: q, mode: "insensitive" } },
+        { vehicles: { some: { plate: { contains: q, mode: "insensitive" } } } },
+        { vehicles: { some: { brand: { contains: q, mode: "insensitive" } } } },
+        { vehicles: { some: { model: { contains: q, mode: "insensitive" } } } },
       ];
     }
 

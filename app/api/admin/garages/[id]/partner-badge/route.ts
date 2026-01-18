@@ -52,6 +52,18 @@ export async function PATCH(req: Request, ctx: Ctx) {
       },
     });
 
+    // Audit log - WHITE-LABEL-PARTNERS-01
+    await prisma.auditLog.create({
+      data: {
+        garageId,
+        userId: user.id,
+        action: "GARAGE_PARTNER_TOGGLED",
+        entityType: "Garage",
+        entityId: String(garageId),
+        metadata: { override: parsed.data.override },
+      },
+    });
+
     // Compute effective
     const partnerBadgeEffective =
       garage.partnerBadgeAdminOverride === "FORCE_ON"

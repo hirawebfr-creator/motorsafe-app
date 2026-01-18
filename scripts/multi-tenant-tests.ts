@@ -45,6 +45,8 @@ interface TestUser {
     vehicleId: string | null;
     interventionId: string | null;
     documentId: string | null;
+    quoteId: string | null;
+    invoiceId: string | null;
   };
 }
 
@@ -85,8 +87,18 @@ async function setupUser(email: string, label: string): Promise<TestUser> {
     select: { id: true },
   });
 
+  const quote = await prisma.quote.findFirst({
+    where: { organisationId: user.garageId, deletedAt: null },
+    select: { id: true },
+  });
+
+  const invoice = await prisma.invoice.findFirst({
+    where: { organisationId: user.garageId, deletedAt: null },
+    select: { id: true },
+  });
+
   console.log(`${label}: userId=${user.id} garageId=${user.garageId}`);
-  console.log(`  Resources: client=${client?.id} vehicle=${vehicle?.id} intervention=${intervention?.id} doc=${document?.id}`);
+  console.log(`  Resources: client=${client?.id} vehicle=${vehicle?.id} intervention=${intervention?.id} doc=${document?.id} quote=${quote?.id} invoice=${invoice?.id}`);
 
   return {
     userId: user.id,
@@ -99,6 +111,8 @@ async function setupUser(email: string, label: string): Promise<TestUser> {
       vehicleId: vehicle?.id ?? null,
       interventionId: intervention?.id ?? null,
       documentId: document?.id ?? null,
+      quoteId: quote?.id ?? null,
+      invoiceId: invoice?.id ?? null,
     },
   };
 }
@@ -363,6 +377,100 @@ const tests: TestCase[] = [
       } else {
         assert.strictEqual(res.status, 404, `Expected 404 or empty array but got ${res.status}`);
       }
+    },
+  },
+
+  // ==========================================================
+  // 8. Quote isolation tests
+  // ==========================================================
+  {
+    name: "GET /api/quotes/[id]: Garage A cannot read Garage B quote",
+    async run(baseUrl, userA, userB) {
+      if (!userB.resources.quoteId) {
+        console.log("  SKIP: No quote in Garage B");
+        return;
+      }
+      const res = await fetchJson(`${baseUrl}/api/quotes/${userB.resources.quoteId}`, {
+        method: "GET",
+        headers: { cookie: userA.cookie },
+      });
+      assert.strictEqual(res.status, 404, `Expected 404 but got ${res.status}`);
+    },
+  },
+  {
+    name: "PUT /api/quotes/[id]: Garage A cannot update Garage B quote",
+    async run(baseUrl, userA, userB) {
+      if (!userB.resources.quoteId) {
+        console.log("  SKIP: No quote in Garage B");
+        return;
+      }
+      const res = await fetchJson(`${baseUrl}/api/quotes/${userB.resources.quoteId}`, {
+        method: "PUT",
+        headers: { "content-type": "application/json", cookie: userA.cookie },
+        body: JSON.stringify({ lines: [] }),
+      });
+      assert.strictEqual(res.status, 404, `Expected 404 but got ${res.status}`);
+    },
+  },
+  {
+    name: "GET /api/quotes/[id]/pdf: Garage A cannot get Garage B quote PDF",
+    async run(baseUrl, userA, userB) {
+      if (!userB.resources.quoteId) {
+        console.log("  SKIP: No quote in Garage B");
+        return;
+      }
+      const res = await fetchJson(`${baseUrl}/api/quotes/${userB.resources.quoteId}/pdf`, {
+        method: "GET",
+        headers: { cookie: userA.cookie },
+      });
+      assert.strictEqual(res.status, 404, `Expected 404 but got ${res.status}`);
+    },
+  },
+
+  // ==========================================================
+  // 9. Invoice isolation tests
+  // ==========================================================
+  {
+    name: "GET /api/invoices/[id]: Garage A cannot read Garage B invoice",
+    async run(baseUrl, userA, userB) {
+      if (!userB.resources.invoiceId) {
+        console.log("  SKIP: No invoice in Garage B");
+        return;
+      }
+      const res = await fetchJson(`${baseUrl}/api/invoices/${userB.resources.invoiceId}`, {
+        method: "GET",
+        headers: { cookie: userA.cookie },
+      });
+      assert.strictEqual(res.status, 404, `Expected 404 but got ${res.status}`);
+    },
+  },
+  {
+    name: "PUT /api/invoices/[id]: Garage A cannot update Garage B invoice",
+    async run(baseUrl, userA, userB) {
+      if (!userB.resources.invoiceId) {
+        console.log("  SKIP: No invoice in Garage B");
+        return;
+      }
+      const res = await fetchJson(`${baseUrl}/api/invoices/${userB.resources.invoiceId}`, {
+        method: "PUT",
+        headers: { "content-type": "application/json", cookie: userA.cookie },
+        body: JSON.stringify({ lines: [] }),
+      });
+      assert.strictEqual(res.status, 404, `Expected 404 but got ${res.status}`);
+    },
+  },
+  {
+    name: "GET /api/invoices/[id]/pdf: Garage A cannot get Garage B invoice PDF",
+    async run(baseUrl, userA, userB) {
+      if (!userB.resources.invoiceId) {
+        console.log("  SKIP: No invoice in Garage B");
+        return;
+      }
+      const res = await fetchJson(`${baseUrl}/api/invoices/${userB.resources.invoiceId}/pdf`, {
+        method: "GET",
+        headers: { cookie: userA.cookie },
+      });
+      assert.strictEqual(res.status, 404, `Expected 404 but got ${res.status}`);
     },
   },
 ];
