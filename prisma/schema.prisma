@@ -149,6 +149,7 @@ model Garage {
   loanVehicles    LoanVehicle[]
   loanContracts   LoanContract[]
   returnReports   ReturnReport[]
+  incidentCases   IncidentCase[]   // INSURANCE-INCIDENT-01
   
   // MULTI-USER-ROLES-01: Team members
   members         GarageMember[]
@@ -178,6 +179,9 @@ model User {
   
   // IMPORT-ONBOARDING-01: Import batches created by this user
   importBatches ImportBatch[]
+  
+  // INSURANCE-INCIDENT-01: Incident cases created by this user
+  createdIncidentCases IncidentCase[] @relation("CreatedIncidentCases")
 
   @@index([garageId])
 }
@@ -380,6 +384,7 @@ model Intervention {
   appointments Appointment[]
   repairOrder  RepairOrder?
   returnReport ReturnReport?
+  incidentCase IncidentCase?   // INSURANCE-INCIDENT-01
 
   garage  Garage? @relation(fields: [garageId], references: [id], onDelete: Cascade)
   vehicle Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
@@ -495,6 +500,77 @@ model ImportBatch {
   createdByUser   User?        @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
   
   @@index([garageId, createdAt])
+  @@index([garageId, status])
+}
+
+// ============================================================
+// INSURANCE-INCIDENT-01: Incident Case for insurance/legal documentation
+// ============================================================
+
+enum IncidentCaseStatus {
+  DRAFT
+  OPEN
+  CLOSED
+}
+
+enum IncidentType {
+  ENGINE
+  GEARBOX
+  ELECTRICAL
+  BRAKES
+  SUSPENSION
+  BODY
+  FUEL_SYSTEM
+  OTHER
+}
+
+model IncidentCase {
+  id                String             @id @default(cuid())
+  garageId          Int
+  interventionId    String             @unique  // One incident case per intervention
+  
+  status            IncidentCaseStatus @default(DRAFT)
+  incidentType      IncidentType?
+  
+  // Incident timeline
+  openedAt          DateTime?
+  closedAt          DateTime?
+  
+  // Structured description
+  description       String?            // What happened
+  circumstances     String?            // How/when it happened
+  damagesObserved   String?            // Visible damages
+  
+  // Statements
+  customerStatement String?            // Customer's account of incident
+  garageStatement   String?            // Garage's professional assessment
+  
+  // Attachments (photo/document keys from uploads)
+  attachmentKeys    String[]           @default([])
+  
+  // Signature requests for statements
+  customerSignatureId String?          // SignatureRequest ID for customer statement
+  garageSignatureId   String?          // SignatureRequest ID for garage statement
+  
+  // Generated documents
+  summaryPdfKey     String?            // Storage key for summary PDF
+  summaryPdfHash    String?            // SHA256 of summary PDF
+  exportZipKey      String?            // Storage key for insurance-ready ZIP
+  exportZipHash     String?            // SHA256 of export ZIP
+  
+  // Evidence snapshot
+  evidenceSummaryJson Json?            // Snapshot of evidence chain at export
+  
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @default(now()) @updatedAt
+  createdByUserId   String?
+  
+  garage            Garage             @relation(fields: [garageId], references: [id], onDelete: Cascade)
+  intervention      Intervention       @relation(fields: [interventionId], references: [id], onDelete: Cascade)
+  createdByUser     User?              @relation("CreatedIncidentCases", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  
+  @@index([garageId])
+  @@index([garageId, interventionId])
   @@index([garageId, status])
 }
 
