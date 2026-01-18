@@ -136,8 +136,8 @@ export default function DemoPage() {
           <div className="grid gap-6 md:grid-cols-3">
             {[
               { src: "/screenshots/home.png", alt: "Dashboard SafeMotor", caption: "Dashboard" },
-              { src: "/screenshots/intervention.png", alt: "Intervention + Signature", caption: "Intervention & Signature" },
-              { src: "/screenshots/export.png", alt: "Export ZIP", caption: "Export assurance" },
+              { src: "/screenshots/intervention.svg", alt: "Intervention + Signature", caption: "Intervention & Signature" },
+              { src: "/screenshots/export.svg", alt: "Export ZIP", caption: "Export assurance" },
             ].map((img) => (
               <div key={img.src} className="overflow-hidden rounded-xl border border-border bg-bg">
                 <div className="relative aspect-video bg-surface2">
