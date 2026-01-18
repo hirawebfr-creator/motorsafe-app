@@ -13,9 +13,12 @@ import {
   RefreshCw,
   Clock,
   Server,
+  Play,
+  RotateCcw,
 } from "lucide-react";
 import { useUser } from "@/components/user-context";
 import { fetcher } from "@/lib/fetcher";
+import { useToast } from "@/components/ui/Toast";
 
 type ServiceStatus = "ok" | "degraded" | "down";
 
@@ -99,12 +102,88 @@ function StatusBadge({ status }: { status: ServiceStatus }) {
 
 export default function SystemStatusPage() {
   const user = useUser();
+  const toast = useToast();
   const [data, setData] = useState<HealthData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+  
+  // Demo mode state
+  const [demoStatus, setDemoStatus] = useState<{
+    canAccess: boolean;
+    enabled: boolean;
+    demoGarage: { id: number; name: string; slug: string } | null;
+  } | null>(null);
+  const [demoLoading, setDemoLoading] = useState(false);
 
   const isAdmin = user?.role === "ADMIN";
+
+  const fetchDemoStatus = async () => {
+    try {
+      const result = await fetcher<{
+        canAccess: boolean;
+        enabled: boolean;
+        demoGarage: { id: number; name: string; slug: string } | null;
+      }>("/api/admin/demo/toggle");
+      setDemoStatus(result);
+    } catch (err) {
+      console.error("Failed to fetch demo status:", err);
+    }
+  };
+
+  const toggleDemoMode = async () => {
+    if (!demoStatus) return;
+    setDemoLoading(true);
+    try {
+      const result = await fetcher<{ success: boolean; enabled: boolean; message: string }>(
+        "/api/admin/demo/toggle",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ enabled: !demoStatus.enabled }),
+        }
+      );
+      setDemoStatus((prev) => prev ? { ...prev, enabled: result.enabled } : null);
+      toast.push({
+        title: result.enabled ? "Mode démo activé" : "Mode démo désactivé",
+        description: result.enabled 
+          ? "Vous pouvez maintenant accéder au garage démo"
+          : "Le mode démo a été désactivé",
+        variant: "success",
+      });
+    } catch (err) {
+      toast.push({
+        title: "Erreur",
+        description: err instanceof Error ? err.message : "Erreur inconnue",
+        variant: "error",
+      });
+    } finally {
+      setDemoLoading(false);
+    }
+  };
+
+  const resetDemo = async () => {
+    setDemoLoading(true);
+    try {
+      const result = await fetcher<{ success: boolean; message: string; stats: Record<string, number> }>(
+        "/api/admin/demo/reset",
+        { method: "POST" }
+      );
+      toast.push({
+        title: "Démo réinitialisée",
+        description: `${result.stats.interventions} interventions, ${result.stats.signatures} signatures reset`,
+        variant: "success",
+      });
+    } catch (err) {
+      toast.push({
+        title: "Erreur",
+        description: err instanceof Error ? err.message : "Erreur inconnue",
+        variant: "error",
+      });
+    } finally {
+      setDemoLoading(false);
+    }
+  };
 
   const fetchHealth = async () => {
     setLoading(true);
@@ -123,6 +202,7 @@ export default function SystemStatusPage() {
   useEffect(() => {
     if (isAdmin) {
       fetchHealth();
+      fetchDemoStatus();
       // Auto-refresh every 60 seconds
       const interval = setInterval(fetchHealth, 60000);
       return () => clearInterval(interval);
@@ -223,6 +303,60 @@ export default function SystemStatusPage() {
               <div className="text-sm text-gray-500">En attente approbation</div>
             </div>
           </div>
+
+          {/* Demo Mode Section */}
+          {demoStatus?.canAccess && (
+            <div className="bg-gradient-to-r from-primary-50 to-primary-100 p-6 rounded-xl border border-primary-200">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-primary-600 rounded-xl">
+                    <Play className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-primary-900">Mode Démo</h3>
+                    <p className="text-sm text-primary-700">
+                      {demoStatus.demoGarage 
+                        ? `Garage: ${demoStatus.demoGarage.name}`
+                        : "Aucun garage démo configuré"
+                      }
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  {demoStatus.enabled && demoStatus.demoGarage && (
+                    <>
+                      <a
+                        href={`/app/${demoStatus.demoGarage.slug}`}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
+                      >
+                        <Play className="w-4 h-4" />
+                        Ouvrir Démo
+                      </a>
+                      <button
+                        onClick={resetDemo}
+                        disabled={demoLoading}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-white text-primary-700 border border-primary-300 rounded-lg hover:bg-primary-50 disabled:opacity-50"
+                      >
+                        <RotateCcw className={`w-4 h-4 ${demoLoading ? "animate-spin" : ""}`} />
+                        Reset
+                      </button>
+                    </>
+                  )}
+                  <button
+                    onClick={toggleDemoMode}
+                    disabled={demoLoading || !demoStatus.demoGarage}
+                    className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg disabled:opacity-50 ${
+                      demoStatus.enabled
+                        ? "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                        : "bg-primary-600 text-white hover:bg-primary-700"
+                    }`}
+                  >
+                    {demoStatus.enabled ? "Désactiver" : "Activer"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Services Grid */}
           <div>

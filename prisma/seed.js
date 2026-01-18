@@ -18,6 +18,7 @@ async function main() {
       slug: demoSlug,
       status: "ACTIVE",
       plan: "FREE",
+      isDemo: true,
     },
     create: {
       name: "Demo Garage",
@@ -27,6 +28,7 @@ async function main() {
       address: "1 Rue de la Démo, 75000 Paris",
       status: "ACTIVE",
       plan: "FREE",
+      isDemo: true,
     },
   });
 

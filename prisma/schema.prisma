@@ -160,6 +160,11 @@ model Garage {
   
   // LEADS-CRM-01: Leads converted to trial
   leadsConverted     Lead[]   @relation("LeadToGarage")
+  
+  // DEMO-SCENARIO-01: Demo mode for sales presentations
+  isDemo             Boolean  @default(false)   // True = demo garage (protected)
+  demoSeedVersion    Int      @default(1)       // Seed version for reset
+  demoState          DemoState?
 }
 
 model User {
@@ -189,6 +194,9 @@ model User {
   // LEADS-CRM-01: Leads owned by this admin user
   ownedLeads       Lead[]         @relation("LeadOwner")
   leadActivities   LeadActivity[] @relation("LeadActivityCreator")
+  
+  // DEMO-SCENARIO-01: Demo mode activation
+  demoModeEnabledAt DateTime?   // When demo mode was enabled
 
   @@index([garageId])
 }
@@ -1484,4 +1492,22 @@ model LeadActivity {
   createdBy       User?            @relation("LeadActivityCreator", fields: [createdByUserId], references: [id])
 
   @@index([leadId, createdAt])
+}
+
+// ============================================
+// DEMO-SCENARIO-01: Demo State Tracking
+// ============================================
+
+/// Tracks demo progress for a garage
+model DemoState {
+  id            Int      @id @default(autoincrement())
+  garageId      Int      @unique
+  
+  currentStep   Int      @default(0)  // Current step in demo flow (0-7)
+  completedAt   DateTime?             // When demo was completed
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  garage        Garage   @relation(fields: [garageId], references: [id], onDelete: Cascade)
 }
