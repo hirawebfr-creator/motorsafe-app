@@ -157,6 +157,9 @@ model Garage {
   // IMPORT-ONBOARDING-01: Onboarding wizard status and import batches
   onboardingStatus   String   @default("NEW") // NEW | IN_PROGRESS | DONE
   importBatches      ImportBatch[]
+  
+  // LEADS-CRM-01: Leads converted to trial
+  leadsConverted     Lead[]   @relation("LeadToGarage")
 }
 
 model User {
@@ -182,6 +185,10 @@ model User {
   
   // INSURANCE-INCIDENT-01: Incident cases created by this user
   createdIncidentCases IncidentCase[] @relation("CreatedIncidentCases")
+  
+  // LEADS-CRM-01: Leads owned by this admin user
+  ownedLeads       Lead[]         @relation("LeadOwner")
+  leadActivities   LeadActivity[] @relation("LeadActivityCreator")
 
   @@index([garageId])
 }
@@ -1369,4 +1376,112 @@ model ReturnReport {
 
   @@index([garageId])
   @@index([garageId, interventionId])
+}
+
+// ============================================
+// LEADS-CRM-01: Internal Sales CRM
+// ============================================
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  DEMO_SCHEDULED
+  DEMO_DONE
+  TRIAL_STARTED
+  WON
+  LOST
+}
+
+enum LeadChannel {
+  INSTAGRAM
+  FACEBOOK
+  SMS
+  EMAIL
+  PHONE
+  LINKEDIN
+  REFERRAL
+  OTHER
+}
+
+enum LeadActivityType {
+  NOTE
+  CALL
+  SMS
+  EMAIL
+  DM
+  DEMO
+  STATUS_CHANGE
+}
+
+/// Prospect garage in sales pipeline (admin-only)
+model Lead {
+  id              Int        @id @default(autoincrement())
+  
+  // Basic info
+  garageName      String
+  city            String?
+  postalCode      String?
+  contactName     String?
+  contactEmail    String?
+  contactPhone    String?
+  
+  // Pipeline
+  status          LeadStatus @default(NEW)
+  channel         LeadChannel @default(OTHER)
+  source          String?    // Détail source (nom campagne, etc.)
+  
+  // Follow-up
+  nextFollowUpAt  DateTime?
+  lastContactedAt DateTime?
+  notes           String?    // Notes libres
+  
+  // Conversion
+  trialGarageId   Int?       // Lien vers Garage si converti en trial
+  wonAt           DateTime?
+  lostAt          DateTime?
+  lostReason      String?
+  
+  // Ownership
+  ownerUserId     String?    // Admin responsable
+  
+  // Timestamps
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  
+  // RGPD
+  anonymizedAt    DateTime?  // Si nettoyé
+  
+  // Relations
+  activities      LeadActivity[]
+  trialGarage     Garage?    @relation("LeadToGarage", fields: [trialGarageId], references: [id])
+  ownerUser       User?      @relation("LeadOwner", fields: [ownerUserId], references: [id])
+
+  @@index([ownerUserId, status])
+  @@index([ownerUserId, nextFollowUpAt])
+  @@index([status])
+  @@index([createdAt])
+}
+
+/// Activity log for a lead (notes, calls, status changes)
+model LeadActivity {
+  id              Int              @id @default(autoincrement())
+  leadId          Int
+  
+  type            LeadActivityType
+  summary         String           // Description courte
+  details         String?          // Détails longs (optionnel)
+  
+  // For status changes
+  oldStatus       LeadStatus?
+  newStatus       LeadStatus?
+  
+  // Who did this
+  createdByUserId String?
+  
+  createdAt       DateTime         @default(now())
+  
+  lead            Lead             @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  createdBy       User?            @relation("LeadActivityCreator", fields: [createdByUserId], references: [id])
+
+  @@index([leadId, createdAt])
 }

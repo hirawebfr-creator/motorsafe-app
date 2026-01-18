@@ -1520,3 +1520,186 @@ export async function sendTeamInviteEmail(params: TeamInviteEmailParams): Promis
     return { success: false, error: message };
   }
 }
+
+// ============================================
+// LEADS-CRM-01: Lead Digest Email
+// ============================================
+
+export interface LeadDigestItem {
+  id: number;
+  garageName: string;
+  city: string | null;
+  contactName: string | null;
+  contactPhone: string | null;
+  status: string;
+  nextFollowUpAt: Date;
+  daysSinceContact: number | null;
+}
+
+export interface LeadDigestEmailParams {
+  to: string;
+  leadsToday: LeadDigestItem[];
+  leadsOverdue: LeadDigestItem[];
+  statsTotal: number;
+  statsInProgress: number;
+}
+
+function buildLeadDigestHtml(params: LeadDigestEmailParams): string {
+  const { leadsToday, leadsOverdue, statsTotal, statsInProgress } = params;
+  const appUrl = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || "https://motorsafe.fr";
+
+  const formatLeadRow = (lead: LeadDigestItem, isOverdue: boolean) => `
+    <tr style="border-bottom: 1px solid #e9ecef;">
+      <td style="padding: 12px 8px;">
+        <strong>${lead.garageName}</strong>
+        ${lead.city ? `<br><span style="color: #666; font-size: 12px;">${lead.city}</span>` : ""}
+      </td>
+      <td style="padding: 12px 8px;">
+        ${lead.contactName || "—"}
+        ${lead.contactPhone ? `<br><a href="tel:${lead.contactPhone}" style="color: #4ADE80; font-size: 12px;">${lead.contactPhone}</a>` : ""}
+      </td>
+      <td style="padding: 12px 8px; color: ${isOverdue ? "#dc2626" : "#ea580c"}; font-weight: 500;">
+        ${isOverdue ? "EN RETARD" : "Aujourd'hui"}
+      </td>
+      <td style="padding: 12px 8px;">
+        <a href="${appUrl}/admin/leads/${lead.id}" style="color: #4ADE80; text-decoration: none;">Voir →</a>
+      </td>
+    </tr>
+  `;
+
+  const todayRows = leadsToday.map((l) => formatLeadRow(l, false)).join("");
+  const overdueRows = leadsOverdue.map((l) => formatLeadRow(l, true)).join("");
+
+  return `
+<!DOCTYPE html>
+<html lang="fr">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 700px; margin: 0 auto; padding: 20px;">
+  <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 30px; border-radius: 12px 12px 0 0;">
+    <h1 style="color: #4ADE80; margin: 0; font-size: 24px;">📋 Digest Leads du jour</h1>
+    <p style="color: #aaa; margin: 8px 0 0 0; font-size: 14px;">
+      ${new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}
+    </p>
+  </div>
+  
+  <div style="background: #f8f9fa; padding: 30px; border: 1px solid #e9ecef; border-top: none;">
+    <!-- Stats -->
+    <div style="display: flex; gap: 16px; margin-bottom: 24px;">
+      <div style="background: white; border-radius: 8px; padding: 16px; flex: 1; text-align: center; border: 1px solid #e9ecef;">
+        <div style="font-size: 28px; font-weight: bold; color: #1a1a2e;">${statsTotal}</div>
+        <div style="font-size: 12px; color: #666;">Total leads</div>
+      </div>
+      <div style="background: white; border-radius: 8px; padding: 16px; flex: 1; text-align: center; border: 1px solid #e9ecef;">
+        <div style="font-size: 28px; font-weight: bold; color: #4ADE80;">${statsInProgress}</div>
+        <div style="font-size: 12px; color: #666;">En cours</div>
+      </div>
+      <div style="background: white; border-radius: 8px; padding: 16px; flex: 1; text-align: center; border: 1px solid #e9ecef;">
+        <div style="font-size: 28px; font-weight: bold; color: #ea580c;">${leadsToday.length}</div>
+        <div style="font-size: 12px; color: #666;">À relancer</div>
+      </div>
+      <div style="background: ${leadsOverdue.length > 0 ? "#fef2f2" : "white"}; border-radius: 8px; padding: 16px; flex: 1; text-align: center; border: 1px solid ${leadsOverdue.length > 0 ? "#fecaca" : "#e9ecef"};">
+        <div style="font-size: 28px; font-weight: bold; color: #dc2626;">${leadsOverdue.length}</div>
+        <div style="font-size: 12px; color: #666;">En retard</div>
+      </div>
+    </div>
+
+    ${leadsOverdue.length > 0 ? `
+    <!-- Overdue Leads -->
+    <h2 style="color: #dc2626; font-size: 16px; margin: 24px 0 12px;">🚨 Leads en retard (${leadsOverdue.length})</h2>
+    <table style="width: 100%; background: white; border-radius: 8px; border-collapse: collapse; border: 1px solid #fecaca;">
+      <thead>
+        <tr style="background: #fef2f2; border-bottom: 1px solid #fecaca;">
+          <th style="padding: 12px 8px; text-align: left; font-size: 12px; color: #666;">Garage</th>
+          <th style="padding: 12px 8px; text-align: left; font-size: 12px; color: #666;">Contact</th>
+          <th style="padding: 12px 8px; text-align: left; font-size: 12px; color: #666;">Statut</th>
+          <th style="padding: 12px 8px; text-align: left; font-size: 12px; color: #666;"></th>
+        </tr>
+      </thead>
+      <tbody>${overdueRows}</tbody>
+    </table>
+    ` : ""}
+
+    ${leadsToday.length > 0 ? `
+    <!-- Today's Leads -->
+    <h2 style="color: #ea580c; font-size: 16px; margin: 24px 0 12px;">📞 À relancer aujourd'hui (${leadsToday.length})</h2>
+    <table style="width: 100%; background: white; border-radius: 8px; border-collapse: collapse; border: 1px solid #e9ecef;">
+      <thead>
+        <tr style="background: #f9fafb; border-bottom: 1px solid #e9ecef;">
+          <th style="padding: 12px 8px; text-align: left; font-size: 12px; color: #666;">Garage</th>
+          <th style="padding: 12px 8px; text-align: left; font-size: 12px; color: #666;">Contact</th>
+          <th style="padding: 12px 8px; text-align: left; font-size: 12px; color: #666;">Statut</th>
+          <th style="padding: 12px 8px; text-align: left; font-size: 12px; color: #666;"></th>
+        </tr>
+      </thead>
+      <tbody>${todayRows}</tbody>
+    </table>
+    ` : ""}
+
+    ${leadsToday.length === 0 && leadsOverdue.length === 0 ? `
+    <div style="text-align: center; padding: 40px; color: #666;">
+      <p style="font-size: 48px; margin: 0;">✅</p>
+      <p>Aucune relance prévue aujourd'hui !</p>
+    </div>
+    ` : ""}
+
+    <div style="text-align: center; margin-top: 24px;">
+      <a href="${appUrl}/admin/leads" 
+         style="display: inline-block; background: #4ADE80; color: #1a1a2e; padding: 12px 24px; 
+                text-decoration: none; border-radius: 8px; font-weight: 600;">
+        Ouvrir le CRM →
+      </a>
+    </div>
+  </div>
+  
+  <div style="background: #1a1a2e; padding: 20px; border-radius: 0 0 12px 12px; text-align: center;">
+    <p style="color: #888; font-size: 12px; margin: 0;">
+      Digest quotidien SafeMotor — Envoyé à 09:00
+    </p>
+  </div>
+</body>
+</html>
+  `.trim();
+}
+
+export async function sendLeadDigestEmail(params: LeadDigestEmailParams): Promise<EmailResult> {
+  const { to, leadsToday, leadsOverdue } = params;
+  const subject = leadsOverdue.length > 0 
+    ? `🚨 ${leadsOverdue.length} leads en retard + ${leadsToday.length} à relancer`
+    : leadsToday.length > 0
+    ? `📞 ${leadsToday.length} leads à relancer aujourd'hui`
+    : "✅ Aucune relance prévue aujourd'hui";
+
+  const html = buildLeadDigestHtml(params);
+
+  // Test mode: store in outbox instead of sending
+  if (isTestMode()) {
+    const entry = addToOutbox({
+      to,
+      subject,
+      html,
+      metadata: { type: "LEAD_DIGEST" },
+    });
+    console.log(`[Email] Test mode: stored lead digest email in outbox for ${to}`);
+    return { success: true, messageId: entry.id };
+  }
+
+  const resend = getResendClient();
+  if (!resend) {
+    console.log("[Email] Skipping lead digest email (no API key configured):", to);
+    return { success: true, messageId: "skipped-no-api-key" };
+  }
+
+  try {
+    const result = await resend.emails.send({ from: getMailFrom(), to, subject, html });
+    if (result.error) {
+      console.error("[Email] Resend error:", result.error);
+      return { success: false, error: result.error.message };
+    }
+    console.log(`[Email] Sent lead digest email to ${to}, messageId: ${result.data?.id}`);
+    return { success: true, messageId: result.data?.id };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    console.error("[Email] Exception sending lead digest email:", message);
+    return { success: false, error: message };
+  }
+}

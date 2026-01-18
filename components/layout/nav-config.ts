@@ -17,6 +17,7 @@ import {
   Store,
   CalendarDays,
   UsersRound,
+  Target,
 } from "lucide-react";
 import type React from "react";
 
@@ -49,6 +50,7 @@ export const NAV_ITEMS: NavItem[] = [
   
   // ===== Section Admin (admin only) =====
   { label: "Vue globale", href: "/admin/dashboard", icon: BarChart3, adminOnly: true, group: "admin" },
+  { label: "Leads", href: "/admin/leads", icon: Target, adminOnly: true, group: "admin" },
   { label: "Garages", href: "/admin/garages", icon: Building2, adminOnly: true, group: "admin" },
   { label: "Demandes pro", href: "/admin/pro-demandes", icon: UserCheck, adminOnly: true, group: "admin" },
   { label: "Tous les clients", href: "/admin/clients", icon: Users, adminOnly: true, group: "admin" },
