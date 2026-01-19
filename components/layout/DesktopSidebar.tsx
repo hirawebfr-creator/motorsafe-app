@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { SessionUser } from "@/lib/auth";
 import type { NavItem } from "@/components/layout/nav-config";
+import { GarageEmulator } from "@/components/admin/GarageEmulator";
 import {
   LayoutDashboard,
   Users,
@@ -67,6 +68,8 @@ export function DesktopSidebar({
     "/documents",
     "/garage",
     "/parametres",
+    "/aide",
+    "/support",
   ];
 
   const items = order
@@ -131,6 +134,12 @@ export function DesktopSidebar({
                 Administration
               </div>
             </div>
+            
+            {/* Garage Emulator - allows admin to view as a specific garage */}
+            <div className="mb-3 px-3">
+              <GarageEmulator />
+            </div>
+            
             <div className="space-y-1">
               {adminItems.map((item) => {
                 const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);

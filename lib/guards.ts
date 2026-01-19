@@ -75,6 +75,57 @@ export function getTenantId(user: SessionUser): number {
   return user.garageId;
 }
 
+/**
+ * Pour les admins: permet d'émuler un garage via header ou query param
+ * Retourne le garageId à utiliser (réel ou émulé)
+ */
+export function getTenantIdWithAdminOverride(user: SessionUser, req?: Request): number | null {
+  // Si pas admin, comportement normal
+  if (user.role !== "ADMIN") {
+    if (!user.garageId) return null;
+    return user.garageId;
+  }
+  
+  // Admin: vérifier header ou query param pour émulation
+  if (req) {
+    // Check header first: X-Emulate-Garage
+    const emulateHeader = req.headers.get("x-emulate-garage");
+    if (emulateHeader) {
+      const garageId = parseInt(emulateHeader, 10);
+      if (!isNaN(garageId) && garageId > 0) return garageId;
+    }
+    
+    // Check query param: ?garageId=123
+    try {
+      const url = new URL(req.url);
+      const garageIdParam = url.searchParams.get("garageId");
+      if (garageIdParam) {
+        const garageId = parseInt(garageIdParam, 10);
+        if (!isNaN(garageId) && garageId > 0) return garageId;
+      }
+    } catch {
+      // URL parse error, ignore
+    }
+  }
+  
+  // Admin sans émulation: retourne null (accès global)
+  return null;
+}
+
+/**
+ * Version qui throw si pas de garage (pour endpoints qui exigent un tenant)
+ */
+export function requireTenantIdWithAdminOverride(user: SessionUser, req?: Request): number {
+  const garageId = getTenantIdWithAdminOverride(user, req);
+  if (!garageId) {
+    if (user.role === "ADMIN") {
+      throw new RouteError(400, "TENANT_REQUIRED", "Sélectionnez un garage à émuler (header X-Emulate-Garage ou ?garageId=)");
+    }
+    throw new RouteError(400, "TENANT_REQUIRED", "Garage invalide.");
+  }
+  return garageId;
+}
+
 export function requireRole(user: SessionUser, roles: AppRole[]) {
   if (roles.includes(user.role)) return;
 
