@@ -196,6 +196,52 @@ export async function POST(req: Request, ctx: Ctx) {
     });
 
     // ============================================================
+    // LEGAL-PACK-01: Create ConsentRecord for audit trail
+    // ============================================================
+    const ipHash = createHash("sha256").update(ip).digest("hex");
+    const userAgentHash = createHash("sha256").update(userAgent).digest("hex");
+    const emailToHash = signerEmail?.trim() || signatureRequest.signerEmail || "";
+    const emailHash = emailToHash ? createHash("sha256").update(emailToHash.toLowerCase()).digest("hex") : null;
+    
+    // Build consent hash for integrity verification
+    const consentData = JSON.stringify({
+      signatureRequestId: signatureRequest.id,
+      acceptedAt: signedAt.toISOString(),
+      ipHash,
+      userAgentHash,
+      emailHash,
+      legalSnapshotHash: legalSnapshot.hash,
+    });
+    const consentHash = createHash("sha256").update(consentData).digest("hex");
+
+    // Extract legal docs from snapshot for consent record
+    let legalDocsAccepted: { slug: string; version: string }[] = [];
+    try {
+      const snapshotParsed = JSON.parse(legalSnapshot.json);
+      if (snapshotParsed.modules && Array.isArray(snapshotParsed.modules)) {
+        legalDocsAccepted = snapshotParsed.modules.map((m: string) => ({
+          slug: m,
+          version: snapshotParsed.version || "1.0.0",
+        }));
+      }
+    } catch {
+      // Snapshot parsing failed, continue without legal docs
+    }
+
+    await prisma.consentRecord.create({
+      data: {
+        signatureRequestId: signatureRequest.id,
+        legalDocsAccepted,
+        acceptedAt: signedAt,
+        ipHash,
+        userAgentHash,
+        emailHash,
+        signatureMethod: "EMAIL_LINK",
+        consentHash,
+      },
+    });
+
+    // ============================================================
     // NOTIF-CLIENT-01: Send confirmation email with download links
     // ============================================================
     const finalSignerEmail = signerEmail?.trim() || signatureRequest.signerEmail;

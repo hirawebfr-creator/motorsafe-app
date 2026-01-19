@@ -8,7 +8,7 @@ import PDFDocument from "pdfkit/js/pdfkit.standalone";
 import { Buffer } from "buffer";
 import { prisma } from "@/lib/prisma";
 import { decryptClientData } from "@/lib/encryption";
-import { selectLegalModules } from "@/lib/legal/selectLegalModules";
+import { selectLegalModules, buildLegalPackSnapshot } from "@/lib/legal/selectLegalModules";
 import { createHash } from "crypto";
 import { isPartnerBadgeActive, loadPartnerBadgeSvg } from "@/lib/pdf/partnerBadge";
 
@@ -400,6 +400,105 @@ export async function buildOrderMasterPdf(
   );
   doc.fillColor("#000");
 
+  // === LEGAL PACK V1 DOCUMENTS ===
+  // Add required documents based on intervention type (DOC-A to DOC-F)
+  const legalPackData = buildLegalPackSnapshot(tags, {
+    GARAGE_NOM: garage?.displayName || garage?.name || "SafeMotor",
+    GARAGE_ADRESSE: [garage?.addressLine1, garage?.postalCode, garage?.city].filter(Boolean).join(", ") || garage?.address || undefined,
+    GARAGE_SIRET: garage?.siret || "[SIRET]",
+    GARAGE_EMAIL: garage?.email || "[EMAIL]",
+    CLIENT_NOM: `${client.firstName} ${client.lastName}`,
+    CLIENT_EMAIL: client.email || "[EMAIL]",
+    CLIENT_TEL: client.phone || "[TÉLÉPHONE]",
+    VEH_MARQUE: intervention.vehicle.brand || "[MARQUE]",
+    VEH_MODELE: intervention.vehicle.model || "[MODÈLE]",
+    VEH_IMMAT: intervention.vehicle.plate || "[IMMAT]",
+    VEH_VIN: intervention.vehicle.vin || "[VIN]",
+    VEH_KM: intv.odometerKm ? String(intv.odometerKm) : "[KM]",
+    INTERVENTION_TITRE: intervention.type || "[TYPE INTERVENTION]",
+    SYMPTOMES: String(intv.intakeNotes || "[SYMPTÔMES]"),
+    ETAT_RECEPTION: "[ÉTAT]",
+    MONTANT_ESTIMATIF: intv.amountCents ? String((intv.amountCents as number / 100).toFixed(2)) : "À définir",
+    DELAI_ESTIMATIF: "[DÉLAI]",
+    PRIX_DIAG: "[PRIX DIAG]",
+    DETAIL_REPROG: String(intv.intakeNotes || "[DÉTAILS REPROG]"),
+    DETAIL_TRAVAUX: "[DÉTAIL TRAVAUX]",
+    TESTS_EFFECTUES: "[TESTS]",
+    RESERVES_SORTIE: "[RÉSERVES]",
+    DATE_SIGNATURE: options.signedAt ? formatDateTime(options.signedAt) : "[DATE SIGNATURE]",
+    MODE_SIGNATURE: "Signature électronique sécurisée",
+  });
+
+  // For each required document, add a new page with content
+  for (const docItem of legalPackData.documents) {
+    // Skip DOC_A (order) as we already have the main document
+    if (docItem.docId === "DOC_A") continue;
+    
+    doc.addPage();
+    
+    // Document header
+    doc.fontSize(14).font("Helvetica-Bold").text(docItem.title, left, doc.y, { width: contentWidth });
+    doc.moveDown(0.5);
+    
+    // Render markdown-like content as plain text
+    const lines = docItem.body.split("\n");
+    for (const line of lines) {
+      const trimmed = line.trim();
+      
+      if (trimmed.startsWith("## ")) {
+        // H2 heading
+        doc.moveDown(0.5);
+        doc.fontSize(12).font("Helvetica-Bold").text(trimmed.replace("## ", ""), left, doc.y, { width: contentWidth });
+        doc.moveDown(0.3);
+      } else if (trimmed.startsWith("### ")) {
+        // H3 heading
+        doc.moveDown(0.4);
+        doc.fontSize(10).font("Helvetica-Bold").text(trimmed.replace("### ", ""), left, doc.y, { width: contentWidth });
+        doc.moveDown(0.2);
+      } else if (trimmed.startsWith("- ") || trimmed.startsWith("• ")) {
+        // Bullet point
+        doc.fontSize(9).font("Helvetica").text(`  ${trimmed}`, left, doc.y, { width: contentWidth });
+        doc.moveDown(0.1);
+      } else if (trimmed.startsWith("> ")) {
+        // Quote/note
+        doc.fontSize(8).font("Helvetica-Oblique").fillColor("#666").text(trimmed.replace("> ", ""), left + 10, doc.y, { width: contentWidth - 20 });
+        doc.fillColor("#000");
+        doc.moveDown(0.2);
+      } else if (trimmed.startsWith("⚠️") || trimmed.startsWith("**Important**")) {
+        // Warning
+        doc.fontSize(9).font("Helvetica-Bold").fillColor("#b91c1c").text(trimmed, left, doc.y, { width: contentWidth });
+        doc.fillColor("#000");
+        doc.moveDown(0.2);
+      } else if (trimmed.startsWith("---")) {
+        // Horizontal rule
+        doc.moveDown(0.3);
+        doc.moveTo(left, doc.y).lineTo(right, doc.y).strokeColor("#ccc").lineWidth(0.5).stroke();
+        doc.moveDown(0.3);
+      } else if (trimmed === "") {
+        // Empty line
+        doc.moveDown(0.2);
+      } else {
+        // Regular paragraph - handle bold markers
+        const processed = trimmed
+          .replace(/\*\*([^*]+)\*\*/g, "$1") // Remove markdown bold (pdfkit can't inline it)
+          .replace(/\{\{[A-Z_]+\}\}/g, (match) => `[${match.slice(2, -2)}]`); // Convert remaining placeholders
+        doc.fontSize(9).font("Helvetica").text(processed, left, doc.y, { width: contentWidth });
+        doc.moveDown(0.2);
+      }
+    }
+    
+    // Document footer
+    doc.moveDown(1);
+    doc.fontSize(7).fillColor("#888").text(
+      `Annexe ${docItem.docId.replace("DOC_", "")} — Version 1.0`,
+      left, doc.y, { width: contentWidth }
+    );
+    doc.fillColor("#000");
+  }
+
+  // Store legal pack hash for integrity verification (used in filename suffix)
+  const legalPackHash = legalPackData.hash.substring(0, 8);
+
   // === SIGNATURES ===
   doc.moveDown(1.5);
   const sigY = doc.y;
@@ -463,10 +562,10 @@ export async function buildOrderMasterPdf(
   // 5. Calculate SHA256 hash
   const sha256 = createHash("sha256").update(pdfBuffer).digest("hex");
 
-  // 6. Generate filename
+  // 6. Generate filename with legal pack hash for traceability
   const plate = intervention.vehicle.plate.replace(/[^a-zA-Z0-9]/g, "-");
   const suffix = options.signedAt ? "_SIGNE" : "";
-  const filename = `OR_${plate}_${formatDate(new Date()).replace(/\s/g, "-")}${suffix}.pdf`;
+  const filename = `OR_${plate}_${formatDate(new Date()).replace(/\s/g, "-")}_${legalPackHash}${suffix}.pdf`;
 
   return {
     pdfBuffer,

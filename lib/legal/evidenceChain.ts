@@ -20,7 +20,9 @@ export type EvidenceEventType =
   | "export"
   | "snapshot"
   | "signature_void"
-  | "data_rectification";
+  | "data_rectification"
+  | "addendum_added"
+  | "evidence_verified";
 
 export type EvidenceEntityType = 
   | "intervention"

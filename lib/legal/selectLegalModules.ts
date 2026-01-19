@@ -135,3 +135,57 @@ export function buildLegalSnapshot(tags: string[]): {
   
   return { json, hash };
 }
+// ============================================================================
+// LEGAL PACK V1 INTEGRATION
+// ============================================================================
+
+import { 
+  getRequiredDocs, 
+  getRequiredTemplates, 
+  fillTemplates, 
+  type LegalDocTemplate, 
+  type PlaceholderData,
+  type LegalDocType,
+  LEGAL_PACK_V1,
+} from "@/content/legalPackV1";
+
+export { getRequiredDocs, getRequiredTemplates, fillTemplates, LEGAL_PACK_V1 };
+export type { LegalDocTemplate, PlaceholderData, LegalDocType };
+
+/**
+ * Build a complete legal pack snapshot for an intervention
+ * Includes both classic modules AND new DOC-A to DOC-F documents
+ */
+export function buildLegalPackSnapshot(
+  tags: string[],
+  placeholderData: PlaceholderData
+): {
+  json: string;
+  hash: string;
+  documents: { docId: LegalDocType; title: string; body: string; requiresSignature: boolean }[];
+} {
+  // Get required document templates
+  const templates = getRequiredTemplates(tags);
+  const filledDocs = fillTemplates(templates, placeholderData);
+  
+  // Build snapshot
+  const documents = filledDocs.map(({ template, filledBody }) => ({
+    docId: template.id,
+    title: template.title,
+    body: filledBody,
+    requiresSignature: template.requiresSignature,
+  }));
+  
+  const snapshot = {
+    version: "1.0.0",
+    packVersion: "LEGAL_PACK_V1",
+    generatedAt: new Date().toISOString(),
+    tags,
+    documents,
+  };
+  
+  const json = JSON.stringify(snapshot);
+  const hash = createHash("sha256").update(json).digest("hex");
+  
+  return { json, hash, documents };
+}

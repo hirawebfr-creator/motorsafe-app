@@ -196,6 +196,8 @@ model Garage {
   loanContracts   LoanContract[]
   returnReports   ReturnReport[]
   incidentCases   IncidentCase[]   // INSURANCE-INCIDENT-01
+  documentVersions DocumentVersion[] // EVIDENCE-LOCKDOWN-01
+  evidenceAddenda  EvidenceAddendum[] // EVIDENCE-LOCKDOWN-01
   
   // MULTI-USER-ROLES-01: Team members
   members         GarageMember[]
@@ -218,6 +220,9 @@ model Garage {
   
   // SUPPORT-OMNI-01: Support tickets
   supportTickets     SupportTicket[]
+  
+  // LEGAL-PACK-01: Custom clause sets
+  clauseSets         ClauseSet[]
 }
 
 model User {
@@ -268,6 +273,10 @@ model User {
   // IN-APP-STATUS-AND-CHANGES-01: Changelog & Maintenance created by admin
   createdChangelogs      ChangelogEntry[]      @relation("ChangelogCreator")
   createdMaintenances    MaintenanceWindow[]   @relation("MaintenanceCreator")
+  
+  // EVIDENCE-LOCKDOWN-01: Document versions and addenda created by user
+  createdDocumentVersions DocumentVersion[]    @relation("DocumentVersionCreator")
+  createdEvidenceAddenda  EvidenceAddendum[]   @relation("AddendumCreator")
 
   @@index([garageId])
 }
@@ -471,6 +480,8 @@ model Intervention {
   repairOrder  RepairOrder?
   returnReport ReturnReport?
   incidentCase IncidentCase?   // INSURANCE-INCIDENT-01
+  documentVersions DocumentVersion[] // EVIDENCE-LOCKDOWN-01
+  evidenceAddenda  EvidenceAddendum[] // EVIDENCE-LOCKDOWN-01
 
   garage  Garage? @relation(fields: [garageId], references: [id], onDelete: Cascade)
   vehicle Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
@@ -1896,5 +1907,294 @@ model MaintenanceWindow {
   createdBy       User                @relation("MaintenanceCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
   
   @@index([startsAt, endsAt, isActive])
+}
+
+// ============================================================
+// EVIDENCE-LOCKDOWN-01: Document Versioning for forensic evidence
+// ============================================================
+
+enum DocumentVersionReason {
+  GENERATED     // Initial generation
+  SIGNED        // After signature
+  REGENERATED   // Re-generated (new version)
+  EXPORT        // Forensic export copy
+}
+
+enum DocumentVersionType {
+  QUOTE
+  INVOICE
+  REPAIR_ORDER
+  RETURN_REPORT
+  INCIDENT_SUMMARY
+  SIGNATURE_PDF
+  ATTACHMENT
+  OTHER
+}
+
+/// Immutable document versions for legal/forensic purposes
+model DocumentVersion {
+  id              String                @id @default(cuid())
+  garageId        Int
+  interventionId  String?               // Optional link to intervention
+  
+  documentType    DocumentVersionType
+  documentId      String?               // ID of source (quote/invoice/doc)
+  versionNumber   Int                   // 1, 2, 3...
+  
+  storageKey      String                // S3/local key
+  sha256          String                // Content hash for integrity
+  sizeBytes       Int
+  mime            String                @default("application/pdf")
+  
+  reason          DocumentVersionReason
+  metadata        Json?                 // Extra context (title, etc.)
+  
+  generatedByUserId String?
+  generatedAt     DateTime              @default(now())
+  
+  garage          Garage                @relation(fields: [garageId], references: [id], onDelete: Cascade)
+  intervention    Intervention?         @relation(fields: [interventionId], references: [id], onDelete: SetNull)
+  generatedBy     User?                 @relation("DocumentVersionCreator", fields: [generatedByUserId], references: [id], onDelete: SetNull)
+  
+  @@unique([documentType, documentId, versionNumber])
+  @@index([garageId])
+  @@index([garageId, interventionId])
+  @@index([documentType, documentId])
+  @@index([sha256])
+}
+
+/// Append-only addendum for locked interventions
+model EvidenceAddendum {
+  id              String   @id @default(cuid())
+  garageId        Int
+  interventionId  String
+  
+  text            String   @db.Text
+  sha256          String   // Hash of text content
+  prevHash        String?  // Hash of previous addendum (chain)
+  
+  createdByUserId String?
+  createdAt       DateTime @default(now())
+  
+  garage          Garage       @relation(fields: [garageId], references: [id], onDelete: Cascade)
+  intervention    Intervention @relation(fields: [interventionId], references: [id], onDelete: Cascade)
+  createdBy       User?        @relation("AddendumCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  
+  @@index([garageId])
+  @@index([garageId, interventionId])
+  @@index([createdAt])
+}
+
+// ============================================================================
+// LEGAL-PACK-01: Legal Documents System
+// ============================================================================
+
+/// Scope of legal document visibility
+enum LegalDocScope {
+  PUBLIC    // Visible on public pages (mentions, cgu, cgv, privacy)
+  APP       // Only visible to authenticated users
+}
+
+/// Legal document definition (e.g., CGU, CGV, Privacy Policy)
+model LegalDoc {
+  id          String        @id @default(cuid())
+  slug        String        @unique  // e.g., "cgu", "cgv", "mentions-legales"
+  title       String                 // e.g., "Conditions Générales d'Utilisation"
+  scope       LegalDocScope @default(PUBLIC)
+  sortOrder   Int           @default(0)
+  
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @default(now()) @updatedAt
+  
+  versions    LegalDocVersion[]
+  
+  @@index([slug])
+  @@index([scope])
+}
+
+/// Versioned content for legal documents
+model LegalDocVersion {
+  id            String    @id @default(cuid())
+  legalDocId    String
+  versionNumber Int
+  
+  effectiveAt   DateTime  // When this version becomes effective
+  bodyMarkdown  String    @db.Text
+  sha256        String    // Hash of bodyMarkdown for integrity
+  
+  isPublished   Boolean   @default(false)
+  publishedAt   DateTime?
+  publishedBy   String?   // userId
+  
+  createdAt     DateTime  @default(now())
+  createdBy     String?   // userId
+  
+  legalDoc      LegalDoc  @relation(fields: [legalDocId], references: [id], onDelete: Cascade)
+  
+  @@unique([legalDocId, versionNumber])
+  @@index([legalDocId])
+  @@index([effectiveAt])
+  @@index([isPublished])
+}
+
+// ============================================================================
+// LEGAL-PACK-01: Company Profile (for Mentions Légales)
+// ============================================================================
+
+/// Company profile for legal mentions (singleton per deployment)
+model CompanyProfile {
+  id                String   @id @default(cuid())
+  
+  // Legal entity info
+  companyName       String   // "SafeMotor"
+  legalForm         String   // "EI", "SARL", "SAS", etc.
+  address           String
+  postalCode        String
+  city              String
+  country           String   @default("France")
+  
+  siret             String?
+  rcs               String?  // "RCS Paris 123 456 789"
+  vatNumber         String?  // "FR12345678901"
+  shareCapital      String?  // "1 000 €"
+  
+  // Contact
+  email             String
+  phone             String?
+  whatsapp          String?
+  
+  // Publication director
+  publicationDirector String
+  
+  // Hosting provider
+  hostingProvider   String   // "Vercel Inc."
+  hostingAddress    String   // "440 N Barranca Ave..."
+  hostingUrl        String?  // "https://vercel.com"
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @default(now()) @updatedAt
+}
+
+// ============================================================================
+// LEGAL-PACK-01: Subprocessors (GDPR DPA)
+// ============================================================================
+
+/// GDPR subprocessor for DPA disclosure
+model Subprocessor {
+  id          String   @id @default(cuid())
+  name        String   // "Vercel Inc."
+  purpose     String   // "Hébergement de l'application"
+  region      String   // "USA (Privacy Shield)", "EU", etc.
+  linkUrl     String?  // Privacy policy URL
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
+  
+  @@index([isActive])
+}
+
+// ============================================================================
+// LEGAL-PACK-01: Intervention Types & Clause Sets
+// ============================================================================
+
+/// Type of intervention (for clause selection)
+model InterventionTypeRef {
+  id          String     @id @default(cuid())
+  key         String     @unique  // "E85_REPROG", "E85_BOX", "ECU_REMAP", etc.
+  label       String              // "Conversion E85 (Reprogrammation)"
+  description String?
+  sortOrder   Int        @default(0)
+  isActive    Boolean    @default(true)
+  
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @default(now()) @updatedAt
+  
+  clauseSets  ClauseSet[]
+  
+  @@index([key])
+  @@index([isActive])
+}
+
+/// Set of legal clauses for a specific intervention type
+model ClauseSet {
+  id                    String              @id @default(cuid())
+  interventionTypeId    String?             // null = base/common clauses
+  garageId              Int?                // null = official SafeMotor clauses, else custom
+  
+  name                  String              // "Clauses E85 Reprogrammation"
+  isDefault             Boolean             @default(false)
+  isActive              Boolean             @default(true)
+  
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @default(now()) @updatedAt
+  
+  interventionType      InterventionTypeRef? @relation(fields: [interventionTypeId], references: [id], onDelete: SetNull)
+  garage                Garage?             @relation(fields: [garageId], references: [id], onDelete: Cascade)
+  versions              ClauseSetVersion[]
+  
+  @@index([interventionTypeId])
+  @@index([garageId])
+  @@index([isDefault])
+}
+
+/// Versioned content for clause sets
+model ClauseSetVersion {
+  id            String    @id @default(cuid())
+  clauseSetId   String
+  versionNumber Int
+  
+  effectiveAt   DateTime
+  bodyMarkdown  String    @db.Text  // Full clause text in markdown
+  sha256        String              // Hash for integrity
+  
+  isPublished   Boolean   @default(false)
+  publishedAt   DateTime?
+  publishedBy   String?
+  
+  createdAt     DateTime  @default(now())
+  createdBy     String?
+  
+  clauseSet     ClauseSet @relation(fields: [clauseSetId], references: [id], onDelete: Cascade)
+  consents      ConsentRecord[]
+  
+  @@unique([clauseSetId, versionNumber])
+  @@index([clauseSetId])
+  @@index([effectiveAt])
+  @@index([isPublished])
+}
+
+// ============================================================================
+// LEGAL-PACK-01: Consent Records (proof of acceptance)
+// ============================================================================
+
+/// Record of client consent to legal documents before signature
+model ConsentRecord {
+  id                    String   @id @default(cuid())
+  
+  // What was consented to
+  signatureRequestId    String?  // Link to signature request
+  clauseSetVersionId    String?  // Which clause version was accepted
+  
+  // Legal docs accepted (slugs + versions as JSON)
+  legalDocsAccepted     Json?    // [{"slug":"cgu","version":1},{"slug":"privacy","version":2}]
+  
+  // Consent proof (hashed for privacy)
+  acceptedAt            DateTime @default(now())
+  ipHash                String?  // SHA256 of IP address
+  userAgentHash         String?  // SHA256 of user agent
+  emailHash             String?  // SHA256 of email
+  
+  signatureMethod       String?  // "EMAIL_LINK", "QR_CODE", "IN_APP"
+  
+  // Computed integrity hash
+  consentHash           String?  // SHA256 of all consent data
+  
+  clauseSetVersion      ClauseSetVersion? @relation(fields: [clauseSetVersionId], references: [id], onDelete: SetNull)
+  
+  @@index([signatureRequestId])
+  @@index([clauseSetVersionId])
+  @@index([acceptedAt])
 }
 

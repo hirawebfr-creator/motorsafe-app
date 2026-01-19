@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { success } from "@/lib/api";
 import { requireApprovedTenant, requireUser } from "@/lib/guards";
 import { toErrorResponse } from "@/lib/routeErrors";
+import { assertDocumentNotLocked } from "@/lib/legal/evidenceLock";
 import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 
@@ -58,6 +59,9 @@ export async function DELETE(req: Request, ctx: Ctx) {
       return NextResponse.json({ ok: false, error: { code: "NOT_FOUND", message: "Introuvable" } }, { status: 404 });
     }
 
+    // EVIDENCE-LOCKDOWN-01: Block delete if intervention is in dispute
+    await assertDocumentNotLocked(id, "DELETE");
+
     await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       await tx.document.update({ where: { id }, data: { deletedAt: new Date() } });
       await tx.auditLog.create({
@@ -103,6 +107,9 @@ export async function PATCH(req: Request, ctx: Ctx) {
     if (!existing) {
       return NextResponse.json({ ok: false, error: { code: "NOT_FOUND", message: "Introuvable" } }, { status: 404 });
     }
+
+    // EVIDENCE-LOCKDOWN-01: Block edit if intervention is in dispute
+    await assertDocumentNotLocked(id, "EDIT");
 
     const input = parsed.data;
 

@@ -48,6 +48,9 @@ export const FeatureKey = {
   // IMPORT-ONBOARDING-01: CSV import feature
   IMPORT: "IMPORT",                   // CSV import clients/vehicles (STARTER+)
   
+  // LEGAL-PACK-01: Legal document features
+  CUSTOM_CLAUSES: "CUSTOM_CLAUSES",   // Custom clause sets per intervention type (PRO only)
+  
   // Future (gated but not implemented)
   AI_ASSIST: "AI_ASSIST",
 } as const;
@@ -166,6 +169,7 @@ export const PLAN_ENTITLEMENTS: Record<PlanKey, PlanEntitlements> = {
       FeatureKey.BRANDING, // WHITE-LABEL-PARTNERS-01: Logo sur PDF/emails
       FeatureKey.PARTNER_BADGE, // WHITE-LABEL-PARTNERS-01: Badge partenaire + page publique
       FeatureKey.IMPORT, // IMPORT-ONBOARDING-01: CSV import
+      FeatureKey.CUSTOM_CLAUSES, // LEGAL-PACK-01: Custom clause sets (PRO only)
     ],
     quotas: {
       vehicleLookupPerMonth: 400,
