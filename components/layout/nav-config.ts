@@ -21,6 +21,7 @@ import {
   LifeBuoy,
   Book,
   BookOpen,
+  Activity,
 } from "lucide-react";
 import type React from "react";
 
@@ -62,4 +63,5 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Références légales", href: "/admin/references", icon: Scale, adminOnly: true, group: "admin" },
   { label: "Base de connaissance", href: "/admin/kb", icon: BookOpen, adminOnly: true, group: "admin" },
   { label: "Support", href: "/admin/support", icon: LifeBuoy, adminOnly: true, group: "admin" },
+  { label: "Support Ops", href: "/admin/support-ops", icon: Activity, adminOnly: true, group: "admin" },
 ];
