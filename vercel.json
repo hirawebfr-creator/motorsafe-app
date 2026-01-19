@@ -8,10 +8,6 @@
     {
       "path": "/api/cron/retention-purge",
       "schedule": "0 3 * * *"
-    },
-    {
-      "path": "/api/cron/support-sla",
-      "schedule": "0 9 * * *"
     }
   ]
 }
