@@ -1,5 +1,6 @@
 /**
  * SUPPORT-OMNI-01: Public Contact Form API
+ * AI-AUTO-TRIAGE-02: Auto-triage at creation
  * POST - Create a support ticket from public form (no auth required)
  * Anti-spam: honeypot field + rate limit by IP
  */
@@ -16,6 +17,7 @@ import {
   sendTicketCreatedEmail,
   sendTicketAcknowledgmentEmail,
 } from "@/lib/support";
+import { applyRuleBasedTriage, applyTriageToTicket } from "@/lib/support/triage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -83,6 +85,9 @@ export async function POST(req: Request) {
       throw new RouteError(400, "BAD_REQUEST", "Message trop court (min 10 caractères)");
     }
 
+    // AI-AUTO-TRIAGE-02: Apply rule-based triage for initial values
+    const triage = applyRuleBasedTriage({ subject, message });
+
     // Create ticket and first message
     const ticket = await prisma.$transaction(async (tx) => {
       const newTicket = await tx.supportTicket.create({
@@ -93,9 +98,10 @@ export async function POST(req: Request) {
           requesterEmail: email,
           channel: "FORM",
           subject,
-          category: "OTHER",
-          priority: "NORMAL",
+          category: triage.category,
+          priority: triage.priority,
           status: "OPEN",
+          tags: triage.tags,
           lastReplyAt: new Date(),
         },
       });
@@ -112,12 +118,15 @@ export async function POST(req: Request) {
       return newTicket;
     });
 
+    // AI-AUTO-TRIAGE-02: Apply full triage (rules + AI) async - never blocks response
+    void applyTriageToTicket(ticket.id, subject, message, null);
+
     // Send email notification to support team (async)
     void sendTicketCreatedEmail({
       ticketId: ticket.id,
       subject,
-      category: "OTHER",
-      priority: "NORMAL",
+      category: triage.category,
+      priority: triage.priority,
       message,
       requesterName: name,
       garageName: undefined,

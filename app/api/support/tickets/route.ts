@@ -1,6 +1,7 @@
 /**
  * SUPPORT-OMNI-01: Support Tickets API
  * SUPPORT-SLA-01: Auto-priority + SLA tracking
+ * AI-AUTO-TRIAGE-02: Auto-triage at creation
  * POST - Create a new support ticket
  * GET - List my tickets (scoped to garageId)
  */
@@ -18,10 +19,10 @@ import {
   sendTicketCreatedEmail,
   sendTicketAcknowledgmentEmail,
   buildWhatsAppUrl,
-  calculateAutoPriority,
   calculateSlaTarget,
   sendUrgentTicketEmail,
 } from "@/lib/support";
+import { applyTriageToTicket, applyRuleBasedTriage } from "@/lib/support/triage";
 import type { SupportCategory, SupportPriority, SupportChannel } from "@prisma/client";
 
 export const runtime = "nodejs";
@@ -29,7 +30,6 @@ export const dynamic = "force-dynamic";
 
 // Validation
 const VALID_CATEGORIES: SupportCategory[] = ["BUG", "BILLING", "FEATURE", "LEGAL", "OTHER"];
-const VALID_PRIORITIES: SupportPriority[] = ["LOW", "NORMAL", "HIGH", "URGENT"];
 const VALID_CHANNELS: SupportChannel[] = ["FORM", "EMAIL", "WHATSAPP"];
 
 // ============================================
@@ -74,17 +74,18 @@ export async function POST(req: Request) {
 
     const subject = sanitizeSubject(body.subject);
     const message = sanitizeMessage(body.message);
-    const category = body.category && VALID_CATEGORIES.includes(body.category) ? body.category : "OTHER";
     const channel = body.channel && VALID_CHANNELS.includes(body.channel) ? body.channel : "FORM";
     
-    // SUPPORT-SLA-01: Auto-priority based on category and keywords
-    const userPriority = body.priority && VALID_PRIORITIES.includes(body.priority) ? body.priority : null;
-    const autoPriority = calculateAutoPriority(category, subject, message);
-    // Use user-specified priority if higher, otherwise use auto-calculated
-    const priorityOrder: SupportPriority[] = ["LOW", "NORMAL", "HIGH", "URGENT"];
-    const priority = userPriority 
-      ? (priorityOrder.indexOf(userPriority) >= priorityOrder.indexOf(autoPriority) ? userPriority : autoPriority)
-      : autoPriority;
+    // AI-AUTO-TRIAGE-02: Apply rule-based triage for initial values
+    const ruleTriage = applyRuleBasedTriage({ subject, message });
+    
+    // User can override category but not priority (auto-calculated for SLA)
+    const category: SupportCategory = body.category && VALID_CATEGORIES.includes(body.category) 
+      ? body.category 
+      : ruleTriage.category;
+    
+    // Use rule-based priority initially, may be refined by AI triage
+    const priority: SupportPriority = ruleTriage.priority;
     
     // SUPPORT-SLA-01: Calculate SLA target
     const slaTargetAt = calculateSlaTarget(priority);
@@ -134,6 +135,9 @@ export async function POST(req: Request) {
 
       return newTicket;
     });
+
+    // AI-AUTO-TRIAGE-02: Apply full triage (rules + AI) async - never blocks response
+    void applyTriageToTicket(ticket.id, subject, message, garageId);
 
     // Send email notification to support team (async, don't block response)
     void sendTicketCreatedEmail({

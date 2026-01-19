@@ -1,5 +1,6 @@
 /**
  * SUPPORT-OMNI-01: Admin Support Tickets API
+ * AI-AUTO-TRIAGE-02: Added triage fields + tags filter
  * GET - List all tickets with filters (admin only)
  */
 
@@ -8,7 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { success } from "@/lib/api";
 import { requireUser, requireRole } from "@/lib/guards";
 import { toErrorResponse } from "@/lib/routeErrors";
-import type { SupportTicketStatus, SupportPriority, SupportCategory } from "@prisma/client";
+import type { SupportTicketStatus, SupportPriority, SupportCategory, TriageSource } from "@prisma/client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,19 +25,25 @@ export async function GET(req: Request) {
     const category = url.searchParams.get("category") as SupportCategory | null;
     const garageId = url.searchParams.get("garageId");
     const search = url.searchParams.get("search");
+    // AI-AUTO-TRIAGE-02: Tags filter
+    const tags = url.searchParams.get("tags"); // comma-separated
+    const triageSource = url.searchParams.get("triageSource") as TriageSource | null;
     const limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get("limit") || "50", 10)));
     const offset = Math.max(0, parseInt(url.searchParams.get("offset") || "0", 10));
     const sortBy = url.searchParams.get("sortBy") || "createdAt";
     const sortOrder = url.searchParams.get("sortOrder") === "asc" ? "asc" : "desc";
 
     // Build where clause
-    const where: {
+    interface TicketWhere {
       status?: SupportTicketStatus;
       priority?: SupportPriority;
       category?: SupportCategory;
       garageId?: number | null;
+      tags?: { hasSome: string[] };
+      autoTriageSource?: TriageSource;
       OR?: { subject: { contains: string; mode: "insensitive" } }[];
-    } = {};
+    }
+    const where: TicketWhere = {};
 
     if (status && ["OPEN", "IN_PROGRESS", "WAITING_CUSTOMER", "RESOLVED", "CLOSED"].includes(status)) {
       where.status = status;
@@ -55,6 +62,16 @@ export async function GET(req: Request) {
     }
     if (search && search.trim().length > 0) {
       where.OR = [{ subject: { contains: search.trim(), mode: "insensitive" } }];
+    }
+    // AI-AUTO-TRIAGE-02: Tags filter
+    if (tags && tags.trim().length > 0) {
+      const tagList = tags.split(",").map((t) => t.trim()).filter(Boolean);
+      if (tagList.length > 0) {
+        where.tags = { hasSome: tagList };
+      }
+    }
+    if (triageSource && ["RULES", "AI"].includes(triageSource)) {
+      where.autoTriageSource = triageSource;
     }
 
     // Build orderBy
@@ -83,6 +100,10 @@ export async function GET(req: Request) {
           slaBreachedAt: true,
           lastRequesterMessageAt: true,
           lastAdminMessageAt: true,
+          // AI-AUTO-TRIAGE-02: Triage fields
+          autoTriageSource: true,
+          autoTriageAt: true,
+          tags: true,
           createdAt: true,
           updatedAt: true,
           garage: {
@@ -111,6 +132,10 @@ export async function GET(req: Request) {
       slaBreachedAt: t.slaBreachedAt,
       lastRequesterMessageAt: t.lastRequesterMessageAt,
       lastAdminMessageAt: t.lastAdminMessageAt,
+      // AI-AUTO-TRIAGE-02: Triage fields
+      autoTriageSource: t.autoTriageSource,
+      autoTriageAt: t.autoTriageAt,
+      tags: t.tags,
       createdAt: t.createdAt,
       updatedAt: t.updatedAt,
     }));

@@ -86,6 +86,12 @@ enum SupportAuthorType {
   ADMIN
 }
 
+// AI-AUTO-TRIAGE-02: Source of automatic triage
+enum TriageSource {
+  RULES  // Rule-based (keywords, category)
+  AI     // AI-powered classification
+}
+
 enum GarageStatus {
   PENDING
   ACTIVE
@@ -1749,6 +1755,11 @@ model SupportTicket {
   priority        SupportPriority     @default(NORMAL)
   status          SupportTicketStatus @default(OPEN)
   
+  // AI-AUTO-TRIAGE-02: Auto-triage fields
+  autoTriageSource TriageSource?      // "RULES" or "AI" (null = no auto-triage)
+  autoTriageAt     DateTime?          // When auto-triage was applied
+  tags             String[]           @default([])
+  
   // SUPPORT-SLA-01: SLA tracking
   slaTargetAt            DateTime?   // When response is due
   slaBreachedAt          DateTime?   // When SLA was breached (null if on-time)
@@ -1768,6 +1779,8 @@ model SupportTicket {
   @@index([status])
   @@index([createdAt])
   @@index([slaTargetAt, slaBreachedAt])
+  @@index([autoTriageSource])
+  @@index([tags])
 }
 
 /// Message in a support ticket thread
