@@ -23,10 +23,12 @@ export function GarageEmulator() {
   useEffect(() => {
     const loadGarages = async () => {
       try {
-        const res = await fetch("/api/admin/garages?limit=100");
+        const res = await fetch("/api/admin/garages?status=active");
         if (res.ok) {
           const data = await res.json();
-          setGarages(data.data?.garages || []);
+          // API returns { ok: true, data: [...] } - data.data is the array
+          const garageList = Array.isArray(data.data) ? data.data : [];
+          setGarages(garageList);
         }
       } catch (err) {
         console.error("Failed to load garages:", err);
