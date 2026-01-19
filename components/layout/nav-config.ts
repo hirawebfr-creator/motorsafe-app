@@ -22,6 +22,8 @@ import {
   Book,
   BookOpen,
   Activity,
+  Newspaper,
+  Calendar,
 } from "lucide-react";
 import type React from "react";
 
@@ -51,6 +53,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Paramètres", href: "/parametres", icon: Settings, group: "main" },
   { label: "Mon garage", href: "/garage", icon: Store, group: "main" },
   { label: "Facturation", href: "/billing", icon: CreditCard, group: "main" },
+  { label: "Nouveautés", href: "/nouveautes", icon: Newspaper, group: "main" },
   { label: "Aide / FAQ", href: "/aide", icon: Book, group: "main" },
   { label: "Support", href: "/support", icon: LifeBuoy, group: "main" },
   
@@ -64,4 +67,6 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Base de connaissance", href: "/admin/kb", icon: BookOpen, adminOnly: true, group: "admin" },
   { label: "Support", href: "/admin/support", icon: LifeBuoy, adminOnly: true, group: "admin" },
   { label: "Support Ops", href: "/admin/support-ops", icon: Activity, adminOnly: true, group: "admin" },
+  { label: "Changelog", href: "/admin/changelog", icon: Newspaper, adminOnly: true, group: "admin" },
+  { label: "Maintenance", href: "/admin/maintenance", icon: Calendar, adminOnly: true, group: "admin" },
 ];

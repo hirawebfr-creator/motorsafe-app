@@ -264,6 +264,10 @@ model User {
   
   // AI-SUGGEST-01: AI suggestions requested by this admin
   aiSuggestions          SupportAiSuggestion[] @relation("SupportAiSuggestionRequestedBy")
+  
+  // IN-APP-STATUS-AND-CHANGES-01: Changelog & Maintenance created by admin
+  createdChangelogs      ChangelogEntry[]      @relation("ChangelogCreator")
+  createdMaintenances    MaintenanceWindow[]   @relation("MaintenanceCreator")
 
   @@index([garageId])
 }
@@ -1837,5 +1841,60 @@ model SupportAiSuggestion {
   @@index([inputHash])
   @@index([createdAt])
   @@index([expiresAt])
+}
+
+// ============================================
+// IN-APP-STATUS-AND-CHANGES-01: Changelog & Maintenance
+// ============================================
+
+enum ChangelogType {
+  FEATURE
+  FIX
+  SECURITY
+  LEGAL
+}
+
+enum MaintenanceSeverity {
+  INFO
+  WARNING
+}
+
+/// Changelog entry visible to garages
+model ChangelogEntry {
+  id              String        @id @default(cuid())
+  title           String
+  bodyMarkdown    String        @db.Text
+  type            ChangelogType
+  version         String?       // e.g. "1.2.0" (optional)
+  isPublished     Boolean       @default(true)
+  publishedAt     DateTime      @default(now())
+  
+  createdByUserId String
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  
+  createdBy       User          @relation("ChangelogCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  
+  @@index([publishedAt, isPublished])
+  @@index([type])
+}
+
+/// Planned maintenance window
+model MaintenanceWindow {
+  id              String              @id @default(cuid())
+  title           String
+  message         String              @db.Text
+  startsAt        DateTime
+  endsAt          DateTime
+  severity        MaintenanceSeverity @default(INFO)
+  isActive        Boolean             @default(true)
+  
+  createdByUserId String
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  
+  createdBy       User                @relation("MaintenanceCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  
+  @@index([startsAt, endsAt, isActive])
 }
 
