@@ -51,6 +51,9 @@ export const FeatureKey = {
   // LEGAL-PACK-01: Legal document features
   CUSTOM_CLAUSES: "CUSTOM_CLAUSES",   // Custom clause sets per intervention type (PRO only)
   
+  // INSURANCE-READY-EXPORT-02: Share link for exports
+  EXPORT_SHARE: "EXPORT_SHARE",       // Shareable export link (PRO only)
+  
   // Future (gated but not implemented)
   AI_ASSIST: "AI_ASSIST",
 } as const;
@@ -170,6 +173,7 @@ export const PLAN_ENTITLEMENTS: Record<PlanKey, PlanEntitlements> = {
       FeatureKey.PARTNER_BADGE, // WHITE-LABEL-PARTNERS-01: Badge partenaire + page publique
       FeatureKey.IMPORT, // IMPORT-ONBOARDING-01: CSV import
       FeatureKey.CUSTOM_CLAUSES, // LEGAL-PACK-01: Custom clause sets (PRO only)
+      FeatureKey.EXPORT_SHARE, // INSURANCE-READY-EXPORT-02: Shareable export link
     ],
     quotas: {
       vehicleLookupPerMonth: 400,

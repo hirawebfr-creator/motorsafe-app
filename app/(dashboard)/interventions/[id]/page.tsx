@@ -47,6 +47,7 @@ import { QRCodeDialog } from "@/components/common/QRCodeDialog";
 import { AIAssistCard } from "@/components/common/AIAssistCard";
 import { TAG_OPTIONS, INTERVENTION_TAGS } from "@/lib/legal/tags";
 import { WorkshopSection } from "@/components/interventions/WorkshopSection";
+import { ExportInsuranceButton } from "@/components/interventions/ExportInsuranceButton";
 
 // === Types ===
 type Vehicle = {
@@ -858,6 +859,10 @@ export default function InterventionDetailPage() {
   const hasReturnReportFeature = hasActiveSubscription && (plan === "STARTER" || plan === "PRO");
   const hasLoanVehicleFeature = hasActiveSubscription && plan === "PRO";
 
+  // INSURANCE-READY-EXPORT-02: Feature flags for export
+  const hasExportZip = hasActiveSubscription && (plan === "STARTER" || plan === "PRO");
+  const hasExportShare = hasActiveSubscription && plan === "PRO";
+
   const fetchIntervention = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -1035,15 +1040,13 @@ export default function InterventionDetailPage() {
                 <FileCheck size={16} className="mr-1" />PV restitution
               </Button>
             )}
-            {hasActiveSubscription ? (
-              <a href={`/api/interventions/${intervention.id}/export`} download>
-                <Button size="sm"><Archive size={16} className="mr-1" />Exporter ZIP</Button>
-              </a>
-            ) : (
-              <Button size="sm" disabled title="Abonnement requis">
-                <Archive size={16} className="mr-1" />Exporter ZIP
-              </Button>
-            )}
+            {/* INSURANCE-READY-EXPORT-02: Export assurance button */}
+            <ExportInsuranceButton
+              interventionId={intervention.id}
+              vehiclePlate={intervention.vehicle.plate}
+              hasExportZip={hasExportZip}
+              hasExportShare={hasExportShare}
+            />
             {/* APPOINTMENTS-01: Schedule appointment button */}
             <Link 
               href={`/planning?clientId=${intervention.vehicle.client.id}&vehicleId=${intervention.vehicle.id}&interventionId=${intervention.id}&title=${encodeURIComponent(intervention.type)}`}
