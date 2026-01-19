@@ -473,6 +473,62 @@ const tests: TestCase[] = [
       assert.strictEqual(res.status, 404, `Expected 404 but got ${res.status}`);
     },
   },
+
+  // ==========================================================
+  // 10. Upload / File isolation tests (SECURITY-AUDIT-01)
+  // ==========================================================
+  {
+    name: "GET /api/uploads/file: Garage A cannot access Garage B files by path manipulation",
+    async run(baseUrl, userA, userB) {
+      // Try to access a file with Garage B's garageId prefix
+      const fakeKey = `uploads/${userB.garageId}/some-file.pdf`;
+      const res = await fetchJson(`${baseUrl}/api/uploads/file/${fakeKey}`, {
+        method: "GET",
+        headers: { cookie: userA.cookie },
+      });
+      // Must be 404, never 200 or 403
+      assert.strictEqual(res.status, 404, `Expected 404 but got ${res.status}`);
+    },
+  },
+  {
+    name: "GET /api/uploads/file: Path traversal attack blocked",
+    async run(baseUrl, userA, _userB) {
+      // Try path traversal attack
+      const maliciousKey = `uploads/${userA.garageId}/../${_userB.garageId}/secret.pdf`;
+      const res = await fetchJson(`${baseUrl}/api/uploads/file/${encodeURIComponent(maliciousKey)}`, {
+        method: "GET",
+        headers: { cookie: userA.cookie },
+      });
+      // Must be 400 or 404, never succeed
+      assert(res.status === 400 || res.status === 404, `Expected 400 or 404 but got ${res.status}`);
+    },
+  },
+
+  // ==========================================================
+  // 11. Settings isolation tests (SECURITY-AUDIT-01)
+  // ==========================================================
+  {
+    name: "Garage A cannot access Garage B team members",
+    async run(baseUrl, userA, _userB) {
+      // GET /api/team should only return userA's garage members
+      const res = await fetchJson(`${baseUrl}/api/team`, {
+        method: "GET",
+        headers: { cookie: userA.cookie },
+      });
+      if (res.status === 200) {
+        const json = res.json as { ok: boolean; data: { items: Array<{ garageId: number }> } };
+        if (json.ok && json.data && Array.isArray(json.data.items)) {
+          for (const member of json.data.items) {
+            assert.strictEqual(
+              member.garageId,
+              userA.garageId,
+              `Found member from wrong garage: ${member.garageId}`
+            );
+          }
+        }
+      }
+    },
+  },
 ];
 
 async function main() {

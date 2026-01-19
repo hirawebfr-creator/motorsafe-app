@@ -1,3 +1,31 @@
+/**
+ * SECURITY-AUDIT-01: Authentication & Authorization Guards
+ *
+ * This module provides all authentication, authorization, and multi-tenant
+ * isolation guards for API routes.
+ *
+ * KEY SECURITY PRINCIPLES:
+ * 1. Every tenanted route MUST use garageId scope (see tenantWhere helper)
+ * 2. Wrong tenant = 404 NOT 403 (prevents enumeration attacks)
+ * 3. Use assertRecordBelongsToTenant AFTER fetching records
+ * 4. ADMIN users can access all data (for support/debugging)
+ *
+ * @see docs/SECURITY_CHECKLIST.md for complete security documentation
+ *
+ * @example
+ * // Standard protected route pattern:
+ * export async function GET(req: Request) {
+ *   const user = requireApprovedTenant(await requireUser(req));
+ *   const where = tenantWhere(user, { deletedAt: null });
+ *   const records = await prisma.client.findMany({ where });
+ *   return NextResponse.json(success(records));
+ * }
+ *
+ * @example
+ * // Checking record ownership:
+ * const record = await prisma.intervention.findUnique({ where: { id } });
+ * assertRecordBelongsToTenant(record, user.garageId, "Intervention");
+ */
 import { getSessionUser, isApprovedGarage, type SessionUser } from "@/lib/auth";
 import { RouteError } from "@/lib/routeErrors";
 
@@ -221,7 +249,105 @@ export function assertGarageHasActiveSubscription(garage: GarageSubscriptionInfo
     throw new RouteError(
       402,
       "SUBSCRIPTION_INACTIVE",
-      "Le garage n'a pas d'abonnement actif. Veuillez contacter le garage pour qu'il active son abonnement."
+      "Le garage n'a pas d'abonnement actif. Veuillez contacter le garage pour qu'il activate son abonnement."
     );
   }
+}
+
+// ============================================
+// GUARDS MULTI-TENANT SECURITY
+// ============================================
+
+/**
+ * SECURITY-AUDIT-01: Assert that a fetched record belongs to the user's garage
+ * 
+ * CRITICAL: Use this AFTER fetching a record to ensure it belongs to the tenant.
+ * Always throws 404 (not 403) to prevent enumeration attacks.
+ * 
+ * @example
+ * const client = await prisma.client.findUnique({ where: { id } });
+ * assertRecordBelongsToTenant(client, user.garageId);
+ * // If client doesn't belong to garage, throws 404
+ */
+export function assertRecordBelongsToTenant<T extends { garageId?: number | null }>(
+  record: T | null | undefined,
+  userGarageId: number | null,
+  entityName = "Ressource"
+): asserts record is T {
+  // Record not found
+  if (!record) {
+    throw new RouteError(404, "NOT_FOUND", `${entityName} introuvable`);
+  }
+  
+  // Skip check for ADMIN (they can access all)
+  if (userGarageId === null) {
+    return;
+  }
+  
+  // Record doesn't belong to user's garage - return 404 (not 403!) to prevent enumeration
+  if (record.garageId !== userGarageId) {
+    throw new RouteError(404, "NOT_FOUND", `${entityName} introuvable`);
+  }
+}
+
+/**
+ * SECURITY-AUDIT-01: Assert for organisationId field (used by quotes/invoices)
+ */
+export function assertRecordBelongsToOrganisation<T extends { organisationId?: number | null }>(
+  record: T | null | undefined,
+  userGarageId: number | null,
+  entityName = "Ressource"
+): asserts record is T {
+  if (!record) {
+    throw new RouteError(404, "NOT_FOUND", `${entityName} introuvable`);
+  }
+  
+  if (userGarageId === null) {
+    return; // ADMIN bypass
+  }
+  
+  if (record.organisationId !== userGarageId) {
+    throw new RouteError(404, "NOT_FOUND", `${entityName} introuvable`);
+  }
+}
+
+/**
+ * SECURITY-AUDIT-01: Build a Prisma where clause that enforces tenant isolation
+ * 
+ * @example
+ * const where = tenantWhere(user, { status: "ACTIVE" });
+ * // Returns: { status: "ACTIVE", garageId: 123 } for regular users
+ * // Returns: { status: "ACTIVE" } for ADMIN
+ */
+export function tenantWhere(
+  user: SessionUser,
+  baseWhere: Record<string, unknown> = {},
+  garageIdField = "garageId"
+): Record<string, unknown> {
+  if (user.role === "ADMIN") {
+    return baseWhere;
+  }
+  
+  return {
+    ...baseWhere,
+    [garageIdField]: user.garageId ?? -1,
+  };
+}
+
+/**
+ * SECURITY-AUDIT-01: Build a Prisma where clause for organisation field
+ */
+export function organisationWhere(
+  user: SessionUser,
+  baseWhere: Record<string, unknown> = {}
+): Record<string, unknown> {
+  return tenantWhere(user, baseWhere, "organisationId");
+}
+
+/**
+ * SECURITY-AUDIT-01: Safe 404 helper - always returns 404 for security
+ * Use this instead of conditional 403/404 to prevent enumeration
+ */
+export function throwNotFound(entityName = "Ressource"): never {
+  throw new RouteError(404, "NOT_FOUND", `${entityName} introuvable`);
 }
