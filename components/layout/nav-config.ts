@@ -18,6 +18,9 @@ import {
   CalendarDays,
   UsersRound,
   Target,
+  LifeBuoy,
+  Book,
+  BookOpen,
 } from "lucide-react";
 import type React from "react";
 
@@ -47,6 +50,8 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Paramètres", href: "/parametres", icon: Settings, group: "main" },
   { label: "Mon garage", href: "/garage", icon: Store, group: "main" },
   { label: "Facturation", href: "/billing", icon: CreditCard, group: "main" },
+  { label: "Aide / FAQ", href: "/aide", icon: Book, group: "main" },
+  { label: "Support", href: "/support", icon: LifeBuoy, group: "main" },
   
   // ===== Section Admin (admin only) =====
   { label: "Vue globale", href: "/admin/dashboard", icon: BarChart3, adminOnly: true, group: "admin" },
@@ -55,4 +60,6 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Demandes pro", href: "/admin/pro-demandes", icon: UserCheck, adminOnly: true, group: "admin" },
   { label: "Tous les clients", href: "/admin/clients", icon: Users, adminOnly: true, group: "admin" },
   { label: "Références légales", href: "/admin/references", icon: Scale, adminOnly: true, group: "admin" },
+  { label: "Base de connaissance", href: "/admin/kb", icon: BookOpen, adminOnly: true, group: "admin" },
+  { label: "Support", href: "/admin/support", icon: LifeBuoy, adminOnly: true, group: "admin" },
 ];

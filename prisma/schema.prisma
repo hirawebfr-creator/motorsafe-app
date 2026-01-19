@@ -47,6 +47,45 @@ enum DocumentType {
   AUDIT_TRAIL
 }
 
+// ============================================
+// SUPPORT-OMNI-01: Support Ticket System
+// ============================================
+
+enum SupportChannel {
+  FORM
+  EMAIL
+  WHATSAPP
+}
+
+enum SupportCategory {
+  BUG
+  BILLING
+  FEATURE
+  LEGAL
+  OTHER
+}
+
+enum SupportPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum SupportTicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_CUSTOMER
+  RESOLVED
+  CLOSED
+}
+
+enum SupportAuthorType {
+  REQUESTER
+  GARAGE_USER
+  ADMIN
+}
+
 enum GarageStatus {
   PENDING
   ACTIVE
@@ -170,6 +209,9 @@ model Garage {
   // PARTNER-PROGRAM-01: Partner attributions and commissions
   partnerAttribution PartnerAttribution?
   partnerCommissions PartnerCommissionLine[] @relation("GarageCommissions")
+  
+  // SUPPORT-OMNI-01: Support tickets
+  supportTickets     SupportTicket[]
 }
 
 model User {
@@ -205,6 +247,17 @@ model User {
   
   // PARTNER-PROGRAM-01: If this user is a partner
   partner          Partner?
+  
+  // SUPPORT-OMNI-01: Support tickets and messages
+  createdSupportTickets  SupportTicket[]  @relation("SupportTicketCreator")
+  supportMessages        SupportMessage[] @relation("SupportMessageAuthor")
+  
+  // KNOWLEDGE-BASE-01: KB articles created/updated by this user
+  createdKbArticles      KbArticle[]      @relation("KbArticleCreator")
+  updatedKbArticles      KbArticle[]      @relation("KbArticleUpdater")
+  
+  // AI-SUGGEST-01: AI suggestions requested by this admin
+  aiSuggestions          SupportAiSuggestion[] @relation("SupportAiSuggestionRequestedBy")
 
   @@index([garageId])
 }
@@ -1637,5 +1690,139 @@ model PartnerPayout {
   partner     Partner      @relation(fields: [partnerId], references: [id], onDelete: Cascade)
 
   @@index([partnerId, status])
+}
+
+// ============================================
+// KNOWLEDGE-BASE-01: Knowledge Base System
+// ============================================
+
+/// KB Category for organizing articles
+model KbCategory {
+  id          Int         @id @default(autoincrement())
+  name        String
+  slug        String      @unique
+  description String?
+  sortOrder   Int         @default(0)
+  createdAt   DateTime    @default(now())
+
+  articles    KbArticle[]
+}
+
+/// KB Article with markdown content
+model KbArticle {
+  id              Int       @id @default(autoincrement())
+  categoryId      Int
+  title           String
+  slug            String    @unique
+  bodyMarkdown    String    @db.Text
+  tags            Json      @default("[]")  // String array stored as JSON
+  isPublished     Boolean   @default(true)
+  createdByUserId String?
+  updatedByUserId String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @default(now()) @updatedAt
+
+  category        KbCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  createdBy       User?      @relation("KbArticleCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  updatedBy       User?      @relation("KbArticleUpdater", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([categoryId, isPublished])
+}
+
+// ============================================
+// SUPPORT-OMNI-01: Support Ticket System
+// ============================================
+
+/// Support ticket created by garage users or public visitors
+model SupportTicket {
+  id              String              @id @default(cuid())
+  garageId        Int?                // Nullable for public tickets
+  createdByUserId String?             // User who created the ticket
+  
+  requesterName   String              // Name of the requester
+  requesterEmail  String?             // Email (optional)
+  requesterPhone  String?             // Phone (optional)
+  
+  channel         SupportChannel      @default(FORM)
+  subject         String
+  category        SupportCategory     @default(OTHER)
+  priority        SupportPriority     @default(NORMAL)
+  status          SupportTicketStatus @default(OPEN)
+  
+  // SUPPORT-SLA-01: SLA tracking
+  slaTargetAt            DateTime?   // When response is due
+  slaBreachedAt          DateTime?   // When SLA was breached (null if on-time)
+  lastRequesterMessageAt DateTime?   // Last message from requester
+  lastAdminMessageAt     DateTime?   // Last message from admin
+  
+  lastReplyAt     DateTime?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  garage          Garage?             @relation(fields: [garageId], references: [id], onDelete: SetNull)
+  createdByUser   User?               @relation("SupportTicketCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  messages        SupportMessage[]
+  aiSuggestions   SupportAiSuggestion[]
+
+  @@index([garageId, status, createdAt])
+  @@index([status])
+  @@index([createdAt])
+  @@index([slaTargetAt, slaBreachedAt])
+}
+
+/// Message in a support ticket thread
+model SupportMessage {
+  id           String            @id @default(cuid())
+  ticketId     String
+  authorType   SupportAuthorType
+  authorUserId String?           // User who wrote the message (if authenticated)
+  message      String            // Message content (text only, no HTML)
+  createdAt    DateTime          @default(now())
+
+  ticket       SupportTicket     @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author       User?             @relation("SupportMessageAuthor", fields: [authorUserId], references: [id], onDelete: SetNull)
+
+  @@index([ticketId, createdAt])
+}
+
+/// AI-generated suggestion for support ticket (AI-SUGGEST-01)
+/// Cached for 24h, admin-only access, PII redacted before AI call
+model SupportAiSuggestion {
+  id          String   @id @default(cuid())
+  ticketId    String
+  requestedBy String
+
+  // Input hash for cache deduplication (SHA256 of redacted content)
+  inputHash   String
+
+  // AI structured output
+  suggestedCategory      String?      // Suggested ticket category
+  suggestedPriority      String?      // Suggested priority level
+  confidence             Float?       // AI confidence 0-1
+  summaryInternal        String?      // Internal summary (admin-only)
+  draftReplyFr           String?      // Draft reply in French
+  clarifyingQuestions    String[]     // Questions to ask client
+  kbSuggestions          String[]     // KB article slugs
+  nextActionsInternal    String[]     // Next actions (admin-only)
+
+  // Meta
+  provider    String?               // openai, anthropic, mock
+  model       String?               // gpt-4o, claude-3-haiku, etc.
+  tokensUsed  Int?
+  cached      Boolean  @default(false)
+  error       String?               // Error message if failed
+
+  // Timestamps
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime              // Cache expiry (24h by default)
+
+  ticket      SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  requestedByUser User     @relation("SupportAiSuggestionRequestedBy", fields: [requestedBy], references: [id], onDelete: SetNull)
+
+  @@index([ticketId])
+  @@index([requestedBy])
+  @@index([inputHash])
+  @@index([createdAt])
+  @@index([expiresAt])
 }
 
