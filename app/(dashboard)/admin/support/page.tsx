@@ -96,6 +96,51 @@ type AiSuggestionResponse = {
   };
 };
 
+// AI-ASSISTED-REPLIES-02: Reply variants types
+type AiRepliesData = {
+  summary_internal: string;
+  replies: {
+    short: string;
+    pro: string;
+    detailed: string;
+  };
+  clarifying_questions: string[];
+  kb_links: Array<{
+    title: string;
+    slug: string;
+    why: string;
+  }>;
+  style_notes_internal: string[];
+};
+
+type AiRepliesResponse = {
+  success: boolean;
+  data?: AiRepliesData;
+  error?: string;
+  message?: string;
+  meta?: {
+    tone: string;
+    lengthBias: string;
+    provider?: string;
+    tokensUsed?: number;
+  };
+  rateLimit?: {
+    adminRemaining: number;
+    adminResetAt: string;
+  };
+};
+
+type AiRewriteResponse = {
+  success: boolean;
+  rewrittenText?: string;
+  changes?: string[];
+  error?: string;
+  message?: string;
+};
+
+type ReplyTone = "neutral" | "friendly" | "firm";
+type ReplyVariant = "short" | "pro" | "detailed";
+
 // ============================================
 // SLA Helpers
 // ============================================
@@ -228,6 +273,14 @@ export default function AdminSupportPage() {
   const [aiExpanded, setAiExpanded] = useState(false);
   const [aiCached, setAiCached] = useState(false);
 
+  // AI-ASSISTED-REPLIES-02: Reply variants state
+  const [aiReplies, setAiReplies] = useState<AiRepliesData | null>(null);
+  const [loadingReplies, setLoadingReplies] = useState(false);
+  const [repliesError, setRepliesError] = useState<string | null>(null);
+  const [replyTone, setReplyTone] = useState<ReplyTone>("neutral");
+  const [selectedVariant, setSelectedVariant] = useState<ReplyVariant>("pro");
+  const [rewriting, setRewriting] = useState(false);
+
   // Status/Priority change
   const [changingStatus, setChangingStatus] = useState(false);
   const [changingPriority, setChangingPriority] = useState(false);
@@ -260,6 +313,11 @@ export default function AdminSupportPage() {
       setAiError(null);
       setAiExpanded(false);
       setAiCached(false);
+      
+      // AI-ASSISTED-REPLIES-02: Reset reply variants state
+      setAiReplies(null);
+      setRepliesError(null);
+      setSelectedVariant("pro");
       
       // Load KB suggestions based on subject and first message
       setLoadingKb(true);
@@ -331,6 +389,91 @@ export default function AdminSupportPage() {
       }
     }
   }, [aiSuggestion]);
+
+  // AI-ASSISTED-REPLIES-02: Load reply variants
+  const loadAiReplies = useCallback(async () => {
+    if (!selectedTicket) return;
+    
+    try {
+      setLoadingReplies(true);
+      setRepliesError(null);
+      const res = await requestJson<AiRepliesResponse>(
+        `/api/admin/support/tickets/${selectedTicket.id}/ai-replies`,
+        { method: "POST", body: { tone: replyTone, lengthBias: "medium" } }
+      );
+      
+      if (res.success && res.data) {
+        setAiReplies(res.data);
+      } else {
+        setRepliesError(res.message || res.error || "Erreur inconnue");
+      }
+    } catch (err) {
+      console.error("Failed to load AI replies:", err);
+      setRepliesError(err instanceof Error ? err.message : "Erreur lors de la génération");
+    } finally {
+      setLoadingReplies(false);
+    }
+  }, [selectedTicket, replyTone]);
+
+  // AI-ASSISTED-REPLIES-02: Use a specific variant
+  const handleUseVariant = useCallback((variant: ReplyVariant) => {
+    if (aiReplies?.replies) {
+      setReplyMessage(aiReplies.replies[variant]);
+      setSelectedVariant(variant);
+    }
+  }, [aiReplies]);
+
+  // AI-ASSISTED-REPLIES-02: Insert KB link into reply
+  const handleInsertKbLink = useCallback((slugOrArticle: string | KbSuggestion, title?: string) => {
+    let slug: string;
+    let articleTitle: string;
+    if (typeof slugOrArticle === "string") {
+      slug = slugOrArticle;
+      articleTitle = title || slug;
+    } else {
+      slug = slugOrArticle.slug;
+      articleTitle = slugOrArticle.title;
+    }
+    const link = `\n\n📚 Pour plus d'informations, consultez notre article : ${articleTitle}\nhttps://motorsafe.fr/aide/${slug}`;
+    setReplyMessage((prev) => prev + link);
+  }, []);
+
+  // AI-ASSISTED-REPLIES-02: Insert clarifying question
+  const handleInsertQuestion = useCallback((question: string) => {
+    setReplyMessage((prev) => {
+      // Find signature and insert before it
+      const signatureMatch = prev.match(/\n\nCordialement,[\s\S]*$/);
+      if (signatureMatch) {
+        const beforeSig = prev.slice(0, signatureMatch.index);
+        return beforeSig + `\n\n${question}` + signatureMatch[0];
+      }
+      return prev + `\n\n${question}`;
+    });
+  }, []);
+
+  // AI-ASSISTED-REPLIES-02: Rewrite current text
+  const handleRewrite = useCallback(async (instruction: "shorter" | "friendlier" | "firmer" | "clearer") => {
+    if (!selectedTicket || !replyMessage.trim()) return;
+    
+    try {
+      setRewriting(true);
+      const res = await requestJson<AiRewriteResponse>(
+        `/api/admin/support/tickets/${selectedTicket.id}/ai-rewrite`,
+        { method: "POST", body: { text: replyMessage, instruction } }
+      );
+      
+      if (res.success && res.rewrittenText) {
+        setReplyMessage(res.rewrittenText);
+      } else {
+        alert(res.message || res.error || "Erreur lors de la réécriture");
+      }
+    } catch (err) {
+      console.error("Failed to rewrite:", err);
+      alert("Erreur lors de la réécriture");
+    } finally {
+      setRewriting(false);
+    }
+  }, [selectedTicket, replyMessage]);
 
   useEffect(() => {
     void loadTickets();
@@ -436,12 +579,6 @@ export default function AdminSupportPage() {
       clientName: selectedTicket.requesterName ?? undefined,
     });
     setReplyMessage(applied);
-  };
-
-  // Insert KB article link into reply
-  const handleInsertKbLink = (article: KbSuggestion) => {
-    const link = `\n\nVoici une aide qui peut résoudre votre cas :\n👉 ${article.title} — /aide/${article.slug}`;
-    setReplyMessage((prev) => prev + link);
   };
 
   return (
@@ -900,6 +1037,161 @@ export default function AdminSupportPage() {
                           <li key={i}>{a}</li>
                         ))}
                       </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* AI-ASSISTED-REPLIES-02: Reply Proposals Section */}
+            <div className="border-t border-[var(--ms-border)] p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Sparkles size={16} className="text-purple-500" />
+                  <span className="text-sm font-medium text-[var(--ms-text)]">Propositions de réponse</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {/* Tone selector */}
+                  <div className="flex rounded border border-[var(--ms-border)]">
+                    {(["neutral", "friendly", "firm"] as const).map((t) => (
+                      <button
+                        key={t}
+                        type="button"
+                        onClick={() => setReplyTone(t)}
+                        className={`px-2 py-1 text-xs transition-colors ${
+                          replyTone === t
+                            ? "bg-purple-100 text-purple-700"
+                            : "text-[var(--ms-text-muted)] hover:bg-gray-50"
+                        }`}
+                      >
+                        {t === "neutral" ? "Neutre" : t === "friendly" ? "Sympa" : "Ferme"}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void loadAiReplies()}
+                    disabled={loadingReplies}
+                    className="ms-btn ms-btn-secondary text-xs"
+                  >
+                    {loadingReplies ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <Sparkles size={14} />
+                    )}
+                    {aiReplies ? "Regénérer" : "Proposer une réponse"}
+                  </button>
+                </div>
+              </div>
+
+              {repliesError && (
+                <div className="mb-3 rounded bg-red-50 p-2 text-xs text-red-600">
+                  {repliesError}
+                </div>
+              )}
+
+              {aiReplies && (
+                <div className="space-y-3">
+                  {/* Variant Tabs */}
+                  <div className="flex rounded-lg border border-[var(--ms-border)] bg-gray-50 p-1">
+                    {(["short", "pro", "detailed"] as const).map((v) => (
+                      <button
+                        key={v}
+                        type="button"
+                        onClick={() => setSelectedVariant(v)}
+                        className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                          selectedVariant === v
+                            ? "bg-white text-[var(--ms-text)] shadow-sm"
+                            : "text-[var(--ms-text-muted)] hover:text-[var(--ms-text)]"
+                        }`}
+                      >
+                        {v === "short" ? "Version courte" : v === "pro" ? "Version pro" : "Version détaillée"}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Selected Reply */}
+                  <div className="rounded-lg border border-[var(--ms-border)] bg-white p-3">
+                    <p className="whitespace-pre-wrap text-sm text-[var(--ms-text)]">
+                      {aiReplies.replies[selectedVariant]}
+                    </p>
+                    <div className="mt-3 flex items-center justify-between border-t border-[var(--ms-border)] pt-3">
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleUseVariant(selectedVariant)}
+                          className="ms-btn ms-btn-primary text-xs"
+                        >
+                          Utiliser cette version
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Rewrite Actions */}
+                  {replyMessage && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-[var(--ms-text-muted)]">Réécrire le brouillon :</span>
+                      {(["shorter", "friendlier", "firmer", "clearer"] as const).map((instr) => (
+                        <button
+                          key={instr}
+                          type="button"
+                          onClick={() => void handleRewrite(instr)}
+                          disabled={rewriting}
+                          className="rounded border border-[var(--ms-border)] px-2 py-1 text-xs text-[var(--ms-text-muted)] transition-colors hover:bg-gray-50 hover:text-[var(--ms-text)] disabled:opacity-50"
+                        >
+                          {rewriting && <Loader2 size={10} className="inline animate-spin mr-1" />}
+                          {instr === "shorter" ? "Plus court" : instr === "friendlier" ? "Plus sympa" : instr === "firmer" ? "Plus ferme" : "Plus clair"}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Clarifying Questions */}
+                  {aiReplies.clarifying_questions.length > 0 && (
+                    <div className="rounded-lg border border-[var(--ms-border)] bg-amber-50 p-3">
+                      <div className="mb-2 text-xs font-medium text-amber-700">
+                        Questions à poser
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {aiReplies.clarifying_questions.map((q, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => handleInsertQuestion(q)}
+                            className="rounded-full bg-white px-3 py-1 text-xs text-amber-800 shadow-sm transition-colors hover:bg-amber-100"
+                          >
+                            + {q}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* KB Links */}
+                  {aiReplies.kb_links.length > 0 && (
+                    <div className="rounded-lg border border-[var(--ms-border)] bg-blue-50 p-3">
+                      <div className="mb-2 text-xs font-medium text-blue-700">
+                        Liens utiles
+                      </div>
+                      <div className="space-y-2">
+                        {aiReplies.kb_links.map((link, i) => (
+                          <div key={i} className="flex items-center justify-between rounded bg-white p-2">
+                            <div>
+                              <div className="text-sm font-medium text-[var(--ms-text)]">{link.title}</div>
+                              <div className="text-xs text-[var(--ms-text-muted)]">{link.why}</div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleInsertKbLink(link.slug, link.title)}
+                              className="ms-btn ms-btn-secondary text-xs"
+                            >
+                              <Link2 size={12} />
+                              Insérer
+                            </button>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
