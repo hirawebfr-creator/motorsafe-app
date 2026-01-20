@@ -135,6 +135,13 @@ export async function GET(req: Request, ctx: Ctx) {
         documentVersions: { orderBy: { generatedAt: "asc" } },
         evidenceAddenda: { orderBy: { createdAt: "asc" } },
         garage: true,
+        // EVIDENCE-CAPTURE-01: Include evidence capture sessions and items
+        evidenceCaptureSessions: {
+          orderBy: { step: "asc" },
+          include: {
+            items: { orderBy: { createdAt: "asc" } },
+          },
+        },
       },
     });
 
@@ -354,6 +361,116 @@ export async function GET(req: Request, ctx: Ctx) {
           }
         } catch (err) {
           errors.push(`Error reading photo ${doc.id}: ${err}`);
+        }
+      }
+    }
+
+    // ============================================================
+    // 05B_EVIDENCE_CAPTURE/ - Evidence Capture Sessions (EVIDENCE-CAPTURE-01)
+    // ============================================================
+    const sessions = intervention.evidenceCaptureSessions || [];
+    if (sessions.length > 0) {
+      // Create summary JSON for all sessions
+      const evidenceSummary = {
+        interventionId: id,
+        exportedAt: exportDate.toISOString(),
+        sessions: sessions.map(session => ({
+          id: session.id,
+          step: session.step,
+          status: session.status,
+          intakeCompletedAt: session.intakeCompletedAt,
+          techCompletedAt: session.techCompletedAt,
+          deliveryCompletedAt: session.deliveryCompletedAt,
+          itemsCount: session.items.length,
+          items: session.items.map(item => ({
+            id: item.id,
+            type: item.type,
+            label: item.label,
+            category: item.category,
+            sha256: item.sha256,
+            prevItemHash: item.prevItemHash,
+            createdAt: item.createdAt,
+          })),
+        })),
+        chainIntegrity: sessions.every(session => {
+          const items = session.items;
+          for (let i = 1; i < items.length; i++) {
+            if (items[i].prevItemHash !== items[i - 1].sha256) return false;
+          }
+          return true;
+        }),
+      };
+
+      const summaryJson = JSON.stringify(evidenceSummary, null, 2);
+      archive.append(summaryJson, { name: "05B_EVIDENCE_CAPTURE/sessions_summary.json" });
+      files.push({
+        path: "05B_EVIDENCE_CAPTURE/sessions_summary.json",
+        sha256: sha256String(summaryJson),
+        sizeBytes: Buffer.byteLength(summaryJson),
+        description: "Evidence capture sessions summary with hash chain",
+        category: "EVIDENCE_CAPTURE",
+      });
+
+      // Export each session's items
+      for (const session of sessions) {
+        const stepFolder = session.step.toLowerCase(); // intake, tech, delivery
+
+        for (const item of session.items) {
+          const itemPath = `05B_EVIDENCE_CAPTURE/${stepFolder}`;
+
+          // Photos and files with storageKey
+          if (item.storageKey) {
+            try {
+              const buffer = await fetchFileBuffer(item.storageKey);
+              if (buffer) {
+                const computedHash = sha256(buffer);
+                const hashValid = computedHash === item.sha256;
+                const ext = item.fileName?.split(".").pop() || (item.mime?.startsWith("image/") ? "jpg" : "bin");
+                const fileName = `${itemPath}/${item.category}_${item.id}.${ext}`;
+
+                archive.append(buffer, { name: fileName });
+                files.push({
+                  path: fileName,
+                  sha256: computedHash,
+                  sizeBytes: buffer.length,
+                  description: `${item.label} (${hashValid ? "verified" : "HASH MISMATCH"})`,
+                  category: "EVIDENCE_CAPTURE",
+                  createdAt: item.createdAt,
+                });
+
+                if (!hashValid) {
+                  errors.push(`INTEGRITY ERROR: ${fileName} hash mismatch (expected ${item.sha256}, got ${computedHash})`);
+                }
+              }
+            } catch (err) {
+              errors.push(`Error reading evidence item ${item.id}: ${err}`);
+            }
+          }
+
+          // Form and note items with jsonData
+          if (item.jsonData && (item.type === "FORM" || item.type === "NOTE")) {
+            const itemJson = JSON.stringify({
+              id: item.id,
+              type: item.type,
+              label: item.label,
+              category: item.category,
+              data: item.jsonData,
+              sha256: item.sha256,
+              prevItemHash: item.prevItemHash,
+              createdAt: item.createdAt,
+            }, null, 2);
+            const fileName = `${itemPath}/${item.category}_${item.id}.json`;
+            
+            archive.append(itemJson, { name: fileName });
+            files.push({
+              path: fileName,
+              sha256: sha256String(itemJson),
+              sizeBytes: Buffer.byteLength(itemJson),
+              description: item.label || `${item.type} - ${item.category}`,
+              category: "EVIDENCE_CAPTURE",
+              createdAt: item.createdAt,
+            });
+          }
         }
       }
     }

@@ -48,6 +48,7 @@ import { AIAssistCard } from "@/components/common/AIAssistCard";
 import { TAG_OPTIONS, INTERVENTION_TAGS } from "@/lib/legal/tags";
 import { WorkshopSection } from "@/components/interventions/WorkshopSection";
 import { ExportInsuranceButton } from "@/components/interventions/ExportInsuranceButton";
+import { EvidenceCaptureSection } from "@/components/interventions/EvidenceCaptureSection";
 
 // === Types ===
 type Vehicle = {
@@ -1283,7 +1284,14 @@ export default function InterventionDetailPage() {
           onRefresh={fetchIntervention}
         />
 
-        {/* Section 8: Atelier (WORKSHOP-OPS-01) */}
+        {/* Section 8: Capture de preuves (EVIDENCE-CAPTURE-01) */}
+        <EvidenceCaptureSection
+          interventionId={intervention.id}
+          isClosed={!!isClosed}
+          hasActiveSubscription={hasActiveSubscription}
+        />
+
+        {/* Section 9: Atelier (WORKSHOP-OPS-01) */}
         {(hasRepairOrderFeature || hasReturnReportFeature || hasLoanVehicleFeature) && (
           <WorkshopSection
             interventionId={intervention.id}
@@ -1294,7 +1302,7 @@ export default function InterventionDetailPage() {
           />
         )}
 
-        {/* Section 9: AI Assist (PRO only) */}
+        {/* Section 10: AI Assist (PRO only) */}
         <AIAssistCard
           interventionId={intervention.id}
           hasActiveSubscription={hasActiveSubscription}

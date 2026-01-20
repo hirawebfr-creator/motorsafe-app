@@ -223,6 +223,10 @@ model Garage {
   
   // LEGAL-PACK-01: Custom clause sets
   clauseSets         ClauseSet[]
+  
+  // EVIDENCE-CAPTURE-01: Evidence capture sessions and items
+  evidenceCaptureSessions EvidenceCaptureSession[]
+  evidenceItems           EvidenceItem[]
 }
 
 model User {
@@ -277,6 +281,10 @@ model User {
   // EVIDENCE-LOCKDOWN-01: Document versions and addenda created by user
   createdDocumentVersions DocumentVersion[]    @relation("DocumentVersionCreator")
   createdEvidenceAddenda  EvidenceAddendum[]   @relation("AddendumCreator")
+  
+  // EVIDENCE-CAPTURE-01: Evidence capture sessions and items created by user
+  createdEvidenceSessions EvidenceCaptureSession[] @relation("EvidenceSessionCreator")
+  createdEvidenceItems    EvidenceItem[]           @relation("EvidenceItemCreator")
 
   @@index([garageId])
 }
@@ -482,6 +490,10 @@ model Intervention {
   incidentCase IncidentCase?   // INSURANCE-INCIDENT-01
   documentVersions DocumentVersion[] // EVIDENCE-LOCKDOWN-01
   evidenceAddenda  EvidenceAddendum[] // EVIDENCE-LOCKDOWN-01
+  
+  // EVIDENCE-CAPTURE-01: Evidence capture sessions and items
+  evidenceCaptureSessions EvidenceCaptureSession[]
+  evidenceItems           EvidenceItem[]
 
   garage  Garage? @relation(fields: [garageId], references: [id], onDelete: Cascade)
   vehicle Vehicle  @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
@@ -2198,3 +2210,96 @@ model ConsentRecord {
   @@index([acceptedAt])
 }
 
+// ============================================================================
+// EVIDENCE-CAPTURE-01: Evidence Capture Sessions & Items
+// ============================================================================
+
+enum EvidenceCaptureStatus {
+  DRAFT       // En cours de saisie
+  READY       // Prêt pour signature
+  SIGNED      // Signé par client
+}
+
+enum EvidenceCaptureStep {
+  INTAKE      // Réception véhicule
+  TECH        // Diagnostics OBD / technique
+  DELIVERY    // Restitution véhicule
+}
+
+enum EvidenceItemType {
+  PHOTO       // Photo (obligatoire réception)
+  VIDEO       // Vidéo (optionnelle)
+  FORM        // Formulaire (km, fuel, warnings)
+  OBD_REPORT  // Rapport OBD avant/après
+  SIGNATURE   // Signature client
+  NOTE        // Note textuelle
+}
+
+/// Session de capture de preuves pour une intervention
+model EvidenceCaptureSession {
+  id              String                @id @default(cuid())
+  garageId        Int
+  interventionId  String
+  
+  status          EvidenceCaptureStatus @default(DRAFT)
+  step            EvidenceCaptureStep   @default(INTAKE)
+  
+  // Completion tracking
+  intakeCompletedAt   DateTime?         // Réception terminée
+  techCompletedAt     DateTime?         // Tech terminée
+  deliveryCompletedAt DateTime?         // Restitution terminée
+  
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  createdByUserId String?
+  
+  garage          Garage                @relation(fields: [garageId], references: [id], onDelete: Cascade)
+  intervention    Intervention          @relation(fields: [interventionId], references: [id], onDelete: Cascade)
+  createdBy       User?                 @relation("EvidenceSessionCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  items           EvidenceItem[]
+  
+  @@unique([interventionId, step])
+  @@index([garageId])
+  @@index([interventionId])
+  @@index([garageId, status])
+}
+
+/// Item de preuve individuel (photo, form, OBD, signature, etc.)
+model EvidenceItem {
+  id              String           @id @default(cuid())
+  garageId        Int
+  interventionId  String
+  sessionId       String
+  
+  type            EvidenceItemType
+  label           String?          // "Front-left", "Dashboard", "VIN plate", "OBD Before"
+  category        String?          // INTAKE_PHOTO, INTAKE_FORM, OBD_BEFORE, OBD_AFTER, DELIVERY_SIGNATURE
+  
+  // Storage
+  storageKey      String?          // Clé S3/local pour fichiers
+  fileName        String?          // Nom original du fichier
+  mime            String?          // Type MIME
+  sizeBytes       Int?             // Taille en bytes
+  
+  // Structured data (for FORM, OBD_REPORT, etc.)
+  jsonData        Json?            // { km, fuel, warnings, dtcCodes, notes, etc. }
+  
+  // Integrity
+  sha256          String           // Hash du fichier ou du JSON stringifié
+  
+  // Chain linking (for tamper-evidence)
+  prevItemHash    String?          // Hash de l'item précédent dans la session
+  
+  createdAt       DateTime         @default(now())
+  createdByUserId String?
+  
+  garage          Garage           @relation(fields: [garageId], references: [id], onDelete: Cascade)
+  intervention    Intervention     @relation(fields: [interventionId], references: [id], onDelete: Cascade)
+  session         EvidenceCaptureSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  createdBy       User?            @relation("EvidenceItemCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  
+  @@index([interventionId, type, createdAt])
+  @@index([sessionId])
+  @@index([garageId])
+  @@index([sha256])
+}
