@@ -10,7 +10,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { Card } from "@/components/ui/Card";
 import { SectionHeader } from "@/components/ui/SectionHeader";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/Badge";
 import { ErrorBanner } from "@/components/common/ErrorBanner";
 import { Loading } from "@/components/common/Loading";

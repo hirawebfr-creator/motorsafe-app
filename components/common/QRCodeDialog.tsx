@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { X, Download, Copy, CheckCircle2 } from "lucide-react";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 
 interface QRCodeDialogProps {
   url: string;

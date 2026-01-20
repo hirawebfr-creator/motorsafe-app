@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useId, useMemo, useRef } from "react";
 import type { SessionUser } from "@/lib/auth";
 import type { NavItem } from "@/components/layout/nav-config";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownItem } from "@/components/ui/DropdownMenu";
 import { Menu, Plus, Search, ShieldCheck, UserCircle2 } from "lucide-react";
 

@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { Card } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 
 type ClientOption = {
   id: number;

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/Input";
 import { DataTable, DataTableHead } from "@/components/ui/DataTable";
 import { SectionHeader } from "@/components/ui/SectionHeader";

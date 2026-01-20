@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 
 type MePayload = {
   user: { email: string; role: string; garageId: number | null };

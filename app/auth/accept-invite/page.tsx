@@ -7,7 +7,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 import { Loading } from "@/components/common/Loading";
 import { Users, CheckCircle2, XCircle, RefreshCw } from "lucide-react";
 

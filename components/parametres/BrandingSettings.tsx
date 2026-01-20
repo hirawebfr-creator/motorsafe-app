@@ -9,7 +9,7 @@
 
 import { useState, useCallback, useRef } from "react";
 import { Image, Upload, Trash2, Loader2, CheckCircle, AlertCircle, Crown } from "lucide-react";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 
 interface BrandingSettingsProps {
   garageId: number | null;

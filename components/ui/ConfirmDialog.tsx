@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 import { lockBodyScroll } from "@/lib/scrollLock";
 
 type ConfirmDialogProps = {

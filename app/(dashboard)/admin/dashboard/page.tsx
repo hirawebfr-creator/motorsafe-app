@@ -27,7 +27,7 @@ import { useUser } from "@/components/user-context";
 import { fetcher } from "@/lib/fetcher";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { Card } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 
 type AdminStats = {
   totals: {

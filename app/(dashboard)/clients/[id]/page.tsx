@@ -8,7 +8,7 @@ import { fetcher } from "@/lib/fetcher";
 
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { Card } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/Badge";
 import { DataTable, DataTableHead } from "@/components/ui/DataTable";
 import { ErrorBanner } from "@/components/common/ErrorBanner";

@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/Toast";
 
 export default function LoginPage() {

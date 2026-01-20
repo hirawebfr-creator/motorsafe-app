@@ -9,7 +9,7 @@ import { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { createHash } from "crypto";
 import Link from "next/link";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Download, AlertTriangle, Clock, FileArchive, Shield, CheckCircle2 } from "lucide-react";
 

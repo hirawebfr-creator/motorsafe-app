@@ -13,7 +13,7 @@
 
 import { useCallback, useState } from "react";
 import { AlertTriangle, Check, ChevronRight, FileSpreadsheet, Loader2, Upload, X } from "lucide-react";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/Card";
 
 type ImportKind = "clients" | "vehicules";

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
 import { PROCESSING_REGISTRY, DPA_TEMPLATE, GDPR_RIGHTS } from "@/content/gdpr";
 
 export const metadata = {
