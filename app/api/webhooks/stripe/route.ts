@@ -56,7 +56,7 @@ function isActiveStatus(status: string): boolean {
 
 export async function POST(req: Request) {
   const stripe = getStripe();
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  const webhookSecret = cleanEnv(process.env.STRIPE_WEBHOOK_SECRET);
 
   if (!webhookSecret) {
     return NextResponse.json({ ok: false, error: { code: "CONFIG", message: "STRIPE_WEBHOOK_SECRET manquant" } }, { status: 500 });
