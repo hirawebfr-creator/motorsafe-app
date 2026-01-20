@@ -107,7 +107,7 @@ export async function GET(req: Request, ctx: Ctx) {
     const user = requireApprovedTenant(await requireUser(req));
 
     // Check feature gate
-    if (!hasFeature(user, FeatureKey.EXPORT_ZIP)) {
+    if (user.garageId && !(await hasFeature(user.garageId, FeatureKey.EXPORT_ZIP))) {
       throw new RouteError(403, "PLAN_REQUIRED", "L'export ZIP nécessite un plan supérieur");
     }
 
@@ -133,7 +133,6 @@ export async function GET(req: Request, ctx: Ctx) {
         documentVersions: { orderBy: { generatedAt: "asc" } },
         evidenceAddenda: { orderBy: { createdAt: "asc" } },
         garage: true,
-        techReports: { where: { deletedAt: null }, orderBy: { createdAt: "asc" } },
       },
     });
 
@@ -206,21 +205,23 @@ export async function GET(req: Request, ctx: Ctx) {
     };
 
     // Prepare intervention info
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const intv = intervention as any;
     const interventionInfo: InterventionExportInfo = {
       id,
-      reference: (intervention as Record<string, unknown>).reference as string || null,
+      reference: intv.reference || null,
       vehiclePlate: intervention.vehicle.plate || "N/A",
       vehicleBrand: intervention.vehicle.brand || "N/A",
       vehicleModel: intervention.vehicle.model || "N/A",
       vehicleVin: intervention.vehicle.vin,
       clientName,
-      mileageIn: intervention.mileageIn,
-      mileageOut: intervention.mileageOut,
-      entryDate: intervention.entryDate,
-      exitDate: intervention.exitDate,
-      status: intervention.status,
-      description: intervention.description,
-      totalTTC: intervention.totalTTC ? Number(intervention.totalTTC) : null,
+      mileageIn: intv.mileageIn || null,
+      mileageOut: intv.mileageOut || null,
+      entryDate: intv.entryDate || null,
+      exitDate: intv.exitDate || null,
+      status: intv.status || "UNKNOWN",
+      description: intv.description || null,
+      totalTTC: intv.totalTTC ? Number(intv.totalTTC) : null,
     };
 
     // Prepare archive
@@ -290,7 +291,7 @@ export async function GET(req: Request, ctx: Ctx) {
               sizeBytes: buffer.length,
               description: `Signed ${sig.documentType} revision ${sig.revision || 1}`,
               category: "PREUVES_SIGNATURE",
-              createdAt: sig.signedAt,
+              createdAt: sig.signedAt ?? undefined,
             });
           }
         } catch (err) {
@@ -534,11 +535,11 @@ export async function GET(req: Request, ctx: Ctx) {
       type: "INSURANCE_EXPORT",
       exportedAt: exportDate.toISOString(),
       interventionId: id,
-      interventionRef: interventionInfo.reference,
+      interventionRef: interventionInfo.reference ?? null,
       garageId,
       garageName: garageInfo.displayName || garageInfo.name,
       vehiclePlate: interventionInfo.vehiclePlate,
-      vehicleVin: interventionInfo.vehicleVin,
+      vehicleVin: interventionInfo.vehicleVin ?? null,
       clientName,
       exportedBy: user.email,
       chainValid: chainVerification.valid,

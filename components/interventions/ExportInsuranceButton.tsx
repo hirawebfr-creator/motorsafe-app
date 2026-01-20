@@ -10,20 +10,8 @@
 import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { DropdownMenu, DropdownItem } from "@/components/ui/DropdownMenu";
+import { Dialog } from "@/components/ui/Dialog";
 import { Download, Share2, Link2, Copy, Check, Clock, Trash2, FileArchive, Loader2, ExternalLink } from "lucide-react";
 import { fetcher } from "@/lib/fetcher";
 
@@ -187,15 +175,15 @@ export function ExportInsuranceButton({
       <Button variant="outline" size="sm" disabled title="Plan supérieur requis">
         <Download className="h-4 w-4 mr-2" />
         Export assurance
-        <Badge variant="secondary" className="ml-2 text-xs">PRO</Badge>
+        <Badge variant="neutral" className="ml-2 text-xs">PRO</Badge>
       </Button>
     );
   }
 
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
+      <DropdownMenu
+        trigger={
           <Button variant="outline" size="sm" disabled={isExporting}>
             {isExporting ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -204,127 +192,82 @@ export function ExportInsuranceButton({
             )}
             Export assurance
           </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuItem onClick={handleExport} disabled={isExporting}>
-            <Download className="h-4 w-4 mr-2" />
+        }
+        align="right"
+      >
+        <DropdownItem onClick={handleExport}>
+          <span className="flex items-center gap-2">
+            <Download className="h-4 w-4" />
             Télécharger le dossier ZIP
-          </DropdownMenuItem>
-          
-          {hasExportShare && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={openShareDialog}>
-                <Share2 className="h-4 w-4 mr-2" />
-                Créer un lien de partage
-                <Badge variant="outline" className="ml-auto text-xs">PRO</Badge>
-              </DropdownMenuItem>
-            </>
-          )}
-        </DropdownMenuContent>
+          </span>
+        </DropdownItem>
+        
+        {hasExportShare && (
+          <DropdownItem onClick={openShareDialog}>
+            <span className="flex items-center gap-2">
+              <Share2 className="h-4 w-4" />
+              Créer un lien de partage
+              <Badge variant="accent" className="ml-auto text-xs">PRO</Badge>
+            </span>
+          </DropdownItem>
+        )}
       </DropdownMenu>
 
       {/* Share Link Dialog */}
-      <Dialog open={shareDialogOpen} onOpenChange={setShareDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Link2 className="h-5 w-5" />
-              Lien de partage
-            </DialogTitle>
-            <DialogDescription>
-              Créez un lien sécurisé pour partager le dossier avec un expert ou assureur.
-            </DialogDescription>
-          </DialogHeader>
+      <Dialog 
+        open={shareDialogOpen} 
+        onOpenChange={setShareDialogOpen}
+        title="Lien de partage"
+        description="Créez un lien sécurisé pour partager le dossier avec un expert ou assureur."
+        confirmLabel={shareStatus?.hasLink && !shareStatus.isExpired ? "Fermer" : "Créer un lien"}
+        cancelLabel="Annuler"
+        onConfirm={shareStatus?.hasLink && !shareStatus.isExpired ? () => setShareDialogOpen(false) : createShareLink}
+      >
+        <div className="space-y-4">
+          {error && (
+            <div className="p-3 rounded-md bg-red-50 text-red-700 text-sm">
+              {error}
+            </div>
+          )}
 
-          <div className="space-y-4 pt-4">
-            {error && (
-              <div className="p-3 rounded-md bg-destructive/10 text-destructive text-sm">
-                {error}
+          {shareStatus?.hasLink && !shareStatus.isExpired ? (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm text-muted2">
+                <Clock className="h-4 w-4" />
+                Expire le {new Date(shareStatus.expiresAt!).toLocaleDateString("fr-FR")}
+                {shareStatus.wasUsed && (
+                  <Badge variant="neutral" className="ml-auto">Utilisé</Badge>
+                )}
               </div>
-            )}
 
-            {shareStatus?.hasLink && !shareStatus.isExpired ? (
-              // Link exists
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Clock className="h-4 w-4" />
-                  Expire le {new Date(shareStatus.expiresAt!).toLocaleDateString("fr-FR")}
-                  {shareStatus.wasUsed && (
-                    <Badge variant="secondary" className="ml-auto">Utilisé</Badge>
-                  )}
-                </div>
-
-                {shareLink ? (
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      readOnly
-                      value={shareLink}
-                      className="flex-1 px-3 py-2 text-sm border rounded-md bg-muted truncate"
-                    />
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={copyLink}
-                    >
-                      {copied ? (
-                        <Check className="h-4 w-4 text-green-600" />
-                      ) : (
-                        <Copy className="h-4 w-4" />
-                      )}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      asChild
-                    >
-                      <a href={shareLink} target="_blank" rel="noopener noreferrer">
-                        <ExternalLink className="h-4 w-4" />
-                      </a>
-                    </Button>
-                  </div>
-                ) : (
+              {shareLink ? (
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={shareLink}
+                    className="flex-1 px-3 py-2 text-sm border rounded-md bg-surface2 truncate"
+                  />
                   <Button
+                    size="sm"
                     variant="outline"
-                    className="w-full"
-                    onClick={createShareLink}
-                    disabled={isCreatingLink}
+                    onClick={copyLink}
                   >
-                    {isCreatingLink ? (
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    {copied ? (
+                      <Check className="h-4 w-4 text-green-600" />
                     ) : (
-                      <Link2 className="h-4 w-4 mr-2" />
+                      <Copy className="h-4 w-4" />
                     )}
-                    Afficher le lien
                   </Button>
-                )}
-
+                  <a href={shareLink} target="_blank" rel="noopener noreferrer">
+                    <Button size="sm" variant="outline">
+                      <ExternalLink className="h-4 w-4" />
+                    </Button>
+                  </a>
+                </div>
+              ) : (
                 <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full text-destructive hover:text-destructive"
-                  onClick={revokeShareLink}
-                  disabled={isRevokingLink}
-                >
-                  {isRevokingLink ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <Trash2 className="h-4 w-4 mr-2" />
-                  )}
-                  Révoquer le lien
-                </Button>
-              </div>
-            ) : (
-              // No link or expired
-              <div className="space-y-3">
-                {shareStatus?.isExpired && (
-                  <div className="p-3 rounded-md bg-amber-50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-500 text-sm">
-                    Le lien précédent a expiré. Créez-en un nouveau.
-                  </div>
-                )}
-
-                <Button
+                  variant="outline"
                   className="w-full"
                   onClick={createShareLink}
                   disabled={isCreatingLink}
@@ -334,16 +277,39 @@ export function ExportInsuranceButton({
                   ) : (
                     <Link2 className="h-4 w-4 mr-2" />
                   )}
-                  Créer un lien (valide 7 jours)
+                  Afficher le lien
                 </Button>
+              )}
 
-                <p className="text-xs text-muted-foreground text-center">
-                  Le lien sera accessible sans connexion pendant 7 jours.
-                </p>
-              </div>
-            )}
-          </div>
-        </DialogContent>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full text-red-600 hover:text-red-700"
+                onClick={revokeShareLink}
+                disabled={isRevokingLink}
+              >
+                {isRevokingLink ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Trash2 className="h-4 w-4 mr-2" />
+                )}
+                Révoquer le lien
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {shareStatus?.isExpired && (
+                <div className="p-3 rounded-md bg-amber-50 text-amber-700 text-sm">
+                  Le lien précédent a expiré. Créez-en un nouveau.
+                </div>
+              )}
+
+              <p className="text-xs text-muted2 text-center">
+                Le lien sera accessible sans connexion pendant 7 jours.
+              </p>
+            </div>
+          )}
+        </div>
       </Dialog>
     </>
   );

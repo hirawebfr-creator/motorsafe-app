@@ -89,7 +89,7 @@ interface InsuranceManifest {
   totalBytes: number;
 }
 
-export async function GET(req: Request, ctx: Ctx) {
+export async function GET(_req: Request, ctx: Ctx) {
   try {
     const { token } = await ctx.params;
 
@@ -202,21 +202,23 @@ export async function GET(req: Request, ctx: Ctx) {
     };
 
     // Prepare intervention info
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const intv = intervention as any;
     const interventionInfo: InterventionExportInfo = {
       id,
-      reference: (intervention as Record<string, unknown>).reference as string || null,
+      reference: intv.reference || null,
       vehiclePlate: intervention.vehicle.plate || "N/A",
       vehicleBrand: intervention.vehicle.brand || "N/A",
       vehicleModel: intervention.vehicle.model || "N/A",
       vehicleVin: intervention.vehicle.vin,
       clientName,
-      mileageIn: intervention.mileageIn,
-      mileageOut: intervention.mileageOut,
-      entryDate: intervention.entryDate,
-      exitDate: intervention.exitDate,
-      status: intervention.status,
-      description: intervention.description,
-      totalTTC: intervention.totalTTC ? Number(intervention.totalTTC) : null,
+      mileageIn: intv.mileageIn || null,
+      mileageOut: intv.mileageOut || null,
+      entryDate: intv.entryDate || null,
+      exitDate: intv.exitDate || null,
+      status: intv.status || "UNKNOWN",
+      description: intv.description || null,
+      totalTTC: intv.totalTTC ? Number(intv.totalTTC) : null,
     };
 
     // Prepare archive
@@ -274,7 +276,7 @@ export async function GET(req: Request, ctx: Ctx) {
               sizeBytes: buffer.length,
               description: `Signed ${sig.documentType}`,
               category: "PREUVES_SIGNATURE",
-              createdAt: sig.signedAt,
+              createdAt: sig.signedAt ?? undefined,
             });
           }
         } catch {
@@ -404,11 +406,11 @@ export async function GET(req: Request, ctx: Ctx) {
       type: "INSURANCE_EXPORT",
       exportedAt: exportDate.toISOString(),
       interventionId: id,
-      interventionRef: interventionInfo.reference,
+      interventionRef: interventionInfo.reference ?? null,
       garageId,
       garageName: garageInfo.displayName || garageInfo.name,
       vehiclePlate: interventionInfo.vehiclePlate,
-      vehicleVin: interventionInfo.vehicleVin,
+      vehicleVin: interventionInfo.vehicleVin ?? null,
       clientName,
       exportedBy: "SHARE_LINK",
       chainValid: chainVerification.valid,

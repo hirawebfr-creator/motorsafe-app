@@ -32,7 +32,7 @@ export async function POST(req: Request, ctx: Ctx) {
     const user = requireApprovedTenant(await requireUser(req));
 
     // Check PRO feature gate
-    if (!hasFeature(user, FeatureKey.EXPORT_SHARE)) {
+    if (user.garageId && !(await hasFeature(user.garageId, FeatureKey.EXPORT_SHARE))) {
       throw new RouteError(403, "PLAN_REQUIRED", "Les liens de partage nécessitent le plan PRO");
     }
 
