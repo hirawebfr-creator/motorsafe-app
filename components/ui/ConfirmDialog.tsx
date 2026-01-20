@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { lockBodyScroll } from "@/lib/scrollLock";
 
-type DialogProps = {
+type ConfirmDialogProps = {
   open: boolean;
   title: string;
   description?: string;
@@ -16,7 +16,7 @@ type DialogProps = {
   children?: React.ReactNode;
 };
 
-export function Dialog({
+export function ConfirmDialog({
   open,
   title,
   description,
@@ -26,7 +26,7 @@ export function Dialog({
   onConfirm,
   onOpenChange,
   children,
-}: DialogProps) {
+}: ConfirmDialogProps) {
   const [mounted, setMounted] = useState(false);
   const titleId = useId();
   const descId = useId();

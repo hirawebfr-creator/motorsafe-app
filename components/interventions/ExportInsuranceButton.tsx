@@ -11,7 +11,7 @@ import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { DropdownMenu, DropdownItem } from "@/components/ui/DropdownMenu";
-import { Dialog } from "@/components/ui/Dialog";
+import { ConfirmDialog as Dialog } from "@/components/ui/ConfirmDialog";
 import { Download, Share2, Link2, Copy, Check, Clock, Trash2, FileArchive, Loader2, ExternalLink, FileText } from "lucide-react";
 import { fetcher } from "@/lib/fetcher";
 

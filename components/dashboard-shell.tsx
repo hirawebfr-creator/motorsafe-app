@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 import { NAV_ITEMS } from "@/components/layout/nav-config";
 import { UserProvider } from "@/components/user-context";
 import { AppShell } from "@/components/layout/AppShell";
+import { CommandPalette } from "@/components/shared/command-palette";
+import { Toaster } from "sonner";
 import type { SessionUser } from "@/lib/auth";
 
 export default function DashboardShell({
@@ -45,6 +47,19 @@ export default function DashboardShell({
       >
         {children}
       </AppShell>
+      <CommandPalette />
+      <Toaster 
+        position="top-right" 
+        richColors 
+        closeButton
+        toastOptions={{
+          style: {
+            background: "var(--ms-surface)",
+            border: "1px solid var(--ms-border)",
+            color: "var(--ms-text)",
+          },
+        }}
+      />
     </UserProvider>
   );
 }

@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Badge } from "@/components/ui/Badge";
 import { Toggle } from "@/components/ui/Toggle";
-import { Dialog } from "@/components/ui/Dialog";
+import { ConfirmDialog as Dialog } from "@/components/ui/ConfirmDialog";
 import {
   Users,
   Plus,

@@ -22,6 +22,7 @@ import {
   FileCheck,
   Receipt,
   ShieldCheck,
+  Search,
 } from "lucide-react";
 
 type SidebarIcon = React.ComponentType<{ size?: number; className?: string }>;
@@ -90,6 +91,23 @@ export function DesktopSidebar({
           <div className="text-lg font-bold text-[var(--ms-text)]">MotorSafe</div>
           <div className="text-xs text-[var(--ms-text-muted)]">Garage Management</div>
         </div>
+      </div>
+
+      {/* Search Button - triggers Command Palette */}
+      <div className="px-3 mb-2">
+        <button
+          type="button"
+          onClick={() => {
+            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }));
+          }}
+          className="flex w-full items-center gap-2 h-10 px-3 rounded-lg border border-[var(--ms-border)] bg-[var(--ms-bg-subtle)] text-sm text-[var(--ms-text-muted)] hover:bg-[var(--ms-surface-hover)] hover:border-[var(--ms-text-muted)] transition-colors"
+        >
+          <Search size={16} />
+          <span className="flex-1 text-left">Rechercher...</span>
+          <kbd className="hidden sm:inline-flex items-center gap-1 rounded border border-[var(--ms-border)] bg-white px-1.5 py-0.5 text-[10px] font-mono text-[var(--ms-text-muted)]">
+            ⌘K
+          </kbd>
+        </button>
       </div>
 
       {/* Navigation */}
