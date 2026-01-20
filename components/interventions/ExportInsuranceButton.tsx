@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { DropdownMenu, DropdownItem } from "@/components/ui/DropdownMenu";
 import { Dialog } from "@/components/ui/Dialog";
-import { Download, Share2, Link2, Copy, Check, Clock, Trash2, FileArchive, Loader2, ExternalLink } from "lucide-react";
+import { Download, Share2, Link2, Copy, Check, Clock, Trash2, FileArchive, Loader2, ExternalLink, FileText } from "lucide-react";
 import { fetcher } from "@/lib/fetcher";
 
 interface ExportInsuranceButtonProps {
@@ -20,6 +20,7 @@ interface ExportInsuranceButtonProps {
   vehiclePlate?: string;
   hasExportZip: boolean;
   hasExportShare: boolean;
+  hasExpertPack?: boolean;
   onSuccess?: () => void;
 }
 
@@ -45,9 +46,11 @@ export function ExportInsuranceButton({
   vehiclePlate,
   hasExportZip,
   hasExportShare,
+  hasExpertPack = false,
   onSuccess,
 }: ExportInsuranceButtonProps) {
   const [isExporting, setIsExporting] = useState(false);
+  const [isExportingExpert, setIsExportingExpert] = useState(false);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [shareLink, setShareLink] = useState<string | null>(null);
   const [shareStatus, setShareStatus] = useState<ShareLinkStatus | null>(null);
@@ -82,6 +85,31 @@ export function ExportInsuranceButton({
       setIsExporting(false);
     }
   }, [interventionId, vehiclePlate, hasExportZip, onSuccess]);
+
+  // Download Expert Pack PDF
+  const handleExportExpert = useCallback(async () => {
+    if (!hasExpertPack) return;
+    
+    setIsExportingExpert(true);
+    setError(null);
+    
+    try {
+      const link = document.createElement("a");
+      link.href = `/api/interventions/${interventionId}/export-expert-pack.pdf`;
+      link.download = `dossier_expert_${vehiclePlate || interventionId}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      await new Promise(r => setTimeout(r, 1000));
+      onSuccess?.();
+    } catch (err) {
+      console.error("Expert export error:", err);
+      setError("Erreur lors de l'export du dossier expert");
+    } finally {
+      setIsExportingExpert(false);
+    }
+  }, [interventionId, vehiclePlate, hasExpertPack, onSuccess]);
 
   // Check share link status
   const checkShareStatus = useCallback(async () => {
@@ -201,6 +229,20 @@ export function ExportInsuranceButton({
             Télécharger le dossier ZIP
           </span>
         </DropdownItem>
+        
+        {hasExpertPack && (
+          <DropdownItem onClick={isExportingExpert ? undefined : handleExportExpert}>
+            <span className="flex items-center gap-2">
+              {isExportingExpert ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <FileText className="h-4 w-4" />
+              )}
+              Dossier Expert (PDF)
+              <Badge variant="accent" className="ml-auto text-xs">PRO</Badge>
+            </span>
+          </DropdownItem>
+        )}
         
         {hasExportShare && (
           <DropdownItem onClick={openShareDialog}>

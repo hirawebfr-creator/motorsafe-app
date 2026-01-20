@@ -31,6 +31,8 @@ import {
 } from "@/lib/pdf/insuranceExport";
 import { decryptClientData } from "@/lib/encryption";
 import { hasFeature, FeatureKey } from "@/lib/entitlements";
+import { buildExpertPackData } from "@/lib/export/expertPack";
+import { generateExpertDossierPdf } from "@/lib/pdf/expertDossier";
 import { createHash } from "crypto";
 import { readFile } from "fs/promises";
 import path from "path";
@@ -489,6 +491,54 @@ export async function GET(req: Request, ctx: Ctx) {
       description: "Lettre d'accompagnement avec en-tête garage",
       category: "ACCOMPAGNEMENT",
     });
+
+    // INSURANCE-READY-EXPORT-03: Generate Expert Dossier PDF (PRO only)
+    const hasExpertPack = user.garageId ? await hasFeature(user.garageId, FeatureKey.EXPERT_PACK) : false;
+    if (hasExpertPack) {
+      try {
+        const packData = await buildExpertPackData(id, garageId);
+        if (packData) {
+          const expertPdf = await generateExpertDossierPdf({
+            garage: garageInfo,
+            vehicle: {
+              plate: interventionInfo.vehiclePlate,
+              brand: interventionInfo.vehicleBrand,
+              model: interventionInfo.vehicleModel,
+              vin: interventionInfo.vehicleVin,
+              mileageIn: interventionInfo.mileageIn,
+              mileageOut: interventionInfo.mileageOut,
+            },
+            intervention: {
+              id,
+              reference: interventionInfo.reference,
+              entryDate: interventionInfo.entryDate ? new Date(interventionInfo.entryDate) : null,
+              exitDate: interventionInfo.exitDate ? new Date(interventionInfo.exitDate) : null,
+              clientName,
+            },
+            data: packData,
+            exportDate,
+            manifestHash,
+            chainValid: chainVerification.valid,
+            chainEntries: chainVerification.entries,
+            maskVin: process.env.EXPERT_PACK_MASK_VIN === "true",
+            fetchPhoto: fetchFileBuffer,
+          });
+
+          archive.append(expertPdf.pdfBuffer, { name: "01B_DOSSIER_EXPERT.pdf" });
+          files.splice(1, 0, {
+            path: "01B_DOSSIER_EXPERT.pdf",
+            sha256: expertPdf.sha256,
+            sizeBytes: expertPdf.pdfBuffer.length,
+            description: "Dossier Expert - Timeline, photos, Q/R, intégrité",
+            category: "EXPERT",
+          });
+        }
+      } catch (expertErr) {
+        // Log error but don't fail the export
+        console.error("Expert pack generation failed:", expertErr);
+        errors.push("EXPERT_PACK: Génération du dossier expert échouée");
+      }
+    }
 
     // Generate Index PDF
     const indexPdf = await generateIndexPdf({

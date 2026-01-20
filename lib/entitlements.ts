@@ -54,6 +54,9 @@ export const FeatureKey = {
   // INSURANCE-READY-EXPORT-02: Share link for exports
   EXPORT_SHARE: "EXPORT_SHARE",       // Shareable export link (PRO only)
   
+  // INSURANCE-READY-EXPORT-03: Expert dossier PDF
+  EXPERT_PACK: "EXPERT_PACK",         // Dossier Expert PDF (PRO only)
+  
   // Future (gated but not implemented)
   AI_ASSIST: "AI_ASSIST",
 } as const;
@@ -174,6 +177,7 @@ export const PLAN_ENTITLEMENTS: Record<PlanKey, PlanEntitlements> = {
       FeatureKey.IMPORT, // IMPORT-ONBOARDING-01: CSV import
       FeatureKey.CUSTOM_CLAUSES, // LEGAL-PACK-01: Custom clause sets (PRO only)
       FeatureKey.EXPORT_SHARE, // INSURANCE-READY-EXPORT-02: Shareable export link
+      FeatureKey.EXPERT_PACK, // INSURANCE-READY-EXPORT-03: Dossier Expert PDF
     ],
     quotas: {
       vehicleLookupPerMonth: 400,
