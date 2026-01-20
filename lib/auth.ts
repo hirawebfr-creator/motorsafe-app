@@ -151,7 +151,9 @@ export async function getSessionUser(req?: Request) {
 export function isApprovedGarage(user: SessionUser | null) {
   if (!user) return false;
   if (user.role === "ADMIN") return true;
-  return Boolean(user.garage && user.garage.status === "ACTIVE");
+  // Allow PENDING and ACTIVE garages to use the app
+  // Only REJECTED garages are blocked
+  return Boolean(user.garage && (user.garage.status === "ACTIVE" || user.garage.status === "PENDING"));
 }
 
 export function scopeWhereGarage<T extends { garageId?: number | null }>(
