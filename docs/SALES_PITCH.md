@@ -1,4 +1,10 @@
-# SafeMotor — Kit Commercial
+export default async function DashboardLayout({ children }) {
+  const user = await getSessionUser();
+  if (!user) redirect("/auth/login");
+  if (!isApprovedGarage(user)) redirect("/pro/en-attente");
+  
+  return <DashboardShell user={user}>{children}</DashboardShell>;
+}# SafeMotor — Kit Commercial
 
 > Scripts de vente, structure démo, objections & checklist.
 > Document interne — Janvier 2026

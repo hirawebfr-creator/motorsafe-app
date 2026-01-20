@@ -11,6 +11,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
+import { Separator } from "@/components/ui/separator";
 
 interface BreadcrumbItem {
   label: string;
@@ -67,6 +68,8 @@ export function PageHeader({
         </div>
         {action && <div className="flex items-center gap-3">{action}</div>}
       </div>
+
+      <Separator className="mt-4" />
     </div>
   );
 }

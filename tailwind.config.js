@@ -25,6 +25,13 @@ module.exports = {
         danger: "rgb(var(--danger) / <alpha-value>)",
         success: "rgb(var(--success) / <alpha-value>)",
         warning: "rgb(var(--warning) / <alpha-value>)",
+
+        // Brand colors
+        brand: {
+          primary: '#0A1628',   // Navy foncé
+          secondary: '#F0F4F8', // Gris clair
+          accent: '#FF7F00',    // Orange action
+        },
       },
       borderRadius: {
         xl: '18px',
@@ -39,8 +46,22 @@ module.exports = {
         soft: 'var(--shCard)',
         dropdown: 'var(--shDropdown)',
       },
+      keyframes: {
+        "accordion-down": {
+          from: { height: "0" },
+          to: { height: "var(--radix-accordion-content-height)" },
+        },
+        "accordion-up": {
+          from: { height: "var(--radix-accordion-content-height)" },
+          to: { height: "0" },
+        },
+      },
+      animation: {
+        "accordion-down": "accordion-down 0.2s ease-out",
+        "accordion-up": "accordion-up 0.2s ease-out",
+      },
     },
   },
-  plugins: [],
+  plugins: [require("tailwindcss-animate")],
 };
 
