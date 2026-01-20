@@ -6,12 +6,15 @@ import {
   FileText,
   Pencil,
   Plus,
-  Search,
   Trash2,
   Wrench,
   TrendingUp,
   Calendar,
 } from "lucide-react";
+import { PageHeader } from "@/components/shared/page-header";
+import { EmptyState } from "@/components/shared/empty-state";
+import { SearchInput } from "@/components/shared/search-input";
+import { StatCard } from "@/components/dashboard/stat-card";
 
 type VehicleOption = {
   id: string;
@@ -161,71 +164,56 @@ export default function InterventionsPage() {
   return (
     <div className="ms-animate-slide-up">
       {/* Page Header */}
-      <div className="ms-page-header">
-        <div>
-          <h1 className="ms-page-title">Interventions</h1>
-          <p className="ms-page-subtitle">
-            Gérez toutes vos interventions et dossiers techniques
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="ms-search">
-            <Search size={18} className="ms-search-icon" />
-            <input
+      <PageHeader
+        title="Interventions"
+        subtitle="Gérez toutes vos interventions et dossiers techniques"
+        breadcrumbs={[
+          { label: "Dashboard", href: "/dashboard" },
+          { label: "Interventions" },
+        ]}
+        action={
+          <div className="flex items-center gap-3">
+            <SearchInput
               value={q}
-              onChange={(e) => setQ(e.target.value)}
+              onChange={setQ}
               placeholder="Rechercher une intervention..."
-              className="ms-search-input"
+              className="w-64"
             />
+            <Link href="/interventions/nouveau" className="ms-btn ms-btn-primary">
+              <Plus size={18} />
+              Nouvelle intervention
+            </Link>
           </div>
-          <Link href="/interventions/nouveau" className="ms-btn ms-btn-primary">
-            <Plus size={18} />
-            Nouvelle intervention
-          </Link>
-        </div>
-      </div>
+        }
+      />
 
       {/* Stats Cards */}
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="ms-stat-card">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="ms-stat-label">Total interventions</div>
-              <div className="ms-stat-value">{loading ? "—" : stats.total}</div>
-            </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--ms-primary-light)]">
-              <Wrench size={24} className="text-[var(--ms-primary)]" />
-            </div>
-          </div>
-        </div>
-        <div className="ms-stat-card">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="ms-stat-label">Ce mois-ci</div>
-              <div className="ms-stat-value">{loading ? "—" : stats.thisMonth}</div>
-            </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--ms-success-light)]">
-              <TrendingUp size={24} className="text-[var(--ms-success)]" />
-            </div>
-          </div>
-          {!loading && stats.thisMonth > 0 && (
-            <div className="ms-stat-trend ms-stat-trend-up">
-              <TrendingUp size={14} />
-              +{stats.thisMonth} ce mois
-            </div>
-          )}
-        </div>
-        <div className="ms-stat-card">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="ms-stat-label">Type principal</div>
-              <div className="ms-stat-value text-xl">{loading ? "—" : stats.topType}</div>
-            </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--ms-warning-light)]">
-              <Calendar size={24} className="text-[#B45309]" />
-            </div>
-          </div>
-        </div>
+        <StatCard
+          label="Total interventions"
+          value={loading ? "—" : stats.total}
+          icon={Wrench}
+          iconGradient="from-[var(--ms-primary)] to-[#8B5CF6]"
+          loading={loading}
+          delay={1}
+        />
+        <StatCard
+          label="Ce mois-ci"
+          value={loading ? "—" : stats.thisMonth}
+          icon={TrendingUp}
+          iconGradient="from-[var(--ms-success)] to-[#34D399]"
+          trend={!loading && stats.thisMonth > 0 ? { direction: "up", label: `+${stats.thisMonth} ce mois` } : undefined}
+          loading={loading}
+          delay={2}
+        />
+        <StatCard
+          label="Type principal"
+          value={loading ? "—" : stats.topType}
+          icon={Calendar}
+          iconGradient="from-[#F59E0B] to-[#EAB308]"
+          loading={loading}
+          delay={3}
+        />
       </div>
 
       {/* Error Alert */}
@@ -257,22 +245,15 @@ export default function InterventionsPage() {
               ))}
             </div>
           ) : rows.length === 0 ? (
-            <div className="ms-empty">
-              <div className="ms-empty-icon">
-                <Wrench size={28} />
-              </div>
-              <div className="ms-empty-title">Aucune intervention</div>
-              <div className="ms-empty-text">
-                Créez votre première intervention pour commencer à suivre vos dossiers.
-              </div>
-              <Link
-                href="/interventions/nouveau"
-                className="ms-btn ms-btn-primary mt-4"
-              >
-                <Plus size={18} />
-                Créer une intervention
-              </Link>
-            </div>
+            <EmptyState
+              icon={Wrench}
+              title="Aucune intervention"
+              description="Créez votre première intervention pour commencer à suivre vos dossiers."
+              action={{
+                label: "Créer une intervention",
+                href: "/interventions/nouveau",
+              }}
+            />
           ) : (
             rows.map((item, idx) => {
               const plate = item.vehicle?.plate || "—";
