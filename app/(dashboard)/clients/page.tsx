@@ -7,11 +7,14 @@ import {
   Pencil,
   Phone,
   Plus,
-  Search,
   Trash2,
   TrendingUp,
   Users,
 } from "lucide-react";
+import { PageHeader } from "@/components/shared/page-header";
+import { EmptyState } from "@/components/shared/empty-state";
+import { SearchInput } from "@/components/shared/search-input";
+import { StatCard } from "@/components/dashboard/stat-card";
 
 type ClientItem = {
   id: number;
@@ -141,71 +144,56 @@ export default function ClientsPage() {
   return (
     <div className="ms-animate-slide-up">
       {/* Page Header */}
-      <div className="ms-page-header">
-        <div>
-          <h1 className="ms-page-title">Clients</h1>
-          <p className="ms-page-subtitle">
-            Gérez votre base de clients et leurs informations
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="ms-search">
-            <Search size={18} className="ms-search-icon" />
-            <input
+      <PageHeader
+        title="Clients"
+        subtitle="Gérez votre base de clients et leurs informations"
+        breadcrumbs={[
+          { label: "Dashboard", href: "/dashboard" },
+          { label: "Clients" },
+        ]}
+        action={
+          <div className="flex items-center gap-3">
+            <SearchInput
               value={q}
-              onChange={(e) => setQ(e.target.value)}
+              onChange={setQ}
               placeholder="Rechercher un client..."
-              className="ms-search-input"
+              className="w-64"
             />
+            <Link href="/clients/nouveau" className="ms-btn ms-btn-primary">
+              <Plus size={18} />
+              Nouveau client
+            </Link>
           </div>
-          <Link href="/clients/nouveau" className="ms-btn ms-btn-primary">
-            <Plus size={18} />
-            Nouveau client
-          </Link>
-        </div>
-      </div>
+        }
+      />
 
       {/* Stats */}
       <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="ms-stat-card">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="ms-stat-label">Total clients</div>
-              <div className="ms-stat-value">{loading ? "—" : stats.total}</div>
-            </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--ms-primary-light)]">
-              <Users size={24} className="text-[var(--ms-primary)]" />
-            </div>
-          </div>
-        </div>
-        <div className="ms-stat-card">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="ms-stat-label">Ce mois-ci</div>
-              <div className="ms-stat-value">{loading ? "—" : stats.thisMonth}</div>
-            </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--ms-success-light)]">
-              <TrendingUp size={24} className="text-[var(--ms-success)]" />
-            </div>
-          </div>
-          {!loading && stats.thisMonth > 0 && (
-            <div className="ms-stat-trend ms-stat-trend-up">
-              <TrendingUp size={14} />
-              +{stats.thisMonth} ce mois
-            </div>
-          )}
-        </div>
-        <div className="ms-stat-card">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="ms-stat-label">Avec email</div>
-              <div className="ms-stat-value">{loading ? "—" : stats.withEmail}</div>
-            </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--ms-info-light)]">
-              <Mail size={24} className="text-[var(--ms-info)]" />
-            </div>
-          </div>
-        </div>
+        <StatCard
+          label="Total clients"
+          value={loading ? "—" : stats.total}
+          icon={Users}
+          iconGradient="from-[var(--ms-primary)] to-[#8B5CF6]"
+          loading={loading}
+          delay={1}
+        />
+        <StatCard
+          label="Ce mois-ci"
+          value={loading ? "—" : stats.thisMonth}
+          icon={TrendingUp}
+          iconGradient="from-[var(--ms-success)] to-[#34D399]"
+          trend={!loading && stats.thisMonth > 0 ? { direction: "up", label: `+${stats.thisMonth} ce mois` } : undefined}
+          loading={loading}
+          delay={2}
+        />
+        <StatCard
+          label="Avec email"
+          value={loading ? "—" : stats.withEmail}
+          icon={Mail}
+          iconGradient="from-[var(--ms-info)] to-[#60A5FA]"
+          loading={loading}
+          delay={3}
+        />
       </div>
 
       {/* Error */}
@@ -236,19 +224,15 @@ export default function ClientsPage() {
               ))}
             </div>
           ) : rows.length === 0 ? (
-            <div className="ms-empty">
-              <div className="ms-empty-icon">
-                <Users size={28} />
-              </div>
-              <div className="ms-empty-title">Aucun client</div>
-              <div className="ms-empty-text">
-                Ajoutez votre premier client pour commencer.
-              </div>
-              <Link href="/clients/nouveau" className="ms-btn ms-btn-primary mt-4">
-                <Plus size={18} />
-                Ajouter un client
-              </Link>
-            </div>
+            <EmptyState
+              icon={Users}
+              title="Aucun client"
+              description="Ajoutez votre premier client pour commencer."
+              action={{
+                label: "Ajouter un client",
+                href: "/clients/nouveau",
+              }}
+            />
           ) : (
             rows.map((item, idx) => {
               const fullName = `${item.firstName} ${item.lastName}`.trim() || "Client";
