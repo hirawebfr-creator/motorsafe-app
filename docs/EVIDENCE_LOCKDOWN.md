@@ -233,9 +233,79 @@ npm run test -- --grep "evidence"
 
 Evidence is retained according to `EVIDENCE_10Y` policy (10 years) as defined in `lib/retention.ts`.
 
+## INSURANCE-READY-EXPORT-02: Export Assurance
+
+### Overview
+
+Export "assurance-ready" : génération d'un ZIP complet pour transmission aux assureurs/experts.
+
+### Pricing & Entitlements
+
+| Plan | Prix | Fonctionnalités |
+|------|------|-----------------|
+| **Essentiel** | 49€/mois | Export ZIP "assurance-ready" (cœur protection, indispensable) |
+| **Pro** | 129€/mois | + Share link 7 jours + Personnalisation destinataire (assureur/expert) + Logo/couleurs lettre + Support prioritaire |
+
+### Feature Keys
+
+```typescript
+// lib/entitlements.ts
+FeatureKey.EXPORT_ZIP    // STARTER (49€) - Export ZIP assurance
+FeatureKey.EXPORT_SHARE  // PRO (129€) - Lien de partage 7 jours
+```
+
+### API Endpoints
+
+| Endpoint | Plan | Description |
+|----------|------|-------------|
+| `GET /api/interventions/[id]/export-insurance` | Essentiel (49€) | Télécharge ZIP complet |
+| `POST /api/interventions/[id]/export-share` | Pro (129€) | Crée un lien de partage |
+| `GET /api/interventions/[id]/export-share` | Pro (129€) | Vérifie statut du lien |
+| `DELETE /api/interventions/[id]/export-share` | Pro (129€) | Révoque le lien |
+| `GET /share/export/[token]` | Public | Page de téléchargement (aucune auth) |
+
+### ZIP Contents
+
+```
+00_LISEZ-MOI.txt              - Instructions
+01_LETTRE_ACCOMPAGNEMENT.pdf  - Lettre d'accompagnement (logo garage si PRO)
+02_INDEX_PIECES.pdf           - Index avec SHA256
+03_DOCUMENTS_SIGNES/          - Documents signés
+04_PREUVES_SIGNATURE/         - Preuves de signature
+05_PHOTOS/                    - Photos véhicule
+06_TECH/                      - Rapports techniques
+07_AUDIT/                     - Piste d'audit
+08_CHAINE_PREUVE/             - Chaîne de preuves
+09_INTEGRITE/                 - Manifest + rapport d'intégrité
+```
+
+### Share Link Security
+
+- Lien valide 7 jours (configurable)
+- Token SHA256 hashé en base
+- Un seul lien actif par intervention
+- Révocation instantanée possible
+- Logs d'accès complets
+
+### UI Component
+
+```tsx
+import { ExportInsuranceButton } from "@/components/interventions/ExportInsuranceButton";
+
+<ExportInsuranceButton
+  interventionId={intervention.id}
+  vehiclePlate={vehicle.plate}
+  hasExportZip={hasExportZip}     // true si plan Essentiel+
+  hasExportShare={hasExportShare} // true si plan Pro
+/>
+```
+
 ## Related Files
 
 - [lib/legal/evidenceLock.ts](../lib/legal/evidenceLock.ts) - Lock rules
 - [lib/legal/evidenceChain.ts](../lib/legal/evidenceChain.ts) - Hash chain
 - [lib/retention.ts](../lib/retention.ts) - Retention policies
+- [lib/entitlements.ts](../lib/entitlements.ts) - Feature gating
+- [lib/pdf/insuranceExport.ts](../lib/pdf/insuranceExport.ts) - PDF generation
+- [components/interventions/ExportInsuranceButton.tsx](../components/interventions/ExportInsuranceButton.tsx) - UI component
 - [prisma/schema.prisma](../prisma/schema.prisma) - Database models
