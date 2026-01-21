@@ -12,15 +12,16 @@ import { Button } from "@/components/ui/button"
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
 
-interface Column<T> {
+export interface DataTableColumn<T> {
   key: string
   label: string
   sortable?: boolean
+  width?: string
   render?: (row: T) => React.ReactNode
 }
 
 interface DataTableProps<T> {
-  columns: Column<T>[]
+  columns: DataTableColumn<T>[]
   data: T[]
   totalCount: number
   page: number
