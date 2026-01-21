@@ -5,6 +5,8 @@ import React, { useState, useRef, useEffect, useCallback } from 'react'
 interface FileUploadProps {
   value?: File[]
   onChange?: (files: File[]) => void
+  onError?: (error: string) => void
+  uploadProgress?: Record<string, number>
   label?: string
   description?: string
   error?: string
@@ -23,6 +25,8 @@ interface FileUploadProps {
 export const FileUpload: React.FC<FileUploadProps> = ({
   value,
   onChange,
+  onError,
+  uploadProgress,
   label,
   description,
   error,
@@ -149,6 +153,10 @@ export const FileUpload: React.FC<FileUploadProps> = ({
 
       setErrors(fileErrors)
 
+      if (fileErrors.length > 0) {
+        onError?.(fileErrors[0])
+      }
+
       if (validFiles.length > 0) {
         const updatedFiles = multiple ? [...files, ...validFiles] : validFiles
 
@@ -156,7 +164,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
         onChange?.(updatedFiles)
       }
     },
-    [files, maxFiles, multiple, onChange, validateFile]
+    [files, maxFiles, multiple, onChange, onError, validateFile]
   )
 
   const removeFile = (index: number) => {
@@ -398,6 +406,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
         >
           {files.map((file, index) => {
             const preview = getFilePreviewUrl(file)
+            const progress = uploadProgress?.[file.name]
 
             return (
               <div
@@ -483,6 +492,28 @@ export const FileUpload: React.FC<FileUploadProps> = ({
                   >
                     {formatBytes(file.size)}
                   </div>
+                  
+                  {/* Progress bar */}
+                  {progress !== undefined && progress < 100 && (
+                    <div
+                      style={{
+                        marginTop: '6px',
+                        height: '4px',
+                        backgroundColor: '#E5E7EB',
+                        borderRadius: '2px',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      <div
+                        style={{
+                          height: '100%',
+                          width: `${progress}%`,
+                          backgroundColor: '#0A1628',
+                          transition: 'width 0.3s ease',
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* Remove button */}

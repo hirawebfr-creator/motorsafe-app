@@ -1,12 +1,48 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { FileUpload } from '@/components/shared/file-upload'
 
 export default function TestFileUploadPage() {
   const [basicFiles, setBasicFiles] = useState<File[]>([])
   const [imageFiles, setImageFiles] = useState<File[]>([])
   const [pdfFiles, setPdfFiles] = useState<File[]>([])
+  const [progressFiles, setProgressFiles] = useState<File[]>([])
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({})
+  const [validationError, setValidationError] = useState<string>('')
+
+  // Simulate upload progress
+  useEffect(() => {
+    if (progressFiles.length > 0) {
+      const newProgress: Record<string, number> = {}
+      progressFiles.forEach((file) => {
+        if (uploadProgress[file.name] === undefined) {
+          newProgress[file.name] = 0
+        } else {
+          newProgress[file.name] = uploadProgress[file.name]
+        }
+      })
+      
+      const interval = setInterval(() => {
+        setUploadProgress((prev) => {
+          const updated = { ...prev }
+          let allComplete = true
+          for (const file of progressFiles) {
+            if (updated[file.name] === undefined || updated[file.name] < 100) {
+              updated[file.name] = Math.min(100, (updated[file.name] || 0) + Math.random() * 15)
+              allComplete = false
+            }
+          }
+          if (allComplete) {
+            clearInterval(interval)
+          }
+          return updated
+        })
+      }, 300)
+
+      return () => clearInterval(interval)
+    }
+  }, [progressFiles])
 
   return (
     <div
@@ -189,6 +225,69 @@ export default function TestFileUploadPage() {
 
           <FileUpload label="Disabled" disabled description="Upload is not allowed" />
         </div>
+      </section>
+
+      {/* Upload Progress */}
+      <section style={{ marginBottom: '48px' }}>
+        <h2
+          style={{
+            fontSize: '18px',
+            fontWeight: 600,
+            color: '#111827',
+            marginBottom: '16px',
+            paddingBottom: '8px',
+            borderBottom: '1px solid #E5E7EB',
+          }}
+        >
+          Upload Progress (Simulated)
+        </h2>
+        <FileUpload
+          label="Fichiers avec progression"
+          description="La barre de progression s'affiche automatiquement"
+          accept="image/*,.pdf"
+          multiple
+          showPreview
+          value={progressFiles}
+          onChange={setProgressFiles}
+          uploadProgress={uploadProgress}
+        />
+      </section>
+
+      {/* Error Callback */}
+      <section style={{ marginBottom: '48px' }}>
+        <h2
+          style={{
+            fontSize: '18px',
+            fontWeight: 600,
+            color: '#111827',
+            marginBottom: '16px',
+            paddingBottom: '8px',
+            borderBottom: '1px solid #E5E7EB',
+          }}
+        >
+          Error Callback
+        </h2>
+        <FileUpload
+          label="Fichiers très limités"
+          description="Max 1KB (pour tester les erreurs)"
+          accept="image/*"
+          maxSize={1024}
+          onError={setValidationError}
+        />
+        {validationError && (
+          <div
+            style={{
+              marginTop: '12px',
+              padding: '12px',
+              backgroundColor: '#FEE2E2',
+              borderRadius: '8px',
+              color: '#DC2626',
+              fontSize: '14px',
+            }}
+          >
+            Erreur capturée via onError: {validationError}
+          </div>
+        )}
       </section>
 
       {/* Interactive Demo */}
