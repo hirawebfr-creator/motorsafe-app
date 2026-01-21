@@ -5,7 +5,7 @@ import {
   Calendar,
   Car,
   ChevronRight,
-  DollarSign,
+  Euro,
   RefreshCw,
   Users,
   Wrench,
@@ -14,8 +14,8 @@ import { fetcher } from "@/lib/fetcher";
 import { useUser } from "@/components/user-context";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { KpiCard } from "@/components/shared/kpi-card";
 import {
-  StatCard,
   BarChart,
   DonutChart,
   DashboardCard,
@@ -27,6 +27,10 @@ type KpisResponse = {
   vehiclesCount: number;
   interventionsCount: number;
   revenueTotalCents: number;
+  clientsVariation: number;
+  vehiclesVariation: number;
+  interventionsVariation: number;
+  revenueVariation: number;
 };
 
 type GarageOption = { id: number; name: string; status: "PENDING" | "ACTIVE" | "REJECTED" };
@@ -172,7 +176,7 @@ export default function DashboardPage() {
   }, [analytics]);
 
   return (
-    <div className="ms-animate-slide-up">
+    <div className="space-y-8">
       {/* Header */}
       <PageHeader
         title="Dashboard"
@@ -229,42 +233,37 @@ export default function DashboardPage() {
       />
 
       {/* KPI Cards */}
-      <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          label="Clients"
+      <div 
+        className="mb-8"
+        style={{ 
+          display: 'grid',
+          gap: '1rem',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' 
+        }}
+      >
+        <KpiCard
+          title="Clients"
           value={loading ? "—" : kpis?.clientsCount ?? 0}
+          variation={kpis?.clientsVariation}
           icon={Users}
-          iconGradient="from-[#6366F1] to-[#8B5CF6]"
-          link={{ href: "/clients", label: "Voir tous" }}
-          loading={loading}
-          delay={1}
         />
-        <StatCard
-          label="Véhicules"
+        <KpiCard
+          title="Véhicules"
           value={loading ? "—" : kpis?.vehiclesCount ?? 0}
+          variation={kpis?.vehiclesVariation}
           icon={Car}
-          iconGradient="from-[#F59E0B] to-[#EAB308]"
-          link={{ href: "/vehicules", label: "Voir tous" }}
-          loading={loading}
-          delay={2}
         />
-        <StatCard
-          label="Interventions"
+        <KpiCard
+          title="Interventions"
           value={loading ? "—" : kpis?.interventionsCount ?? 0}
+          variation={kpis?.interventionsVariation}
           icon={Wrench}
-          iconGradient="from-[#F97316] to-[#FB923C]"
-          link={{ href: "/interventions", label: "Voir toutes" }}
-          loading={loading}
-          delay={3}
         />
-        <StatCard
-          label="Chiffre d'affaires"
+        <KpiCard
+          title="Chiffre d'affaires"
           value={loading ? "—" : formatEUR(kpis?.revenueTotalCents ?? 0)}
-          icon={DollarSign}
-          iconGradient="from-[#10B981] to-[#34D399]"
-          trend={{ direction: "neutral", label: "Sur la période sélectionnée" }}
-          loading={loading}
-          delay={4}
+          variation={kpis?.revenueVariation}
+          icon={Euro}
         />
       </div>
 

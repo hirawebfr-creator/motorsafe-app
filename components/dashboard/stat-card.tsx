@@ -1,25 +1,19 @@
 "use client";
 
-import Link from "next/link";
-import { cn } from "@/lib/cn";
-import { ChevronRight, TrendingUp, TrendingDown } from "lucide-react";
+import { Card } from "@/components/ui/Card";
 import { LucideIcon } from "lucide-react";
+import { cn } from "@/lib/cn";
 
 interface StatCardProps {
   label: string;
   value: string | number;
-  icon: LucideIcon;
+  icon?: LucideIcon;
   iconGradient?: string;
-  link?: {
-    href: string;
-    label: string;
-  };
   trend?: {
-    direction: "up" | "down" | "neutral";
+    direction: "up" | "down";
     label: string;
   };
   loading?: boolean;
-  className?: string;
   delay?: number;
 }
 
@@ -28,75 +22,49 @@ export function StatCard({
   value,
   icon: Icon,
   iconGradient = "from-[var(--ms-primary)] to-[#8B5CF6]",
-  link,
   trend,
-  loading = false,
-  className,
+  loading,
   delay = 0,
 }: StatCardProps) {
   return (
-    <div
+    <Card
       className={cn(
-        "group relative overflow-hidden rounded-2xl border border-[var(--ms-border)]",
-        "bg-white p-5 shadow-sm transition-all duration-200",
-        "hover:border-[var(--ms-primary-light)] hover:shadow-md",
-        "ms-animate-slide-up",
-        className
+        "p-5 transition-all duration-200 hover:shadow-lg hover:-translate-y-1",
+        delay > 0 && `ms-animate-slide-up ms-delay-${delay}`
       )}
-      style={{ animationDelay: `${delay * 50}ms` }}
     >
-      {/* Gradient overlay on hover */}
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-[var(--ms-primary)]/[0.02] to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
-      
-      <div className="relative flex items-center justify-between">
-        <div className="flex-1">
-          <p className="text-sm font-medium text-[var(--ms-text-secondary)]">{label}</p>
-          <div className="mt-1">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-sm font-medium text-[var(--ms-text-muted)]">{label}</div>
+          <div className="text-2xl font-bold mt-1">
             {loading ? (
-              <div className="h-8 w-20 animate-pulse rounded-md bg-[var(--ms-bg)]" />
+              <div className="h-7 w-16 animate-pulse rounded bg-[var(--ms-bg)]" />
             ) : (
-              <p className="text-2xl font-bold text-[var(--ms-text)] tracking-tight">
-                {value}
-              </p>
+              value
             )}
           </div>
         </div>
-        <div
-          className={cn(
-            "flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl",
-            "bg-gradient-to-br shadow-sm",
-            iconGradient
-          )}
-        >
-          <Icon className="h-6 w-6 text-white" />
-        </div>
-      </div>
-
-      <div className="relative mt-4">
-        {link && (
-          <Link
-            href={link.href}
-            className="inline-flex items-center gap-1 text-sm font-medium text-[var(--ms-primary)] transition-colors hover:text-[var(--ms-primary-dark)]"
-          >
-            {link.label}
-            <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-          </Link>
-        )}
-        {trend && (
+        {Icon && (
           <div
             className={cn(
-              "inline-flex items-center gap-1 text-sm font-medium",
-              trend.direction === "up" && "text-[var(--ms-success)]",
-              trend.direction === "down" && "text-[var(--ms-error)]",
-              trend.direction === "neutral" && "text-[var(--ms-text-muted)]"
+              "flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br",
+              iconGradient
             )}
           >
-            {trend.direction === "up" && <TrendingUp className="h-4 w-4" />}
-            {trend.direction === "down" && <TrendingDown className="h-4 w-4" />}
-            {trend.label}
+            <Icon className="h-6 w-6 text-white" />
           </div>
         )}
       </div>
-    </div>
+      {trend && !loading && (
+        <div
+          className={cn(
+            "mt-3 flex items-center gap-1 text-sm",
+            trend.direction === "up" ? "text-[var(--ms-success)]" : "text-[var(--ms-error)]"
+          )}
+        >
+          {trend.label}
+        </div>
+      )}
+    </Card>
   );
 }
