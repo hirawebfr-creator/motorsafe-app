@@ -127,7 +127,19 @@ export function AppShell({
           <div className="w-10" /> {/* Spacer for symmetry */}
         </header>
         
-        <div className="flex-1 mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-6 w-full">
+        <div 
+          style={{
+            flex: 1,
+            width: '100%',
+            maxWidth: '1200px',
+            marginLeft: 'auto',
+            marginRight: 'auto',
+            paddingLeft: '24px',
+            paddingRight: '24px',
+            paddingTop: '24px',
+            paddingBottom: '24px',
+          }}
+        >
           {children}
         </div>
       </main>

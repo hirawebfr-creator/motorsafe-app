@@ -234,11 +234,11 @@ export default function DashboardPage() {
 
       {/* KPI Cards */}
       <div 
-        className="mb-8"
         style={{ 
           display: 'grid',
-          gap: '1rem',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' 
+          gap: '1.5rem',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+          marginBottom: '2rem'
         }}
       >
         <KpiCard

@@ -7,30 +7,32 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        // Core colors using RGB triplets from globals.css
         bg: "rgb(var(--bg) / <alpha-value>)",
         surface: "rgb(var(--surface) / <alpha-value>)",
         surface2: "rgb(var(--surface2) / <alpha-value>)",
+        text: "rgb(var(--text) / <alpha-value>)",
+        muted: "rgb(var(--muted) / <alpha-value>)",
+        muted2: "rgb(var(--muted-foreground) / <alpha-value>)",
+        border: "rgb(var(--border) / <alpha-value>)",
 
-        // Defaults match globals.css opacities; /xx still works when Tailwind sets --tw-*-opacity
-        text: "rgb(var(--text) / var(--tw-text-opacity, var(--textA)))",
-        muted: "rgb(var(--muted) / var(--tw-text-opacity, var(--textSecondaryA)))",
-        muted2: "rgb(var(--muted2) / var(--tw-text-opacity, var(--textMutedA)))",
-        border: "rgb(var(--border) / var(--tw-border-opacity, var(--borderA)))",
+        // Primary/accent
+        primary: "rgb(var(--primary) / <alpha-value>)",
+        "primary-foreground": "rgb(var(--primary-foreground) / <alpha-value>)",
+        accent: "rgb(var(--accent) / <alpha-value>)",
+        "accent-foreground": "rgb(var(--accent-foreground) / <alpha-value>)",
 
-        primary: "rgb(var(--accent) / <alpha-value>)",
-        primary2: "rgb(var(--accent2) / <alpha-value>)",
-        primaryHover: "rgb(var(--accentHover) / <alpha-value>)",
-        primaryWeak: "rgb(var(--accentWeak) / var(--tw-bg-opacity, var(--accentWeakA)))",
+        // Status colors
+        danger: "rgb(var(--destructive) / <alpha-value>)",
+        destructive: "rgb(var(--destructive) / <alpha-value>)",
+        success: "rgb(34 197 94 / <alpha-value>)",
+        warning: "rgb(245 158 11 / <alpha-value>)",
 
-        danger: "rgb(var(--danger) / <alpha-value>)",
-        success: "rgb(var(--success) / <alpha-value>)",
-        warning: "rgb(var(--warning) / <alpha-value>)",
-
-        // Brand colors
+        // Brand colors (hardcoded for reliability)
         brand: {
-          primary: '#0A1628',   // Navy foncé
-          secondary: '#F0F4F8', // Gris clair
-          accent: '#FF7F00',    // Orange action
+          primary: '#0A1628',
+          secondary: '#F4F5F7',
+          accent: '#FF7F00',
         },
       },
       borderRadius: {
@@ -43,8 +45,8 @@ module.exports = {
         mono: ['var(--font-mono)', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', 'monospace'],
       },
       boxShadow: {
-        soft: 'var(--shCard)',
-        dropdown: 'var(--shDropdown)',
+        soft: '0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04)',
+        dropdown: '0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -1px rgba(0, 0, 0, 0.04)',
       },
       keyframes: {
         "accordion-down": {
