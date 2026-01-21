@@ -1,147 +1,400 @@
-"use client";
+'use client'
 
-import { useState } from "react";
-import Link from "next/link";
-import { Card } from "@/components/ui/Card";
-import { Input } from "@/components/ui/Input";
-import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/ui/Toast";
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { FormField } from '@/components/shared/form-field'
+import { Button } from '@/components/shared/button'
+import { useToast } from '@/components/shared/use-toast'
+import { Shield, Mail, Lock, Chrome } from 'lucide-react'
+
+// ============================================================================
+// LOGIN PAGE
+// ============================================================================
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const toast = useToast();
+  const router = useRouter()
+  const toast = useToast()
 
-  const submit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    setError(null);
-    setLoading(true);
+  const [formData, setFormData] = useState({
+    email: '',
+    password: '',
+  })
+
+  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [isLoading, setIsLoading] = useState(false)
+
+  // --------------------------------------------------------------------------
+  // Validation
+  // --------------------------------------------------------------------------
+  const validateForm = (): boolean => {
+    const newErrors: Record<string, string> = {}
+
+    // Email validation
+    if (!formData.email) {
+      newErrors.email = "L'email est requis"
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      newErrors.email = "Format d'email invalide"
+    }
+
+    // Password validation
+    if (!formData.password) {
+      newErrors.password = 'Le mot de passe est requis'
+    } else if (formData.password.length < 8) {
+      newErrors.password = 'Le mot de passe doit contenir au moins 8 caractères'
+    }
+
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
+  }
+
+  // --------------------------------------------------------------------------
+  // Submit handler
+  // --------------------------------------------------------------------------
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (!validateForm()) return
+
+    setIsLoading(true)
+    setErrors({})
 
     try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-      const json = await res.json();
-      if (!res.ok || !json.ok) {
-        if (res.status === 403) {
-          window.location.href = "/pro/en-attente";
-          return;
-        }
-        const errorMsg = json?.error?.message || json?.error || "Erreur serveur.";
-        throw new Error(typeof errorMsg === "string" ? errorMsg : "Erreur serveur.");
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      })
+
+      const data = await response.json()
+
+      if (response.status === 403) {
+        // Account pending approval
+        window.location.href = '/pro/en-attente'
+        return
       }
-      toast.push({ title: "Connexion réussie", description: "Bienvenue sur votre panel.", variant: "success" });
-      window.location.href = "/dashboard";
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Erreur serveur.";
-      setError(message);
-      toast.push({ title: "Erreur", description: message, variant: "error" });
+
+      if (data.ok) {
+        toast.success('Connexion réussie', 'Redirection vers votre tableau de bord...')
+
+        // Redirect after success
+        setTimeout(() => {
+          router.push('/dashboard')
+        }, 500)
+      } else {
+        const errorMsg =
+          typeof data.error === 'string'
+            ? data.error
+            : data.error?.message || 'Email ou mot de passe incorrect'
+
+        toast.error('Erreur de connexion', errorMsg)
+
+        setErrors({
+          password: errorMsg,
+        })
+      }
+    } catch {
+      toast.error('Erreur', 'Impossible de se connecter au serveur')
     } finally {
-      setLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
 
+  // --------------------------------------------------------------------------
+  // OAuth handler (placeholder)
+  // --------------------------------------------------------------------------
+  const handleOAuthGoogle = () => {
+    toast.info('Bientôt disponible', "L'authentification Google sera disponible prochainement")
+  }
+
+  // --------------------------------------------------------------------------
+  // Render
+  // --------------------------------------------------------------------------
   return (
-    <main className="min-h-screen w-full bg-bg text-text">
-      <header className="border-b border-border bg-bg/60 backdrop-blur-xl">
-        <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between gap-4 px-6">
-          <Link href="/" className="flex items-center gap-3">
-            <div className="grid h-11 w-11 place-items-center rounded-2xl border border-border bg-surface2">
-              <span className="text-sm font-extrabold tracking-tight text-primary2">MS</span>
+    <div
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '24px',
+        background: 'linear-gradient(135deg, #F9FAFB 0%, #E5E7EB 100%)',
+      }}
+    >
+      <div
+        style={{
+          width: '100%',
+          maxWidth: '440px',
+        }}
+      >
+        {/* Card */}
+        <div
+          style={{
+            backgroundColor: '#FFFFFF',
+            borderRadius: '16px',
+            border: '1px solid #E5E7EB',
+            boxShadow:
+              '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+            padding: '40px',
+          }}
+        >
+          {/* Logo + Title */}
+          <div
+            style={{
+              textAlign: 'center',
+              marginBottom: '32px',
+            }}
+          >
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '64px',
+                height: '64px',
+                backgroundColor: '#0A1628',
+                borderRadius: '16px',
+                marginBottom: '16px',
+              }}
+            >
+              <Shield size={32} style={{ color: '#FFFFFF' }} />
             </div>
-            <div className="leading-tight">
-              <div className="text-sm font-semibold text-text">MotorSafe</div>
-              <div className="text-xs text-muted2">Espace pro</div>
-            </div>
-          </Link>
-          <div className="flex items-center gap-2">
-            <Link href="/pro/inscription" className="hidden sm:block">
-              <Button variant="ghost">Créer un compte</Button>
-            </Link>
-            <Link href="/">
-              <Button variant="secondary">Retour site</Button>
-            </Link>
-          </div>
-        </div>
-      </header>
 
-      <div className="mx-auto grid w-full max-w-[1200px] gap-10 px-6 py-16 lg:grid-cols-[1fr_440px] lg:items-start">
-        <div className="hidden lg:flex flex-col gap-8">
-          <div>
-            <p className="ms-kicker">Connexion</p>
-            <h1 className="mt-3 text-4xl font-semibold tracking-tight text-text">Accédez à votre atelier</h1>
-            <p className="mt-3 text-base text-muted2">
-              Retrouvez vos dossiers, vos interventions et vos documents en un seul endroit sécurisé.
+            <h1
+              style={{
+                fontSize: '28px',
+                fontWeight: 700,
+                color: '#111827',
+                marginBottom: '8px',
+                margin: '0 0 8px 0',
+              }}
+            >
+              Connexion
+            </h1>
+
+            <p
+              style={{
+                fontSize: '15px',
+                color: '#6B7280',
+                margin: 0,
+              }}
+            >
+              Accédez à votre espace MotorSafe
             </p>
           </div>
 
-          <div className="grid gap-4">
-            <Card className="p-4">
-              <p className="ms-kicker">Sécurité</p>
-              <p className="mt-2 text-sm font-semibold text-text">Accès sécurisé et conformité intégrée</p>
-              <p className="mt-1 text-xs text-muted2">
-                Chaque action est tracée pour garantir la qualité de vos dossiers.
-              </p>
-            </Card>
-            <Card className="p-4">
-              <p className="ms-kicker">Performance</p>
-              <p className="mt-2 text-sm font-semibold text-text">Une interface rapide, pensée terrain</p>
-              <p className="mt-1 text-xs text-muted2">
-                Pas de surcharge : juste l&apos;essentiel pour l&apos;atelier.
-              </p>
-            </Card>
-          </div>
-        </div>
+          {/* Form */}
+          <form onSubmit={handleSubmit}>
+            {/* Email */}
+            <div style={{ marginBottom: '16px' }}>
+              <FormField
+                label="Email"
+                type="email"
+                name="email"
+                placeholder="vous@garage.fr"
+                value={formData.email}
+                onChange={(e) =>
+                  setFormData({ ...formData, email: e.target.value })
+                }
+                error={errors.email}
+                disabled={isLoading}
+                required
+                leftIcon={<Mail size={18} />}
+                fullWidth
+              />
+            </div>
 
-        <Card className="w-full p-8">
-          <div className="grid gap-3">
-            <p className="ms-kicker">Connexion</p>
-            <h1 className="text-2xl font-semibold tracking-tight text-text">Accès garage</h1>
-            <p className="text-sm text-muted2">
-              Connectez-vous pour accéder à votre dashboard sécurisé.
-            </p>
-          </div>
+            {/* Password */}
+            <div style={{ marginBottom: '8px' }}>
+              <FormField
+                label="Mot de passe"
+                type="password"
+                name="password"
+                placeholder="••••••••"
+                value={formData.password}
+                onChange={(e) =>
+                  setFormData({ ...formData, password: e.target.value })
+                }
+                error={errors.password}
+                disabled={isLoading}
+                required
+                leftIcon={<Lock size={18} />}
+                fullWidth
+              />
+            </div>
 
-          <form onSubmit={submit} className="mt-8 grid gap-4">
-            <Input
-              label="Email"
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="contact@garage.fr"
-              required
-            />
-            <Input
-              label="Mot de passe"
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="********"
-              required
-            />
-            {error ? <p className="text-sm text-danger">{error}</p> : null}
-            <Button type="submit" disabled={loading}>
-              {loading ? "Connexion..." : "Se connecter"}
+            {/* Forgot password link */}
+            <div
+              style={{
+                textAlign: 'right',
+                marginBottom: '24px',
+              }}
+            >
+              <Link
+                href="/auth/forgot-password"
+                style={{
+                  fontSize: '14px',
+                  color: '#0A1628',
+                  textDecoration: 'none',
+                  fontWeight: 500,
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.textDecoration = 'underline'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.textDecoration = 'none'
+                }}
+              >
+                Mot de passe oublié ?
+              </Link>
+            </div>
+
+            {/* Submit button */}
+            <Button
+              type="submit"
+              variant="primary"
+              size="lg"
+              fullWidth
+              disabled={isLoading}
+              loading={isLoading}
+            >
+              {isLoading ? 'Connexion...' : 'Se connecter'}
             </Button>
           </form>
 
-          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 text-sm text-muted2">
-            <Link
-              href="/auth/register-pro"
-              className="font-semibold text-primary hover:text-primaryHover"
+          {/* Divider */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '16px',
+              margin: '24px 0',
+            }}
+          >
+            <div
+              style={{
+                flex: 1,
+                height: '1px',
+                backgroundColor: '#E5E7EB',
+              }}
+            />
+            <span
+              style={{
+                fontSize: '13px',
+                color: '#9CA3AF',
+                fontWeight: 500,
+              }}
             >
-              Créer un compte pro
-            </Link>
-            <Link href="/pro" className="font-semibold text-primary hover:text-primaryHover">
-              Infos espace pro
-            </Link>
+              OU
+            </span>
+            <div
+              style={{
+                flex: 1,
+                height: '1px',
+                backgroundColor: '#E5E7EB',
+              }}
+            />
           </div>
-        </Card>
+
+          {/* OAuth Google */}
+          <Button
+            type="button"
+            variant="secondary"
+            size="lg"
+            fullWidth
+            onClick={handleOAuthGoogle}
+            leftIcon={<Chrome size={20} />}
+          >
+            Continuer avec Google
+          </Button>
+
+          {/* Sign up link */}
+          <div
+            style={{
+              marginTop: '32px',
+              paddingTop: '24px',
+              borderTop: '1px solid #E5E7EB',
+              textAlign: 'center',
+            }}
+          >
+            <p
+              style={{
+                fontSize: '14px',
+                color: '#6B7280',
+                margin: 0,
+              }}
+            >
+              Pas encore de compte ?{' '}
+              <Link
+                href="/pro/inscription"
+                style={{
+                  color: '#0A1628',
+                  textDecoration: 'none',
+                  fontWeight: 600,
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.textDecoration = 'underline'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.textDecoration = 'none'
+                }}
+              >
+                Créer un compte
+              </Link>
+            </p>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div
+          style={{
+            marginTop: '24px',
+            textAlign: 'center',
+          }}
+        >
+          <p
+            style={{
+              fontSize: '13px',
+              color: '#9CA3AF',
+              margin: 0,
+            }}
+          >
+            © 2026 MotorSafe · Tous droits réservés
+          </p>
+          <div
+            style={{
+              marginTop: '8px',
+              display: 'flex',
+              gap: '16px',
+              justifyContent: 'center',
+            }}
+          >
+            {[
+              { label: 'CGU', href: '/cgu' },
+              { label: 'Confidentialité', href: '/politique-confidentialite' },
+              { label: 'Support', href: '/contact' },
+            ].map((link, i) => (
+              <Link
+                key={i}
+                href={link.href}
+                style={{
+                  fontSize: '13px',
+                  color: '#9CA3AF',
+                  textDecoration: 'none',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = '#6B7280'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = '#9CA3AF'
+                }}
+              >
+                {link.label}
+              </Link>
+            ))}
+          </div>
+        </div>
       </div>
-    </main>
-  );
+    </div>
+  )
 }
