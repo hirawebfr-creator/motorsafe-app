@@ -1,92 +1,108 @@
-"use client";
+'use client'
 
-import * as React from "react";
-import { cn } from "@/lib/cn";
-import { Search, X } from "lucide-react";
+import React from 'react'
+import { Search, X } from 'lucide-react'
 
-interface SearchInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "onChange"> {
-  value?: string;
-  onChange?: (value: string) => void;
-  onDebounce?: (value: string) => void;
-  debounceMs?: number;
-  className?: string;
+interface SearchInputProps {
+  placeholder?: string
+  value: string
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+  onClear?: () => void
+  disabled?: boolean
 }
 
 export function SearchInput({
-  value: controlledValue,
+  placeholder = 'Rechercher...',
+  value,
   onChange,
-  onDebounce,
-  debounceMs = 300,
-  placeholder = "Rechercher...",
-  className,
-  ...props
+  onClear,
+  disabled = false
 }: SearchInputProps) {
-  const [internalValue, setInternalValue] = React.useState(controlledValue ?? "");
-  const debounceRef = React.useRef<NodeJS.Timeout | null>(null);
-
-  const value = controlledValue !== undefined ? controlledValue : internalValue;
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = e.target.value;
-    
-    if (controlledValue === undefined) {
-      setInternalValue(newValue);
-    }
-    
-    onChange?.(newValue);
-
-    if (onDebounce) {
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current);
-      }
-      debounceRef.current = setTimeout(() => {
-        onDebounce(newValue);
-      }, debounceMs);
-    }
-  };
-
   const handleClear = () => {
-    if (controlledValue === undefined) {
-      setInternalValue("");
+    if (onClear) {
+      onClear()
     }
-    onChange?.("");
-    onDebounce?.("");
-  };
-
-  React.useEffect(() => {
-    return () => {
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current);
-      }
-    };
-  }, []);
-
+  }
+  
   return (
-    <div className={cn("relative", className)}>
-      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--ms-text-muted)] pointer-events-none" />
+    <div style={{
+      position: 'relative',
+      width: '100%'
+    }}>
+      <div style={{
+        position: 'absolute',
+        left: '12px',
+        top: '50%',
+        transform: 'translateY(-50%)',
+        color: '#9CA3AF',
+        pointerEvents: 'none'
+      }}>
+        <Search size={18} />
+      </div>
+      
       <input
         type="text"
-        value={value}
-        onChange={handleChange}
         placeholder={placeholder}
-        className={cn(
-          "w-full h-10 pl-10 pr-10 text-sm rounded-lg",
-          "bg-white border border-[var(--ms-border)]",
-          "text-[var(--ms-text)] placeholder:text-[var(--ms-text-placeholder)]",
-          "focus:outline-none focus:border-[var(--ms-primary)] focus:ring-2 focus:ring-[var(--ms-primary)]/15",
-          "transition-all duration-150"
-        )}
-        {...props}
+        value={value}
+        onChange={onChange}
+        disabled={disabled}
+        style={{
+          width: '100%',
+          height: '42px',
+          paddingLeft: '40px',
+          paddingRight: value ? '40px' : '12px',
+          fontSize: '14px',
+          color: '#111827',
+          backgroundColor: '#FFFFFF',
+          border: '1px solid #E5E7EB',
+          borderRadius: '8px',
+          outline: 'none',
+          transition: 'all 0.15s ease'
+        }}
+        onFocus={(e) => {
+          e.currentTarget.style.borderColor = '#0A1628'
+          e.currentTarget.style.boxShadow = '0 0 0 3px rgba(10, 22, 40, 0.1)'
+        }}
+        onBlur={(e) => {
+          e.currentTarget.style.borderColor = '#E5E7EB'
+          e.currentTarget.style.boxShadow = 'none'
+        }}
       />
-      {value && (
+      
+      {value && onClear && (
         <button
           type="button"
           onClick={handleClear}
-          className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 flex items-center justify-center rounded-full hover:bg-[var(--ms-bg-subtle)] text-[var(--ms-text-muted)] hover:text-[var(--ms-text)] transition-colors"
+          style={{
+            position: 'absolute',
+            right: '8px',
+            top: '50%',
+            transform: 'translateY(-50%)',
+            width: '28px',
+            height: '28px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: 'transparent',
+            border: 'none',
+            borderRadius: '6px',
+            color: '#9CA3AF',
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+            padding: 0
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = '#F3F4F6'
+            e.currentTarget.style.color = '#111827'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'transparent'
+            e.currentTarget.style.color = '#9CA3AF'
+          }}
         >
-          <X className="h-3.5 w-3.5" />
+          <X size={16} />
         </button>
       )}
     </div>
-  );
+  )
 }
