@@ -560,16 +560,23 @@ export default function ClientsPage() {
         data={clients}
         columns={columns}
         loading={isLoading}
-        emptyState={{
-          title: 'Aucun client',
-          description: searchQuery 
-            ? 'Aucun client ne correspond à votre recherche'
-            : 'Commencez par créer votre premier client',
-          action: !searchQuery ? {
-            label: 'Nouveau client',
-            onClick: handleCreate
-          } : undefined
-        }}
+        emptyState={
+          <div style={{ textAlign: 'center', padding: '48px 24px' }}>
+            <div style={{ fontSize: '16px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>
+              Aucun client
+            </div>
+            <div style={{ fontSize: '14px', color: '#6B7280', marginBottom: '16px' }}>
+              {searchQuery 
+                ? 'Aucun client ne correspond à votre recherche'
+                : 'Commencez par créer votre premier client'}
+            </div>
+            {!searchQuery && (
+              <Button variant="primary" onClick={handleCreate}>
+                Nouveau client
+              </Button>
+            )}
+          </div>
+        }
       />
       
       {/* Modal création/édition */}

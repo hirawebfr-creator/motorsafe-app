@@ -13,7 +13,6 @@ import { Select } from '@/components/shared/select'
 import { DropdownMenu } from '@/components/shared/dropdown-menu'
 import { useToast } from '@/components/shared/use-toast'
 import { 
-  Wrench,
   Plus,
   MoreVertical,
   Eye,
@@ -592,7 +591,6 @@ export default function InterventionsPage() {
       render: (intervention: Intervention) => (
         <Badge 
           variant={getStatusBadgeVariant(intervention.status)}
-          leftIcon={getStatusIcon(intervention.status)}
         >
           {getStatusLabel(intervention.status)}
         </Badge>
@@ -638,14 +636,12 @@ export default function InterventionsPage() {
           <Badge 
             variant={intervention.isClientSigned ? 'success' : 'neutral'}
             size="sm"
-            title="Signature client"
           >
             {intervention.isClientSigned ? '✓' : '○'} Client
           </Badge>
           <Badge 
             variant={intervention.isGarageSigned ? 'success' : 'neutral'}
             size="sm"
-            title="Signature atelier"
           >
             {intervention.isGarageSigned ? '✓' : '○'} Atelier
           </Badge>
@@ -802,16 +798,23 @@ export default function InterventionsPage() {
         data={interventions}
         columns={columns}
         loading={isLoading}
-        emptyState={{
-          title: 'Aucune intervention',
-          description: searchQuery 
-            ? 'Aucune intervention ne correspond à votre recherche'
-            : 'Commencez par créer votre première intervention',
-          action: !searchQuery ? {
-            label: 'Nouvelle intervention',
-            onClick: handleCreate
-          } : undefined
-        }}
+        emptyState={
+          <div style={{ textAlign: 'center', padding: '48px 24px' }}>
+            <div style={{ fontSize: '16px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>
+              Aucune intervention
+            </div>
+            <div style={{ fontSize: '14px', color: '#6B7280', marginBottom: '16px' }}>
+              {searchQuery 
+                ? 'Aucune intervention ne correspond à votre recherche'
+                : 'Commencez par créer votre première intervention'}
+            </div>
+            {!searchQuery && (
+              <Button variant="primary" onClick={handleCreate}>
+                Nouvelle intervention
+              </Button>
+            )}
+          </div>
+        }
       />
       
       {/* Modal création/édition */}
@@ -881,7 +884,7 @@ export default function InterventionsPage() {
             placeholder="Détaillez les interventions à réaliser..."
             value={formData.description}
             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-            error={formErrors.description}
+            errorText={formErrors.description}
             rows={5}
             required
           />

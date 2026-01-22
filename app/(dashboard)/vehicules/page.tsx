@@ -13,7 +13,6 @@ import { Avatar } from '@/components/shared/avatar'
 import { DropdownMenu } from '@/components/shared/dropdown-menu'
 import { useToast } from '@/components/shared/use-toast'
 import { 
-  Car,
   Search,
   Plus,
   MoreVertical,
@@ -748,16 +747,23 @@ export default function VehiculesPage() {
         data={vehicles}
         columns={columns}
         loading={isLoading}
-        emptyState={{
-          title: 'Aucun véhicule',
-          description: searchQuery 
-            ? 'Aucun véhicule ne correspond à votre recherche'
-            : 'Commencez par ajouter un véhicule ou utilisez la recherche SIV',
-          action: !searchQuery ? {
-            label: 'Recherche SIV',
-            onClick: () => setIsSivModalOpen(true)
-          } : undefined
-        }}
+        emptyState={
+          <div style={{ textAlign: 'center', padding: '48px 24px' }}>
+            <div style={{ fontSize: '16px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>
+              Aucun véhicule
+            </div>
+            <div style={{ fontSize: '14px', color: '#6B7280', marginBottom: '16px' }}>
+              {searchQuery 
+                ? 'Aucun véhicule ne correspond à votre recherche'
+                : 'Commencez par ajouter un véhicule ou utilisez la recherche SIV'}
+            </div>
+            {!searchQuery && (
+              <Button variant="primary" onClick={() => setIsSivModalOpen(true)}>
+                Recherche SIV
+              </Button>
+            )}
+          </div>
+        }
       />
       
       {/* Modal SIV */}

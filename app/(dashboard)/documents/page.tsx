@@ -1,10 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import { Tabs } from '@/components/shared/tabs'
 import { DataTableInline } from '@/components/shared/data-table-inline'
-import { FormField } from '@/components/shared/form-field'
 import { Button } from '@/components/shared/button'
 import { Modal } from '@/components/shared/modal'
 import { Badge } from '@/components/shared/badge'
@@ -77,7 +75,6 @@ interface Intervention {
 }
 
 export default function DocumentsPage() {
-  const router = useRouter()
   const toast = useToast()
   
   const [activeTab, setActiveTab] = useState<DocumentType>('DEVIS')
@@ -309,7 +306,7 @@ export default function DocumentsPage() {
     }
   }
   
-  const handleDownload = (url: string, filename: string) => {
+  const handleDownload = (url: string, _filename: string) => {
     if (url) {
       window.open(url, '_blank')
     } else {
@@ -782,14 +779,19 @@ export default function DocumentsPage() {
             data={devis}
             columns={devisColumns}
             loading={isLoading}
-            emptyState={{
-              title: 'Aucun devis',
-              description: 'Commencez par générer votre premier devis',
-              action: {
-                label: 'Générer un devis',
-                onClick: () => handleOpenGenerateModal('DEVIS')
-              }
-            }}
+            emptyState={
+              <div style={{ textAlign: 'center', padding: '48px 24px' }}>
+                <div style={{ fontSize: '16px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>
+                  Aucun devis
+                </div>
+                <div style={{ fontSize: '14px', color: '#6B7280', marginBottom: '16px' }}>
+                  Commencez par générer votre premier devis
+                </div>
+                <Button variant="primary" onClick={() => handleOpenGenerateModal('DEVIS')}>
+                  Générer un devis
+                </Button>
+              </div>
+            }
           />
         </div>
       )
@@ -832,14 +834,19 @@ export default function DocumentsPage() {
             data={factures}
             columns={facturesColumns}
             loading={isLoading}
-            emptyState={{
-              title: 'Aucune facture',
-              description: 'Commencez par générer votre première facture',
-              action: {
-                label: 'Générer une facture',
-                onClick: () => handleOpenGenerateModal('FACTURE')
-              }
-            }}
+            emptyState={
+              <div style={{ textAlign: 'center', padding: '48px 24px' }}>
+                <div style={{ fontSize: '16px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>
+                  Aucune facture
+                </div>
+                <div style={{ fontSize: '14px', color: '#6B7280', marginBottom: '16px' }}>
+                  Commencez par générer votre première facture
+                </div>
+                <Button variant="primary" onClick={() => handleOpenGenerateModal('FACTURE')}>
+                  Générer une facture
+                </Button>
+              </div>
+            }
           />
         </div>
       )
@@ -864,14 +871,19 @@ export default function DocumentsPage() {
             data={exports}
             columns={exportsColumns}
             loading={isLoading}
-            emptyState={{
-              title: 'Aucun export',
-              description: 'Commencez par générer votre premier export assurance',
-              action: {
-                label: 'Générer un export',
-                onClick: () => handleOpenGenerateModal('EXPORT')
-              }
-            }}
+            emptyState={
+              <div style={{ textAlign: 'center', padding: '48px 24px' }}>
+                <div style={{ fontSize: '16px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>
+                  Aucun export
+                </div>
+                <div style={{ fontSize: '14px', color: '#6B7280', marginBottom: '16px' }}>
+                  Commencez par générer votre premier export assurance
+                </div>
+                <Button variant="primary" onClick={() => handleOpenGenerateModal('EXPORT')}>
+                  Générer un export
+                </Button>
+              </div>
+            }
           />
         </div>
       )
