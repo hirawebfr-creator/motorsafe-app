@@ -121,16 +121,16 @@ export default function ClientDetailPage() {
       const vehiclesResponse = await fetch(`/api/vehicules?clientId=${clientId}`)
       const vehiclesData = await vehiclesResponse.json()
       
-      if (vehiclesData.ok) {
-        setVehicles(vehiclesData.items)
+      if (vehiclesData.ok && vehiclesData.data) {
+        setVehicles(vehiclesData.data.items || [])
       }
       
       // Charger interventions
       const interventionsResponse = await fetch(`/api/interventions?clientId=${clientId}`)
       const interventionsData = await interventionsResponse.json()
       
-      if (interventionsData.ok) {
-        setInterventions(interventionsData.items)
+      if (interventionsData.ok && interventionsData.data) {
+        setInterventions(interventionsData.data.items || [])
       }
       
     } catch (error) {

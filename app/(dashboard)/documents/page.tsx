@@ -114,8 +114,8 @@ export default function DocumentsPage() {
       const response = await fetch('/api/interventions?status=TERMINE')
       const data = await response.json()
       
-      if (data.ok && Array.isArray(data.items)) {
-        setInterventions(data.items.map((i: any) => ({
+      if (data.ok && data.data && Array.isArray(data.data.items)) {
+        setInterventions(data.data.items.map((i: any) => ({
           id: i.id,
           number: i.number,
           clientName: i.clientName,
@@ -148,8 +148,8 @@ export default function DocumentsPage() {
       const response = await fetch(`/api/documents/devis?${params}`)
       const data = await response.json()
       
-      if (data.ok && Array.isArray(data.items)) {
-        setDevis(data.items)
+      if (data.ok && data.data && Array.isArray(data.data.items)) {
+        setDevis(data.data.items)
       } else {
         console.error('Error loading devis:', data.error || 'Invalid response format')
         toast.error('Erreur', 'Impossible de charger les devis')
@@ -223,8 +223,8 @@ export default function DocumentsPage() {
       const response = await fetch(`/api/documents/factures?${params}`)
       const data = await response.json()
       
-      if (data.ok && Array.isArray(data.items)) {
-        setFactures(data.items)
+      if (data.ok && data.data && Array.isArray(data.data.items)) {
+        setFactures(data.data.items)
       } else {
         console.error('Error loading factures:', data.error || 'Invalid response format')
         toast.error('Erreur', 'Impossible de charger les factures')
@@ -298,8 +298,8 @@ export default function DocumentsPage() {
       const response = await fetch(`/api/documents/exports?${params}`)
       const data = await response.json()
       
-      if (data.ok && Array.isArray(data.items)) {
-        setExports(data.items)
+      if (data.ok && data.data && Array.isArray(data.data.items)) {
+        setExports(data.data.items)
       } else {
         console.error('Error loading exports:', data.error || 'Invalid response format')
         toast.error('Erreur', 'Impossible de charger les exports')

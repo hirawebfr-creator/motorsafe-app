@@ -90,9 +90,9 @@ export default function ClientsPage() {
       const response = await fetch(`/api/clients?${params}`)
       const data = await response.json()
       
-      if (data.ok && Array.isArray(data.items)) {
+      if (data.ok && data.data && Array.isArray(data.data.items)) {
         // Transformer les dates si nécessaire
-        const clientsWithDates = data.items.map((c: Client & { createdAt?: string; updatedAt?: string }) => ({
+        const clientsWithDates = data.data.items.map((c: Client & { createdAt?: string; updatedAt?: string }) => ({
           ...c,
           createdAt: c.createdAt ? new Date(c.createdAt) : new Date(),
           updatedAt: c.updatedAt ? new Date(c.updatedAt) : new Date()
