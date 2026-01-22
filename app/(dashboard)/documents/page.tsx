@@ -1,565 +1,1097 @@
-"use client";
+'use client'
 
-import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import {
-  Download,
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { Tabs } from '@/components/shared/tabs'
+import { DataTableInline } from '@/components/shared/data-table-inline'
+import { FormField } from '@/components/shared/form-field'
+import { Button } from '@/components/shared/button'
+import { Modal } from '@/components/shared/modal'
+import { Badge } from '@/components/shared/badge'
+import { SearchInput } from '@/components/shared/search-input'
+import { Select } from '@/components/shared/select'
+import { DropdownMenu } from '@/components/shared/dropdown-menu'
+import { useToast } from '@/components/shared/use-toast'
+import { 
   FileText,
-  FolderOpen,
-  Search,
-  FileCheck,
-  Receipt,
-  CheckCircle,
-  Clock,
-  Send,
-  XCircle,
-} from "lucide-react";
+  Plus,
+  Download,
+  Mail,
+  MoreVertical,
+  Trash2,
+  Package
+} from 'lucide-react'
 
-// =========================================================
-// Types
-// =========================================================
+type DocumentType = 'DEVIS' | 'FACTURE' | 'EXPORT'
+type DevisStatus = 'BROUILLON' | 'ENVOYE' | 'ACCEPTE' | 'REFUSE'
+type FactureStatus = 'BROUILLON' | 'ENVOYEE' | 'PAYEE' | 'IMPAYEE'
+type ExportType = 'ASSURANCE' | 'EXPERT' | 'COMPLET'
 
-type InterventionItem = {
-  id: string;
-  type: string;
-  createdAt: string;
-  vehicle: {
-    plate: string;
-    brand: string;
-    model: string;
-    client: { firstName: string; lastName: string };
-  };
-};
-
-type QuoteItem = {
-  id: string;
-  quoteNumber: string | null;
-  status: string;
-  totalIncl: number;
-  createdAt: string;
-  client: { firstName: string; lastName: string };
-};
-
-type InvoiceItem = {
-  id: string;
-  invoiceNumber: string | null;
-  status: string;
-  totalIncl: number;
-  createdAt: string;
-  client: { firstName: string; lastName: string };
-};
-
-// =========================================================
-// Helpers
-// =========================================================
-
-function isRecord(x: unknown): x is Record<string, unknown> {
-  return typeof x === "object" && x !== null && !Array.isArray(x);
+interface Devis {
+  id: string
+  number: string
+  interventionId: string
+  interventionNumber: string
+  clientName: string
+  vehicleInfo: string
+  amount: number
+  status: DevisStatus
+  validUntil: Date
+  createdAt: Date
+  pdfUrl?: string
 }
 
-function unwrapOk(json: unknown): unknown {
-  if (isRecord(json) && json.ok === true && "data" in json) return json.data;
-  return json;
+interface Facture {
+  id: string
+  number: string
+  interventionId: string
+  interventionNumber: string
+  clientName: string
+  vehicleInfo: string
+  amount: number
+  status: FactureStatus
+  paidAt?: Date
+  dueDate: Date
+  createdAt: Date
+  pdfUrl?: string
 }
 
-function pickArray(json: unknown): unknown[] {
-  const data = unwrapOk(json);
-  if (Array.isArray(data)) return data;
-  if (isRecord(data) && Array.isArray(data.items)) return data.items;
-  if (isRecord(data) && Array.isArray(data.data)) return data.data;
-  return [];
+interface Export {
+  id: string
+  number: string
+  type: ExportType
+  interventionId: string
+  interventionNumber: string
+  clientName: string
+  vehicleInfo: string
+  requestedBy: string
+  createdAt: Date
+  zipUrl?: string
 }
 
-function fmtDate(input?: string | null) {
-  if (!input) return "—";
-  const d = new Date(input);
-  if (Number.isNaN(d.getTime())) return "—";
-  return new Intl.DateTimeFormat("fr-FR", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(d);
+interface Intervention {
+  id: string
+  number: string
+  clientName: string
+  vehicleInfo: string
 }
-
-function fmtEur(amount: number) {
-  return new Intl.NumberFormat("fr-FR", {
-    style: "currency",
-    currency: "EUR",
-  }).format(amount);
-}
-
-const INTERVENTION_TYPE_CONFIG: Record<string, { bg: string; text: string; label: string }> = {
-  E85: { bg: "var(--ms-success-light)", text: "var(--ms-success)", label: "E85" },
-  Reprog: { bg: "var(--ms-primary-light)", text: "var(--ms-primary)", label: "Reprog" },
-  Diag: { bg: "var(--ms-warning-light)", text: "#B45309", label: "Diagnostic" },
-  Autre: { bg: "var(--ms-bg-subtle)", text: "var(--ms-text-secondary)", label: "Autre" },
-};
-
-const QUOTE_STATUS_CONFIG: Record<string, { bg: string; text: string; label: string; icon: typeof Clock }> = {
-  DRAFT: { bg: "bg-gray-100", text: "text-gray-700", label: "Brouillon", icon: Clock },
-  SENT: { bg: "bg-blue-100", text: "text-blue-700", label: "Envoyé", icon: Send },
-  ACCEPTED: { bg: "bg-green-100", text: "text-green-700", label: "Accepté", icon: CheckCircle },
-  REJECTED: { bg: "bg-red-100", text: "text-red-700", label: "Refusé", icon: XCircle },
-  INVOICED: { bg: "bg-purple-100", text: "text-purple-700", label: "Facturé", icon: FileText },
-};
-
-const INVOICE_STATUS_CONFIG: Record<string, { bg: string; text: string; label: string; icon: typeof Clock }> = {
-  DRAFT: { bg: "bg-gray-100", text: "text-gray-700", label: "Brouillon", icon: Clock },
-  ISSUED: { bg: "bg-blue-100", text: "text-blue-700", label: "Émise", icon: Receipt },
-  PAID: { bg: "bg-green-100", text: "text-green-700", label: "Payée", icon: CheckCircle },
-  OVERDUE: { bg: "bg-red-100", text: "text-red-700", label: "En retard", icon: Clock },
-  CANCELLED: { bg: "bg-gray-100", text: "text-gray-500", label: "Annulée", icon: XCircle },
-};
-
-type Tab = "interventions" | "devis" | "factures";
-
-// =========================================================
-// Component
-// =========================================================
 
 export default function DocumentsPage() {
-  const [tab, setTab] = useState<Tab>("interventions");
-  const [q, setQ] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [interventions, setInterventions] = useState<InterventionItem[]>([]);
-  const [quotes, setQuotes] = useState<QuoteItem[]>([]);
-  const [invoices, setInvoices] = useState<InvoiceItem[]>([]);
-  const [error, setError] = useState<string | null>(null);
-
-  async function loadAll() {
+  const router = useRouter()
+  const toast = useToast()
+  
+  const [activeTab, setActiveTab] = useState<DocumentType>('DEVIS')
+  
+  const [devis, setDevis] = useState<Devis[]>([])
+  const [factures, setFactures] = useState<Facture[]>([])
+  const [exports, setExports] = useState<Export[]>([])
+  const [interventions, setInterventions] = useState<Intervention[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  
+  const [searchQuery, setSearchQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState<string>('all')
+  
+  const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false)
+  const [generateType, setGenerateType] = useState<DocumentType>('DEVIS')
+  const [selectedInterventionId, setSelectedInterventionId] = useState('')
+  const [exportType, setExportType] = useState<ExportType>('ASSURANCE')
+  const [sendEmail, setSendEmail] = useState(false)
+  const [isGenerating, setIsGenerating] = useState(false)
+  
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [documentToDelete, setDocumentToDelete] = useState<any>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+  
+  useEffect(() => {
+    loadInterventions()
+  }, [])
+  
+  useEffect(() => {
+    if (activeTab === 'DEVIS') loadDevis()
+    else if (activeTab === 'FACTURE') loadFactures()
+    else loadExports()
+  }, [activeTab, searchQuery, statusFilter])
+  
+  const loadInterventions = async () => {
     try {
-      setLoading(true);
-      setError(null);
-
-      const [intRes, quotesRes, invoicesRes] = await Promise.all([
-        fetch("/api/interventions?page=1&pageSize=50", { cache: "no-store" }),
-        fetch("/api/quotes?page=1&pageSize=50", { cache: "no-store" }),
-        fetch("/api/invoices?page=1&pageSize=50", { cache: "no-store" }),
-      ]);
-
-      const intJson = await intRes.json().catch(() => null);
-      const quotesJson = await quotesRes.json().catch(() => null);
-      const invoicesJson = await invoicesRes.json().catch(() => null);
-
-      if (!intRes.ok) {
-        console.warn("Interventions fetch failed:", intJson?.error?.message);
-      } else {
-        setInterventions(pickArray(intJson) as InterventionItem[]);
-      }
-
-      if (!quotesRes.ok) {
-        console.warn("Quotes fetch failed:", quotesJson?.error?.message);
-      } else {
-        setQuotes(pickArray(quotesJson) as QuoteItem[]);
-      }
-
-      if (!invoicesRes.ok) {
-        console.warn("Invoices fetch failed:", invoicesJson?.error?.message);
-      } else {
-        setInvoices(pickArray(invoicesJson) as InvoiceItem[]);
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Erreur inconnue");
-    } finally {
-      setLoading(false);
+      // TODO: Remplacer par vraie API /api/interventions?status=TERMINE
+      setInterventions([
+        { id: '1', number: 'INT-2024-001', clientName: 'Jean Dupont', vehicleInfo: 'Peugeot 208 - AB-123-CD' },
+        { id: '2', number: 'INT-2024-002', clientName: 'Marie Martin', vehicleInfo: 'Citroën C3 - IJ-789-KL' }
+      ])
+    } catch (error) {
+      toast.error('Erreur', 'Impossible de charger les interventions')
     }
   }
-
-  useEffect(() => {
-    void loadAll();
-  }, []);
-
-  // Filter by search
-  const filteredInterventions = useMemo(() => {
-    if (!q.trim()) return interventions;
-    const search = q.toLowerCase();
-    return interventions.filter(
-      (item) =>
-        item.vehicle?.plate?.toLowerCase().includes(search) ||
-        item.vehicle?.brand?.toLowerCase().includes(search) ||
-        item.vehicle?.client?.firstName?.toLowerCase().includes(search) ||
-        item.vehicle?.client?.lastName?.toLowerCase().includes(search)
-    );
-  }, [interventions, q]);
-
-  const filteredQuotes = useMemo(() => {
-    if (!q.trim()) return quotes;
-    const search = q.toLowerCase();
-    return quotes.filter(
-      (item) =>
-        item.quoteNumber?.toLowerCase().includes(search) ||
-        item.client?.firstName?.toLowerCase().includes(search) ||
-        item.client?.lastName?.toLowerCase().includes(search)
-    );
-  }, [quotes, q]);
-
-  const filteredInvoices = useMemo(() => {
-    if (!q.trim()) return invoices;
-    const search = q.toLowerCase();
-    return invoices.filter(
-      (item) =>
-        item.invoiceNumber?.toLowerCase().includes(search) ||
-        item.client?.firstName?.toLowerCase().includes(search) ||
-        item.client?.lastName?.toLowerCase().includes(search)
-    );
-  }, [invoices, q]);
-
-  return (
-    <div className="ms-animate-slide-up">
-      {/* Page Header */}
-      <div className="ms-page-header">
+  
+  const loadDevis = async () => {
+    setIsLoading(true)
+    
+    try {
+      // TODO: Remplacer par vraie API /api/documents/devis
+      const mockDevis: Devis[] = [
+        {
+          id: '1',
+          number: 'DEV-2024-001',
+          interventionId: '1',
+          interventionNumber: 'INT-2024-001',
+          clientName: 'Jean Dupont',
+          vehicleInfo: 'Peugeot 208 - AB-123-CD',
+          amount: 450.00,
+          status: 'ACCEPTE',
+          validUntil: new Date('2024-02-15'),
+          createdAt: new Date('2024-01-15'),
+          pdfUrl: '/documents/dev-2024-001.pdf'
+        },
+        {
+          id: '2',
+          number: 'DEV-2024-002',
+          interventionId: '2',
+          interventionNumber: 'INT-2024-002',
+          clientName: 'Marie Martin',
+          vehicleInfo: 'Citroën C3 - IJ-789-KL',
+          amount: 320.00,
+          status: 'ENVOYE',
+          validUntil: new Date('2024-02-20'),
+          createdAt: new Date('2024-01-20')
+        }
+      ]
+      
+      let filtered = mockDevis
+      
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase()
+        filtered = filtered.filter(d => 
+          d.number.toLowerCase().includes(query) ||
+          d.clientName.toLowerCase().includes(query)
+        )
+      }
+      
+      if (statusFilter !== 'all') {
+        filtered = filtered.filter(d => d.status === statusFilter)
+      }
+      
+      setDevis(filtered)
+    } catch (error) {
+      toast.error('Erreur', 'Impossible de charger les devis')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+  
+  const loadFactures = async () => {
+    setIsLoading(true)
+    
+    try {
+      // TODO: Remplacer par vraie API /api/documents/factures
+      const mockFactures: Facture[] = [
+        {
+          id: '1',
+          number: 'FAC-2024-001',
+          interventionId: '1',
+          interventionNumber: 'INT-2024-001',
+          clientName: 'Jean Dupont',
+          vehicleInfo: 'Peugeot 208 - AB-123-CD',
+          amount: 450.00,
+          status: 'PAYEE',
+          paidAt: new Date('2024-01-18'),
+          dueDate: new Date('2024-02-15'),
+          createdAt: new Date('2024-01-16'),
+          pdfUrl: '/documents/fac-2024-001.pdf'
+        },
+        {
+          id: '2',
+          number: 'FAC-2024-002',
+          interventionId: '2',
+          interventionNumber: 'INT-2024-002',
+          clientName: 'Marie Martin',
+          vehicleInfo: 'Citroën C3 - IJ-789-KL',
+          amount: 320.00,
+          status: 'ENVOYEE',
+          dueDate: new Date('2024-02-22'),
+          createdAt: new Date('2024-01-22')
+        }
+      ]
+      
+      let filtered = mockFactures
+      
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase()
+        filtered = filtered.filter(f => 
+          f.number.toLowerCase().includes(query) ||
+          f.clientName.toLowerCase().includes(query)
+        )
+      }
+      
+      if (statusFilter !== 'all') {
+        filtered = filtered.filter(f => f.status === statusFilter)
+      }
+      
+      setFactures(filtered)
+    } catch (error) {
+      toast.error('Erreur', 'Impossible de charger les factures')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+  
+  const loadExports = async () => {
+    setIsLoading(true)
+    
+    try {
+      // TODO: Remplacer par vraie API /api/documents/exports
+      const mockExports: Export[] = [
+        {
+          id: '1',
+          number: 'EXP-2024-001',
+          type: 'ASSURANCE',
+          interventionId: '1',
+          interventionNumber: 'INT-2024-001',
+          clientName: 'Jean Dupont',
+          vehicleInfo: 'Peugeot 208 - AB-123-CD',
+          requestedBy: 'Sophie Blanc',
+          createdAt: new Date('2024-01-17'),
+          zipUrl: '/exports/exp-2024-001.zip'
+        }
+      ]
+      
+      let filtered = mockExports
+      
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase()
+        filtered = filtered.filter(e => 
+          e.number.toLowerCase().includes(query) ||
+          e.clientName.toLowerCase().includes(query)
+        )
+      }
+      
+      setExports(filtered)
+    } catch (error) {
+      toast.error('Erreur', 'Impossible de charger les exports')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+  
+  const handleOpenGenerateModal = (type: DocumentType) => {
+    setGenerateType(type)
+    setSelectedInterventionId('')
+    setExportType('ASSURANCE')
+    setSendEmail(false)
+    setIsGenerateModalOpen(true)
+  }
+  
+  const handleGenerate = async () => {
+    if (!selectedInterventionId) {
+      toast.error('Erreur', 'Sélectionnez une intervention')
+      return
+    }
+    
+    setIsGenerating(true)
+    
+    try {
+      // TODO: Remplacer par vraie API
+      toast.success(
+        'Document généré',
+        sendEmail 
+          ? 'Le document a été généré et envoyé par email'
+          : 'Le document a été généré avec succès'
+      )
+      setIsGenerateModalOpen(false)
+      
+      if (generateType === 'DEVIS') loadDevis()
+      else if (generateType === 'FACTURE') loadFactures()
+      else loadExports()
+    } catch (error) {
+      toast.error('Erreur', 'Impossible de générer le document')
+    } finally {
+      setIsGenerating(false)
+    }
+  }
+  
+  const handleDownload = (url: string, filename: string) => {
+    if (url) {
+      window.open(url, '_blank')
+    } else {
+      toast.info('Génération en cours', 'Le fichier sera disponible dans quelques secondes')
+    }
+  }
+  
+  const handleDeleteClick = (document: any) => {
+    setDocumentToDelete(document)
+    setDeleteModalOpen(true)
+  }
+  
+  const handleDeleteConfirm = async () => {
+    if (!documentToDelete) return
+    
+    setIsDeleting(true)
+    
+    try {
+      // TODO: Remplacer par vraie API
+      toast.success('Document supprimé', 'Le document a été supprimé avec succès')
+      setDeleteModalOpen(false)
+      setDocumentToDelete(null)
+      
+      if (activeTab === 'DEVIS') loadDevis()
+      else if (activeTab === 'FACTURE') loadFactures()
+      else loadExports()
+    } catch (error) {
+      toast.error('Erreur', 'Impossible de supprimer le document')
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+  
+  const formatCurrency = (amount: number): string => {
+    return new Intl.NumberFormat('fr-FR', {
+      style: 'currency',
+      currency: 'EUR'
+    }).format(amount)
+  }
+  
+  const getDevisStatusBadge = (status: DevisStatus) => {
+    const variants = {
+      BROUILLON: 'neutral',
+      ENVOYE: 'info',
+      ACCEPTE: 'success',
+      REFUSE: 'error'
+    }
+    
+    const labels = {
+      BROUILLON: 'Brouillon',
+      ENVOYE: 'Envoyé',
+      ACCEPTE: 'Accepté',
+      REFUSE: 'Refusé'
+    }
+    
+    return <Badge variant={variants[status] as any}>{labels[status]}</Badge>
+  }
+  
+  const getFactureStatusBadge = (status: FactureStatus) => {
+    const variants = {
+      BROUILLON: 'neutral',
+      ENVOYEE: 'info',
+      PAYEE: 'success',
+      IMPAYEE: 'error'
+    }
+    
+    const labels = {
+      BROUILLON: 'Brouillon',
+      ENVOYEE: 'Envoyée',
+      PAYEE: 'Payée',
+      IMPAYEE: 'Impayée'
+    }
+    
+    return <Badge variant={variants[status] as any}>{labels[status]}</Badge>
+  }
+  
+  const getExportTypeBadge = (type: ExportType) => {
+    const variants = {
+      ASSURANCE: 'info',
+      EXPERT: 'warning',
+      COMPLET: 'success'
+    }
+    
+    const labels = {
+      ASSURANCE: 'Assurance',
+      EXPERT: 'Expert',
+      COMPLET: 'Complet'
+    }
+    
+    return <Badge variant={variants[type] as any}>{labels[type]}</Badge>
+  }
+  
+  const devisColumns = [
+    {
+      key: 'number',
+      label: 'Numéro',
+      sortable: true,
+      render: (devis: Devis) => (
         <div>
-          <h1 className="ms-page-title">Documents</h1>
-          <p className="ms-page-subtitle">
-            Centralisez vos interventions, devis et factures
-          </p>
+          <div style={{
+            fontFamily: 'monospace',
+            fontSize: '14px',
+            fontWeight: 600,
+            color: '#111827'
+          }}>
+            {devis.number}
+          </div>
+          <div style={{ fontSize: '12px', color: '#9CA3AF', marginTop: '2px' }}>
+            {new Date(devis.createdAt).toLocaleDateString('fr-FR')}
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="ms-search">
-            <Search size={18} className="ms-search-icon" />
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Rechercher..."
-              className="ms-search-input"
+      )
+    },
+    {
+      key: 'intervention',
+      label: 'Intervention',
+      sortable: false,
+      render: (devis: Devis) => (
+        <div>
+          <div style={{ fontSize: '13px', color: '#111827', fontWeight: 500 }}>
+            {devis.interventionNumber}
+          </div>
+          <div style={{ fontSize: '12px', color: '#6B7280' }}>
+            {devis.clientName}
+          </div>
+          <div style={{ fontSize: '11px', color: '#9CA3AF' }}>
+            {devis.vehicleInfo}
+          </div>
+        </div>
+      )
+    },
+    {
+      key: 'amount',
+      label: 'Montant',
+      sortable: true,
+      render: (devis: Devis) => (
+        <div style={{ fontSize: '14px', fontWeight: 600, color: '#111827' }}>
+          {formatCurrency(devis.amount)}
+        </div>
+      )
+    },
+    {
+      key: 'status',
+      label: 'Statut',
+      sortable: true,
+      render: (devis: Devis) => getDevisStatusBadge(devis.status)
+    },
+    {
+      key: 'validUntil',
+      label: 'Validité',
+      sortable: true,
+      render: (devis: Devis) => (
+        <div style={{ fontSize: '13px', color: '#6B7280' }}>
+          {new Date(devis.validUntil).toLocaleDateString('fr-FR')}
+        </div>
+      )
+    },
+    {
+      key: 'actions',
+      label: 'Actions',
+      sortable: false,
+      render: (devis: Devis) => (
+        <DropdownMenu
+          trigger={
+            <button
+              style={{
+                padding: '6px',
+                backgroundColor: 'transparent',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                color: '#6B7280',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#F9FAFB'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent'
+              }}
+            >
+              <MoreVertical size={16} />
+            </button>
+          }
+          items={[
+            {
+              id: 'download',
+              label: 'Télécharger PDF',
+              icon: <Download size={16} />,
+              onClick: () => handleDownload(devis.pdfUrl || '', devis.number + '.pdf')
+            },
+            {
+              id: 'email',
+              label: 'Envoyer par email',
+              icon: <Mail size={16} />,
+              onClick: () => toast.info('Email', 'Fonctionnalité en développement')
+            },
+            { id: 'separator', separator: true },
+            {
+              id: 'delete',
+              label: 'Supprimer',
+              icon: <Trash2 size={16} />,
+              danger: true,
+              onClick: () => handleDeleteClick(devis)
+            }
+          ]}
+        />
+      )
+    }
+  ]
+  
+  const facturesColumns = [
+    {
+      key: 'number',
+      label: 'Numéro',
+      sortable: true,
+      render: (facture: Facture) => (
+        <div>
+          <div style={{
+            fontFamily: 'monospace',
+            fontSize: '14px',
+            fontWeight: 600,
+            color: '#111827'
+          }}>
+            {facture.number}
+          </div>
+          <div style={{ fontSize: '12px', color: '#9CA3AF', marginTop: '2px' }}>
+            {new Date(facture.createdAt).toLocaleDateString('fr-FR')}
+          </div>
+        </div>
+      )
+    },
+    {
+      key: 'intervention',
+      label: 'Intervention',
+      sortable: false,
+      render: (facture: Facture) => (
+        <div>
+          <div style={{ fontSize: '13px', color: '#111827', fontWeight: 500 }}>
+            {facture.interventionNumber}
+          </div>
+          <div style={{ fontSize: '12px', color: '#6B7280' }}>
+            {facture.clientName}
+          </div>
+          <div style={{ fontSize: '11px', color: '#9CA3AF' }}>
+            {facture.vehicleInfo}
+          </div>
+        </div>
+      )
+    },
+    {
+      key: 'amount',
+      label: 'Montant',
+      sortable: true,
+      render: (facture: Facture) => (
+        <div style={{ fontSize: '14px', fontWeight: 600, color: '#111827' }}>
+          {formatCurrency(facture.amount)}
+        </div>
+      )
+    },
+    {
+      key: 'status',
+      label: 'Statut',
+      sortable: true,
+      render: (facture: Facture) => getFactureStatusBadge(facture.status)
+    },
+    {
+      key: 'dueDate',
+      label: 'Échéance',
+      sortable: true,
+      render: (facture: Facture) => (
+        <div style={{ fontSize: '13px', color: '#6B7280' }}>
+          {new Date(facture.dueDate).toLocaleDateString('fr-FR')}
+        </div>
+      )
+    },
+    {
+      key: 'actions',
+      label: 'Actions',
+      sortable: false,
+      render: (facture: Facture) => (
+        <DropdownMenu
+          trigger={
+            <button
+              style={{
+                padding: '6px',
+                backgroundColor: 'transparent',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                color: '#6B7280',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#F9FAFB'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent'
+              }}
+            >
+              <MoreVertical size={16} />
+            </button>
+          }
+          items={[
+            {
+              id: 'download',
+              label: 'Télécharger PDF',
+              icon: <Download size={16} />,
+              onClick: () => handleDownload(facture.pdfUrl || '', facture.number + '.pdf')
+            },
+            {
+              id: 'email',
+              label: 'Envoyer par email',
+              icon: <Mail size={16} />,
+              onClick: () => toast.info('Email', 'Fonctionnalité en développement')
+            },
+            { id: 'separator', separator: true },
+            {
+              id: 'delete',
+              label: 'Supprimer',
+              icon: <Trash2 size={16} />,
+              danger: true,
+              onClick: () => handleDeleteClick(facture)
+            }
+          ]}
+        />
+      )
+    }
+  ]
+  
+  const exportsColumns = [
+    {
+      key: 'number',
+      label: 'Numéro',
+      sortable: true,
+      render: (exp: Export) => (
+        <div>
+          <div style={{
+            fontFamily: 'monospace',
+            fontSize: '14px',
+            fontWeight: 600,
+            color: '#111827'
+          }}>
+            {exp.number}
+          </div>
+          <div style={{ fontSize: '12px', color: '#9CA3AF', marginTop: '2px' }}>
+            {new Date(exp.createdAt).toLocaleDateString('fr-FR')}
+          </div>
+        </div>
+      )
+    },
+    {
+      key: 'type',
+      label: 'Type',
+      sortable: true,
+      render: (exp: Export) => getExportTypeBadge(exp.type)
+    },
+    {
+      key: 'intervention',
+      label: 'Intervention',
+      sortable: false,
+      render: (exp: Export) => (
+        <div>
+          <div style={{ fontSize: '13px', color: '#111827', fontWeight: 500 }}>
+            {exp.interventionNumber}
+          </div>
+          <div style={{ fontSize: '12px', color: '#6B7280' }}>
+            {exp.clientName}
+          </div>
+          <div style={{ fontSize: '11px', color: '#9CA3AF' }}>
+            {exp.vehicleInfo}
+          </div>
+        </div>
+      )
+    },
+    {
+      key: 'requestedBy',
+      label: 'Demandeur',
+      sortable: true,
+      render: (exp: Export) => (
+        <div style={{ fontSize: '13px', color: '#6B7280' }}>
+          {exp.requestedBy}
+        </div>
+      )
+    },
+    {
+      key: 'actions',
+      label: 'Actions',
+      sortable: false,
+      render: (exp: Export) => (
+        <DropdownMenu
+          trigger={
+            <button
+              style={{
+                padding: '6px',
+                backgroundColor: 'transparent',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                color: '#6B7280',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#F9FAFB'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent'
+              }}
+            >
+              <MoreVertical size={16} />
+            </button>
+          }
+          items={[
+            {
+              id: 'download',
+              label: 'Télécharger ZIP',
+              icon: <Package size={16} />,
+              onClick: () => handleDownload(exp.zipUrl || '', exp.number + '.zip')
+            },
+            { id: 'separator', separator: true },
+            {
+              id: 'delete',
+              label: 'Supprimer',
+              icon: <Trash2 size={16} />,
+              danger: true,
+              onClick: () => handleDeleteClick(exp)
+            }
+          ]}
+        />
+      )
+    }
+  ]
+  
+  const tabs = [
+    {
+      id: 'DEVIS',
+      label: 'Devis',
+      icon: <FileText size={16} />,
+      badge: devis.length,
+      content: (
+        <div>
+          <div style={{
+            display: 'flex',
+            gap: '12px',
+            marginBottom: '20px'
+          }}>
+            <div style={{ flex: 1 }}>
+              <SearchInput
+                placeholder="Rechercher un devis..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onClear={() => setSearchQuery('')}
+              />
+            </div>
+            
+            <Select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              options={[
+                { value: 'all', label: 'Tous les statuts' },
+                { value: 'BROUILLON', label: 'Brouillons' },
+                { value: 'ENVOYE', label: 'Envoyés' },
+                { value: 'ACCEPTE', label: 'Acceptés' },
+                { value: 'REFUSE', label: 'Refusés' }
+              ]}
             />
           </div>
+          
+          <DataTableInline
+            data={devis}
+            columns={devisColumns}
+            loading={isLoading}
+            emptyState={{
+              title: 'Aucun devis',
+              description: 'Commencez par générer votre premier devis',
+              action: {
+                label: 'Générer un devis',
+                onClick: () => handleOpenGenerateModal('DEVIS')
+              }
+            }}
+          />
         </div>
+      )
+    },
+    {
+      id: 'FACTURE',
+      label: 'Factures',
+      icon: <FileText size={16} />,
+      badge: factures.length,
+      content: (
+        <div>
+          <div style={{
+            display: 'flex',
+            gap: '12px',
+            marginBottom: '20px'
+          }}>
+            <div style={{ flex: 1 }}>
+              <SearchInput
+                placeholder="Rechercher une facture..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onClear={() => setSearchQuery('')}
+              />
+            </div>
+            
+            <Select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              options={[
+                { value: 'all', label: 'Tous les statuts' },
+                { value: 'BROUILLON', label: 'Brouillons' },
+                { value: 'ENVOYEE', label: 'Envoyées' },
+                { value: 'PAYEE', label: 'Payées' },
+                { value: 'IMPAYEE', label: 'Impayées' }
+              ]}
+            />
+          </div>
+          
+          <DataTableInline
+            data={factures}
+            columns={facturesColumns}
+            loading={isLoading}
+            emptyState={{
+              title: 'Aucune facture',
+              description: 'Commencez par générer votre première facture',
+              action: {
+                label: 'Générer une facture',
+                onClick: () => handleOpenGenerateModal('FACTURE')
+              }
+            }}
+          />
+        </div>
+      )
+    },
+    {
+      id: 'EXPORT',
+      label: 'Exports assurance',
+      icon: <Package size={16} />,
+      badge: exports.length,
+      content: (
+        <div>
+          <div style={{ marginBottom: '20px' }}>
+            <SearchInput
+              placeholder="Rechercher un export..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onClear={() => setSearchQuery('')}
+            />
+          </div>
+          
+          <DataTableInline
+            data={exports}
+            columns={exportsColumns}
+            loading={isLoading}
+            emptyState={{
+              title: 'Aucun export',
+              description: 'Commencez par générer votre premier export assurance',
+              action: {
+                label: 'Générer un export',
+                onClick: () => handleOpenGenerateModal('EXPORT')
+              }
+            }}
+          />
+        </div>
+      )
+    }
+  ]
+  
+  return (
+    <div style={{ padding: '24px', maxWidth: '1600px', margin: '0 auto' }}>
+      {/* Header */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '32px'
+      }}>
+        <div>
+          <h1 style={{
+            fontSize: '32px',
+            fontWeight: 700,
+            color: '#111827',
+            margin: 0,
+            marginBottom: '4px'
+          }}>
+            Documents
+          </h1>
+          <p style={{
+            fontSize: '14px',
+            color: '#6B7280',
+            margin: 0
+          }}>
+            Gérez vos devis, factures et exports assurance
+          </p>
+        </div>
+        
+        <DropdownMenu
+          trigger={
+            <Button
+              variant="primary"
+              size="lg"
+              leftIcon={<Plus size={20} />}
+            >
+              Générer un document
+            </Button>
+          }
+          items={[
+            {
+              id: 'devis',
+              label: 'Nouveau devis',
+              icon: <FileText size={16} />,
+              onClick: () => handleOpenGenerateModal('DEVIS')
+            },
+            {
+              id: 'facture',
+              label: 'Nouvelle facture',
+              icon: <FileText size={16} />,
+              onClick: () => handleOpenGenerateModal('FACTURE')
+            },
+            { id: 'separator', separator: true },
+            {
+              id: 'export',
+              label: 'Export assurance',
+              icon: <Package size={16} />,
+              onClick: () => handleOpenGenerateModal('EXPORT')
+            }
+          ]}
+        />
       </div>
-
-      {/* Stats */}
-      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Link href="/interventions" className="ms-stat-card hover:border-indigo-300 transition-colors">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="ms-stat-label">Interventions</div>
-              <div className="ms-stat-value">{loading ? "—" : interventions.length}</div>
-            </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--ms-primary-light)]">
-              <FolderOpen size={24} className="text-[var(--ms-primary)]" />
-            </div>
-          </div>
-        </Link>
-        <Link href="/devis" className="ms-stat-card hover:border-blue-300 transition-colors">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="ms-stat-label">Devis</div>
-              <div className="ms-stat-value">{loading ? "—" : quotes.length}</div>
-            </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-100">
-              <FileCheck size={24} className="text-blue-600" />
-            </div>
-          </div>
-        </Link>
-        <Link href="/factures" className="ms-stat-card hover:border-green-300 transition-colors">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="ms-stat-label">Factures</div>
-              <div className="ms-stat-value">{loading ? "—" : invoices.length}</div>
-            </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-green-100">
-              <Receipt size={24} className="text-green-600" />
-            </div>
-          </div>
-        </Link>
-      </div>
-
+      
       {/* Tabs */}
-      <div className="mb-4 flex gap-1 border-b border-border">
-        <button
-          onClick={() => setTab("interventions")}
-          className={`px-4 py-2 text-sm font-medium transition-colors ${
-            tab === "interventions"
-              ? "border-b-2 border-indigo-500 text-indigo-600"
-              : "text-gray-500 hover:text-gray-700"
-          }`}
-        >
-          <FolderOpen size={16} className="inline mr-1.5 -mt-0.5" />
-          Interventions ({filteredInterventions.length})
-        </button>
-        <button
-          onClick={() => setTab("devis")}
-          className={`px-4 py-2 text-sm font-medium transition-colors ${
-            tab === "devis"
-              ? "border-b-2 border-blue-500 text-blue-600"
-              : "text-gray-500 hover:text-gray-700"
-          }`}
-        >
-          <FileCheck size={16} className="inline mr-1.5 -mt-0.5" />
-          Devis ({filteredQuotes.length})
-        </button>
-        <button
-          onClick={() => setTab("factures")}
-          className={`px-4 py-2 text-sm font-medium transition-colors ${
-            tab === "factures"
-              ? "border-b-2 border-green-500 text-green-600"
-              : "text-gray-500 hover:text-gray-700"
-          }`}
-        >
-          <Receipt size={16} className="inline mr-1.5 -mt-0.5" />
-          Factures ({filteredInvoices.length})
-        </button>
-      </div>
-
-      {/* Error */}
-      {error && (
-        <div className="ms-alert ms-alert-error mb-6">
-          <span>{error}</span>
+      <Tabs
+        tabs={tabs}
+        value={activeTab}
+        onChange={(tabId) => {
+          setActiveTab(tabId as DocumentType)
+          setSearchQuery('')
+          setStatusFilter('all')
+        }}
+      />
+      
+      {/* Modal génération */}
+      <Modal
+        isOpen={isGenerateModalOpen}
+        onClose={() => setIsGenerateModalOpen(false)}
+        title={`Générer ${
+          generateType === 'DEVIS' ? 'un devis' : 
+          generateType === 'FACTURE' ? 'une facture' : 
+          'un export'
+        }`}
+        size="md"
+      >
+        <div style={{ padding: '24px' }}>
+          <Select
+            label="Intervention"
+            value={selectedInterventionId}
+            onChange={(e) => setSelectedInterventionId(e.target.value)}
+            options={[
+              { value: '', label: 'Sélectionner une intervention' },
+              ...interventions.map(i => ({
+                value: i.id,
+                label: `${i.number} - ${i.clientName} (${i.vehicleInfo})`
+              }))
+            ]}
+            required
+          />
+          
+          {generateType === 'EXPORT' && (
+            <Select
+              label="Type d'export"
+              value={exportType}
+              onChange={(e) => setExportType(e.target.value as ExportType)}
+              options={[
+                { value: 'ASSURANCE', label: 'Assurance (Photos + Factures + Signatures)' },
+                { value: 'EXPERT', label: 'Expert (Complet + Chaîne de preuves)' },
+                { value: 'COMPLET', label: 'Complet (Archive complète)' }
+              ]}
+            />
+          )}
+          
+          {(generateType === 'DEVIS' || generateType === 'FACTURE') && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              padding: '12px',
+              backgroundColor: '#F9FAFB',
+              borderRadius: '8px',
+              marginTop: '16px'
+            }}>
+              <input
+                type="checkbox"
+                id="sendEmail"
+                checked={sendEmail}
+                onChange={(e) => setSendEmail(e.target.checked)}
+                style={{ cursor: 'pointer' }}
+              />
+              <label
+                htmlFor="sendEmail"
+                style={{
+                  fontSize: '14px',
+                  color: '#111827',
+                  cursor: 'pointer'
+                }}
+              >
+                Envoyer par email au client
+              </label>
+            </div>
+          )}
+          
+          <div style={{
+            display: 'flex',
+            gap: '12px',
+            justifyContent: 'flex-end',
+            marginTop: '24px'
+          }}>
+            <Button
+              variant="secondary"
+              onClick={() => setIsGenerateModalOpen(false)}
+              disabled={isGenerating}
+            >
+              Annuler
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleGenerate}
+              loading={isGenerating}
+              disabled={isGenerating || !selectedInterventionId}
+            >
+              Générer
+            </Button>
+          </div>
         </div>
-      )}
-
-      {/* Content */}
-      {loading ? (
-        <div className="space-y-2 p-4">
-          {[...Array(5)].map((_, i) => (
-            <div key={i} className="ms-skeleton h-16 w-full" />
-          ))}
+      </Modal>
+      
+      {/* Modal suppression */}
+      <Modal
+        isOpen={deleteModalOpen}
+        onClose={() => setDeleteModalOpen(false)}
+        title="Supprimer le document"
+        size="md"
+      >
+        <div style={{ padding: '24px' }}>
+          <p style={{
+            fontSize: '15px',
+            color: '#6B7280',
+            lineHeight: 1.6,
+            margin: 0,
+            marginBottom: '20px'
+          }}>
+            Êtes-vous sûr de vouloir supprimer le document{' '}
+            <strong style={{ color: '#111827' }}>
+              {documentToDelete?.number}
+            </strong> ?
+          </p>
+          
+          <div style={{
+            display: 'flex',
+            gap: '12px',
+            justifyContent: 'flex-end'
+          }}>
+            <Button
+              variant="secondary"
+              onClick={() => setDeleteModalOpen(false)}
+              disabled={isDeleting}
+            >
+              Annuler
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleDeleteConfirm}
+              loading={isDeleting}
+              disabled={isDeleting}
+              style={{
+                backgroundColor: '#DC2626'
+              }}
+            >
+              Supprimer
+            </Button>
+          </div>
         </div>
-      ) : (
-        <>
-          {/* Interventions Tab */}
-          {tab === "interventions" && (
-            <div className="ms-table-container">
-              <div
-                className="ms-table-header"
-                style={{ gridTemplateColumns: "1.2fr 1.5fr 1.2fr 100px 120px 100px" }}
-              >
-                <div>Immatriculation</div>
-                <div>Véhicule</div>
-                <div>Client</div>
-                <div>Type</div>
-                <div>Date</div>
-                <div className="text-right">PDF</div>
-              </div>
-              <div className="max-h-[calc(100vh-500px)] overflow-y-auto">
-                {filteredInterventions.length === 0 ? (
-                  <div className="ms-empty">
-                    <div className="ms-empty-icon">
-                      <FolderOpen size={28} />
-                    </div>
-                    <div className="ms-empty-title">Aucune intervention</div>
-                  </div>
-                ) : (
-                  filteredInterventions.map((item, idx) => {
-                    const plate = item.vehicle?.plate || "—";
-                    const brandModel =
-                      `${item.vehicle?.brand ?? ""} ${item.vehicle?.model ?? ""}`.trim() || "—";
-                    const clientName = item.vehicle?.client
-                      ? `${item.vehicle.client.firstName} ${item.vehicle.client.lastName}`
-                      : "—";
-                    const typeConfig =
-                      INTERVENTION_TYPE_CONFIG[item.type] || INTERVENTION_TYPE_CONFIG.Autre;
-
-                    return (
-                      <div
-                        key={item.id}
-                        className="ms-table-row ms-animate-slide-up"
-                        style={{
-                          gridTemplateColumns: "1.2fr 1.5fr 1.2fr 100px 120px 100px",
-                          animationDelay: `${idx * 20}ms`,
-                        }}
-                      >
-                        <Link
-                          href={`/interventions/${item.id}`}
-                          className="font-semibold text-[var(--ms-text)] hover:text-[var(--ms-primary)] transition-colors"
-                        >
-                          {plate}
-                        </Link>
-                        <div className="text-[var(--ms-text-secondary)] truncate">
-                          {brandModel}
-                        </div>
-                        <div className="text-[var(--ms-text-secondary)] truncate">
-                          {clientName}
-                        </div>
-                        <div>
-                          <span
-                            className="ms-badge"
-                            style={{ background: typeConfig.bg, color: typeConfig.text }}
-                          >
-                            {typeConfig.label}
-                          </span>
-                        </div>
-                        <div className="text-sm text-[var(--ms-text-muted)]">
-                          {fmtDate(item.createdAt)}
-                        </div>
-                        <div className="flex justify-end">
-                          <a
-                            href={`/api/interventions/${item.id}/pdf`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="ms-btn ms-btn-sm ms-btn-primary"
-                          >
-                            <Download size={14} />
-                            PDF
-                          </a>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Devis Tab */}
-          {tab === "devis" && (
-            <div className="ms-table-container">
-              <div
-                className="ms-table-header"
-                style={{ gridTemplateColumns: "1.2fr 1.5fr 100px 120px 120px 100px" }}
-              >
-                <div>N° Devis</div>
-                <div>Client</div>
-                <div>Statut</div>
-                <div>Montant</div>
-                <div>Date</div>
-                <div className="text-right">Actions</div>
-              </div>
-              <div className="max-h-[calc(100vh-500px)] overflow-y-auto">
-                {filteredQuotes.length === 0 ? (
-                  <div className="ms-empty">
-                    <div className="ms-empty-icon">
-                      <FileCheck size={28} />
-                    </div>
-                    <div className="ms-empty-title">Aucun devis</div>
-                    <Link href="/devis/nouveau" className="ms-btn ms-btn-primary mt-4">
-                      Créer un devis
-                    </Link>
-                  </div>
-                ) : (
-                  filteredQuotes.map((item, idx) => {
-                    const cfg = QUOTE_STATUS_CONFIG[item.status] || QUOTE_STATUS_CONFIG.DRAFT;
-                    return (
-                      <div
-                        key={item.id}
-                        className="ms-table-row ms-animate-slide-up"
-                        style={{
-                          gridTemplateColumns: "1.2fr 1.5fr 100px 120px 120px 100px",
-                          animationDelay: `${idx * 20}ms`,
-                        }}
-                      >
-                        <Link
-                          href={`/devis/${item.id}`}
-                          className="font-semibold text-[var(--ms-text)] hover:text-blue-600 transition-colors"
-                        >
-                          {item.quoteNumber || `#${item.id.slice(0, 8)}`}
-                        </Link>
-                        <div className="text-[var(--ms-text-secondary)] truncate">
-                          {item.client?.firstName} {item.client?.lastName}
-                        </div>
-                        <div>
-                          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${cfg.bg} ${cfg.text}`}>
-                            {cfg.label}
-                          </span>
-                        </div>
-                        <div className="font-medium">{fmtEur(item.totalIncl)}</div>
-                        <div className="text-sm text-[var(--ms-text-muted)]">
-                          {fmtDate(item.createdAt)}
-                        </div>
-                        <div className="flex justify-end gap-1">
-                          <a
-                            href={`/api/quotes/${item.id}/pdf`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="ms-btn ms-btn-sm ms-btn-secondary"
-                          >
-                            <Download size={14} />
-                          </a>
-                          <Link
-                            href={`/devis/${item.id}`}
-                            className="ms-btn ms-btn-sm ms-btn-primary"
-                          >
-                            Voir
-                          </Link>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Factures Tab */}
-          {tab === "factures" && (
-            <div className="ms-table-container">
-              <div
-                className="ms-table-header"
-                style={{ gridTemplateColumns: "1.2fr 1.5fr 100px 120px 120px 100px" }}
-              >
-                <div>N° Facture</div>
-                <div>Client</div>
-                <div>Statut</div>
-                <div>Montant</div>
-                <div>Date</div>
-                <div className="text-right">Actions</div>
-              </div>
-              <div className="max-h-[calc(100vh-500px)] overflow-y-auto">
-                {filteredInvoices.length === 0 ? (
-                  <div className="ms-empty">
-                    <div className="ms-empty-icon">
-                      <Receipt size={28} />
-                    </div>
-                    <div className="ms-empty-title">Aucune facture</div>
-                    <p className="text-sm text-muted2 mt-2">
-                      Les factures sont créées à partir de devis acceptés
-                    </p>
-                  </div>
-                ) : (
-                  filteredInvoices.map((item, idx) => {
-                    const cfg = INVOICE_STATUS_CONFIG[item.status] || INVOICE_STATUS_CONFIG.DRAFT;
-                    return (
-                      <div
-                        key={item.id}
-                        className="ms-table-row ms-animate-slide-up"
-                        style={{
-                          gridTemplateColumns: "1.2fr 1.5fr 100px 120px 120px 100px",
-                          animationDelay: `${idx * 20}ms`,
-                        }}
-                      >
-                        <Link
-                          href={`/factures/${item.id}`}
-                          className="font-semibold text-[var(--ms-text)] hover:text-green-600 transition-colors"
-                        >
-                          {item.invoiceNumber || `#${item.id.slice(0, 8)}`}
-                        </Link>
-                        <div className="text-[var(--ms-text-secondary)] truncate">
-                          {item.client?.firstName} {item.client?.lastName}
-                        </div>
-                        <div>
-                          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${cfg.bg} ${cfg.text}`}>
-                            {cfg.label}
-                          </span>
-                        </div>
-                        <div className="font-medium">{fmtEur(item.totalIncl)}</div>
-                        <div className="text-sm text-[var(--ms-text-muted)]">
-                          {fmtDate(item.createdAt)}
-                        </div>
-                        <div className="flex justify-end gap-1">
-                          <a
-                            href={`/api/invoices/${item.id}/pdf`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="ms-btn ms-btn-sm ms-btn-secondary"
-                          >
-                            <Download size={14} />
-                          </a>
-                          <Link
-                            href={`/factures/${item.id}`}
-                            className="ms-btn ms-btn-sm ms-btn-primary"
-                          >
-                            Voir
-                          </Link>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-          )}
-        </>
-      )}
+      </Modal>
     </div>
-  );
+  )
 }
