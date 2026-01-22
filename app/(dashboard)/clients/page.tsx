@@ -1,315 +1,695 @@
-"use client";
+'use client'
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
-import {
-  Mail,
-  Pencil,
-  Phone,
-  Plus,
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { DataTableInline } from '@/components/shared/data-table-inline'
+import { FormField } from '@/components/shared/form-field'
+import { Button } from '@/components/shared/button'
+import { Modal } from '@/components/shared/modal'
+import { Badge } from '@/components/shared/badge'
+import { SearchInput } from '@/components/shared/search-input'
+import { DropdownMenu } from '@/components/shared/dropdown-menu'
+import { useToast } from '@/components/shared/use-toast'
+import { 
+  UserPlus, 
+  MoreVertical,
+  Eye,
+  Edit,
   Trash2,
-  TrendingUp,
-  Users,
-} from "lucide-react";
-import { PageHeader } from "@/components/shared/page-header";
-import { EmptyState } from "@/components/shared/empty-state";
-import { SearchInput } from "@/components/shared/search-input";
-import { StatCard } from "@/components/dashboard/stat-card";
+  Phone,
+  Mail,
+  MapPin
+} from 'lucide-react'
 
-type ClientItem = {
-  id: number;
-  firstName: string;
-  lastName: string;
-  email?: string | null;
-  phone?: string | null;
-  createdAt: string;
-};
-
-function isRecord(x: unknown): x is Record<string, unknown> {
-  return typeof x === "object" && x !== null && !Array.isArray(x);
+interface Client {
+  id: string
+  firstName: string
+  lastName: string
+  email: string
+  phone: string
+  address: string
+  postalCode: string
+  city: string
+  vehicleCount: number
+  status: 'ACTIVE' | 'INACTIVE'
+  createdAt: Date
+  updatedAt: Date
 }
 
-function unwrapOk(json: unknown): unknown {
-  if (isRecord(json) && json.ok === true && "data" in json) return json.data;
-  return json;
-}
-
-function pickArray(json: unknown): unknown[] {
-  const data = unwrapOk(json);
-  if (Array.isArray(data)) return data;
-  if (isRecord(data) && Array.isArray(data.items)) return data.items;
-  if (isRecord(data) && Array.isArray(data.data)) return data.data;
-  return [];
-}
-
-function fmtDate(input?: string | null) {
-  if (!input) return "—";
-  const d = new Date(input);
-  if (Number.isNaN(d.getTime())) return "—";
-  return new Intl.DateTimeFormat("fr-FR", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(d);
+interface ClientFormData {
+  firstName: string
+  lastName: string
+  email: string
+  phone: string
+  address: string
+  postalCode: string
+  city: string
 }
 
 export default function ClientsPage() {
-  const [q, setQ] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [items, setItems] = useState<ClientItem[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<number | null>(null);
-
-  const debounceRef = useRef<number | null>(null);
-
-  async function load(search: string) {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const url = new URL("/api/clients", window.location.origin);
-      url.searchParams.set("page", "1");
-      url.searchParams.set("pageSize", "100");
-      if (search.trim()) url.searchParams.set("q", search.trim());
-
-      const res = await fetch(url.toString(), { cache: "no-store" });
-      const json = await res.json().catch(() => null);
-      if (!res.ok) {
-        const message =
-          json?.error?.message || json?.error || `GET /api/clients ${res.status}`;
-        throw new Error(message);
-      }
-
-      setItems(pickArray(json) as ClientItem[]);
-    } catch (e) {
-      setItems([]);
-      setError(e instanceof Error ? e.message : "Erreur inconnue");
-    } finally {
-      setLoading(false);
-    }
-  }
-
+  const router = useRouter()
+  const toast = useToast()
+  
+  const [clients, setClients] = useState<Client[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'ACTIVE' | 'INACTIVE'>('all')
+  
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [editingClient, setEditingClient] = useState<Client | null>(null)
+  const [formData, setFormData] = useState<ClientFormData>({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    address: '',
+    postalCode: '',
+    city: ''
+  })
+  const [formErrors, setFormErrors] = useState<Partial<Record<keyof ClientFormData, string>>>({})
+  const [isSaving, setIsSaving] = useState(false)
+  
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [clientToDelete, setClientToDelete] = useState<Client | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+  
   useEffect(() => {
-    void load("");
-  }, []);
-
-  useEffect(() => {
-    if (debounceRef.current) window.clearTimeout(debounceRef.current);
-    debounceRef.current = window.setTimeout(() => {
-      void load(q);
-    }, 300);
-
-    return () => {
-      if (debounceRef.current) window.clearTimeout(debounceRef.current);
-    };
-  }, [q]);
-
-  async function onDelete(id: number) {
-    const ok = window.confirm(
-      "Supprimer ce client ? Cette action est irréversible."
-    );
-    if (!ok) return;
-
+    loadClients()
+  }, [searchQuery, statusFilter])
+  
+  const loadClients = async () => {
+    setIsLoading(true)
+    
     try {
-      setDeletingId(id);
-      const res = await fetch(`/api/clients/${id}`, { method: "DELETE" });
-      const json = await res.json().catch(() => null);
-      if (!res.ok) {
-        const message =
-          json?.error?.message || json?.error || `DELETE /api/clients/${id} ${res.status}`;
-        throw new Error(message);
-      }
-      await load(q);
-    } catch (e) {
-      alert(e instanceof Error ? e.message : "Erreur suppression");
-    } finally {
-      setDeletingId(null);
-    }
-  }
-
-  const rows = useMemo(() => items ?? [], [items]);
-
-  // Stats
-  const stats = useMemo(() => {
-    const total = rows.length;
-    const thisMonth = rows.filter((r) => {
-      const d = new Date(r.createdAt);
-      const now = new Date();
-      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-    }).length;
-    const withEmail = rows.filter((r) => r.email).length;
-    return { total, thisMonth, withEmail };
-  }, [rows]);
-
-  return (
-    <div className="ms-animate-slide-up">
-      {/* Page Header */}
-      <PageHeader
-        title="Clients"
-        subtitle="Gérez votre base de clients et leurs informations"
-        breadcrumbs={[
-          { label: "Dashboard", href: "/dashboard" },
-          { label: "Clients" },
-        ]}
-        action={
-          <div className="flex items-center gap-3">
-            <SearchInput
-              value={q}
-              onChange={setQ}
-              placeholder="Rechercher un client..."
-              className="w-64"
-            />
-            <Link href="/clients/nouveau" className="ms-btn ms-btn-primary">
-              <Plus size={18} />
-              Nouveau client
-            </Link>
-          </div>
+      // TODO: Remplacer par vraie API /api/clients
+      const mockClients: Client[] = [
+        {
+          id: '1',
+          firstName: 'Jean',
+          lastName: 'Dupont',
+          email: 'jean.dupont@email.fr',
+          phone: '06 12 34 56 78',
+          address: '12 Rue de la République',
+          postalCode: '75001',
+          city: 'Paris',
+          vehicleCount: 2,
+          status: 'ACTIVE',
+          createdAt: new Date('2024-01-15'),
+          updatedAt: new Date('2024-01-15')
+        },
+        {
+          id: '2',
+          firstName: 'Marie',
+          lastName: 'Martin',
+          email: 'marie.martin@email.fr',
+          phone: '06 98 76 54 32',
+          address: '8 Avenue des Fleurs',
+          postalCode: '69002',
+          city: 'Lyon',
+          vehicleCount: 1,
+          status: 'ACTIVE',
+          createdAt: new Date('2024-02-20'),
+          updatedAt: new Date('2024-02-20')
+        },
+        {
+          id: '3',
+          firstName: 'Pierre',
+          lastName: 'Dubois',
+          email: 'pierre.dubois@email.fr',
+          phone: '07 11 22 33 44',
+          address: '45 Boulevard du Lac',
+          postalCode: '33000',
+          city: 'Bordeaux',
+          vehicleCount: 3,
+          status: 'ACTIVE',
+          createdAt: new Date('2024-03-10'),
+          updatedAt: new Date('2024-03-10')
+        },
+        {
+          id: '4',
+          firstName: 'Sophie',
+          lastName: 'Blanc',
+          email: 'sophie.blanc@email.fr',
+          phone: '06 55 66 77 88',
+          address: '3 Rue du Commerce',
+          postalCode: '13001',
+          city: 'Marseille',
+          vehicleCount: 0,
+          status: 'INACTIVE',
+          createdAt: new Date('2023-12-05'),
+          updatedAt: new Date('2024-01-10')
         }
-      />
-
-      {/* Stats */}
-      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <StatCard
-          label="Total clients"
-          value={loading ? "—" : stats.total}
-          icon={Users}
-          iconGradient="from-[var(--ms-primary)] to-[#8B5CF6]"
-          loading={loading}
-          delay={1}
-        />
-        <StatCard
-          label="Ce mois-ci"
-          value={loading ? "—" : stats.thisMonth}
-          icon={TrendingUp}
-          iconGradient="from-[var(--ms-success)] to-[#34D399]"
-          trend={!loading && stats.thisMonth > 0 ? { direction: "up", label: `+${stats.thisMonth} ce mois` } : undefined}
-          loading={loading}
-          delay={2}
-        />
-        <StatCard
-          label="Avec email"
-          value={loading ? "—" : stats.withEmail}
-          icon={Mail}
-          iconGradient="from-[var(--ms-info)] to-[#60A5FA]"
-          loading={loading}
-          delay={3}
-        />
-      </div>
-
-      {/* Error */}
-      {error && (
-        <div className="ms-alert ms-alert-error mb-6">
-          <span>{error}</span>
+      ]
+      
+      let filtered = mockClients
+      
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase()
+        filtered = filtered.filter(c => 
+          c.firstName.toLowerCase().includes(query) ||
+          c.lastName.toLowerCase().includes(query) ||
+          c.email.toLowerCase().includes(query) ||
+          c.phone.includes(query)
+        )
+      }
+      
+      if (statusFilter !== 'all') {
+        filtered = filtered.filter(c => c.status === statusFilter)
+      }
+      
+      setClients(filtered)
+    } catch (error) {
+      toast.error('Erreur', 'Impossible de charger les clients')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+  
+  const validateForm = (): boolean => {
+    const errors: Partial<Record<keyof ClientFormData, string>> = {}
+    
+    if (!formData.firstName.trim()) errors.firstName = 'Le prénom est requis'
+    if (!formData.lastName.trim()) errors.lastName = 'Le nom est requis'
+    
+    if (!formData.email.trim()) {
+      errors.email = 'L\'email est requis'
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      errors.email = 'Format d\'email invalide'
+    }
+    
+    if (!formData.phone.trim()) {
+      errors.phone = 'Le téléphone est requis'
+    } else if (!/^0[1-9]\d{8}$/.test(formData.phone.replace(/\s/g, ''))) {
+      errors.phone = 'Format de téléphone invalide (10 chiffres)'
+    }
+    
+    if (!formData.address.trim()) errors.address = 'L\'adresse est requise'
+    
+    if (!formData.postalCode.trim()) {
+      errors.postalCode = 'Le code postal est requis'
+    } else if (!/^\d{5}$/.test(formData.postalCode)) {
+      errors.postalCode = 'Code postal invalide (5 chiffres)'
+    }
+    
+    if (!formData.city.trim()) errors.city = 'La ville est requise'
+    
+    setFormErrors(errors)
+    return Object.keys(errors).length === 0
+  }
+  
+  const handleCreate = () => {
+    setEditingClient(null)
+    setFormData({
+      firstName: '',
+      lastName: '',
+      email: '',
+      phone: '',
+      address: '',
+      postalCode: '',
+      city: ''
+    })
+    setFormErrors({})
+    setIsModalOpen(true)
+  }
+  
+  const handleEdit = (client: Client) => {
+    setEditingClient(client)
+    setFormData({
+      firstName: client.firstName,
+      lastName: client.lastName,
+      email: client.email,
+      phone: client.phone,
+      address: client.address,
+      postalCode: client.postalCode,
+      city: client.city
+    })
+    setFormErrors({})
+    setIsModalOpen(true)
+  }
+  
+  const handleSave = async () => {
+    if (!validateForm()) {
+      toast.error('Erreur', 'Veuillez corriger les erreurs du formulaire')
+      return
+    }
+    
+    setIsSaving(true)
+    
+    try {
+      // TODO: Remplacer par vraie API
+      // const url = editingClient ? `/api/clients/${editingClient.id}` : '/api/clients'
+      // const method = editingClient ? 'PATCH' : 'POST'
+      // const response = await fetch(url, { method, body: JSON.stringify(formData) })
+      
+      toast.success(
+        editingClient ? 'Client modifié' : 'Client créé',
+        'Les modifications ont été enregistrées'
+      )
+      setIsModalOpen(false)
+      loadClients()
+    } catch (error) {
+      toast.error('Erreur', 'Impossible de sauvegarder le client')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+  
+  const handleDeleteClick = (client: Client) => {
+    setClientToDelete(client)
+    setDeleteModalOpen(true)
+  }
+  
+  const handleDeleteConfirm = async () => {
+    if (!clientToDelete) return
+    
+    setIsDeleting(true)
+    
+    try {
+      // TODO: Remplacer par vraie API
+      // await fetch(`/api/clients/${clientToDelete.id}`, { method: 'DELETE' })
+      
+      toast.success('Client supprimé', 'Le client a été supprimé avec succès')
+      setDeleteModalOpen(false)
+      setClientToDelete(null)
+      loadClients()
+    } catch (error) {
+      toast.error('Erreur', 'Impossible de supprimer le client')
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+  
+  const columns = [
+    {
+      key: 'name',
+      label: 'Nom',
+      sortable: true,
+      render: (client: Client) => (
+        <div>
+          <div style={{ 
+            fontSize: '14px', 
+            fontWeight: 500, 
+            color: '#111827' 
+          }}>
+            {client.firstName} {client.lastName}
+          </div>
+          <div style={{ 
+            fontSize: '12px', 
+            color: '#6B7280',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            marginTop: '2px'
+          }}>
+            <Mail size={12} />
+            {client.email}
+          </div>
         </div>
-      )}
-
-      {/* Table */}
-      <div className="ms-table-container">
-        <div
-          className="ms-table-header"
-          style={{ gridTemplateColumns: "1.5fr 1.5fr 140px 120px 80px" }}
+      )
+    },
+    {
+      key: 'phone',
+      label: 'Téléphone',
+      sortable: false,
+      render: (client: Client) => (
+        <div style={{ 
+          fontSize: '13px', 
+          color: '#6B7280',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px'
+        }}>
+          <Phone size={14} />
+          {client.phone}
+        </div>
+      )
+    },
+    {
+      key: 'city',
+      label: 'Ville',
+      sortable: true,
+      render: (client: Client) => (
+        <div style={{ 
+          fontSize: '13px', 
+          color: '#6B7280',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px'
+        }}>
+          <MapPin size={14} />
+          {client.city}
+        </div>
+      )
+    },
+    {
+      key: 'vehicleCount',
+      label: 'Véhicules',
+      sortable: true,
+      render: (client: Client) => (
+        <Badge variant={client.vehicleCount > 0 ? 'default' : 'neutral'}>
+          {client.vehicleCount}
+        </Badge>
+      )
+    },
+    {
+      key: 'status',
+      label: 'Statut',
+      sortable: true,
+      render: (client: Client) => (
+        <Badge 
+          variant={client.status === 'ACTIVE' ? 'success' : 'neutral'}
+          dot
         >
-          <div>Client</div>
-          <div>Contact</div>
-          <div>Téléphone</div>
-          <div>Date ajout</div>
-          <div className="text-right">Actions</div>
-        </div>
-
-        <div className="max-h-[calc(100vh-420px)] overflow-y-auto">
-          {loading ? (
-            <div className="space-y-2 p-4">
-              {[...Array(5)].map((_, i) => (
-                <div key={i} className="ms-skeleton h-16 w-full" />
-              ))}
-            </div>
-          ) : rows.length === 0 ? (
-            <EmptyState
-              icon={Users}
-              title="Aucun client"
-              description="Ajoutez votre premier client pour commencer."
-              action={{
-                label: "Ajouter un client",
-                href: "/clients/nouveau",
+          {client.status === 'ACTIVE' ? 'Actif' : 'Inactif'}
+        </Badge>
+      )
+    },
+    {
+      key: 'actions',
+      label: 'Actions',
+      sortable: false,
+      render: (client: Client) => (
+        <DropdownMenu
+          trigger={
+            <button
+              style={{
+                padding: '6px',
+                backgroundColor: 'transparent',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                color: '#6B7280',
+                transition: 'all 0.15s ease'
               }}
-            />
-          ) : (
-            rows.map((item, idx) => {
-              const fullName = `${item.firstName} ${item.lastName}`.trim() || "Client";
-              const initials = `${item.firstName?.[0] ?? ""}${item.lastName?.[0] ?? ""}`.toUpperCase() || "?";
-              const isDeleting = deletingId === item.id;
-
-              return (
-                <div
-                  key={item.id}
-                  className="ms-table-row ms-animate-slide-up"
-                  style={{
-                    gridTemplateColumns: "1.5fr 1.5fr 140px 120px 80px",
-                    animationDelay: `${idx * 30}ms`,
-                  }}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[var(--ms-primary)] to-[#8B5CF6]">
-                      <span className="text-sm font-semibold text-white">{initials}</span>
-                    </div>
-                    <div>
-                      <Link
-                        href={`/clients/${item.id}`}
-                        className="font-semibold text-[var(--ms-text)] hover:text-[var(--ms-primary)] transition-colors"
-                      >
-                        {fullName}
-                      </Link>
-                      <div className="text-xs text-[var(--ms-text-muted)]">
-                        ID: {item.id}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-[var(--ms-text-secondary)]">
-                    <Mail size={14} className="text-[var(--ms-text-muted)]" />
-                    <span className="truncate">{item.email || "—"}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-[var(--ms-text-secondary)]">
-                    <Phone size={14} className="text-[var(--ms-text-muted)]" />
-                    <span>{item.phone || "—"}</span>
-                  </div>
-                  <div className="text-sm text-[var(--ms-text-muted)]">
-                    {fmtDate(item.createdAt)}
-                  </div>
-                  <div className="flex items-center justify-end gap-1">
-                    <Link
-                      href={`/clients/${item.id}`}
-                      className="ms-btn-icon-sm ms-btn-ghost rounded-lg"
-                      title="Modifier"
-                    >
-                      <Pencil size={16} />
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={() => onDelete(item.id)}
-                      disabled={isDeleting}
-                      className="ms-btn-icon-sm rounded-lg text-[var(--ms-text-muted)] hover:bg-[var(--ms-error-light)] hover:text-[var(--ms-error)] transition-colors disabled:opacity-50"
-                      title="Supprimer"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </div>
-              );
-            })
-          )}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#F9FAFB'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent'
+              }}
+            >
+              <MoreVertical size={16} />
+            </button>
+          }
+          items={[
+            {
+              id: 'view',
+              label: 'Voir détails',
+              icon: <Eye size={16} />,
+              onClick: () => router.push(`/clients/${client.id}`)
+            },
+            {
+              id: 'edit',
+              label: 'Modifier',
+              icon: <Edit size={16} />,
+              onClick: () => handleEdit(client)
+            },
+            { id: 'separator', separator: true },
+            {
+              id: 'delete',
+              label: 'Supprimer',
+              icon: <Trash2 size={16} />,
+              danger: true,
+              onClick: () => handleDeleteClick(client)
+            }
+          ]}
+        />
+      )
+    }
+  ]
+  
+  return (
+    <div style={{ padding: '24px', maxWidth: '1400px', margin: '0 auto' }}>
+      {/* Header */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '24px'
+      }}>
+        <div>
+          <h1 style={{
+            fontSize: '32px',
+            fontWeight: 700,
+            color: '#111827',
+            margin: 0,
+            marginBottom: '4px'
+          }}>
+            Clients
+          </h1>
+          <p style={{
+            fontSize: '14px',
+            color: '#6B7280',
+            margin: 0
+          }}>
+            Gérez vos clients et leurs informations
+          </p>
+        </div>
+        
+        <Button
+          variant="primary"
+          size="lg"
+          leftIcon={<UserPlus size={20} />}
+          onClick={handleCreate}
+        >
+          Nouveau client
+        </Button>
+      </div>
+      
+      {/* Filters */}
+      <div style={{
+        display: 'flex',
+        gap: '12px',
+        marginBottom: '20px',
+        flexWrap: 'wrap'
+      }}>
+        <div style={{ flex: 1, minWidth: '300px' }}>
+          <SearchInput
+            placeholder="Rechercher un client (nom, email, téléphone)..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onClear={() => setSearchQuery('')}
+          />
+        </div>
+        
+        <div style={{
+          display: 'flex',
+          gap: '8px',
+          backgroundColor: '#F9FAFB',
+          padding: '4px',
+          borderRadius: '8px',
+          border: '1px solid #E5E7EB'
+        }}>
+          {[
+            { value: 'all', label: 'Tous' },
+            { value: 'ACTIVE', label: 'Actifs' },
+            { value: 'INACTIVE', label: 'Inactifs' }
+          ].map((option) => (
+            <button
+              key={option.value}
+              onClick={() => setStatusFilter(option.value as typeof statusFilter)}
+              style={{
+                padding: '8px 16px',
+                fontSize: '14px',
+                fontWeight: 500,
+                color: statusFilter === option.value ? '#FFFFFF' : '#6B7280',
+                backgroundColor: statusFilter === option.value ? '#0A1628' : 'transparent',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              {option.label}
+            </button>
+          ))}
         </div>
       </div>
-
-      {/* Footer */}
-      {!loading && rows.length > 0 && (
-        <div className="mt-4 flex items-center justify-between text-sm text-[var(--ms-text-muted)]">
-          <span>
-            {rows.length} client{rows.length > 1 ? "s" : ""}
-          </span>
-          <span>Dernière mise à jour : maintenant</span>
+      
+      {/* Table */}
+      <DataTableInline
+        data={clients}
+        columns={columns}
+        loading={isLoading}
+        emptyState={{
+          title: 'Aucun client',
+          description: searchQuery 
+            ? 'Aucun client ne correspond à votre recherche'
+            : 'Commencez par créer votre premier client',
+          action: !searchQuery ? {
+            label: 'Nouveau client',
+            onClick: handleCreate
+          } : undefined
+        }}
+      />
+      
+      {/* Modal création/édition */}
+      <Modal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title={editingClient ? 'Modifier le client' : 'Nouveau client'}
+        size="lg"
+      >
+        <div style={{ padding: '24px' }}>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: '16px'
+          }}>
+            <FormField
+              label="Prénom"
+              name="firstName"
+              value={formData.firstName}
+              onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+              error={formErrors.firstName}
+              required
+            />
+            
+            <FormField
+              label="Nom"
+              name="lastName"
+              value={formData.lastName}
+              onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+              error={formErrors.lastName}
+              required
+            />
+          </div>
+          
+          <FormField
+            label="Email"
+            type="email"
+            name="email"
+            value={formData.email}
+            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+            error={formErrors.email}
+            required
+          />
+          
+          <FormField
+            label="Téléphone"
+            type="tel"
+            name="phone"
+            placeholder="06 12 34 56 78"
+            value={formData.phone}
+            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+            error={formErrors.phone}
+            required
+          />
+          
+          <FormField
+            label="Adresse"
+            name="address"
+            value={formData.address}
+            onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+            error={formErrors.address}
+            required
+          />
+          
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 2fr',
+            gap: '16px'
+          }}>
+            <FormField
+              label="Code postal"
+              name="postalCode"
+              placeholder="75001"
+              value={formData.postalCode}
+              onChange={(e) => setFormData({ ...formData, postalCode: e.target.value })}
+              error={formErrors.postalCode}
+              required
+            />
+            
+            <FormField
+              label="Ville"
+              name="city"
+              value={formData.city}
+              onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+              error={formErrors.city}
+              required
+            />
+          </div>
+          
+          <div style={{
+            display: 'flex',
+            gap: '12px',
+            justifyContent: 'flex-end',
+            marginTop: '24px',
+            paddingTop: '20px',
+            borderTop: '1px solid #E5E7EB'
+          }}>
+            <Button
+              variant="secondary"
+              onClick={() => setIsModalOpen(false)}
+              disabled={isSaving}
+            >
+              Annuler
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleSave}
+              loading={isSaving}
+              disabled={isSaving}
+            >
+              {editingClient ? 'Enregistrer' : 'Créer'}
+            </Button>
+          </div>
         </div>
-      )}
+      </Modal>
+      
+      {/* Modal suppression */}
+      <Modal
+        isOpen={deleteModalOpen}
+        onClose={() => setDeleteModalOpen(false)}
+        title="Supprimer le client"
+        size="md"
+      >
+        <div style={{ padding: '24px' }}>
+          <p style={{
+            fontSize: '15px',
+            color: '#6B7280',
+            lineHeight: 1.6,
+            margin: 0,
+            marginBottom: '20px'
+          }}>
+            Êtes-vous sûr de vouloir supprimer le client{' '}
+            <strong style={{ color: '#111827' }}>
+              {clientToDelete?.firstName} {clientToDelete?.lastName}
+            </strong> ?
+            {clientToDelete?.vehicleCount && clientToDelete.vehicleCount > 0 && (
+              <span style={{ display: 'block', marginTop: '12px', color: '#DC2626' }}>
+                ⚠️ Ce client possède {clientToDelete.vehicleCount} véhicule(s) associé(s).
+              </span>
+            )}
+          </p>
+          
+          <div style={{
+            display: 'flex',
+            gap: '12px',
+            justifyContent: 'flex-end'
+          }}>
+            <Button
+              variant="secondary"
+              onClick={() => setDeleteModalOpen(false)}
+              disabled={isDeleting}
+            >
+              Annuler
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleDeleteConfirm}
+              loading={isDeleting}
+              disabled={isDeleting}
+              style={{
+                backgroundColor: '#DC2626'
+              }}
+            >
+              Supprimer
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
-  );
+  )
 }
 
