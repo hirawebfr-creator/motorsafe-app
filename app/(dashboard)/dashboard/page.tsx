@@ -31,6 +31,15 @@ interface Activity {
   user: string
 }
 
+// Formater les centimes en euros (défini hors composant pour stabilité)
+const formatCurrency = (cents: number): string => {
+  return new Intl.NumberFormat('fr-FR', { 
+    style: 'currency', 
+    currency: 'EUR',
+    maximumFractionDigits: 0 
+  }).format(cents / 100)
+}
+
 export default function DashboardPage() {
   const toast = useToast()
   const [period, setPeriod] = useState<'month' | '30days' | 'year'>('month')
@@ -133,15 +142,6 @@ export default function DashboardPage() {
     loadDashboardData()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [period])
-  
-  // Formater les centimes en euros
-  const formatCurrency = (cents: number): string => {
-    return new Intl.NumberFormat('fr-FR', { 
-      style: 'currency', 
-      currency: 'EUR',
-      maximumFractionDigits: 0 
-    }).format(cents / 100)
-  }
   
   const formatTimeAgo = (date: Date): string => {
     const seconds = Math.floor((Date.now() - date.getTime()) / 1000)
