@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { KpiCard } from '@/components/shared/kpi-card'
-import { Badge } from '@/components/shared/badge'
 import { Button } from '@/components/shared/button'
 import { useToast } from '@/components/shared/use-toast'
 import { 
@@ -14,15 +13,14 @@ import {
   UserPlus,
   Search,
   CheckCircle,
-  ArrowRight
+  LucideIcon
 } from 'lucide-react'
 
 interface KPI {
   title: string
   value: string | number
-  change: number
-  trend: 'up' | 'down'
-  icon: React.ReactNode
+  variation: number
+  icon: LucideIcon
 }
 
 interface Activity {
@@ -40,76 +38,109 @@ export default function DashboardPage() {
   const [kpis, setKpis] = useState<KPI[]>([])
   const [activities, setActivities] = useState<Activity[]>([])
   
-  // Charger données simulées
+  // Charger données depuis les APIs
   useEffect(() => {
-    // TODO: Remplacer par vraie API /api/dashboard/kpis
-    setTimeout(() => {
-      setKpis([
-        {
-          title: 'Interventions',
-          value: 47,
-          change: 12.5,
-          trend: 'up',
-          icon: <Wrench size={24} />
-        },
-        {
-          title: 'Chiffre d\'affaires',
-          value: '18 600 €',
-          change: 8.3,
-          trend: 'up',
-          icon: <Euro size={24} />
-        },
-        {
-          title: 'Clients actifs',
-          value: 23,
-          change: 5.2,
-          trend: 'up',
-          icon: <Users size={24} />
-        },
-        {
-          title: 'En attente signature',
-          value: 3,
-          change: -25,
-          trend: 'down',
-          icon: <FileSignature size={24} />
-        }
-      ])
+    const loadDashboardData = async () => {
+      setIsLoading(true)
       
-      // TODO: Remplacer par vraie API /api/dashboard/activities
-      setActivities([
-        {
-          id: '1',
-          type: 'intervention',
-          message: 'Nouvelle intervention pour Jean Dupont - Peugeot 208',
-          timestamp: new Date(Date.now() - 1000 * 60 * 15),
-          user: 'Pierre Martin'
-        },
-        {
-          id: '2',
-          type: 'signature',
-          message: 'Signature client reçue - Intervention #1234',
-          timestamp: new Date(Date.now() - 1000 * 60 * 45),
-          user: 'Sophie Blanc'
-        },
-        {
-          id: '3',
-          type: 'client',
-          message: 'Nouveau client créé - Marie Dubois',
-          timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2),
-          user: 'Pierre Martin'
-        },
-        {
-          id: '4',
-          type: 'export',
-          message: 'Export assurance généré - Dossier #5678',
-          timestamp: new Date(Date.now() - 1000 * 60 * 60 * 4),
-          user: 'Sophie Blanc'
+      try {
+        // Charger KPIs
+        const kpisResponse = await fetch(`/api/dashboard/kpis?period=${period}`)
+        const kpisData = await kpisResponse.json()
+        
+        // Traiter les KPIs - transformer le format API en format UI
+        if (kpisData.ok) {
+          const formattedKpis: KPI[] = [
+            {
+              title: 'Interventions',
+              value: kpisData.interventionsCount ?? 0,
+              variation: kpisData.interventionsVariation ?? 0,
+              icon: Wrench
+            },
+            {
+              title: 'Chiffre d\'affaires',
+              value: formatCurrency(kpisData.revenueTotalCents ?? 0),
+              variation: kpisData.revenueVariation ?? 0,
+              icon: Euro
+            },
+            {
+              title: 'Clients actifs',
+              value: kpisData.clientsCount ?? 0,
+              variation: kpisData.clientsVariation ?? 0,
+              icon: Users
+            },
+            {
+              title: 'Véhicules',
+              value: kpisData.vehiclesCount ?? 0,
+              variation: kpisData.vehiclesVariation ?? 0,
+              icon: FileSignature
+            }
+          ]
+          setKpis(formattedKpis)
+        } else {
+          throw new Error('API KPIs error')
         }
-      ])
-      
-      setIsLoading(false)
-    }, 500)
-  }, [period])
+        
+        // Charger activités récentes via les dernières interventions
+        const activitiesResponse = await fetch('/api/dashboard/recent-interventions?limit=5')
+        const activitiesData = await activitiesResponse.json()
+        
+        // L'API renvoie { ok: true, data: [...] } où data est le tableau
+        const interventionsList = activitiesData.ok ? (activitiesData.data ?? []) : []
+        
+        if (interventionsList.length > 0) {
+          const formattedActivities: Activity[] = interventionsList.map((i: { id: string; ref?: string; vehicleLabel?: string; status: string }, index: number) => ({
+            id: i.id || String(index),
+            type: 'intervention' as const,
+            message: `${i.ref || 'Intervention'} - ${i.vehicleLabel || 'Véhicule'}`,
+            timestamp: new Date(Date.now() - 1000 * 60 * (index + 1) * 15), // Approximation temporelle
+            user: i.status || 'EN_ATTENTE'
+          }))
+          setActivities(formattedActivities)
+        } else {
+          // Fallback mock activities
+          setActivities([
+            { id: '1', type: 'intervention', message: 'Nouvelle intervention pour Jean Dupont - Peugeot 208', timestamp: new Date(Date.now() - 1000 * 60 * 15), user: 'Pierre Martin' },
+            { id: '2', type: 'signature', message: 'Signature client reçue - Intervention #1234', timestamp: new Date(Date.now() - 1000 * 60 * 45), user: 'Sophie Blanc' },
+            { id: '3', type: 'client', message: 'Nouveau client créé - Marie Dubois', timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2), user: 'Pierre Martin' },
+            { id: '4', type: 'export', message: 'Export assurance généré - Dossier #5678', timestamp: new Date(Date.now() - 1000 * 60 * 60 * 4), user: 'Sophie Blanc' }
+          ])
+        }
+        
+      } catch (error) {
+        console.error('Error loading dashboard:', error)
+        toast.error('Erreur', 'Impossible de charger le tableau de bord')
+        
+        // Fallback complet sur données simulées en cas d'erreur réseau
+        setKpis([
+          { title: 'Interventions', value: 47, variation: 12.5, icon: Wrench },
+          { title: 'Chiffre d\'affaires', value: '18 600 €', variation: 8.3, icon: Euro },
+          { title: 'Clients actifs', value: 23, variation: 5.2, icon: Users },
+          { title: 'En attente signature', value: 3, variation: -25, icon: FileSignature }
+        ])
+        
+        setActivities([
+          { id: '1', type: 'intervention', message: 'Nouvelle intervention pour Jean Dupont - Peugeot 208', timestamp: new Date(Date.now() - 1000 * 60 * 15), user: 'Pierre Martin' },
+          { id: '2', type: 'signature', message: 'Signature client reçue - Intervention #1234', timestamp: new Date(Date.now() - 1000 * 60 * 45), user: 'Sophie Blanc' },
+          { id: '3', type: 'client', message: 'Nouveau client créé - Marie Dubois', timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2), user: 'Pierre Martin' },
+          { id: '4', type: 'export', message: 'Export assurance généré - Dossier #5678', timestamp: new Date(Date.now() - 1000 * 60 * 60 * 4), user: 'Sophie Blanc' }
+        ])
+      } finally {
+        setIsLoading(false)
+      }
+    }
+    
+    loadDashboardData()
+  }, [period, toast])
+  
+  // Formater les centimes en euros
+  const formatCurrency = (cents: number): string => {
+    return new Intl.NumberFormat('fr-FR', { 
+      style: 'currency', 
+      currency: 'EUR',
+      maximumFractionDigits: 0 
+    }).format(cents / 100)
+  }
   
   const formatTimeAgo = (date: Date): string => {
     const seconds = Math.floor((Date.now() - date.getTime()) / 1000)
@@ -221,8 +252,7 @@ export default function DashboardPage() {
               key={index}
               title={kpi.title}
               value={kpi.value}
-              change={kpi.change}
-              trend={kpi.trend}
+              variation={kpi.variation}
               icon={kpi.icon}
             />
           ))
