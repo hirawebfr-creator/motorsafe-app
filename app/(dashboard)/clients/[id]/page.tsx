@@ -110,7 +110,7 @@ export default function ClientDetailPage() {
       const clientData = await clientResponse.json()
       
       if (clientData.ok) {
-        setClient(clientData.client)
+        setClient(clientData.data)
       } else {
         toast.error('Erreur', 'Client introuvable')
         router.push('/clients')
@@ -122,7 +122,7 @@ export default function ClientDetailPage() {
       const vehiclesData = await vehiclesResponse.json()
       
       if (vehiclesData.ok) {
-        setVehicles(vehiclesData.vehicles)
+        setVehicles(vehiclesData.items)
       }
       
       // Charger interventions
@@ -130,7 +130,7 @@ export default function ClientDetailPage() {
       const interventionsData = await interventionsResponse.json()
       
       if (interventionsData.ok) {
-        setInterventions(interventionsData.interventions)
+        setInterventions(interventionsData.items)
       }
       
     } catch (error) {

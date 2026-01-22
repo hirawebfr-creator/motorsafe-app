@@ -114,8 +114,8 @@ export default function VehiculesPage() {
       const response = await fetch('/api/clients')
       const data = await response.json()
       
-      if (data.ok && Array.isArray(data.clients)) {
-        setClients(data.clients.map((c: any) => ({
+      if (data.ok && Array.isArray(data.items)) {
+        setClients(data.items.map((c: any) => ({
           id: c.id,
           name: `${c.firstName} ${c.lastName}`
         })))
@@ -149,8 +149,8 @@ export default function VehiculesPage() {
       const response = await fetch(`/api/vehicules?${params}`)
       const data = await response.json()
       
-      if (data.ok && Array.isArray(data.vehicles)) {
-        setVehicles(data.vehicles)
+      if (data.ok && Array.isArray(data.items)) {
+        setVehicles(data.items)
       } else {
         console.error('Error loading vehicles:', data.error || 'Invalid response format')
         toast.error('Erreur', 'Impossible de charger les véhicules')
