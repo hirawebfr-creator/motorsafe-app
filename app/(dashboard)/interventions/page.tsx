@@ -127,28 +127,47 @@ export default function InterventionsPage() {
   
   const loadClients = async () => {
     try {
-      // TODO: Remplacer par vraie API /api/clients
+      const response = await fetch('/api/clients')
+      const data = await response.json()
+      
+      if (data.ok) {
+        setClients(data.clients.map((c: any) => ({
+          id: c.id,
+          name: `${c.firstName} ${c.lastName}`
+        })))
+      }
+    } catch (error) {
+      console.error('Error loading clients:', error)
+      // Fallback
       setClients([
         { id: '1', name: 'Jean Dupont' },
         { id: '2', name: 'Marie Martin' },
         { id: '3', name: 'Pierre Dubois' }
       ])
-    } catch (error) {
-      toast.error('Erreur', 'Impossible de charger les clients')
     }
   }
   
   const loadVehicles = async () => {
     try {
-      // TODO: Remplacer par vraie API /api/vehicules
+      const response = await fetch('/api/vehicules')
+      const data = await response.json()
+      
+      if (data.ok) {
+        setVehicles(data.vehicles.map((v: any) => ({
+          id: v.id,
+          clientId: v.clientId,
+          info: `${v.make} ${v.model} - ${v.registrationNumber}`
+        })))
+      }
+    } catch (error) {
+      console.error('Error loading vehicles:', error)
+      // Fallback
       setVehicles([
         { id: '1', clientId: '1', info: 'Peugeot 208 - AB-123-CD' },
         { id: '2', clientId: '1', info: 'Renault Clio - EF-456-GH' },
         { id: '3', clientId: '2', info: 'Citroën C3 - IJ-789-KL' },
         { id: '4', clientId: '3', info: 'Tesla Model 3 - MN-012-OP' }
       ])
-    } catch (error) {
-      toast.error('Erreur', 'Impossible de charger les véhicules')
     }
   }
   
@@ -156,7 +175,29 @@ export default function InterventionsPage() {
     setIsLoading(true)
     
     try {
-      // TODO: Remplacer par vraie API /api/interventions
+      const params = new URLSearchParams({
+        search: searchQuery,
+        status: statusFilter === 'all' ? '' : statusFilter,
+        clientId: clientFilter === 'all' ? '' : clientFilter,
+        page: '1',
+        limit: '100'
+      })
+      
+      const response = await fetch(`/api/interventions?${params}`)
+      const data = await response.json()
+      
+      if (data.ok) {
+        setInterventions(data.interventions)
+      } else {
+        console.error('Error loading interventions:', data.error)
+        toast.error('Erreur', 'Impossible de charger les interventions')
+      }
+      
+    } catch (error) {
+      console.error('Error loading interventions:', error)
+      toast.error('Erreur', 'Impossible de se connecter au serveur')
+      
+      // Fallback sur données simulées
       const mockInterventions: Intervention[] = [
         {
           id: '1',
@@ -247,8 +288,7 @@ export default function InterventionsPage() {
       }
       
       setInterventions(filtered)
-    } catch (error) {
-      toast.error('Erreur', 'Impossible de charger les interventions')
+      
     } finally {
       setIsLoading(false)
     }
@@ -310,15 +350,39 @@ export default function InterventionsPage() {
     setIsSaving(true)
     
     try {
-      // TODO: Remplacer par vraie API
-      toast.success(
-        editingIntervention ? 'Intervention modifiée' : 'Intervention créée',
-        'Les modifications ont été enregistrées'
-      )
-      setIsModalOpen(false)
-      loadInterventions()
+      const url = editingIntervention 
+        ? `/api/interventions/${editingIntervention.id}`
+        : '/api/interventions'
+      
+      const method = editingIntervention ? 'PATCH' : 'POST'
+      
+      const payload = {
+        ...formData,
+        mileage: parseInt(formData.mileage)
+      }
+      
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      
+      const data = await response.json()
+      
+      if (data.ok) {
+        toast.success(
+          editingIntervention ? 'Intervention modifiée' : 'Intervention créée',
+          'Les modifications ont été enregistrées'
+        )
+        setIsModalOpen(false)
+        loadInterventions()
+      } else {
+        toast.error('Erreur', data.error || 'Impossible de sauvegarder l\'intervention')
+      }
+      
     } catch (error) {
-      toast.error('Erreur', 'Impossible de sauvegarder l\'intervention')
+      console.error('Error saving intervention:', error)
+      toast.error('Erreur', 'Impossible de se connecter au serveur')
     } finally {
       setIsSaving(false)
     }
@@ -365,13 +429,29 @@ export default function InterventionsPage() {
     setIsChangingStatus(true)
     
     try {
-      // TODO: Remplacer par vraie API
-      toast.success('Statut modifié', `L'intervention est maintenant ${getStatusLabel(newStatus)}`)
-      setIsStatusModalOpen(false)
-      setStatusChangeIntervention(null)
-      loadInterventions()
+      const response = await fetch(`/api/interventions/${statusChangeIntervention.id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: newStatus,
+          comment: statusComment
+        })
+      })
+      
+      const data = await response.json()
+      
+      if (data.ok) {
+        toast.success('Statut modifié', `L'intervention est maintenant ${getStatusLabel(newStatus)}`)
+        setIsStatusModalOpen(false)
+        setStatusChangeIntervention(null)
+        loadInterventions()
+      } else {
+        toast.error('Erreur', data.error || 'Impossible de changer le statut')
+      }
+      
     } catch (error) {
-      toast.error('Erreur', 'Impossible de changer le statut')
+      console.error('Error changing status:', error)
+      toast.error('Erreur', 'Impossible de se connecter au serveur')
     } finally {
       setIsChangingStatus(false)
     }
@@ -388,13 +468,24 @@ export default function InterventionsPage() {
     setIsDeleting(true)
     
     try {
-      // TODO: Remplacer par vraie API
-      toast.success('Intervention supprimée', 'L\'intervention a été supprimée avec succès')
-      setDeleteModalOpen(false)
-      setInterventionToDelete(null)
-      loadInterventions()
+      const response = await fetch(`/api/interventions/${interventionToDelete.id}`, {
+        method: 'DELETE'
+      })
+      
+      const data = await response.json()
+      
+      if (data.ok) {
+        toast.success('Intervention supprimée', 'L\'intervention a été supprimée avec succès')
+        setDeleteModalOpen(false)
+        setInterventionToDelete(null)
+        loadInterventions()
+      } else {
+        toast.error('Erreur', data.error || 'Impossible de supprimer l\'intervention')
+      }
+      
     } catch (error) {
-      toast.error('Erreur', 'Impossible de supprimer l\'intervention')
+      console.error('Error deleting intervention:', error)
+      toast.error('Erreur', 'Impossible de se connecter au serveur')
     } finally {
       setIsDeleting(false)
     }
