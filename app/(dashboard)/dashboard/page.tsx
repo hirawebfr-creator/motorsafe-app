@@ -266,6 +266,7 @@ export default function DashboardPage() {
         gap: '20px',
         marginBottom: '32px'
       }}>
+        {/* TODO: Connecter à GET /api/dashboard/analytics?period=${period} */}
         {/* Interventions par statut */}
         <div style={{
           backgroundColor: '#FFFFFF',
@@ -310,6 +311,7 @@ export default function DashboardPage() {
           </div>
         </div>
         
+        {/* TODO: Connecter à GET /api/dashboard/analytics?period=${period} */}
         {/* CA mensuel */}
         <div style={{
           backgroundColor: '#FFFFFF',
