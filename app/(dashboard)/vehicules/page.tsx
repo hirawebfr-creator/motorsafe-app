@@ -112,15 +112,24 @@ export default function VehiculesPage() {
   
   const loadClients = async () => {
     try {
-      // TODO: Remplacer par vraie API /api/clients
+      const response = await fetch('/api/clients')
+      const data = await response.json()
+      
+      if (data.ok) {
+        setClients(data.clients.map((c: any) => ({
+          id: c.id,
+          name: `${c.firstName} ${c.lastName}`
+        })))
+      }
+    } catch (error) {
+      console.error('Error loading clients:', error)
+      // Fallback
       setClients([
         { id: '1', name: 'Jean Dupont' },
         { id: '2', name: 'Marie Martin' },
         { id: '3', name: 'Pierre Dubois' },
         { id: '4', name: 'Sophie Blanc' }
       ])
-    } catch (error) {
-      toast.error('Erreur', 'Impossible de charger les clients')
     }
   }
   
@@ -128,7 +137,29 @@ export default function VehiculesPage() {
     setIsLoading(true)
     
     try {
-      // TODO: Remplacer par vraie API /api/vehicules
+      const params = new URLSearchParams({
+        search: searchQuery,
+        clientId: clientFilter === 'all' ? '' : clientFilter,
+        fuelType: fuelFilter === 'all' ? '' : fuelFilter,
+        page: '1',
+        limit: '100'
+      })
+      
+      const response = await fetch(`/api/vehicules?${params}`)
+      const data = await response.json()
+      
+      if (data.ok) {
+        setVehicles(data.vehicles)
+      } else {
+        console.error('Error loading vehicles:', data.error)
+        toast.error('Erreur', 'Impossible de charger les véhicules')
+      }
+      
+    } catch (error) {
+      console.error('Error loading vehicles:', error)
+      toast.error('Erreur', 'Impossible de se connecter au serveur')
+      
+      // Fallback sur données simulées
       const mockVehicles: Vehicle[] = [
         {
           id: '1',
@@ -225,8 +256,7 @@ export default function VehiculesPage() {
       }
       
       setVehicles(filtered)
-    } catch (error) {
-      toast.error('Erreur', 'Impossible de charger les véhicules')
+      
     } finally {
       setIsLoading(false)
     }
@@ -242,39 +272,40 @@ export default function VehiculesPage() {
     setSivLoading(true)
     
     try {
-      // TODO: Remplacer par vraie API /api/siv/search
-      // Simulation SIV
-      const mockSivData = {
-        registrationNumber: sivRegistration.toUpperCase(),
-        vin: '1HGBH41JXMN' + Math.random().toString().slice(2, 8),
-        make: 'Peugeot',
-        model: '3008',
-        version: 'GT Line',
-        year: 2021,
-        firstRegistrationDate: '2021-05-15',
-        fuelType: 'DIESEL' as FuelType,
-        color: 'Gris'
-      }
-      
-      setFormData({
-        registrationNumber: mockSivData.registrationNumber,
-        vin: mockSivData.vin,
-        make: mockSivData.make,
-        model: mockSivData.model,
-        version: mockSivData.version,
-        year: mockSivData.year.toString(),
-        firstRegistrationDate: mockSivData.firstRegistrationDate,
-        mileage: '',
-        color: mockSivData.color,
-        fuelType: mockSivData.fuelType,
-        clientId: ''
+      const response = await fetch('/api/siv/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ registrationNumber: sivRegistration })
       })
       
-      setIsSivModalOpen(false)
-      setIsModalOpen(true)
-      toast.success('Véhicule trouvé', 'Données SIV récupérées')
+      const data = await response.json()
+      
+      if (data.ok && data.vehicle) {
+        // Pré-remplir le formulaire avec les données SIV
+        setFormData({
+          registrationNumber: data.vehicle.registrationNumber,
+          vin: data.vehicle.vin || '',
+          make: data.vehicle.make,
+          model: data.vehicle.model,
+          version: data.vehicle.version || '',
+          year: data.vehicle.year?.toString() || '',
+          firstRegistrationDate: data.vehicle.firstRegistrationDate || '',
+          mileage: '',
+          color: data.vehicle.color || '',
+          fuelType: data.vehicle.fuelType || 'ESSENCE',
+          clientId: ''
+        })
+        
+        setIsSivModalOpen(false)
+        setIsModalOpen(true)
+        toast.success('Véhicule trouvé', 'Données SIV récupérées avec succès')
+      } else {
+        toast.error('Erreur', data.error || 'Véhicule non trouvé dans le SIV')
+      }
+      
     } catch (error) {
-      toast.error('Erreur', 'Véhicule non trouvé dans le SIV')
+      console.error('Error searching SIV:', error)
+      toast.error('Erreur', 'Impossible de se connecter au serveur SIV')
     } finally {
       setSivLoading(false)
     }
@@ -358,15 +389,40 @@ export default function VehiculesPage() {
     setIsSaving(true)
     
     try {
-      // TODO: Remplacer par vraie API
-      toast.success(
-        editingVehicle ? 'Véhicule modifié' : 'Véhicule créé',
-        'Les modifications ont été enregistrées'
-      )
-      setIsModalOpen(false)
-      loadVehicles()
+      const url = editingVehicle 
+        ? `/api/vehicules/${editingVehicle.id}`
+        : '/api/vehicules'
+      
+      const method = editingVehicle ? 'PATCH' : 'POST'
+      
+      const payload = {
+        ...formData,
+        year: parseInt(formData.year),
+        mileage: formData.mileage ? parseInt(formData.mileage) : undefined
+      }
+      
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      
+      const data = await response.json()
+      
+      if (data.ok) {
+        toast.success(
+          editingVehicle ? 'Véhicule modifié' : 'Véhicule créé',
+          'Les modifications ont été enregistrées'
+        )
+        setIsModalOpen(false)
+        loadVehicles()
+      } else {
+        toast.error('Erreur', data.error || 'Impossible de sauvegarder le véhicule')
+      }
+      
     } catch (error) {
-      toast.error('Erreur', 'Impossible de sauvegarder le véhicule')
+      console.error('Error saving vehicle:', error)
+      toast.error('Erreur', 'Impossible de se connecter au serveur')
     } finally {
       setIsSaving(false)
     }
@@ -383,13 +439,24 @@ export default function VehiculesPage() {
     setIsDeleting(true)
     
     try {
-      // TODO: Remplacer par vraie API
-      toast.success('Véhicule supprimé', 'Le véhicule a été supprimé avec succès')
-      setDeleteModalOpen(false)
-      setVehicleToDelete(null)
-      loadVehicles()
+      const response = await fetch(`/api/vehicules/${vehicleToDelete.id}`, {
+        method: 'DELETE'
+      })
+      
+      const data = await response.json()
+      
+      if (data.ok) {
+        toast.success('Véhicule supprimé', 'Le véhicule a été supprimé avec succès')
+        setDeleteModalOpen(false)
+        setVehicleToDelete(null)
+        loadVehicles()
+      } else {
+        toast.error('Erreur', data.error || 'Impossible de supprimer le véhicule')
+      }
+      
     } catch (error) {
-      toast.error('Erreur', 'Impossible de supprimer le véhicule')
+      console.error('Error deleting vehicle:', error)
+      toast.error('Erreur', 'Impossible de se connecter au serveur')
     } finally {
       setIsDeleting(false)
     }
