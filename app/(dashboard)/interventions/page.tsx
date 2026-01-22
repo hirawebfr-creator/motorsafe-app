@@ -1,349 +1,939 @@
-"use client";
+'use client'
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
-import {
-  FileText,
-  Pencil,
-  Plus,
-  Trash2,
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
+import { DataTableInline } from '@/components/shared/data-table-inline'
+import { FormField } from '@/components/shared/form-field'
+import { Textarea } from '@/components/shared/textarea'
+import { Button } from '@/components/shared/button'
+import { Modal } from '@/components/shared/modal'
+import { Badge } from '@/components/shared/badge'
+import { SearchInput } from '@/components/shared/search-input'
+import { Select } from '@/components/shared/select'
+import { DropdownMenu } from '@/components/shared/dropdown-menu'
+import { useToast } from '@/components/shared/use-toast'
+import { 
   Wrench,
-  TrendingUp,
-  Calendar,
-} from "lucide-react";
-import { PageHeader } from "@/components/shared/page-header";
-import { EmptyState } from "@/components/shared/empty-state";
-import { SearchInput } from "@/components/shared/search-input";
-import { StatCard } from "@/components/dashboard/stat-card";
+  Plus,
+  MoreVertical,
+  Eye,
+  Edit,
+  Trash2,
+  CheckCircle,
+  XCircle,
+  Clock,
+  PlayCircle,
+  FileSignature,
+  User,
+  Car
+} from 'lucide-react'
 
-type VehicleOption = {
-  id: string;
-  plate: string;
-  brand: string;
-  model: string;
-  client: { firstName: string; lastName: string };
-};
+type InterventionStatus = 'EN_ATTENTE' | 'EN_COURS' | 'TERMINE' | 'ANNULE'
 
-type InterventionItem = {
-  id: string;
-  type: string;
-  createdAt: string;
-  performedAt?: string | null;
-  vehicle: VehicleOption;
-};
-
-function isRecord(x: unknown): x is Record<string, unknown> {
-  return typeof x === "object" && x !== null && !Array.isArray(x);
+interface Intervention {
+  id: string
+  number: string
+  clientId: string
+  clientName: string
+  vehicleId: string
+  vehicleInfo: string
+  entryDate: Date
+  exitDate?: Date
+  status: InterventionStatus
+  description: string
+  mileage: number
+  amount?: number
+  isClientSigned: boolean
+  isGarageSigned: boolean
+  signedAt?: Date
+  createdAt: Date
+  updatedAt: Date
 }
 
-function unwrapOk(json: unknown): unknown {
-  if (isRecord(json) && json.ok === true && "data" in json) return json.data;
-  return json;
+interface InterventionFormData {
+  clientId: string
+  vehicleId: string
+  entryDate: string
+  mileage: string
+  description: string
 }
 
-function pickArray(json: unknown): unknown[] {
-  const data = unwrapOk(json);
-  if (Array.isArray(data)) return data;
-  if (isRecord(data) && Array.isArray(data.items)) return data.items;
-  if (isRecord(data) && Array.isArray(data.data)) return data.data;
-  return [];
+interface Client {
+  id: string
+  name: string
 }
 
-function fmtDate(input?: string | null) {
-  if (!input) return "—";
-  const d = new Date(input);
-  if (Number.isNaN(d.getTime())) return "—";
-  return new Intl.DateTimeFormat("fr-FR", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(d);
+interface Vehicle {
+  id: string
+  clientId: string
+  info: string
 }
-
-const TYPE_CONFIG: Record<string, { bg: string; text: string; label: string }> = {
-  E85: { bg: "var(--ms-success-light)", text: "var(--ms-success)", label: "E85" },
-  Reprog: { bg: "var(--ms-primary-light)", text: "var(--ms-primary)", label: "Reprog" },
-  Diag: { bg: "var(--ms-warning-light)", text: "#B45309", label: "Diagnostic" },
-  Autre: { bg: "var(--ms-bg-subtle)", text: "var(--ms-text-secondary)", label: "Autre" },
-};
 
 export default function InterventionsPage() {
-  const [q, setQ] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [items, setItems] = useState<InterventionItem[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-
-  const debounceRef = useRef<number | null>(null);
-
-  async function load(search: string) {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const url = new URL("/api/interventions", window.location.origin);
-      url.searchParams.set("page", "1");
-      url.searchParams.set("pageSize", "100");
-      if (search.trim()) url.searchParams.set("q", search.trim());
-
-      const res = await fetch(url.toString(), { cache: "no-store" });
-      const json = await res.json().catch(() => null);
-      if (!res.ok) {
-        const message =
-          json?.error?.message || json?.error || `GET /api/interventions ${res.status}`;
-        throw new Error(message);
+  const router = useRouter()
+  const toast = useToast()
+  
+  const [interventions, setInterventions] = useState<Intervention[]>([])
+  const [clients, setClients] = useState<Client[]>([])
+  const [vehicles, setVehicles] = useState<Vehicle[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  
+  const [searchQuery, setSearchQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [clientFilter, setClientFilter] = useState<string>('all')
+  
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [editingIntervention, setEditingIntervention] = useState<Intervention | null>(null)
+  const [formData, setFormData] = useState<InterventionFormData>({
+    clientId: '',
+    vehicleId: '',
+    entryDate: new Date().toISOString().split('T')[0],
+    mileage: '',
+    description: ''
+  })
+  const [formErrors, setFormErrors] = useState<Partial<Record<keyof InterventionFormData, string>>>({})
+  const [isSaving, setIsSaving] = useState(false)
+  
+  const [clientVehicles, setClientVehicles] = useState<Vehicle[]>([])
+  
+  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false)
+  const [statusChangeIntervention, setStatusChangeIntervention] = useState<Intervention | null>(null)
+  const [newStatus, setNewStatus] = useState<InterventionStatus>('EN_ATTENTE')
+  const [statusComment, setStatusComment] = useState('')
+  const [isChangingStatus, setIsChangingStatus] = useState(false)
+  
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [interventionToDelete, setInterventionToDelete] = useState<Intervention | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+  
+  useEffect(() => {
+    loadInterventions()
+    loadClients()
+    loadVehicles()
+  }, [searchQuery, statusFilter, clientFilter])
+  
+  useEffect(() => {
+    if (formData.clientId) {
+      const filtered = vehicles.filter(v => v.clientId === formData.clientId)
+      setClientVehicles(filtered)
+      
+      if (formData.vehicleId && !filtered.find(v => v.id === formData.vehicleId)) {
+        setFormData(prev => ({ ...prev, vehicleId: '' }))
       }
-
-      setItems(pickArray(json) as InterventionItem[]);
-    } catch (e) {
-      setItems([]);
-      setError(e instanceof Error ? e.message : "Erreur inconnue");
-    } finally {
-      setLoading(false);
+    } else {
+      setClientVehicles([])
+    }
+  }, [formData.clientId, vehicles])
+  
+  const loadClients = async () => {
+    try {
+      // TODO: Remplacer par vraie API /api/clients
+      setClients([
+        { id: '1', name: 'Jean Dupont' },
+        { id: '2', name: 'Marie Martin' },
+        { id: '3', name: 'Pierre Dubois' }
+      ])
+    } catch (error) {
+      toast.error('Erreur', 'Impossible de charger les clients')
     }
   }
-
-  useEffect(() => {
-    void load("");
-  }, []);
-
-  useEffect(() => {
-    if (debounceRef.current) window.clearTimeout(debounceRef.current);
-    debounceRef.current = window.setTimeout(() => {
-      void load(q);
-    }, 300);
-
-    return () => {
-      if (debounceRef.current) window.clearTimeout(debounceRef.current);
-    };
-  }, [q]);
-
-  async function onDelete(id: string) {
-    const ok = window.confirm(
-      "Supprimer cette intervention ? Cette action est irréversible."
-    );
-    if (!ok) return;
-
+  
+  const loadVehicles = async () => {
     try {
-      setDeletingId(id);
-      const res = await fetch(`/api/interventions/${id}`, { method: "DELETE" });
-      const json = await res.json().catch(() => null);
-      if (!res.ok) {
-        const message =
-          json?.error?.message ||
-          json?.error ||
-          `DELETE /api/interventions/${id} ${res.status}`;
-        throw new Error(message);
-      }
-      await load(q);
-    } catch (e) {
-      alert(e instanceof Error ? e.message : "Erreur suppression");
-    } finally {
-      setDeletingId(null);
+      // TODO: Remplacer par vraie API /api/vehicules
+      setVehicles([
+        { id: '1', clientId: '1', info: 'Peugeot 208 - AB-123-CD' },
+        { id: '2', clientId: '1', info: 'Renault Clio - EF-456-GH' },
+        { id: '3', clientId: '2', info: 'Citroën C3 - IJ-789-KL' },
+        { id: '4', clientId: '3', info: 'Tesla Model 3 - MN-012-OP' }
+      ])
+    } catch (error) {
+      toast.error('Erreur', 'Impossible de charger les véhicules')
     }
   }
-
-  const rows = useMemo(() => items ?? [], [items]);
-
-  // Stats
-  const stats = useMemo(() => {
-    const total = rows.length;
-    const thisMonth = rows.filter((r) => {
-      const d = new Date(r.createdAt);
-      const now = new Date();
-      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-    }).length;
-    const types = rows.reduce((acc, r) => {
-      acc[r.type] = (acc[r.type] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
-    const topType = Object.entries(types).sort((a, b) => b[1] - a[1])[0];
-    return { total, thisMonth, topType: topType?.[0] || "—" };
-  }, [rows]);
-
-  return (
-    <div className="ms-animate-slide-up">
-      {/* Page Header */}
-      <PageHeader
-        title="Interventions"
-        subtitle="Gérez toutes vos interventions et dossiers techniques"
-        breadcrumbs={[
-          { label: "Dashboard", href: "/dashboard" },
-          { label: "Interventions" },
-        ]}
-        action={
-          <div className="flex items-center gap-3">
-            <SearchInput
-              value={q}
-              onChange={setQ}
-              placeholder="Rechercher une intervention..."
-              className="w-64"
-            />
-            <Link href="/interventions/nouveau" className="ms-btn ms-btn-primary">
-              <Plus size={18} />
-              Nouvelle intervention
-            </Link>
-          </div>
+  
+  const loadInterventions = async () => {
+    setIsLoading(true)
+    
+    try {
+      // TODO: Remplacer par vraie API /api/interventions
+      const mockInterventions: Intervention[] = [
+        {
+          id: '1',
+          number: 'INT-2024-001',
+          clientId: '1',
+          clientName: 'Jean Dupont',
+          vehicleId: '1',
+          vehicleInfo: 'Peugeot 208 - AB-123-CD',
+          entryDate: new Date('2024-01-15'),
+          status: 'TERMINE',
+          description: 'Révision 20 000 km + changement plaquettes',
+          mileage: 20000,
+          amount: 450.00,
+          isClientSigned: true,
+          isGarageSigned: true,
+          signedAt: new Date('2024-01-16'),
+          createdAt: new Date('2024-01-15'),
+          updatedAt: new Date('2024-01-16')
+        },
+        {
+          id: '2',
+          number: 'INT-2024-002',
+          clientId: '2',
+          clientName: 'Marie Martin',
+          vehicleId: '3',
+          vehicleInfo: 'Citroën C3 - IJ-789-KL',
+          entryDate: new Date('2024-01-20'),
+          status: 'EN_COURS',
+          description: 'Diagnostic électronique + réparation essuie-glaces',
+          mileage: 35000,
+          isClientSigned: true,
+          isGarageSigned: false,
+          createdAt: new Date('2024-01-20'),
+          updatedAt: new Date('2024-01-20')
+        },
+        {
+          id: '3',
+          number: 'INT-2024-003',
+          clientId: '1',
+          clientName: 'Jean Dupont',
+          vehicleId: '2',
+          vehicleInfo: 'Renault Clio - EF-456-GH',
+          entryDate: new Date('2024-01-22'),
+          status: 'EN_ATTENTE',
+          description: 'Contrôle technique + réparations éventuelles',
+          mileage: 62000,
+          isClientSigned: false,
+          isGarageSigned: false,
+          createdAt: new Date('2024-01-22'),
+          updatedAt: new Date('2024-01-22')
+        },
+        {
+          id: '4',
+          number: 'INT-2024-004',
+          clientId: '3',
+          clientName: 'Pierre Dubois',
+          vehicleId: '4',
+          vehicleInfo: 'Tesla Model 3 - MN-012-OP',
+          entryDate: new Date('2024-01-10'),
+          exitDate: new Date('2024-01-11'),
+          status: 'ANNULE',
+          description: 'Révision annuelle',
+          mileage: 15000,
+          isClientSigned: false,
+          isGarageSigned: false,
+          createdAt: new Date('2024-01-10'),
+          updatedAt: new Date('2024-01-11')
         }
-      />
-
-      {/* Stats Cards */}
-      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <StatCard
-          label="Total interventions"
-          value={loading ? "—" : stats.total}
-          icon={Wrench}
-          iconGradient="from-[var(--ms-primary)] to-[#8B5CF6]"
-          loading={loading}
-          delay={1}
-        />
-        <StatCard
-          label="Ce mois-ci"
-          value={loading ? "—" : stats.thisMonth}
-          icon={TrendingUp}
-          iconGradient="from-[var(--ms-success)] to-[#34D399]"
-          trend={!loading && stats.thisMonth > 0 ? { direction: "up", label: `+${stats.thisMonth} ce mois` } : undefined}
-          loading={loading}
-          delay={2}
-        />
-        <StatCard
-          label="Type principal"
-          value={loading ? "—" : stats.topType}
-          icon={Calendar}
-          iconGradient="from-[#F59E0B] to-[#EAB308]"
-          loading={loading}
-          delay={3}
-        />
-      </div>
-
-      {/* Error Alert */}
-      {error && (
-        <div className="ms-alert ms-alert-error mb-6">
-          <span>{error}</span>
+      ]
+      
+      let filtered = mockInterventions
+      
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase()
+        filtered = filtered.filter(i => 
+          i.number.toLowerCase().includes(query) ||
+          i.clientName.toLowerCase().includes(query) ||
+          i.vehicleInfo.toLowerCase().includes(query)
+        )
+      }
+      
+      if (statusFilter !== 'all') {
+        filtered = filtered.filter(i => i.status === statusFilter)
+      }
+      
+      if (clientFilter !== 'all') {
+        filtered = filtered.filter(i => i.clientId === clientFilter)
+      }
+      
+      setInterventions(filtered)
+    } catch (error) {
+      toast.error('Erreur', 'Impossible de charger les interventions')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+  
+  const validateForm = (): boolean => {
+    const errors: Partial<Record<keyof InterventionFormData, string>> = {}
+    
+    if (!formData.clientId) errors.clientId = 'Le client est requis'
+    if (!formData.vehicleId) errors.vehicleId = 'Le véhicule est requis'
+    if (!formData.entryDate) errors.entryDate = 'La date d\'entrée est requise'
+    
+    if (!formData.mileage) {
+      errors.mileage = 'Le kilométrage est requis'
+    } else if (parseInt(formData.mileage) < 0) {
+      errors.mileage = 'Le kilométrage ne peut pas être négatif'
+    }
+    
+    if (!formData.description.trim()) {
+      errors.description = 'La description est requise'
+    }
+    
+    setFormErrors(errors)
+    return Object.keys(errors).length === 0
+  }
+  
+  const handleCreate = () => {
+    setEditingIntervention(null)
+    setFormData({
+      clientId: '',
+      vehicleId: '',
+      entryDate: new Date().toISOString().split('T')[0],
+      mileage: '',
+      description: ''
+    })
+    setFormErrors({})
+    setIsModalOpen(true)
+  }
+  
+  const handleEdit = (intervention: Intervention) => {
+    setEditingIntervention(intervention)
+    setFormData({
+      clientId: intervention.clientId,
+      vehicleId: intervention.vehicleId,
+      entryDate: intervention.entryDate.toISOString().split('T')[0],
+      mileage: intervention.mileage.toString(),
+      description: intervention.description
+    })
+    setFormErrors({})
+    setIsModalOpen(true)
+  }
+  
+  const handleSave = async () => {
+    if (!validateForm()) {
+      toast.error('Erreur', 'Veuillez corriger les erreurs du formulaire')
+      return
+    }
+    
+    setIsSaving(true)
+    
+    try {
+      // TODO: Remplacer par vraie API
+      toast.success(
+        editingIntervention ? 'Intervention modifiée' : 'Intervention créée',
+        'Les modifications ont été enregistrées'
+      )
+      setIsModalOpen(false)
+      loadInterventions()
+    } catch (error) {
+      toast.error('Erreur', 'Impossible de sauvegarder l\'intervention')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+  
+  const handleStatusChangeClick = (intervention: Intervention) => {
+    setStatusChangeIntervention(intervention)
+    
+    const nextStatus = getNextStatus(intervention.status)
+    setNewStatus(nextStatus)
+    
+    setStatusComment('')
+    setIsStatusModalOpen(true)
+  }
+  
+  const getNextStatus = (currentStatus: InterventionStatus): InterventionStatus => {
+    switch (currentStatus) {
+      case 'EN_ATTENTE': return 'EN_COURS'
+      case 'EN_COURS': return 'TERMINE'
+      case 'TERMINE': return 'TERMINE'
+      case 'ANNULE': return 'ANNULE'
+      default: return 'EN_ATTENTE'
+    }
+  }
+  
+  const getAvailableStatuses = (currentStatus: InterventionStatus): InterventionStatus[] => {
+    switch (currentStatus) {
+      case 'EN_ATTENTE':
+        return ['EN_ATTENTE', 'EN_COURS', 'ANNULE']
+      case 'EN_COURS':
+        return ['EN_COURS', 'TERMINE', 'ANNULE']
+      case 'TERMINE':
+        return ['TERMINE']
+      case 'ANNULE':
+        return ['ANNULE']
+      default:
+        return []
+    }
+  }
+  
+  const handleStatusChange = async () => {
+    if (!statusChangeIntervention) return
+    
+    setIsChangingStatus(true)
+    
+    try {
+      // TODO: Remplacer par vraie API
+      toast.success('Statut modifié', `L'intervention est maintenant ${getStatusLabel(newStatus)}`)
+      setIsStatusModalOpen(false)
+      setStatusChangeIntervention(null)
+      loadInterventions()
+    } catch (error) {
+      toast.error('Erreur', 'Impossible de changer le statut')
+    } finally {
+      setIsChangingStatus(false)
+    }
+  }
+  
+  const handleDeleteClick = (intervention: Intervention) => {
+    setInterventionToDelete(intervention)
+    setDeleteModalOpen(true)
+  }
+  
+  const handleDeleteConfirm = async () => {
+    if (!interventionToDelete) return
+    
+    setIsDeleting(true)
+    
+    try {
+      // TODO: Remplacer par vraie API
+      toast.success('Intervention supprimée', 'L\'intervention a été supprimée avec succès')
+      setDeleteModalOpen(false)
+      setInterventionToDelete(null)
+      loadInterventions()
+    } catch (error) {
+      toast.error('Erreur', 'Impossible de supprimer l\'intervention')
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+  
+  const getStatusLabel = (status: InterventionStatus): string => {
+    const labels = {
+      EN_ATTENTE: 'En attente',
+      EN_COURS: 'En cours',
+      TERMINE: 'Terminée',
+      ANNULE: 'Annulée'
+    }
+    return labels[status]
+  }
+  
+  const getStatusBadgeVariant = (status: InterventionStatus) => {
+    const variants = {
+      EN_ATTENTE: 'warning',
+      EN_COURS: 'info',
+      TERMINE: 'success',
+      ANNULE: 'error'
+    }
+    return variants[status] as any
+  }
+  
+  const getStatusIcon = (status: InterventionStatus) => {
+    const icons = {
+      EN_ATTENTE: <Clock size={16} />,
+      EN_COURS: <PlayCircle size={16} />,
+      TERMINE: <CheckCircle size={16} />,
+      ANNULE: <XCircle size={16} />
+    }
+    return icons[status]
+  }
+  
+  const formatCurrency = (amount?: number): string => {
+    if (!amount) return '-'
+    return new Intl.NumberFormat('fr-FR', {
+      style: 'currency',
+      currency: 'EUR'
+    }).format(amount)
+  }
+  
+  const columns = [
+    {
+      key: 'number',
+      label: 'Numéro',
+      sortable: true,
+      render: (intervention: Intervention) => (
+        <div>
+          <div style={{
+            fontFamily: 'monospace',
+            fontSize: '14px',
+            fontWeight: 600,
+            color: '#111827'
+          }}>
+            {intervention.number}
+          </div>
+          <div style={{ 
+            fontSize: '12px', 
+            color: '#9CA3AF',
+            marginTop: '2px'
+          }}>
+            {new Date(intervention.entryDate).toLocaleDateString('fr-FR')}
+          </div>
         </div>
-      )}
-
-      {/* Table */}
-      <div className="ms-table-container">
-        <div
-          className="ms-table-header"
-          style={{ gridTemplateColumns: "1.2fr 1.5fr 1.2fr 100px 120px 100px" }}
+      )
+    },
+    {
+      key: 'client',
+      label: 'Client & Véhicule',
+      sortable: true,
+      render: (intervention: Intervention) => (
+        <div>
+          <div style={{ 
+            fontSize: '14px', 
+            fontWeight: 500, 
+            color: '#111827',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            marginBottom: '4px'
+          }}>
+            <User size={14} />
+            {intervention.clientName}
+          </div>
+          <div style={{ 
+            fontSize: '12px', 
+            color: '#6B7280',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px'
+          }}>
+            <Car size={12} />
+            {intervention.vehicleInfo}
+          </div>
+        </div>
+      )
+    },
+    {
+      key: 'status',
+      label: 'Statut',
+      sortable: true,
+      render: (intervention: Intervention) => (
+        <Badge 
+          variant={getStatusBadgeVariant(intervention.status)}
+          leftIcon={getStatusIcon(intervention.status)}
         >
-          <div>Immatriculation</div>
-          <div>Véhicule</div>
-          <div>Client</div>
-          <div>Type</div>
-          <div>Date</div>
-          <div className="text-right">Actions</div>
+          {getStatusLabel(intervention.status)}
+        </Badge>
+      )
+    },
+    {
+      key: 'description',
+      label: 'Description',
+      sortable: false,
+      render: (intervention: Intervention) => (
+        <div style={{
+          fontSize: '13px',
+          color: '#6B7280',
+          maxWidth: '300px',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap'
+        }}>
+          {intervention.description}
         </div>
-
-        <div className="max-h-[calc(100vh-420px)] overflow-y-auto">
-          {loading ? (
-            <div className="space-y-2 p-4">
-              {[...Array(5)].map((_, i) => (
-                <div key={i} className="ms-skeleton h-16 w-full" />
-              ))}
-            </div>
-          ) : rows.length === 0 ? (
-            <EmptyState
-              icon={Wrench}
-              title="Aucune intervention"
-              description="Créez votre première intervention pour commencer à suivre vos dossiers."
-              action={{
-                label: "Créer une intervention",
-                href: "/interventions/nouveau",
+      )
+    },
+    {
+      key: 'amount',
+      label: 'Montant',
+      sortable: true,
+      render: (intervention: Intervention) => (
+        <div style={{
+          fontSize: '14px',
+          fontWeight: 600,
+          color: intervention.amount ? '#111827' : '#9CA3AF'
+        }}>
+          {formatCurrency(intervention.amount)}
+        </div>
+      )
+    },
+    {
+      key: 'signatures',
+      label: 'Signatures',
+      sortable: false,
+      render: (intervention: Intervention) => (
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+          <Badge 
+            variant={intervention.isClientSigned ? 'success' : 'neutral'}
+            size="sm"
+            title="Signature client"
+          >
+            {intervention.isClientSigned ? '✓' : '○'} Client
+          </Badge>
+          <Badge 
+            variant={intervention.isGarageSigned ? 'success' : 'neutral'}
+            size="sm"
+            title="Signature atelier"
+          >
+            {intervention.isGarageSigned ? '✓' : '○'} Atelier
+          </Badge>
+        </div>
+      )
+    },
+    {
+      key: 'actions',
+      label: 'Actions',
+      sortable: false,
+      render: (intervention: Intervention) => (
+        <DropdownMenu
+          trigger={
+            <button
+              style={{
+                padding: '6px',
+                backgroundColor: 'transparent',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                color: '#6B7280',
+                transition: 'all 0.15s ease'
               }}
-            />
-          ) : (
-            rows.map((item, idx) => {
-              const plate = item.vehicle?.plate || "—";
-              const brandModel =
-                `${item.vehicle?.brand ?? ""} ${item.vehicle?.model ?? ""}`.trim() ||
-                "—";
-              const clientName = item.vehicle?.client
-                ? `${item.vehicle.client.firstName} ${item.vehicle.client.lastName}`
-                : "—";
-              const typeConfig = TYPE_CONFIG[item.type] || TYPE_CONFIG.Autre;
-              const isDeleting = deletingId === item.id;
-
-              return (
-                <div
-                  key={item.id}
-                  className="ms-table-row ms-animate-slide-up"
-                  style={{
-                    gridTemplateColumns: "1.2fr 1.5fr 1.2fr 100px 120px 100px",
-                    animationDelay: `${idx * 30}ms`,
-                  }}
-                >
-                  <Link
-                    href={`/interventions/${item.id}`}
-                    className="font-semibold text-[var(--ms-text)] hover:text-[var(--ms-primary)] transition-colors"
-                  >
-                    {plate}
-                  </Link>
-                  <div className="text-[var(--ms-text-secondary)] truncate">
-                    {brandModel}
-                  </div>
-                  <div className="text-[var(--ms-text-secondary)] truncate">
-                    {clientName}
-                  </div>
-                  <div>
-                    <span
-                      className="ms-badge"
-                      style={{
-                        background: typeConfig.bg,
-                        color: typeConfig.text,
-                      }}
-                    >
-                      {typeConfig.label}
-                    </span>
-                  </div>
-                  <div className="text-sm text-[var(--ms-text-muted)]">
-                    {fmtDate(item.createdAt)}
-                  </div>
-                  <div className="flex items-center justify-end gap-1">
-                    <a
-                      href={`/api/interventions/${item.id}/pdf`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="ms-btn-icon-sm ms-btn-ghost rounded-lg"
-                      title="Télécharger PDF"
-                    >
-                      <FileText size={16} />
-                    </a>
-                    <Link
-                      href={`/interventions/${item.id}`}
-                      className="ms-btn-icon-sm ms-btn-ghost rounded-lg"
-                      title="Modifier"
-                    >
-                      <Pencil size={16} />
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={() => onDelete(item.id)}
-                      disabled={isDeleting}
-                      className="ms-btn-icon-sm rounded-lg text-[var(--ms-text-muted)] hover:bg-[var(--ms-error-light)] hover:text-[var(--ms-error)] transition-colors disabled:opacity-50"
-                      title="Supprimer"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </div>
-              );
-            })
-          )}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#F9FAFB'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent'
+              }}
+            >
+              <MoreVertical size={16} />
+            </button>
+          }
+          items={[
+            {
+              id: 'view',
+              label: 'Voir détails',
+              icon: <Eye size={16} />,
+              onClick: () => router.push(`/interventions/${intervention.id}`)
+            },
+            {
+              id: 'edit',
+              label: 'Modifier',
+              icon: <Edit size={16} />,
+              onClick: () => handleEdit(intervention),
+              disabled: intervention.status === 'TERMINE' || intervention.status === 'ANNULE'
+            },
+            {
+              id: 'status',
+              label: 'Changer statut',
+              icon: getStatusIcon(intervention.status),
+              onClick: () => handleStatusChangeClick(intervention),
+              disabled: intervention.status === 'TERMINE' || intervention.status === 'ANNULE'
+            },
+            { id: 'separator', separator: true },
+            {
+              id: 'signature',
+              label: 'Signatures',
+              icon: <FileSignature size={16} />,
+              onClick: () => router.push(`/interventions/${intervention.id}/signatures`)
+            },
+            { id: 'separator2', separator: true },
+            {
+              id: 'delete',
+              label: 'Supprimer',
+              icon: <Trash2 size={16} />,
+              danger: true,
+              onClick: () => handleDeleteClick(intervention)
+            }
+          ]}
+        />
+      )
+    }
+  ]
+  
+  return (
+    <div style={{ padding: '24px', maxWidth: '1600px', margin: '0 auto' }}>
+      {/* Header */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '24px'
+      }}>
+        <div>
+          <h1 style={{
+            fontSize: '32px',
+            fontWeight: 700,
+            color: '#111827',
+            margin: 0,
+            marginBottom: '4px'
+          }}>
+            Interventions
+          </h1>
+          <p style={{
+            fontSize: '14px',
+            color: '#6B7280',
+            margin: 0
+          }}>
+            Gérez toutes vos interventions et dossiers techniques
+          </p>
         </div>
+        
+        <Button
+          variant="primary"
+          size="lg"
+          leftIcon={<Plus size={20} />}
+          onClick={handleCreate}
+        >
+          Nouvelle intervention
+        </Button>
       </div>
-
-      {/* Footer */}
-      {!loading && rows.length > 0 && (
-        <div className="mt-4 flex items-center justify-between text-sm text-[var(--ms-text-muted)]">
-          <span>
-            {rows.length} intervention{rows.length > 1 ? "s" : ""}
-          </span>
-          <span>Dernière mise à jour : maintenant</span>
+      
+      {/* Filters */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+        gap: '12px',
+        marginBottom: '20px'
+      }}>
+        <div style={{ gridColumn: 'span 2' }}>
+          <SearchInput
+            placeholder="Rechercher (numéro, client, véhicule)..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onClear={() => setSearchQuery('')}
+          />
         </div>
-      )}
+        
+        <Select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          options={[
+            { value: 'all', label: 'Tous les statuts' },
+            { value: 'EN_ATTENTE', label: 'En attente' },
+            { value: 'EN_COURS', label: 'En cours' },
+            { value: 'TERMINE', label: 'Terminées' },
+            { value: 'ANNULE', label: 'Annulées' }
+          ]}
+        />
+        
+        <Select
+          value={clientFilter}
+          onChange={(e) => setClientFilter(e.target.value)}
+          options={[
+            { value: 'all', label: 'Tous les clients' },
+            ...clients.map(c => ({ value: c.id, label: c.name }))
+          ]}
+        />
+      </div>
+      
+      {/* Table */}
+      <DataTableInline
+        data={interventions}
+        columns={columns}
+        loading={isLoading}
+        emptyState={{
+          title: 'Aucune intervention',
+          description: searchQuery 
+            ? 'Aucune intervention ne correspond à votre recherche'
+            : 'Commencez par créer votre première intervention',
+          action: !searchQuery ? {
+            label: 'Nouvelle intervention',
+            onClick: handleCreate
+          } : undefined
+        }}
+      />
+      
+      {/* Modal création/édition */}
+      <Modal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title={editingIntervention ? 'Modifier l\'intervention' : 'Nouvelle intervention'}
+        size="lg"
+      >
+        <div style={{ padding: '24px' }}>
+          <Select
+            label="Client"
+            value={formData.clientId}
+            onChange={(e) => setFormData({ ...formData, clientId: e.target.value, vehicleId: '' })}
+            options={[
+              { value: '', label: 'Sélectionner un client' },
+              ...clients.map(c => ({ value: c.id, label: c.name }))
+            ]}
+            error={formErrors.clientId}
+            required
+          />
+          
+          <Select
+            label="Véhicule"
+            value={formData.vehicleId}
+            onChange={(e) => setFormData({ ...formData, vehicleId: e.target.value })}
+            options={[
+              { value: '', label: 'Sélectionner un véhicule' },
+              ...clientVehicles.map(v => ({ value: v.id, label: v.info }))
+            ]}
+            error={formErrors.vehicleId}
+            disabled={!formData.clientId}
+            helperText={!formData.clientId ? 'Sélectionnez d\'abord un client' : undefined}
+            required
+          />
+          
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: '16px'
+          }}>
+            <FormField
+              label="Date d'entrée"
+              type="date"
+              name="entryDate"
+              value={formData.entryDate}
+              onChange={(e) => setFormData({ ...formData, entryDate: e.target.value })}
+              error={formErrors.entryDate}
+              required
+            />
+            
+            <FormField
+              label="Kilométrage"
+              type="number"
+              name="mileage"
+              placeholder="50000"
+              value={formData.mileage}
+              onChange={(e) => setFormData({ ...formData, mileage: e.target.value })}
+              error={formErrors.mileage}
+              required
+            />
+          </div>
+          
+          <Textarea
+            label="Description des travaux"
+            name="description"
+            placeholder="Détaillez les interventions à réaliser..."
+            value={formData.description}
+            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+            error={formErrors.description}
+            rows={5}
+            required
+          />
+          
+          <div style={{
+            display: 'flex',
+            gap: '12px',
+            justifyContent: 'flex-end',
+            marginTop: '24px',
+            paddingTop: '20px',
+            borderTop: '1px solid #E5E7EB'
+          }}>
+            <Button
+              variant="secondary"
+              onClick={() => setIsModalOpen(false)}
+              disabled={isSaving}
+            >
+              Annuler
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleSave}
+              loading={isSaving}
+              disabled={isSaving}
+            >
+              {editingIntervention ? 'Enregistrer' : 'Créer'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+      
+      {/* Modal changement statut */}
+      <Modal
+        isOpen={isStatusModalOpen}
+        onClose={() => setIsStatusModalOpen(false)}
+        title="Changer le statut"
+        size="md"
+      >
+        <div style={{ padding: '24px' }}>
+          <p style={{
+            fontSize: '15px',
+            color: '#6B7280',
+            lineHeight: 1.6,
+            marginBottom: '20px'
+          }}>
+            Intervention : <strong>{statusChangeIntervention?.number}</strong>
+          </p>
+          
+          <Select
+            label="Nouveau statut"
+            value={newStatus}
+            onChange={(e) => setNewStatus(e.target.value as InterventionStatus)}
+            options={
+              statusChangeIntervention
+                ? getAvailableStatuses(statusChangeIntervention.status).map(s => ({
+                    value: s,
+                    label: getStatusLabel(s)
+                  }))
+                : []
+            }
+          />
+          
+          <Textarea
+            label="Commentaire (optionnel)"
+            name="statusComment"
+            placeholder="Raison du changement de statut..."
+            value={statusComment}
+            onChange={(e) => setStatusComment(e.target.value)}
+            rows={3}
+          />
+          
+          <div style={{
+            display: 'flex',
+            gap: '12px',
+            justifyContent: 'flex-end',
+            marginTop: '24px'
+          }}>
+            <Button
+              variant="secondary"
+              onClick={() => setIsStatusModalOpen(false)}
+              disabled={isChangingStatus}
+            >
+              Annuler
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleStatusChange}
+              loading={isChangingStatus}
+              disabled={isChangingStatus}
+            >
+              Changer
+            </Button>
+          </div>
+        </div>
+      </Modal>
+      
+      {/* Modal suppression */}
+      <Modal
+        isOpen={deleteModalOpen}
+        onClose={() => setDeleteModalOpen(false)}
+        title="Supprimer l'intervention"
+        size="md"
+      >
+        <div style={{ padding: '24px' }}>
+          <p style={{
+            fontSize: '15px',
+            color: '#6B7280',
+            lineHeight: 1.6,
+            margin: 0,
+            marginBottom: '20px'
+          }}>
+            Êtes-vous sûr de vouloir supprimer l'intervention{' '}
+            <strong style={{ color: '#111827' }}>
+              {interventionToDelete?.number}
+            </strong> ?
+          </p>
+          
+          <div style={{
+            display: 'flex',
+            gap: '12px',
+            justifyContent: 'flex-end'
+          }}>
+            <Button
+              variant="secondary"
+              onClick={() => setDeleteModalOpen(false)}
+              disabled={isDeleting}
+            >
+              Annuler
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleDeleteConfirm}
+              loading={isDeleting}
+              disabled={isDeleting}
+              style={{
+                backgroundColor: '#DC2626'
+              }}
+            >
+              Supprimer
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
-  );
+  )
 }
