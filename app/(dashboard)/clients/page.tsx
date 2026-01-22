@@ -81,7 +81,33 @@ export default function ClientsPage() {
     setIsLoading(true)
     
     try {
-      // TODO: Remplacer par vraie API /api/clients
+      const params = new URLSearchParams()
+      if (searchQuery) params.set('search', searchQuery)
+      if (statusFilter !== 'all') params.set('status', statusFilter)
+      params.set('page', '1')
+      params.set('limit', '100')
+      
+      const response = await fetch(`/api/clients?${params}`)
+      const data = await response.json()
+      
+      if (data.ok) {
+        // Transformer les dates si nécessaire
+        const clientsWithDates = (data.clients || data.data || []).map((c: Client & { createdAt?: string; updatedAt?: string }) => ({
+          ...c,
+          createdAt: c.createdAt ? new Date(c.createdAt) : new Date(),
+          updatedAt: c.updatedAt ? new Date(c.updatedAt) : new Date()
+        }))
+        setClients(clientsWithDates)
+      } else {
+        console.error('Error loading clients:', data.error)
+        toast.error('Erreur', 'Impossible de charger les clients')
+      }
+      
+    } catch (error) {
+      console.error('Error loading clients:', error)
+      toast.error('Erreur', 'Impossible de se connecter au serveur')
+      
+      // Fallback sur données simulées en cas d'erreur réseau
       const mockClients: Client[] = [
         {
           id: '1',
@@ -158,8 +184,7 @@ export default function ClientsPage() {
       }
       
       setClients(filtered)
-    } catch (error) {
-      toast.error('Erreur', 'Impossible de charger les clients')
+      
     } finally {
       setIsLoading(false)
     }
@@ -236,19 +261,34 @@ export default function ClientsPage() {
     setIsSaving(true)
     
     try {
-      // TODO: Remplacer par vraie API
-      // const url = editingClient ? `/api/clients/${editingClient.id}` : '/api/clients'
-      // const method = editingClient ? 'PATCH' : 'POST'
-      // const response = await fetch(url, { method, body: JSON.stringify(formData) })
+      const url = editingClient 
+        ? `/api/clients/${editingClient.id}`
+        : '/api/clients'
       
-      toast.success(
-        editingClient ? 'Client modifié' : 'Client créé',
-        'Les modifications ont été enregistrées'
-      )
-      setIsModalOpen(false)
-      loadClients()
+      const method = editingClient ? 'PATCH' : 'POST'
+      
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      })
+      
+      const data = await response.json()
+      
+      if (data.ok) {
+        toast.success(
+          editingClient ? 'Client modifié' : 'Client créé',
+          'Les modifications ont été enregistrées'
+        )
+        setIsModalOpen(false)
+        loadClients()
+      } else {
+        toast.error('Erreur', data.error || 'Impossible de sauvegarder le client')
+      }
+      
     } catch (error) {
-      toast.error('Erreur', 'Impossible de sauvegarder le client')
+      console.error('Error saving client:', error)
+      toast.error('Erreur', 'Impossible de se connecter au serveur')
     } finally {
       setIsSaving(false)
     }
@@ -265,15 +305,24 @@ export default function ClientsPage() {
     setIsDeleting(true)
     
     try {
-      // TODO: Remplacer par vraie API
-      // await fetch(`/api/clients/${clientToDelete.id}`, { method: 'DELETE' })
+      const response = await fetch(`/api/clients/${clientToDelete.id}`, {
+        method: 'DELETE'
+      })
       
-      toast.success('Client supprimé', 'Le client a été supprimé avec succès')
-      setDeleteModalOpen(false)
-      setClientToDelete(null)
-      loadClients()
+      const data = await response.json()
+      
+      if (data.ok) {
+        toast.success('Client supprimé', 'Le client a été supprimé avec succès')
+        setDeleteModalOpen(false)
+        setClientToDelete(null)
+        loadClients()
+      } else {
+        toast.error('Erreur', data.error || 'Impossible de supprimer le client')
+      }
+      
     } catch (error) {
-      toast.error('Erreur', 'Impossible de supprimer le client')
+      console.error('Error deleting client:', error)
+      toast.error('Erreur', 'Impossible de se connecter au serveur')
     } finally {
       setIsDeleting(false)
     }
