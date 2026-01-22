@@ -131,7 +131,8 @@ export default function DashboardPage() {
     }
     
     loadDashboardData()
-  }, [period, toast])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [period])
   
   // Formater les centimes en euros
   const formatCurrency = (cents: number): string => {
