@@ -178,13 +178,12 @@ export default function InterventionsPage() {
     setIsLoading(true)
     
     try {
-      const params = new URLSearchParams({
-        search: searchQuery,
-        status: statusFilter === 'all' ? '' : statusFilter,
-        clientId: clientFilter === 'all' ? '' : clientFilter,
-        page: '1',
-        limit: '100'
-      })
+      const params = new URLSearchParams()
+      if (searchQuery) params.set('q', searchQuery)
+      if (statusFilter !== 'all') params.set('status', statusFilter)
+      if (clientFilter !== 'all') params.set('clientId', clientFilter)
+      params.set('page', '1')
+      params.set('pageSize', '100')
       
       const response = await fetch(`/api/interventions?${params}`)
       const data = await response.json()

@@ -138,13 +138,12 @@ export default function VehiculesPage() {
     setIsLoading(true)
     
     try {
-      const params = new URLSearchParams({
-        search: searchQuery,
-        clientId: clientFilter === 'all' ? '' : clientFilter,
-        fuelType: fuelFilter === 'all' ? '' : fuelFilter,
-        page: '1',
-        limit: '100'
-      })
+      const params = new URLSearchParams()
+      if (searchQuery) params.set('q', searchQuery)
+      if (clientFilter !== 'all') params.set('clientId', clientFilter)
+      if (fuelFilter !== 'all') params.set('fuelType', fuelFilter)
+      params.set('page', '1')
+      params.set('pageSize', '100')
       
       const response = await fetch(`/api/vehicules?${params}`)
       const data = await response.json()

@@ -82,10 +82,10 @@ export default function ClientsPage() {
     
     try {
       const params = new URLSearchParams()
-      if (searchQuery) params.set('search', searchQuery)
+      if (searchQuery) params.set('q', searchQuery)
       if (statusFilter !== 'all') params.set('status', statusFilter)
       params.set('page', '1')
-      params.set('limit', '100')
+      params.set('pageSize', '100')
       
       const response = await fetch(`/api/clients?${params}`)
       const data = await response.json()
