@@ -111,13 +111,24 @@ export default function DocumentsPage() {
   
   const loadInterventions = async () => {
     try {
-      // TODO: Remplacer par vraie API /api/interventions?status=TERMINE
+      const response = await fetch('/api/interventions?status=TERMINE')
+      const data = await response.json()
+      
+      if (data.ok) {
+        setInterventions(data.interventions.map((i: any) => ({
+          id: i.id,
+          number: i.number,
+          clientName: i.clientName,
+          vehicleInfo: i.vehicleInfo
+        })))
+      }
+    } catch (error) {
+      console.error('Error loading interventions:', error)
+      // Fallback
       setInterventions([
         { id: '1', number: 'INT-2024-001', clientName: 'Jean Dupont', vehicleInfo: 'Peugeot 208 - AB-123-CD' },
         { id: '2', number: 'INT-2024-002', clientName: 'Marie Martin', vehicleInfo: 'Citroën C3 - IJ-789-KL' }
       ])
-    } catch (error) {
-      toast.error('Erreur', 'Impossible de charger les interventions')
     }
   }
   
@@ -125,7 +136,28 @@ export default function DocumentsPage() {
     setIsLoading(true)
     
     try {
-      // TODO: Remplacer par vraie API /api/documents/devis
+      const params = new URLSearchParams({
+        search: searchQuery,
+        status: statusFilter === 'all' ? '' : statusFilter,
+        page: '1',
+        limit: '100'
+      })
+      
+      const response = await fetch(`/api/documents/devis?${params}`)
+      const data = await response.json()
+      
+      if (data.ok) {
+        setDevis(data.devis)
+      } else {
+        console.error('Error loading devis:', data.error)
+        toast.error('Erreur', 'Impossible de charger les devis')
+      }
+      
+    } catch (error) {
+      console.error('Error loading devis:', error)
+      toast.error('Erreur', 'Impossible de se connecter au serveur')
+      
+      // Fallback sur données simulées
       const mockDevis: Devis[] = [
         {
           id: '1',
@@ -169,8 +201,7 @@ export default function DocumentsPage() {
       }
       
       setDevis(filtered)
-    } catch (error) {
-      toast.error('Erreur', 'Impossible de charger les devis')
+      
     } finally {
       setIsLoading(false)
     }
@@ -180,7 +211,28 @@ export default function DocumentsPage() {
     setIsLoading(true)
     
     try {
-      // TODO: Remplacer par vraie API /api/documents/factures
+      const params = new URLSearchParams({
+        search: searchQuery,
+        status: statusFilter === 'all' ? '' : statusFilter,
+        page: '1',
+        limit: '100'
+      })
+      
+      const response = await fetch(`/api/documents/factures?${params}`)
+      const data = await response.json()
+      
+      if (data.ok) {
+        setFactures(data.factures)
+      } else {
+        console.error('Error loading factures:', data.error)
+        toast.error('Erreur', 'Impossible de charger les factures')
+      }
+      
+    } catch (error) {
+      console.error('Error loading factures:', error)
+      toast.error('Erreur', 'Impossible de se connecter au serveur')
+      
+      // Fallback
       const mockFactures: Facture[] = [
         {
           id: '1',
@@ -225,8 +277,7 @@ export default function DocumentsPage() {
       }
       
       setFactures(filtered)
-    } catch (error) {
-      toast.error('Erreur', 'Impossible de charger les factures')
+      
     } finally {
       setIsLoading(false)
     }
@@ -236,7 +287,27 @@ export default function DocumentsPage() {
     setIsLoading(true)
     
     try {
-      // TODO: Remplacer par vraie API /api/documents/exports
+      const params = new URLSearchParams({
+        search: searchQuery,
+        page: '1',
+        limit: '100'
+      })
+      
+      const response = await fetch(`/api/documents/exports?${params}`)
+      const data = await response.json()
+      
+      if (data.ok) {
+        setExports(data.exports)
+      } else {
+        console.error('Error loading exports:', data.error)
+        toast.error('Erreur', 'Impossible de charger les exports')
+      }
+      
+    } catch (error) {
+      console.error('Error loading exports:', error)
+      toast.error('Erreur', 'Impossible de se connecter au serveur')
+      
+      // Fallback
       const mockExports: Export[] = [
         {
           id: '1',
@@ -263,8 +334,7 @@ export default function DocumentsPage() {
       }
       
       setExports(filtered)
-    } catch (error) {
-      toast.error('Erreur', 'Impossible de charger les exports')
+      
     } finally {
       setIsLoading(false)
     }
@@ -287,20 +357,47 @@ export default function DocumentsPage() {
     setIsGenerating(true)
     
     try {
-      // TODO: Remplacer par vraie API
-      toast.success(
-        'Document généré',
-        sendEmail 
-          ? 'Le document a été généré et envoyé par email'
-          : 'Le document a été généré avec succès'
-      )
-      setIsGenerateModalOpen(false)
+      let url = ''
+      let payload: any = { interventionId: selectedInterventionId }
       
-      if (generateType === 'DEVIS') loadDevis()
-      else if (generateType === 'FACTURE') loadFactures()
-      else loadExports()
+      if (generateType === 'DEVIS') {
+        url = '/api/documents/devis/generate'
+        payload.sendEmail = sendEmail
+      } else if (generateType === 'FACTURE') {
+        url = '/api/documents/factures/generate'
+        payload.sendEmail = sendEmail
+      } else {
+        url = '/api/documents/exports/generate'
+        payload.type = exportType
+      }
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+      
+      const data = await response.json()
+      
+      if (data.ok) {
+        toast.success(
+          'Document généré',
+          sendEmail 
+            ? 'Le document a été généré et envoyé par email'
+            : 'Le document a été généré avec succès'
+        )
+        setIsGenerateModalOpen(false)
+        
+        if (generateType === 'DEVIS') loadDevis()
+        else if (generateType === 'FACTURE') loadFactures()
+        else loadExports()
+      } else {
+        toast.error('Erreur', data.error || 'Impossible de générer le document')
+      }
+      
     } catch (error) {
-      toast.error('Erreur', 'Impossible de générer le document')
+      console.error('Error generating document:', error)
+      toast.error('Erreur', 'Impossible de se connecter au serveur')
     } finally {
       setIsGenerating(false)
     }
@@ -325,16 +422,34 @@ export default function DocumentsPage() {
     setIsDeleting(true)
     
     try {
-      // TODO: Remplacer par vraie API
-      toast.success('Document supprimé', 'Le document a été supprimé avec succès')
-      setDeleteModalOpen(false)
-      setDocumentToDelete(null)
+      let url = ''
       
-      if (activeTab === 'DEVIS') loadDevis()
-      else if (activeTab === 'FACTURE') loadFactures()
-      else loadExports()
+      if (activeTab === 'DEVIS') {
+        url = `/api/documents/devis/${documentToDelete.id}`
+      } else if (activeTab === 'FACTURE') {
+        url = `/api/documents/factures/${documentToDelete.id}`
+      } else {
+        url = `/api/documents/exports/${documentToDelete.id}`
+      }
+      
+      const response = await fetch(url, { method: 'DELETE' })
+      const data = await response.json()
+      
+      if (data.ok) {
+        toast.success('Document supprimé', 'Le document a été supprimé avec succès')
+        setDeleteModalOpen(false)
+        setDocumentToDelete(null)
+        
+        if (activeTab === 'DEVIS') loadDevis()
+        else if (activeTab === 'FACTURE') loadFactures()
+        else loadExports()
+      } else {
+        toast.error('Erreur', data.error || 'Impossible de supprimer le document')
+      }
+      
     } catch (error) {
-      toast.error('Erreur', 'Impossible de supprimer le document')
+      console.error('Error deleting document:', error)
+      toast.error('Erreur', 'Impossible de se connecter au serveur')
     } finally {
       setIsDeleting(false)
     }
