@@ -1,397 +1,479 @@
-"use client";
+'use client'
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  Calendar,
-  Car,
-  ChevronRight,
-  Euro,
-  RefreshCw,
-  Users,
-  Wrench,
-} from "lucide-react";
-import { fetcher } from "@/lib/fetcher";
-import { useUser } from "@/components/user-context";
-import { PageHeader } from "@/components/shared/page-header";
-import { StatusBadge } from "@/components/shared/status-badge";
-import { KpiCard } from "@/components/shared/kpi-card";
-import {
-  BarChart,
-  DonutChart,
-  DashboardCard,
-  ActivityItem,
-} from "@/components/dashboard";
+import { useState, useEffect } from 'react'
+import { KpiCard } from '@/components/shared/kpi-card'
+import { Badge } from '@/components/shared/badge'
+import { Button } from '@/components/shared/button'
+import { useToast } from '@/components/shared/use-toast'
+import { 
+  Wrench, 
+  Euro, 
+  Users, 
+  FileSignature,
+  Plus,
+  UserPlus,
+  Search,
+  CheckCircle,
+  ArrowRight
+} from 'lucide-react'
 
-type KpisResponse = {
-  clientsCount: number;
-  vehiclesCount: number;
-  interventionsCount: number;
-  revenueTotalCents: number;
-  clientsVariation: number;
-  vehiclesVariation: number;
-  interventionsVariation: number;
-  revenueVariation: number;
-};
+interface KPI {
+  title: string
+  value: string | number
+  change: number
+  trend: 'up' | 'down'
+  icon: React.ReactNode
+}
 
-type GarageOption = { id: number; name: string; status: "PENDING" | "ACTIVE" | "REJECTED" };
-
-type ReportsResponse = { labels: string[]; values: number[] };
-type AnalyticsResponse = { done: number; inProgress: number; cancelled: number };
-
-type RecentIntervention = {
-  id: string;
-  ref: string;
-  vehicleLabel: string;
-  priceCents: number;
-  totalCents: number;
-  status: "DRAFT" | "OPEN" | "DONE" | "CANCELED";
-};
-
-type RecentVehicle = {
-  id: string;
-  label: string;
-  plate: string;
-  rating: number;
-  priceCents: number;
-  imageUrl: string | null;
-};
-
-function formatEUR(cents: number) {
-  const amount = cents / 100;
-  return new Intl.NumberFormat("fr-FR", {
-    style: "currency",
-    currency: "EUR",
-    maximumFractionDigits: 0,
-  }).format(amount);
+interface Activity {
+  id: string
+  type: 'intervention' | 'signature' | 'export' | 'client'
+  message: string
+  timestamp: Date
+  user: string
 }
 
 export default function DashboardPage() {
-  const user = useUser();
-  const todayISO = useMemo(() => new Date().toISOString().slice(0, 10), []);
-  const defaultFromISO = useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 30);
-    return d.toISOString().slice(0, 10);
-  }, []);
-
-  const [fromISO, setFromISO] = useState(defaultFromISO);
-  const [toISO, setToISO] = useState(todayISO);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-
-  const [kpis, setKpis] = useState<KpisResponse | null>(null);
-  const [reports, setReports] = useState<ReportsResponse | null>(null);
-  const [analytics, setAnalytics] = useState<AnalyticsResponse | null>(null);
-  const [recentInterventions, setRecentInterventions] = useState<RecentIntervention[]>([]);
-  const [recentVehicles, setRecentVehicles] = useState<RecentVehicle[]>([]);
-  const [garages, setGarages] = useState<GarageOption[]>([]);
-  const [selectedGarageId, setSelectedGarageId] = useState<string>("");
-
-  const queryString = useMemo(() => {
-    const sp = new URLSearchParams();
-    sp.set("from", fromISO);
-    sp.set("to", toISO);
-    if (user.role === "ADMIN" && selectedGarageId) {
-      sp.set("garageId", selectedGarageId);
-    }
-    return sp.toString();
-  }, [fromISO, toISO, selectedGarageId, user.role]);
-
+  const toast = useToast()
+  const [period, setPeriod] = useState<'month' | '30days' | 'year'>('month')
+  const [isLoading, setIsLoading] = useState(true)
+  const [kpis, setKpis] = useState<KPI[]>([])
+  const [activities, setActivities] = useState<Activity[]>([])
+  
+  // Charger données simulées
   useEffect(() => {
-    if (user.role !== "ADMIN") return;
-    const loadGarages = async () => {
-      try {
-        const data = await fetcher<GarageOption[]>("/api/admin/garages?status=active", { noStore: true });
-        const items = data ?? [];
-        setGarages(items);
-        if (!selectedGarageId && items.length > 0) {
-          setSelectedGarageId(String(items[0].id));
+    // TODO: Remplacer par vraie API /api/dashboard/kpis
+    setTimeout(() => {
+      setKpis([
+        {
+          title: 'Interventions',
+          value: 47,
+          change: 12.5,
+          trend: 'up',
+          icon: <Wrench size={24} />
+        },
+        {
+          title: 'Chiffre d\'affaires',
+          value: '18 600 €',
+          change: 8.3,
+          trend: 'up',
+          icon: <Euro size={24} />
+        },
+        {
+          title: 'Clients actifs',
+          value: 23,
+          change: 5.2,
+          trend: 'up',
+          icon: <Users size={24} />
+        },
+        {
+          title: 'En attente signature',
+          value: 3,
+          change: -25,
+          trend: 'down',
+          icon: <FileSignature size={24} />
         }
-        if (items.length === 0) {
-          setLoading(false);
-          setRefreshing(false);
+      ])
+      
+      // TODO: Remplacer par vraie API /api/dashboard/activities
+      setActivities([
+        {
+          id: '1',
+          type: 'intervention',
+          message: 'Nouvelle intervention pour Jean Dupont - Peugeot 208',
+          timestamp: new Date(Date.now() - 1000 * 60 * 15),
+          user: 'Pierre Martin'
+        },
+        {
+          id: '2',
+          type: 'signature',
+          message: 'Signature client reçue - Intervention #1234',
+          timestamp: new Date(Date.now() - 1000 * 60 * 45),
+          user: 'Sophie Blanc'
+        },
+        {
+          id: '3',
+          type: 'client',
+          message: 'Nouveau client créé - Marie Dubois',
+          timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2),
+          user: 'Pierre Martin'
+        },
+        {
+          id: '4',
+          type: 'export',
+          message: 'Export assurance généré - Dossier #5678',
+          timestamp: new Date(Date.now() - 1000 * 60 * 60 * 4),
+          user: 'Sophie Blanc'
         }
-      } catch (e) {
-        console.error("Dashboard garages load error:", e);
-        setGarages([]);
-        setLoading(false);
-        setRefreshing(false);
-      }
-    };
-    void loadGarages();
-  }, [selectedGarageId, user.role]);
-
-  const loadAll = useCallback(async (isRefresh = false) => {
-    try {
-      if (user.role === "ADMIN" && !selectedGarageId) {
-        setLoading(false);
-        setRefreshing(false);
-        return;
-      }
-      if (isRefresh) setRefreshing(true);
-      else setLoading(true);
-
-      const [k, r, a, ri, rv] = await Promise.all([
-        fetcher<KpisResponse>(`/api/dashboard/kpis?${queryString}`, { noStore: true }),
-        fetcher<ReportsResponse>(`/api/dashboard/reports?${queryString}`, { noStore: true }),
-        fetcher<AnalyticsResponse>(`/api/dashboard/analytics?${queryString}`, { noStore: true }),
-        fetcher<RecentIntervention[]>(`/api/dashboard/recent-interventions?${queryString}&limit=5`, { noStore: true }),
-        fetcher<RecentVehicle[]>(`/api/dashboard/recent-vehicles?${queryString}&limit=4`, { noStore: true }),
-      ]);
-      setKpis(k);
-      setReports(r);
-      setAnalytics(a);
-      setRecentInterventions(ri ?? []);
-      setRecentVehicles(rv ?? []);
-    } catch (e) {
-      console.error("Dashboard load error:", e);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+      ])
+      
+      setIsLoading(false)
+    }, 500)
+  }, [period])
+  
+  const formatTimeAgo = (date: Date): string => {
+    const seconds = Math.floor((Date.now() - date.getTime()) / 1000)
+    
+    if (seconds < 60) return 'À l\'instant'
+    if (seconds < 3600) return `Il y a ${Math.floor(seconds / 60)} min`
+    if (seconds < 86400) return `Il y a ${Math.floor(seconds / 3600)} h`
+    return `Il y a ${Math.floor(seconds / 86400)} j`
+  }
+  
+  const getActivityIcon = (type: Activity['type']) => {
+    switch (type) {
+      case 'intervention':
+        return <Wrench size={20} style={{ color: '#3B82F6' }} />
+      case 'signature':
+        return <CheckCircle size={20} style={{ color: '#16A34A' }} />
+      case 'export':
+        return <FileSignature size={20} style={{ color: '#F59E0B' }} />
+      case 'client':
+        return <UserPlus size={20} style={{ color: '#8B5CF6' }} />
     }
-  }, [queryString, selectedGarageId, user.role]);
-
-  useEffect(() => {
-    if (user.role === "ADMIN" && !selectedGarageId) return;
-    void loadAll();
-  }, [loadAll, selectedGarageId, user.role]);
-
-  // Chart data
-  const chart = useMemo(() => {
-    const labels = reports?.labels ?? [];
-    const values = reports?.values ?? [];
-    return { labels, values };
-  }, [reports]);
-
-  // Analytics donut data
-  const donutData = useMemo(() => {
-    const done = analytics?.done ?? 0;
-    const inProgress = analytics?.inProgress ?? 0;
-    const cancelled = analytics?.cancelled ?? 0;
-    return [
-      { label: "Terminé", value: done, color: "var(--ms-success)" },
-      { label: "En cours", value: inProgress, color: "var(--ms-warning)" },
-      { label: "Annulé", value: cancelled, color: "var(--ms-error)" },
-    ];
-  }, [analytics]);
-
+  }
+  
   return (
-    <div className="space-y-8">
+    <div style={{ padding: '24px', maxWidth: '1400px', margin: '0 auto' }}>
       {/* Header */}
-      <PageHeader
-        title="Dashboard"
-        subtitle="Vue d'ensemble de votre activité"
-        action={
-          <div className="flex items-center gap-3">
-            {user.role === "ADMIN" && (
-              <div className="flex items-center gap-2 rounded-xl border border-[var(--ms-border)] bg-white px-3 py-2 shadow-sm">
-                <span className="text-sm font-medium text-[var(--ms-text-muted)]">Garage</span>
-                <select
-                  value={selectedGarageId}
-                  onChange={(e) => setSelectedGarageId(e.target.value)}
-                  className="border-none bg-transparent text-sm font-medium text-[var(--ms-text)] outline-none"
-                >
-                  {garages.length === 0 ? (
-                    <option value="">Aucun garage</option>
-                  ) : (
-                    garages.map((garage) => (
-                      <option key={garage.id} value={garage.id}>
-                        {garage.name}
-                      </option>
-                    ))
-                  )}
-                </select>
-              </div>
-            )}
-            <div className="flex items-center gap-2 rounded-xl border border-[var(--ms-border)] bg-white px-3 py-2 shadow-sm">
-              <Calendar size={16} className="text-[var(--ms-text-muted)]" />
-              <input
-                type="date"
-                value={fromISO}
-                onChange={(e) => setFromISO(e.target.value)}
-                className="border-none bg-transparent text-sm font-medium text-[var(--ms-text)] outline-none"
-              />
-              <span className="text-[var(--ms-text-muted)]">→</span>
-              <input
-                type="date"
-                value={toISO}
-                onChange={(e) => setToISO(e.target.value)}
-                className="border-none bg-transparent text-sm font-medium text-[var(--ms-text)] outline-none"
-              />
-            </div>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '32px'
+      }}>
+        <div>
+          <h1 style={{
+            fontSize: '32px',
+            fontWeight: 700,
+            color: '#111827',
+            margin: 0,
+            marginBottom: '4px'
+          }}>
+            Tableau de bord
+          </h1>
+          <p style={{
+            fontSize: '14px',
+            color: '#6B7280',
+            margin: 0
+          }}>
+            Vue d'ensemble de votre activité
+          </p>
+        </div>
+        
+        {/* Period selector */}
+        <div style={{
+          display: 'flex',
+          gap: '8px',
+          backgroundColor: '#F9FAFB',
+          padding: '4px',
+          borderRadius: '8px',
+          border: '1px solid #E5E7EB'
+        }}>
+          {[
+            { value: 'month', label: 'Ce mois' },
+            { value: '30days', label: '30 jours' },
+            { value: 'year', label: 'Cette année' }
+          ].map((option) => (
             <button
-              type="button"
-              onClick={() => void loadAll(true)}
-              disabled={refreshing || (user.role === "ADMIN" && !selectedGarageId)}
-              className="ms-btn ms-btn-secondary"
+              key={option.value}
+              onClick={() => setPeriod(option.value as typeof period)}
+              style={{
+                padding: '8px 16px',
+                fontSize: '14px',
+                fontWeight: 500,
+                color: period === option.value ? '#FFFFFF' : '#6B7280',
+                backgroundColor: period === option.value ? '#0A1628' : 'transparent',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
             >
-              <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
-              Actualiser
+              {option.label}
             </button>
+          ))}
+        </div>
+      </div>
+      
+      {/* KPI Cards Grid */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+        gap: '20px',
+        marginBottom: '32px'
+      }}>
+        {isLoading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <div
+              key={i}
+              style={{
+                height: '140px',
+                backgroundColor: '#F9FAFB',
+                borderRadius: '12px',
+                border: '1px solid #E5E7EB'
+              }}
+            />
+          ))
+        ) : (
+          kpis.map((kpi, index) => (
+            <KpiCard
+              key={index}
+              title={kpi.title}
+              value={kpi.value}
+              change={kpi.change}
+              trend={kpi.trend}
+              icon={kpi.icon}
+            />
+          ))
+        )}
+      </div>
+      
+      {/* Charts Grid */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))',
+        gap: '20px',
+        marginBottom: '32px'
+      }}>
+        {/* Interventions par statut */}
+        <div style={{
+          backgroundColor: '#FFFFFF',
+          borderRadius: '12px',
+          border: '1px solid #E5E7EB',
+          padding: '24px'
+        }}>
+          <h3 style={{
+            fontSize: '18px',
+            fontWeight: 600,
+            color: '#111827',
+            marginBottom: '20px',
+            margin: 0
+          }}>
+            Interventions par statut
+          </h3>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '20px' }}>
+            {[
+              { label: 'Terminées', value: 156, color: '#16A34A' },
+              { label: 'En attente', value: 12, color: '#F59E0B' },
+              { label: 'En cours', value: 8, color: '#3B82F6' },
+              { label: 'Annulées', value: 3, color: '#DC2626' }
+            ].map((stat, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{
+                    width: '12px',
+                    height: '12px',
+                    borderRadius: '50%',
+                    backgroundColor: stat.color
+                  }} />
+                  <span style={{ fontSize: '14px', color: '#6B7280' }}>
+                    {stat.label}
+                  </span>
+                </div>
+                <span style={{ fontSize: '16px', fontWeight: 600, color: '#111827' }}>
+                  {stat.value}
+                </span>
+              </div>
+            ))}
           </div>
-        }
-      />
-
-      {/* KPI Cards */}
-      <div 
-        style={{ 
-          display: 'grid',
-          gap: '1.5rem',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-          marginBottom: '2rem'
-        }}
-      >
-        <KpiCard
-          title="Clients"
-          value={loading ? "—" : kpis?.clientsCount ?? 0}
-          variation={kpis?.clientsVariation}
-          icon={Users}
-        />
-        <KpiCard
-          title="Véhicules"
-          value={loading ? "—" : kpis?.vehiclesCount ?? 0}
-          variation={kpis?.vehiclesVariation}
-          icon={Car}
-        />
-        <KpiCard
-          title="Interventions"
-          value={loading ? "—" : kpis?.interventionsCount ?? 0}
-          variation={kpis?.interventionsVariation}
-          icon={Wrench}
-        />
-        <KpiCard
-          title="Chiffre d'affaires"
-          value={loading ? "—" : formatEUR(kpis?.revenueTotalCents ?? 0)}
-          variation={kpis?.revenueVariation}
-          icon={Euro}
-        />
+        </div>
+        
+        {/* CA mensuel */}
+        <div style={{
+          backgroundColor: '#FFFFFF',
+          borderRadius: '12px',
+          border: '1px solid #E5E7EB',
+          padding: '24px'
+        }}>
+          <h3 style={{
+            fontSize: '18px',
+            fontWeight: 600,
+            color: '#111827',
+            marginBottom: '20px',
+            margin: 0
+          }}>
+            Chiffre d'affaires mensuel
+          </h3>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '20px' }}>
+            {[
+              { month: 'Août', amount: 12500 },
+              { month: 'Sept', amount: 15200 },
+              { month: 'Oct', amount: 13800 },
+              { month: 'Nov', amount: 16400 },
+              { month: 'Déc', amount: 14200 },
+              { month: 'Janv', amount: 18600 }
+            ].map((data, i) => {
+              const maxAmount = 20000
+              const percentage = (data.amount / maxAmount) * 100
+              
+              return (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span style={{ 
+                    fontSize: '13px', 
+                    color: '#6B7280', 
+                    minWidth: '50px' 
+                  }}>
+                    {data.month}
+                  </span>
+                  <div style={{
+                    flex: 1,
+                    height: '24px',
+                    backgroundColor: '#F3F4F6',
+                    borderRadius: '4px',
+                    overflow: 'hidden',
+                    position: 'relative'
+                  }}>
+                    <div style={{
+                      width: `${percentage}%`,
+                      height: '100%',
+                      backgroundColor: '#0A1628',
+                      transition: 'width 0.3s ease'
+                    }} />
+                  </div>
+                  <span style={{ 
+                    fontSize: '14px', 
+                    fontWeight: 600, 
+                    color: '#111827',
+                    minWidth: '70px',
+                    textAlign: 'right'
+                  }}>
+                    {data.amount.toLocaleString()} €
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
       </div>
-
-      {/* Charts Row */}
-      <div className="mb-8 grid grid-cols-1 gap-6 lg:grid-cols-5">
-        {/* Reports Chart */}
-        <DashboardCard
-          title="Rapports"
-          subtitle="Évolution des interventions"
-          className="lg:col-span-3"
-        >
-          <BarChart
-            labels={chart.labels}
-            values={chart.values}
-            loading={loading}
-            emptyMessage="Aucune donnée pour cette période"
-          />
-        </DashboardCard>
-
-        {/* Analytics Donut */}
-        <DashboardCard
-          title="Analytics"
-          subtitle="Répartition des interventions"
-          className="lg:col-span-2"
-        >
-          <DonutChart data={donutData} loading={loading} />
-        </DashboardCard>
+      
+      {/* Timeline activités */}
+      <div style={{
+        backgroundColor: '#FFFFFF',
+        borderRadius: '12px',
+        border: '1px solid #E5E7EB',
+        padding: '24px'
+      }}>
+        <h3 style={{
+          fontSize: '18px',
+          fontWeight: 600,
+          color: '#111827',
+          marginBottom: '20px',
+          margin: 0
+        }}>
+          Activité récente
+        </h3>
+        
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '20px' }}>
+          {activities.map((activity) => (
+            <div
+              key={activity.id}
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '12px',
+                padding: '12px',
+                borderRadius: '8px',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#F9FAFB'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent'
+              }}
+            >
+              <div style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '8px',
+                backgroundColor: '#F9FAFB',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0
+              }}>
+                {getActivityIcon(activity.type)}
+              </div>
+              
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{
+                  fontSize: '14px',
+                  color: '#111827',
+                  margin: 0,
+                  marginBottom: '4px'
+                }}>
+                  {activity.message}
+                </p>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  fontSize: '12px',
+                  color: '#9CA3AF'
+                }}>
+                  <span>{activity.user}</span>
+                  <span>•</span>
+                  <span>{formatTimeAgo(activity.timestamp)}</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
-
-      {/* Recent Items Row */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Recent Interventions */}
-        <DashboardCard
-          title="Interventions récentes"
-          subtitle="Dernières interventions créées"
-          headerAction={{ href: "/interventions", label: "Voir tout" }}
-          noPadding
+      
+      {/* Floating Action Buttons */}
+      <div style={{
+        position: 'fixed',
+        bottom: '32px',
+        right: '32px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '12px',
+        alignItems: 'flex-end',
+        zIndex: 40
+      }}>
+        <Button
+          variant="primary"
+          size="lg"
+          leftIcon={<Plus size={20} />}
+          style={{
+            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.2)',
+            minWidth: '200px'
+          }}
+          onClick={() => toast.info('Navigation', 'Redirection vers nouvelle intervention')}
         >
-          {loading ? (
-            <div className="space-y-2 p-4">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className="h-14 w-full animate-pulse rounded-lg bg-[var(--ms-bg)]" />
-              ))}
-            </div>
-          ) : recentInterventions.length === 0 ? (
-            <div className="py-8 text-center text-[var(--ms-text-muted)]">
-              Aucune intervention récente
-            </div>
-          ) : (
-            <div className="divide-y divide-[var(--ms-border)]">
-              {recentInterventions.map((item) => (
-                <ActivityItem
-                  key={item.id}
-                  icon={Wrench}
-                  iconGradient="from-[var(--ms-primary)] to-[#8B5CF6]"
-                  title={item.ref}
-                  subtitle={item.vehicleLabel}
-                  href={`/interventions/${item.id}`}
-                  rightContent={
-                    <div className="flex items-center gap-3">
-                      <StatusBadge
-                        status={item.status === "OPEN" ? "info" : item.status === "DONE" ? "success" : item.status === "CANCELED" ? "error" : "warning"}
-                        label={item.status === "OPEN" ? "En cours" : item.status === "DONE" ? "Terminé" : item.status === "CANCELED" ? "Annulé" : "Brouillon"}
-                      />
-                      <span className="font-semibold text-[var(--ms-text)]">
-                        {formatEUR(item.totalCents)}
-                      </span>
-                      <ChevronRight className="h-4 w-4 text-[var(--ms-text-muted)]" />
-                    </div>
-                  }
-                />
-              ))}
-            </div>
-          )}
-        </DashboardCard>
-
-        {/* Recent Vehicles */}
-        <DashboardCard
-          title="Véhicules récents"
-          subtitle="Derniers véhicules ajoutés"
-          headerAction={{ href: "/vehicules", label: "Voir tout" }}
-          noPadding
-        >
-          {loading ? (
-            <div className="space-y-2 p-4">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className="h-14 w-full animate-pulse rounded-lg bg-[var(--ms-bg)]" />
-              ))}
-            </div>
-          ) : recentVehicles.length === 0 ? (
-            <div className="py-8 text-center text-[var(--ms-text-muted)]">
-              Aucun véhicule récent
-            </div>
-          ) : (
-            <div className="divide-y divide-[var(--ms-border)]">
-              {recentVehicles.map((item) => (
-                <ActivityItem
-                  key={item.id}
-                  icon={Car}
-                  iconGradient="from-[#F59E0B] to-[#EAB308]"
-                  title={item.label}
-                  subtitle={item.plate}
-                  href={`/vehicules/${item.id}`}
-                  rightContent={
-                    <div className="flex items-center gap-3">
-                      {/* Star rating */}
-                      <div className="flex items-center gap-1">
-                        {[...Array(5)].map((_, i) => (
-                          <div
-                            key={i}
-                            className={`h-2 w-2 rounded-full ${
-                              i < item.rating ? "bg-[#F59E0B]" : "bg-[var(--ms-border)]"
-                            }`}
-                          />
-                        ))}
-                      </div>
-                      <span className="font-semibold text-[var(--ms-text)]">
-                        {formatEUR(item.priceCents)}
-                      </span>
-                      <ChevronRight className="h-4 w-4 text-[var(--ms-text-muted)]" />
-                    </div>
-                  }
-                />
-              ))}
-            </div>
-          )}
-        </DashboardCard>
+          Nouvelle intervention
+        </Button>
+        
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <Button
+            variant="secondary"
+            size="md"
+            leftIcon={<UserPlus size={18} />}
+            style={{
+              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+            }}
+            onClick={() => toast.info('Navigation', 'Redirection vers nouveau client')}
+          >
+            Nouveau client
+          </Button>
+          
+          <Button
+            variant="secondary"
+            size="md"
+            leftIcon={<Search size={18} />}
+            style={{
+              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+            }}
+            onClick={() => toast.info('SIV', 'Recherche SIV à venir')}
+          >
+            Recherche SIV
+          </Button>
+        </div>
       </div>
     </div>
-  );
+  )
 }
