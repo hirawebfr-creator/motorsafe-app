@@ -114,13 +114,15 @@ export default function DocumentsPage() {
       const response = await fetch('/api/interventions?status=TERMINE')
       const data = await response.json()
       
-      if (data.ok) {
+      if (data.ok && Array.isArray(data.interventions)) {
         setInterventions(data.interventions.map((i: any) => ({
           id: i.id,
           number: i.number,
           clientName: i.clientName,
           vehicleInfo: i.vehicleInfo
         })))
+      } else {
+        console.error('Error loading interventions:', data.error || 'Invalid response')
       }
     } catch (error) {
       console.error('Error loading interventions:', error)
@@ -146,10 +148,10 @@ export default function DocumentsPage() {
       const response = await fetch(`/api/documents/devis?${params}`)
       const data = await response.json()
       
-      if (data.ok) {
+      if (data.ok && Array.isArray(data.devis)) {
         setDevis(data.devis)
       } else {
-        console.error('Error loading devis:', data.error)
+        console.error('Error loading devis:', data.error || 'Invalid response format')
         toast.error('Erreur', 'Impossible de charger les devis')
       }
       
@@ -221,10 +223,10 @@ export default function DocumentsPage() {
       const response = await fetch(`/api/documents/factures?${params}`)
       const data = await response.json()
       
-      if (data.ok) {
+      if (data.ok && Array.isArray(data.factures)) {
         setFactures(data.factures)
       } else {
-        console.error('Error loading factures:', data.error)
+        console.error('Error loading factures:', data.error || 'Invalid response format')
         toast.error('Erreur', 'Impossible de charger les factures')
       }
       
@@ -296,10 +298,10 @@ export default function DocumentsPage() {
       const response = await fetch(`/api/documents/exports?${params}`)
       const data = await response.json()
       
-      if (data.ok) {
+      if (data.ok && Array.isArray(data.exports)) {
         setExports(data.exports)
       } else {
-        console.error('Error loading exports:', data.error)
+        console.error('Error loading exports:', data.error || 'Invalid response format')
         toast.error('Erreur', 'Impossible de charger les exports')
       }
       

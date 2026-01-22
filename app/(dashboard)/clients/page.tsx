@@ -90,16 +90,16 @@ export default function ClientsPage() {
       const response = await fetch(`/api/clients?${params}`)
       const data = await response.json()
       
-      if (data.ok) {
+      if (data.ok && Array.isArray(data.clients)) {
         // Transformer les dates si nécessaire
-        const clientsWithDates = (data.clients || data.data || []).map((c: Client & { createdAt?: string; updatedAt?: string }) => ({
+        const clientsWithDates = data.clients.map((c: Client & { createdAt?: string; updatedAt?: string }) => ({
           ...c,
           createdAt: c.createdAt ? new Date(c.createdAt) : new Date(),
           updatedAt: c.updatedAt ? new Date(c.updatedAt) : new Date()
         }))
         setClients(clientsWithDates)
       } else {
-        console.error('Error loading clients:', data.error)
+        console.error('Error loading clients:', data.error || 'Invalid response format')
         toast.error('Erreur', 'Impossible de charger les clients')
       }
       

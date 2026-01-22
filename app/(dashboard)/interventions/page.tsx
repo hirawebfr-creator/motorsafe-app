@@ -129,11 +129,13 @@ export default function InterventionsPage() {
       const response = await fetch('/api/clients')
       const data = await response.json()
       
-      if (data.ok) {
+      if (data.ok && Array.isArray(data.clients)) {
         setClients(data.clients.map((c: any) => ({
           id: c.id,
           name: `${c.firstName} ${c.lastName}`
         })))
+      } else {
+        console.error('Error loading clients:', data.error || 'Invalid response')
       }
     } catch (error) {
       console.error('Error loading clients:', error)
@@ -151,12 +153,14 @@ export default function InterventionsPage() {
       const response = await fetch('/api/vehicules')
       const data = await response.json()
       
-      if (data.ok) {
+      if (data.ok && Array.isArray(data.vehicles)) {
         setVehicles(data.vehicles.map((v: any) => ({
           id: v.id,
           clientId: v.clientId,
           info: `${v.make} ${v.model} - ${v.registrationNumber}`
         })))
+      } else {
+        console.error('Error loading vehicles:', data.error || 'Invalid response')
       }
     } catch (error) {
       console.error('Error loading vehicles:', error)
@@ -185,10 +189,10 @@ export default function InterventionsPage() {
       const response = await fetch(`/api/interventions?${params}`)
       const data = await response.json()
       
-      if (data.ok) {
+      if (data.ok && Array.isArray(data.interventions)) {
         setInterventions(data.interventions)
       } else {
-        console.error('Error loading interventions:', data.error)
+        console.error('Error loading interventions:', data.error || 'Invalid response format')
         toast.error('Erreur', 'Impossible de charger les interventions')
       }
       
