@@ -338,16 +338,19 @@ export default function VehicleDetailPage() {
       CANCELED: 'Annulée'
     }
     
-    const icons: Record<string, JSX.Element> = {
-      DRAFT: <Clock size={14} />,
-      OPEN: <PlayCircle size={14} />,
-      DONE: <CheckCircle size={14} />,
-      CANCELED: <XCircle size={14} />
+    const getIcon = (s: string): React.ReactNode => {
+      switch (s) {
+        case 'DRAFT': return <Clock size={14} />
+        case 'OPEN': return <PlayCircle size={14} />
+        case 'DONE': return <CheckCircle size={14} />
+        case 'CANCELED': return <XCircle size={14} />
+        default: return <Clock size={14} />
+      }
     }
     
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-        {icons[status]}
+        {getIcon(status)}
         <Badge variant={variants[status] as any}>
           {labels[status]}
         </Badge>
