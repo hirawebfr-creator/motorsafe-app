@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { Badge } from '@/components/shared/badge'
 import { Button } from '@/components/shared/button'
@@ -23,37 +23,34 @@ import {
   FileSignature
 } from 'lucide-react'
 
-type InterventionStatus = 'DRAFT' | 'OPEN' | 'DONE' | 'CANCELED'
+type InterventionStatus = 'EN_ATTENTE' | 'EN_COURS' | 'TERMINE' | 'ANNULE'
 
 interface Intervention {
   id: string
-  number?: string
-  type: string
-  title?: string
-  notes?: string
+  number: string
+  clientId: string
+  clientName: string
+  clientEmail: string
+  clientPhone: string
+  vehicleId: string
+  vehicleInfo: string
+  vehicleRegistration: string
+  entryDate: Date
+  exitDate?: Date
   status: InterventionStatus
-  odometerKm?: number
-  amountCents?: number
+  description: string
+  diagnosticNotes?: string
+  mileage: number
+  laborCost?: number
+  partsCost?: number
+  totalAmount?: number
+  isClientSigned: boolean
+  isGarageSigned: boolean
+  clientSignedAt?: Date
+  garageSignedAt?: Date
   createdAt: Date
   updatedAt: Date
-  performedAt?: Date
-  agreementAt?: Date
-  closedAt?: Date
   createdBy?: string
-  vehicleId: string
-  vehicle?: {
-    id: string
-    plate: string
-    brand: string
-    model: string
-    client?: {
-      id: number
-      firstName: string
-      lastName: string
-      email?: string
-      phone?: string
-    }
-  }
 }
 
 interface TimelineEvent {
@@ -76,7 +73,7 @@ export default function InterventionDetailPage() {
   const [isLoading, setIsLoading] = useState(true)
   
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false)
-  const [newStatus, setNewStatus] = useState<InterventionStatus>('DRAFT')
+  const [newStatus, setNewStatus] = useState<InterventionStatus>('EN_ATTENTE')
   const [statusComment, setStatusComment] = useState('')
   const [isChangingStatus, setIsChangingStatus] = useState(false)
   
@@ -94,7 +91,39 @@ export default function InterventionDetailPage() {
       
       if (interventionData.ok && interventionData.data) {
         const itv = interventionData.data
-        setIntervention(itv)
+        
+        // Mapper depuis l'API vers notre interface
+        const mappedIntervention: Intervention = {
+          id: itv.id,
+          number: itv.number || `INT-${String(itv.id).slice(0, 8)}`,
+          clientId: itv.vehicle?.client?.id?.toString() || '',
+          clientName: itv.vehicle?.client 
+            ? `${itv.vehicle.client.firstName} ${itv.vehicle.client.lastName}`
+            : 'Client inconnu',
+          clientEmail: itv.vehicle?.client?.email || '',
+          clientPhone: itv.vehicle?.client?.phone || '',
+          vehicleId: itv.vehicleId || '',
+          vehicleInfo: itv.vehicle ? `${itv.vehicle.brand} ${itv.vehicle.model}` : 'Véhicule inconnu',
+          vehicleRegistration: itv.vehicle?.plate || '',
+          entryDate: new Date(itv.performedAt || itv.createdAt),
+          exitDate: itv.closedAt ? new Date(itv.closedAt) : undefined,
+          status: mapApiStatusToLocal(itv.status),
+          description: itv.title || itv.type || 'Intervention',
+          diagnosticNotes: itv.notes,
+          mileage: itv.odometerKm || 0,
+          laborCost: undefined,
+          partsCost: undefined,
+          totalAmount: itv.amountCents ? itv.amountCents / 100 : undefined,
+          isClientSigned: !!itv.agreementAt,
+          isGarageSigned: !!itv.closedAt,
+          clientSignedAt: itv.agreementAt ? new Date(itv.agreementAt) : undefined,
+          garageSignedAt: itv.closedAt ? new Date(itv.closedAt) : undefined,
+          createdAt: new Date(itv.createdAt),
+          updatedAt: new Date(itv.updatedAt),
+          createdBy: itv.createdBy
+        }
+        
+        setIntervention(mappedIntervention)
         
         // Générer timeline depuis l'intervention
         const mockTimeline: TimelineEvent[] = [
@@ -102,53 +131,53 @@ export default function InterventionDetailPage() {
             id: '1',
             type: 'status_change',
             title: 'Intervention créée',
-            description: `Statut initial : ${getStatusLabel('DRAFT')}`,
-            user: itv.createdBy || 'Système',
-            timestamp: new Date(itv.createdAt)
+            description: `Statut initial : ${getStatusLabel('EN_ATTENTE')}`,
+            user: mappedIntervention.createdBy || 'Système',
+            timestamp: new Date(mappedIntervention.createdAt)
           }
         ]
         
-        if (itv.status !== 'DRAFT') {
+        if (mappedIntervention.status !== 'EN_ATTENTE') {
           mockTimeline.push({
             id: '2',
             type: 'status_change',
-            title: 'Intervention ouverte',
-            description: `Statut changé en ${getStatusLabel('OPEN')}`,
+            title: 'Intervention démarrée',
+            description: `Statut changé en ${getStatusLabel('EN_COURS')}`,
             user: 'Atelier',
-            timestamp: new Date(itv.updatedAt)
+            timestamp: new Date(mappedIntervention.updatedAt)
           })
         }
         
-        if (itv.agreementAt) {
+        if (mappedIntervention.isClientSigned) {
           mockTimeline.push({
             id: '3',
             type: 'signature',
-            title: 'Accord client',
-            description: 'Le client a validé les travaux',
-            user: itv.vehicle?.client ? `${itv.vehicle.client.firstName} ${itv.vehicle.client.lastName}` : 'Client',
-            timestamp: new Date(itv.agreementAt)
+            title: 'Signature client',
+            description: 'Le client a signé le bon de commande',
+            user: mappedIntervention.clientName,
+            timestamp: mappedIntervention.clientSignedAt || new Date()
           })
         }
         
-        if (itv.closedAt) {
+        if (mappedIntervention.isGarageSigned) {
           mockTimeline.push({
             id: '4',
-            type: 'status_change',
-            title: 'Intervention clôturée',
-            description: 'Les travaux sont terminés',
+            type: 'signature',
+            title: 'Signature atelier',
+            description: "L'atelier a validé les travaux",
             user: 'Atelier',
-            timestamp: new Date(itv.closedAt)
+            timestamp: mappedIntervention.garageSignedAt || new Date()
           })
         }
         
-        if (itv.status === 'DONE') {
+        if (mappedIntervention.status === 'TERMINE') {
           mockTimeline.push({
             id: '5',
             type: 'status_change',
             title: 'Intervention terminée',
             description: 'Les travaux sont terminés',
             user: 'Atelier',
-            timestamp: new Date(itv.updatedAt)
+            timestamp: new Date(mappedIntervention.updatedAt)
           })
         }
         
@@ -168,31 +197,27 @@ export default function InterventionDetailPage() {
       setIntervention({
         id: interventionId,
         number: 'INT-2024-001',
-        type: 'revision',
-        title: 'Révision 20 000 km + changement plaquettes de frein avant',
-        notes: 'RAS au diagnostic. Plaquettes avant à 2mm.',
-        status: 'OPEN',
-        odometerKm: 45000,
-        amountCents: 27000,
+        clientId: '1',
+        clientName: 'Jean Dupont',
+        clientEmail: 'jean.dupont@email.fr',
+        clientPhone: '06 12 34 56 78',
+        vehicleId: '1',
+        vehicleInfo: 'Peugeot 208 Active',
+        vehicleRegistration: 'AB-123-CD',
+        entryDate: new Date('2024-01-15'),
+        status: 'EN_COURS',
+        description: 'Révision 20 000 km + changement plaquettes de frein avant',
+        diagnosticNotes: 'RAS au diagnostic. Plaquettes avant à 2mm.',
+        mileage: 45000,
+        laborCost: 150.00,
+        partsCost: 120.00,
+        totalAmount: 270.00,
+        isClientSigned: true,
+        isGarageSigned: false,
+        clientSignedAt: new Date('2024-01-15T14:30:00'),
         createdAt: new Date('2024-01-15T10:00:00'),
         updatedAt: new Date('2024-01-15T10:00:00'),
-        performedAt: new Date('2024-01-15'),
-        agreementAt: new Date('2024-01-15T14:30:00'),
-        createdBy: 'Pierre Martin',
-        vehicleId: '1',
-        vehicle: {
-          id: '1',
-          plate: 'AB-123-CD',
-          brand: 'Peugeot',
-          model: '208',
-          client: {
-            id: 1,
-            firstName: 'Jean',
-            lastName: 'Dupont',
-            email: 'jean.dupont@email.fr',
-            phone: '06 12 34 56 78'
-          }
-        }
+        createdBy: 'Pierre Martin'
       })
       
       setTimeline([
@@ -200,14 +225,14 @@ export default function InterventionDetailPage() {
           id: '1',
           type: 'status_change',
           title: 'Intervention créée',
-          description: 'Statut initial : Brouillon',
+          description: 'Statut initial : En attente',
           user: 'Pierre Martin',
           timestamp: new Date('2024-01-15T10:00:00')
         },
         {
           id: '2',
           type: 'status_change',
-          title: 'Intervention ouverte',
+          title: 'Intervention démarrée',
           description: 'Statut changé en En cours',
           user: 'Atelier',
           timestamp: new Date('2024-01-15T10:30:00')
@@ -215,8 +240,8 @@ export default function InterventionDetailPage() {
         {
           id: '3',
           type: 'signature',
-          title: 'Accord client',
-          description: 'Le client a validé les travaux',
+          title: 'Signature client',
+          description: 'Le client a signé le bon de commande',
           user: 'Jean Dupont',
           timestamp: new Date('2024-01-15T14:30:00')
         }
@@ -227,46 +252,66 @@ export default function InterventionDetailPage() {
     }
   }
   
-  const getStatusLabel = (status: InterventionStatus): string => {
-    const labels: Record<string, string> = {
-      DRAFT: 'Brouillon',
-      OPEN: 'En cours',
-      DONE: 'Terminée',
-      CANCELED: 'Annulée'
+  const mapApiStatusToLocal = (apiStatus: string): InterventionStatus => {
+    const mapping: Record<string, InterventionStatus> = {
+      'DRAFT': 'EN_ATTENTE',
+      'OPEN': 'EN_COURS',
+      'DONE': 'TERMINE',
+      'CANCELED': 'ANNULE'
     }
-    return labels[status] || status
+    return mapping[apiStatus] || 'EN_ATTENTE'
+  }
+  
+  const mapLocalStatusToApi = (localStatus: InterventionStatus): string => {
+    const mapping: Record<InterventionStatus, string> = {
+      'EN_ATTENTE': 'DRAFT',
+      'EN_COURS': 'OPEN',
+      'TERMINE': 'DONE',
+      'ANNULE': 'CANCELED'
+    }
+    return mapping[localStatus]
+  }
+  
+  const getStatusLabel = (status: InterventionStatus): string => {
+    const labels: Record<InterventionStatus, string> = {
+      EN_ATTENTE: 'En attente',
+      EN_COURS: 'En cours',
+      TERMINE: 'Terminée',
+      ANNULE: 'Annulée'
+    }
+    return labels[status]
   }
   
   const getStatusBadgeVariant = (status: InterventionStatus) => {
-    const variants: Record<string, string> = {
-      DRAFT: 'neutral',
-      OPEN: 'info',
-      DONE: 'success',
-      CANCELED: 'error'
+    const variants: Record<InterventionStatus, string> = {
+      EN_ATTENTE: 'warning',
+      EN_COURS: 'info',
+      TERMINE: 'success',
+      ANNULE: 'error'
     }
-    return variants[status] as any
+    return variants[status] as 'warning' | 'info' | 'success' | 'error'
   }
   
   const getStatusIcon = (status: InterventionStatus): React.ReactNode => {
     switch (status) {
-      case 'DRAFT': return <Clock size={20} />
-      case 'OPEN': return <PlayCircle size={20} />
-      case 'DONE': return <CheckCircle size={20} />
-      case 'CANCELED': return <XCircle size={20} />
+      case 'EN_ATTENTE': return <Clock size={20} />
+      case 'EN_COURS': return <PlayCircle size={20} />
+      case 'TERMINE': return <CheckCircle size={20} />
+      case 'ANNULE': return <XCircle size={20} />
       default: return <Clock size={20} />
     }
   }
   
   const getAvailableStatuses = (currentStatus: InterventionStatus): InterventionStatus[] => {
     switch (currentStatus) {
-      case 'DRAFT':
-        return ['DRAFT', 'OPEN', 'CANCELED']
-      case 'OPEN':
-        return ['OPEN', 'DONE', 'CANCELED']
-      case 'DONE':
-        return ['DONE']
-      case 'CANCELED':
-        return ['CANCELED']
+      case 'EN_ATTENTE':
+        return ['EN_ATTENTE', 'EN_COURS', 'ANNULE']
+      case 'EN_COURS':
+        return ['EN_COURS', 'TERMINE', 'ANNULE']
+      case 'TERMINE':
+        return ['TERMINE']
+      case 'ANNULE':
+        return ['ANNULE']
       default:
         return []
     }
@@ -283,11 +328,11 @@ export default function InterventionDetailPage() {
   
   const getNextStatus = (currentStatus: InterventionStatus): InterventionStatus => {
     switch (currentStatus) {
-      case 'DRAFT': return 'OPEN'
-      case 'OPEN': return 'DONE'
-      case 'DONE': return 'DONE'
-      case 'CANCELED': return 'CANCELED'
-      default: return 'DRAFT'
+      case 'EN_ATTENTE': return 'EN_COURS'
+      case 'EN_COURS': return 'TERMINE'
+      case 'TERMINE': return 'TERMINE'
+      case 'ANNULE': return 'ANNULE'
+      default: return 'EN_ATTENTE'
     }
   }
   
@@ -301,7 +346,7 @@ export default function InterventionDetailPage() {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          status: newStatus,
+          status: mapLocalStatusToApi(newStatus),
           comment: statusComment
         })
       })
@@ -324,36 +369,22 @@ export default function InterventionDetailPage() {
     }
   }
   
-  const formatCurrency = (amountCents?: number): string => {
-    if (!amountCents) return '-'
+  const formatCurrency = (amount?: number): string => {
+    if (!amount) return '-'
     return new Intl.NumberFormat('fr-FR', {
       style: 'currency',
       currency: 'EUR'
-    }).format(amountCents / 100)
+    }).format(amount)
   }
   
   const getTimelineIcon = (type: TimelineEvent['type']): React.ReactNode => {
     switch (type) {
-      case 'status_change': return <PlayCircle size={14} style={{ color: '#3B82F6' }} />
-      case 'signature': return <FileSignature size={14} style={{ color: '#16A34A' }} />
-      case 'document': return <FileText size={14} style={{ color: '#F59E0B' }} />
-      case 'note': return <FileText size={14} style={{ color: '#6B7280' }} />
-      default: return <FileText size={14} style={{ color: '#6B7280' }} />
+      case 'status_change': return <PlayCircle size={16} style={{ color: '#3B82F6' }} />
+      case 'signature': return <FileSignature size={16} style={{ color: '#16A34A' }} />
+      case 'document': return <FileText size={16} style={{ color: '#F59E0B' }} />
+      case 'note': return <FileText size={16} style={{ color: '#6B7280' }} />
+      default: return <FileText size={16} style={{ color: '#6B7280' }} />
     }
-  }
-  
-  const getClientName = (): string => {
-    if (intervention?.vehicle?.client) {
-      return `${intervention.vehicle.client.firstName} ${intervention.vehicle.client.lastName}`
-    }
-    return 'Client inconnu'
-  }
-  
-  const getVehicleInfo = (): string => {
-    if (intervention?.vehicle) {
-      return `${intervention.vehicle.brand} ${intervention.vehicle.model}`
-    }
-    return 'Véhicule inconnu'
   }
   
   if (isLoading) {
@@ -389,7 +420,7 @@ export default function InterventionDetailPage() {
     )
   }
   
-  const canChangeStatus = intervention.status !== 'DONE' && intervention.status !== 'CANCELED'
+  const canChangeStatus = intervention.status !== 'TERMINE' && intervention.status !== 'ANNULE'
   
   return (
     <div style={{ padding: '24px', maxWidth: '1600px', margin: '0 auto' }}>
@@ -417,7 +448,7 @@ export default function InterventionDetailPage() {
               margin: 0,
               marginBottom: '8px'
             }}>
-              {intervention.number || `#${String(intervention.id).slice(0, 8)}`}
+              {intervention.number}
             </h1>
             <div style={{
               display: 'flex',
@@ -444,7 +475,7 @@ export default function InterventionDetailPage() {
             >
               Générer devis
             </Button>
-            {intervention.status === 'DONE' && (
+            {intervention.status === 'TERMINE' && (
               <Button
                 variant="secondary"
                 leftIcon={<FileText size={20} />}
@@ -492,65 +523,63 @@ export default function InterventionDetailPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div>
                 <div style={{ fontSize: '12px', fontWeight: 500, color: '#6B7280', marginBottom: '6px' }}>
-                  Type d'intervention
-                </div>
-                <Badge variant="default">
-                  {intervention.type}
-                </Badge>
-              </div>
-              
-              <div>
-                <div style={{ fontSize: '12px', fontWeight: 500, color: '#6B7280', marginBottom: '6px' }}>
-                  Date
+                  Date d'entrée
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <Calendar size={16} style={{ color: '#9CA3AF' }} />
                   <span style={{ fontSize: '14px', color: '#111827' }}>
-                    {intervention.performedAt 
-                      ? new Date(intervention.performedAt).toLocaleDateString('fr-FR')
-                      : new Date(intervention.createdAt).toLocaleDateString('fr-FR')
-                    }
+                    {new Date(intervention.entryDate).toLocaleDateString('fr-FR')}
                   </span>
                 </div>
               </div>
               
-              {intervention.odometerKm && (
+              {intervention.exitDate && (
                 <div>
                   <div style={{ fontSize: '12px', fontWeight: 500, color: '#6B7280', marginBottom: '6px' }}>
-                    Kilométrage
+                    Date de sortie
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Gauge size={16} style={{ color: '#9CA3AF' }} />
+                    <Calendar size={16} style={{ color: '#9CA3AF' }} />
                     <span style={{ fontSize: '14px', color: '#111827' }}>
-                      {intervention.odometerKm.toLocaleString('fr-FR')} km
+                      {new Date(intervention.exitDate).toLocaleDateString('fr-FR')}
                     </span>
                   </div>
                 </div>
               )}
               
-              {intervention.title && (
-                <div>
-                  <div style={{ fontSize: '12px', fontWeight: 500, color: '#6B7280', marginBottom: '6px' }}>
-                    Description des travaux
-                  </div>
-                  <p style={{
-                    fontSize: '14px',
-                    color: '#374151',
-                    lineHeight: 1.6,
-                    margin: 0,
-                    backgroundColor: '#F9FAFB',
-                    padding: '12px',
-                    borderRadius: '8px'
-                  }}>
-                    {intervention.title}
-                  </p>
+              <div>
+                <div style={{ fontSize: '12px', fontWeight: 500, color: '#6B7280', marginBottom: '6px' }}>
+                  Kilométrage
                 </div>
-              )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Gauge size={16} style={{ color: '#9CA3AF' }} />
+                  <span style={{ fontSize: '14px', color: '#111827' }}>
+                    {intervention.mileage.toLocaleString('fr-FR')} km
+                  </span>
+                </div>
+              </div>
               
-              {intervention.notes && (
+              <div>
+                <div style={{ fontSize: '12px', fontWeight: 500, color: '#6B7280', marginBottom: '6px' }}>
+                  Description des travaux
+                </div>
+                <p style={{
+                  fontSize: '14px',
+                  color: '#374151',
+                  lineHeight: 1.6,
+                  margin: 0,
+                  backgroundColor: '#F9FAFB',
+                  padding: '12px',
+                  borderRadius: '8px'
+                }}>
+                  {intervention.description}
+                </p>
+              </div>
+              
+              {intervention.diagnosticNotes && (
                 <div>
                   <div style={{ fontSize: '12px', fontWeight: 500, color: '#6B7280', marginBottom: '6px' }}>
-                    Notes
+                    Notes de diagnostic
                   </div>
                   <p style={{
                     fontSize: '14px',
@@ -561,7 +590,7 @@ export default function InterventionDetailPage() {
                     padding: '12px',
                     borderRadius: '8px'
                   }}>
-                    {intervention.notes}
+                    {intervention.diagnosticNotes}
                   </p>
                 </div>
               )}
@@ -599,35 +628,31 @@ export default function InterventionDetailPage() {
                       cursor: 'pointer',
                       textDecoration: 'underline'
                     }}
-                    onClick={() => {
-                      if (intervention.vehicle?.client?.id) {
-                        router.push(`/clients/${intervention.vehicle.client.id}`)
-                      }
-                    }}
+                    onClick={() => router.push(`/clients/${intervention.clientId}`)}
                   >
-                    {getClientName()}
+                    {intervention.clientName}
                   </span>
                 </div>
               </div>
               
-              {intervention.vehicle?.client?.email && (
+              {intervention.clientEmail && (
                 <div>
                   <div style={{ fontSize: '12px', fontWeight: 500, color: '#6B7280', marginBottom: '6px' }}>
                     Email
                   </div>
                   <div style={{ fontSize: '14px', color: '#111827' }}>
-                    {intervention.vehicle.client.email}
+                    {intervention.clientEmail}
                   </div>
                 </div>
               )}
               
-              {intervention.vehicle?.client?.phone && (
+              {intervention.clientPhone && (
                 <div>
                   <div style={{ fontSize: '12px', fontWeight: 500, color: '#6B7280', marginBottom: '6px' }}>
                     Téléphone
                   </div>
                   <div style={{ fontSize: '14px', color: '#111827' }}>
-                    {intervention.vehicle.client.phone}
+                    {intervention.clientPhone}
                   </div>
                 </div>
               )}
@@ -652,7 +677,7 @@ export default function InterventionDetailPage() {
             </h2>
             
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-              <Avatar name={getVehicleInfo()} size="md" shape="square" />
+              <Avatar name={intervention.vehicleInfo} size="md" shape="square" />
               <div>
                 <div 
                   style={{ 
@@ -664,29 +689,27 @@ export default function InterventionDetailPage() {
                   }}
                   onClick={() => router.push(`/vehicules/${intervention.vehicleId}`)}
                 >
-                  {getVehicleInfo()}
+                  {intervention.vehicleInfo}
                 </div>
-                {intervention.vehicle?.plate && (
-                  <div style={{
-                    fontFamily: 'monospace',
-                    fontSize: '14px',
-                    fontWeight: 600,
-                    color: '#111827',
-                    backgroundColor: '#F9FAFB',
-                    padding: '2px 6px',
-                    borderRadius: '4px',
-                    display: 'inline-block',
-                    marginTop: '4px'
-                  }}>
-                    {intervention.vehicle.plate}
-                  </div>
-                )}
+                <div style={{
+                  fontFamily: 'monospace',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  color: '#111827',
+                  backgroundColor: '#F9FAFB',
+                  padding: '2px 6px',
+                  borderRadius: '4px',
+                  display: 'inline-block',
+                  marginTop: '4px'
+                }}>
+                  {intervention.vehicleRegistration}
+                </div>
               </div>
             </div>
           </div>
           
           {/* Montants */}
-          {intervention.amountCents && (
+          {(intervention.laborCost || intervention.partsCost || intervention.totalAmount) && (
             <div style={{
               backgroundColor: '#FFFFFF',
               borderRadius: '12px',
@@ -700,16 +723,42 @@ export default function InterventionDetailPage() {
                 margin: 0,
                 marginBottom: '20px'
               }}>
-                Montant
+                Montants
               </h2>
               
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: '16px', fontWeight: 600, color: '#111827' }}>
-                  Total TTC
-                </span>
-                <span style={{ fontSize: '24px', fontWeight: 700, color: '#111827' }}>
-                  {formatCurrency(intervention.amountCents)}
-                </span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {intervention.laborCost && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '14px', color: '#6B7280' }}>Main d'œuvre</span>
+                    <span style={{ fontSize: '14px', fontWeight: 500, color: '#111827' }}>
+                      {formatCurrency(intervention.laborCost)}
+                    </span>
+                  </div>
+                )}
+                
+                {intervention.partsCost && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '14px', color: '#6B7280' }}>Pièces</span>
+                    <span style={{ fontSize: '14px', fontWeight: 500, color: '#111827' }}>
+                      {formatCurrency(intervention.partsCost)}
+                    </span>
+                  </div>
+                )}
+                
+                {intervention.totalAmount && (
+                  <>
+                    <div style={{ borderTop: '1px solid #E5E7EB', marginTop: '8px', paddingTop: '12px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: '16px', fontWeight: 600, color: '#111827' }}>
+                          Total TTC
+                        </span>
+                        <span style={{ fontSize: '20px', fontWeight: 700, color: '#111827' }}>
+                          {formatCurrency(intervention.totalAmount)}
+                        </span>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
           )}
@@ -717,7 +766,7 @@ export default function InterventionDetailPage() {
         
         {/* Colonne droite */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          {/* Signatures / Accords */}
+          {/* Signatures */}
           <div style={{
             backgroundColor: '#FFFFFF',
             borderRadius: '12px',
@@ -731,7 +780,7 @@ export default function InterventionDetailPage() {
               margin: 0,
               marginBottom: '20px'
             }}>
-              Validation
+              Signatures
             </h2>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -740,7 +789,7 @@ export default function InterventionDetailPage() {
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 padding: '12px',
-                backgroundColor: intervention.agreementAt ? '#F0FDF4' : '#F9FAFB',
+                backgroundColor: intervention.isClientSigned ? '#F0FDF4' : '#F9FAFB',
                 borderRadius: '8px'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -748,22 +797,22 @@ export default function InterventionDetailPage() {
                     width: '40px',
                     height: '40px',
                     borderRadius: '50%',
-                    backgroundColor: intervention.agreementAt ? '#16A34A' : '#E5E7EB',
+                    backgroundColor: intervention.isClientSigned ? '#16A34A' : '#E5E7EB',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     color: '#FFFFFF'
                   }}>
-                    {intervention.agreementAt ? <CheckCircle size={20} /> : <Clock size={20} />}
+                    {intervention.isClientSigned ? <CheckCircle size={20} /> : <Clock size={20} />}
                   </div>
                   <div>
                     <div style={{ fontSize: '14px', fontWeight: 500, color: '#111827' }}>
-                      Accord client
+                      Signature client
                     </div>
-                    {intervention.agreementAt && (
+                    {intervention.clientSignedAt && (
                       <div style={{ fontSize: '12px', color: '#6B7280' }}>
-                        {new Date(intervention.agreementAt).toLocaleDateString('fr-FR')} à{' '}
-                        {new Date(intervention.agreementAt).toLocaleTimeString('fr-FR', { 
+                        {new Date(intervention.clientSignedAt).toLocaleDateString('fr-FR')} à{' '}
+                        {new Date(intervention.clientSignedAt).toLocaleTimeString('fr-FR', { 
                           hour: '2-digit', 
                           minute: '2-digit' 
                         })}
@@ -771,8 +820,8 @@ export default function InterventionDetailPage() {
                     )}
                   </div>
                 </div>
-                <Badge variant={intervention.agreementAt ? 'success' : 'neutral'}>
-                  {intervention.agreementAt ? 'Validé' : 'En attente'}
+                <Badge variant={intervention.isClientSigned ? 'success' : 'neutral'}>
+                  {intervention.isClientSigned ? 'Signée' : 'En attente'}
                 </Badge>
               </div>
               
@@ -781,7 +830,7 @@ export default function InterventionDetailPage() {
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 padding: '12px',
-                backgroundColor: intervention.closedAt ? '#F0FDF4' : '#F9FAFB',
+                backgroundColor: intervention.isGarageSigned ? '#F0FDF4' : '#F9FAFB',
                 borderRadius: '8px'
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -789,22 +838,22 @@ export default function InterventionDetailPage() {
                     width: '40px',
                     height: '40px',
                     borderRadius: '50%',
-                    backgroundColor: intervention.closedAt ? '#16A34A' : '#E5E7EB',
+                    backgroundColor: intervention.isGarageSigned ? '#16A34A' : '#E5E7EB',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     color: '#FFFFFF'
                   }}>
-                    {intervention.closedAt ? <CheckCircle size={20} /> : <Clock size={20} />}
+                    {intervention.isGarageSigned ? <CheckCircle size={20} /> : <Clock size={20} />}
                   </div>
                   <div>
                     <div style={{ fontSize: '14px', fontWeight: 500, color: '#111827' }}>
-                      Clôture atelier
+                      Signature atelier
                     </div>
-                    {intervention.closedAt && (
+                    {intervention.garageSignedAt && (
                       <div style={{ fontSize: '12px', color: '#6B7280' }}>
-                        {new Date(intervention.closedAt).toLocaleDateString('fr-FR')} à{' '}
-                        {new Date(intervention.closedAt).toLocaleTimeString('fr-FR', { 
+                        {new Date(intervention.garageSignedAt).toLocaleDateString('fr-FR')} à{' '}
+                        {new Date(intervention.garageSignedAt).toLocaleTimeString('fr-FR', { 
                           hour: '2-digit', 
                           minute: '2-digit' 
                         })}
@@ -812,8 +861,8 @@ export default function InterventionDetailPage() {
                     )}
                   </div>
                 </div>
-                <Badge variant={intervention.closedAt ? 'success' : 'neutral'}>
-                  {intervention.closedAt ? 'Clôturée' : 'En attente'}
+                <Badge variant={intervention.isGarageSigned ? 'success' : 'neutral'}>
+                  {intervention.isGarageSigned ? 'Signée' : 'En attente'}
                 </Badge>
               </div>
             </div>
@@ -870,12 +919,12 @@ export default function InterventionDetailPage() {
               Historique
             </h2>
             
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {timeline.map((event, index) => (
                 <div
                   key={event.id}
                   style={{
-                    paddingLeft: '24px',
+                    paddingLeft: '20px',
                     borderLeft: index === timeline.length - 1 ? 'none' : '2px solid #E5E7EB',
                     position: 'relative',
                     paddingBottom: index === timeline.length - 1 ? 0 : '16px'
@@ -885,8 +934,8 @@ export default function InterventionDetailPage() {
                     position: 'absolute',
                     left: '-9px',
                     top: '6px',
-                    width: '18px',
-                    height: '18px',
+                    width: '16px',
+                    height: '16px',
                     borderRadius: '50%',
                     backgroundColor: '#FFFFFF',
                     border: '2px solid #E5E7EB',
@@ -935,7 +984,7 @@ export default function InterventionDetailPage() {
             lineHeight: 1.6,
             marginBottom: '20px'
           }}>
-            Intervention : <strong>{intervention.number || `#${String(intervention.id).slice(0, 8)}`}</strong>
+            Intervention : <strong>{intervention.number}</strong>
           </p>
           
           <Select
