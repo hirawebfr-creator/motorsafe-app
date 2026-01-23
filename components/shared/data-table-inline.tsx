@@ -1,9 +1,9 @@
 'use client'
 
-import React from 'react'
+import React, { memo } from 'react'
 
 // ============================================================================
-// DATA TABLE INLINE - 100% Inline Styles Version
+// DATA TABLE INLINE - 100% Inline Styles Version (Memoized)
 // ============================================================================
 
 export interface DataTableColumn<T> {
@@ -242,5 +242,8 @@ export function DataTableInline<T extends { id: string | number }>({
     </div>
   )
 }
+
+// Memoize the component to prevent unnecessary re-renders
+export const MemoizedDataTableInline = memo(DataTableInline) as typeof DataTableInline
 
 export default DataTableInline

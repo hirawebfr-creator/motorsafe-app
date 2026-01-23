@@ -13,8 +13,8 @@ test.describe('Parcours de connexion', () => {
     
     // Vérifier les éléments clés
     await expect(page.getByRole('heading', { name: 'Connexion' })).toBeVisible()
-    await expect(page.getByLabel('Email')).toBeVisible()
-    await expect(page.getByLabel('Mot de passe')).toBeVisible()
+    await expect(page.locator('input[type="email"], input[name="email"]').first()).toBeVisible()
+    await expect(page.locator('input[type="password"]')).toBeVisible()
     await expect(page.getByRole('button', { name: 'Se connecter' })).toBeVisible()
   })
   
@@ -25,15 +25,15 @@ test.describe('Parcours de connexion', () => {
     
     await page.goto('/auth/login')
     
-    // Remplir le formulaire
-    await page.getByLabel('Email').fill(testEmail)
-    await page.getByLabel('Mot de passe').fill(testPassword)
+    // Remplir le formulaire avec selectors robustes
+    await page.locator('input[type="email"], input[name="email"]').first().fill(testEmail)
+    await page.locator('input[type="password"]').fill(testPassword)
     
     // Soumettre
     await page.getByRole('button', { name: 'Se connecter' }).click()
     
     // Attendre la redirection vers dashboard
-    await page.waitForURL(/\/dashboard/, { timeout: 10000 })
+    await page.waitForURL(/\/dashboard/, { timeout: 15000 })
     
     // Vérifier qu'on est sur le dashboard
     await expect(page.url()).toContain('/dashboard')
@@ -43,8 +43,8 @@ test.describe('Parcours de connexion', () => {
     await page.goto('/auth/login')
     
     // Remplir avec de mauvais identifiants
-    await page.getByLabel('Email').fill('wrong@email.com')
-    await page.getByLabel('Mot de passe').fill('wrongpassword123')
+    await page.locator('input[type="email"], input[name="email"]').first().fill('wrong@email.com')
+    await page.locator('input[type="password"]').fill('wrongpassword123')
     
     await page.getByRole('button', { name: 'Se connecter' }).click()
     

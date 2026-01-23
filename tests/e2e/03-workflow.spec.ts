@@ -9,11 +9,11 @@ import { test, expect } from '@playwright/test'
 const TEST_EMAIL = 'test@motorsafe.fr'
 const TEST_PASSWORD = 'TestPassword123!'
 
-// Helper pour se connecter
+// Helper pour se connecter avec selectors robustes
 async function login(page: import('@playwright/test').Page) {
   await page.goto('/auth/login')
-  await page.getByLabel('Email').fill(TEST_EMAIL)
-  await page.getByLabel('Mot de passe').fill(TEST_PASSWORD)
+  await page.locator('input[type="email"], input[name="email"]').first().fill(TEST_EMAIL)
+  await page.locator('input[type="password"]').fill(TEST_PASSWORD)
   await page.getByRole('button', { name: 'Se connecter' }).click()
   await page.waitForURL(/\/dashboard/, { timeout: 15000 })
 }
