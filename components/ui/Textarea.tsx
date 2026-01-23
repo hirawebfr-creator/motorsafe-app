@@ -1,38 +1,59 @@
-import type { TextareaHTMLAttributes } from "react";
+import { forwardRef } from "react";
 import { cn } from "@/lib/cn";
 
-type TextareaProps = TextareaHTMLAttributes<HTMLTextAreaElement> & {
+export interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
+  error?: string;
   label?: string;
   helperText?: string;
-  error?: string;
   containerClassName?: string;
-};
-
-export function Textarea({ className = "", containerClassName = "", label, helperText, error, id, ...props }: TextareaProps) {
-  const describedBy = error ? `${id ?? ""}-error` : helperText ? `${id ?? ""}-help` : undefined;
-  return (
-    <label className={cn("grid gap-2", containerClassName)}>
-      {label ? <span className="mb-1 block text-[12px] font-medium text-[#030229]/65">{label}</span> : null}
-      <textarea
-        id={id}
-        aria-invalid={Boolean(error) || undefined}
-        aria-describedby={describedBy}
-        className={cn(
-          "min-h-[120px] w-full resize-y rounded-[10px] border border-black/10 bg-[#FAFAFB] px-3 py-3 text-[14px] text-[#030229] placeholder:text-[#030229]/35 outline-none transition-colors focus:border-[#605BFF]/40 focus:ring-2 focus:ring-[#605BFF]/25",
-          error ? "border-red-500/40 focus:border-red-500/50 focus:ring-red-500/15" : "",
-          className
-        )}
-        {...props}
-      />
-      {error ? (
-        <p id={`${id ?? ""}-error`} className="text-xs font-medium text-red-600">
-          {error}
-        </p>
-      ) : helperText ? (
-        <p id={`${id ?? ""}-help`} className="text-xs text-[#030229]/60">
-          {helperText}
-        </p>
-      ) : null}
-    </label>
-  );
 }
+
+const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
+  ({ className, error, label, helperText, id, containerClassName, ...props }, ref) => {
+    const textareaId = id || `textarea-${Math.random().toString(36).substr(2, 9)}`;
+    
+    return (
+      <div className={cn("w-full", containerClassName)}>
+        {label && (
+          <label 
+            htmlFor={textareaId}
+            className="block text-sm font-medium text-[#374151] mb-1.5"
+          >
+            {label}
+          </label>
+        )}
+        <textarea
+          id={textareaId}
+          className={cn(
+            "flex min-h-[100px] w-full rounded-lg border bg-white px-3 py-2.5 text-sm transition-colors resize-y",
+            "placeholder:text-[#9ca3af]",
+            "focus:outline-none focus:ring-2 focus:ring-[#1a1a2e]/20 focus:border-[#1a1a2e]",
+            "disabled:cursor-not-allowed disabled:opacity-50 disabled:bg-[#f3f4f6]",
+            error 
+              ? "border-[#dc2626] focus:ring-[#dc2626]/20 focus:border-[#dc2626]" 
+              : "border-[#e5e5e5] hover:border-[#d0d0d0]",
+            className
+          )}
+          ref={ref}
+          aria-invalid={!!error}
+          aria-describedby={error ? `${textareaId}-error` : helperText ? `${textareaId}-helper` : undefined}
+          {...props}
+        />
+        {error && (
+          <p id={`${textareaId}-error`} className="mt-1.5 text-sm text-[#dc2626]">
+            {error}
+          </p>
+        )}
+        {helperText && !error && (
+          <p id={`${textareaId}-helper`} className="mt-1.5 text-sm text-[#6b7280]">
+            {helperText}
+          </p>
+        )}
+      </div>
+    );
+  }
+);
+Textarea.displayName = "Textarea";
+
+export { Textarea };
+
