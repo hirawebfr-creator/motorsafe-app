@@ -4,6 +4,8 @@ import { IBM_Plex_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/Toast";
 import { DevTools } from "@/components/common/DevTools";
+import { SpeedInsights } from "@vercel/speed-insights/next";
+import { Analytics } from "@vercel/analytics/next";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -39,6 +41,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {children}
           {process.env.NODE_ENV === "development" ? <DevTools /> : null}
         </ToastProvider>
+        <SpeedInsights />
+        <Analytics />
       </body>
     </html>
   );
