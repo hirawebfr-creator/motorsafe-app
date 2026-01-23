@@ -74,10 +74,10 @@ export async function POST(request: NextRequest) {
     console.log('🔍 [SIV] Recherche:', cleanPlate, 'Pays:', country)
     
     // Récupérer le token API
-    const apiToken = process.env.APTPLAQUE_TOKEN
+    const apiToken = process.env.APIPLAQUE_TOKEN
     
     if (!apiToken) {
-      console.log('⚠️ [SIV] APTPLAQUE_TOKEN manquante - mode simulation activé')
+      console.log('⚠️ [SIV] APIPLAQUE_TOKEN manquante - mode simulation activé')
       
       // Mode simulation : retourner des données mock
       const mockVehicle = generateMockVehicle(cleanPlate)
