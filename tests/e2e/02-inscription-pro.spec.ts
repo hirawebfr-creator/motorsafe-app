@@ -53,18 +53,33 @@ test.describe('Parcours inscription pro', () => {
     await page.getByLabel('Mot de passe').fill('SecurePassword123!')
     
     // Soumettre
-    await page.getByRole('button', { name: 'Envoyer la demande' }).click()
+    const submitButton = page.getByRole('button', { name: /envoyer/i })
+    await submitButton.click()
     
-    // Attendre une réponse (succès ou erreur, mais pas timeout)
-    // On vérifie qu'il y a un toast ou redirection
-    await page.waitForTimeout(3000)
+    // Attendre que le bouton ne soit plus en loading (texte change ou bouton désactivé)
+    // Puis attendre la redirection ou un message
+    await page.waitForURL(/\/pro\/en-attente/, { timeout: 15000 }).catch(async () => {
+      // Si pas de redirection, attendre que le bouton redevienne normal ou qu'on ait un message
+      await page.waitForTimeout(5000)
+    })
     
-    // Le formulaire a été soumis - soit on est redirigé, soit on a un toast
+    // Vérifier le résultat
     const url = page.url()
-    const hasToast = await page.getByText(/demande|envoyée|attente|erreur/i).count() > 0
     
-    // On doit soit être redirigé soit avoir un message
-    expect(url.includes('/pro/en-attente') || hasToast).toBeTruthy()
+    // Succès = redirection vers /pro/en-attente
+    if (url.includes('/pro/en-attente')) {
+      expect(true).toBeTruthy()
+      return
+    }
+    
+    // Ou on a un message (succès ou erreur - les deux sont acceptables car le formulaire a fonctionné)
+    const pageContent = await page.textContent('body')
+    const hasResponse = pageContent?.includes('envoyée') || 
+                        pageContent?.includes('attente') || 
+                        pageContent?.includes('erreur') ||
+                        pageContent?.includes('Erreur')
+    
+    expect(hasResponse).toBeTruthy()
   })
   
   test('doit afficher le lien vers connexion', async ({ page }) => {

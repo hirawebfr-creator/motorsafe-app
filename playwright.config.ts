@@ -37,12 +37,9 @@ export default defineConfig({
   ],
 
   webServer: {
-    command: 'DISABLE_RATE_LIMIT=true npm run dev',
+    command: 'npm run dev',
     url: 'http://localhost:3000',
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: true,
     timeout: 120000, // 2 minutes pour démarrer le serveur
-    env: {
-      DISABLE_RATE_LIMIT: 'true',
-    },
   },
 })

@@ -207,10 +207,17 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
       setHighlightedIndex(-1)
       onValueChange?.(optionValue)
 
-      // Trigger change on hidden select for react-hook-form
+      // Trigger change on hidden select for react-hook-form and onChange handlers
       const selectEl = internalSelectRef.current
       if (selectEl) {
-        selectEl.value = optionValue
+        // Use native setter to properly trigger React's onChange
+        const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+          window.HTMLSelectElement.prototype,
+          'value'
+        )?.set
+        if (nativeInputValueSetter) {
+          nativeInputValueSetter.call(selectEl, optionValue)
+        }
         const event = new Event('change', { bubbles: true })
         selectEl.dispatchEvent(event)
       }
