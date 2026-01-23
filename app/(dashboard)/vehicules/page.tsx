@@ -269,24 +269,39 @@ export default function VehiculesPage() {
       return
     }
     
+    // Nettoyer l'immatriculation (enlever les tirets)
+    const cleanRegistration = sivRegistration.replace(/[^A-Z0-9]/gi, '').toUpperCase()
+    
+    if (cleanRegistration.length < 7) {
+      toast.error('Erreur', 'Immatriculation invalide (minimum 7 caractères)')
+      return
+    }
+    
     setSivLoading(true)
     
     try {
+      console.log('🔍 Recherche SIV pour:', cleanRegistration)
+      
       const response = await fetch('/api/siv/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ registrationNumber: sivRegistration })
+        body: JSON.stringify({ registrationNumber: cleanRegistration })
       })
       
+      console.log('📡 Response status:', response.status)
+      
       const data = await response.json()
+      console.log('📦 Response data:', data)
       
       if (data.ok && data.vehicle) {
+        console.log('✅ Véhicule SIV trouvé:', data.vehicle)
+        
         // Pré-remplir le formulaire avec les données SIV
         setFormData({
-          registrationNumber: data.vehicle.registrationNumber,
+          registrationNumber: data.vehicle.registrationNumber || sivRegistration,
           vin: data.vehicle.vin || '',
-          make: data.vehicle.make,
-          model: data.vehicle.model,
+          make: data.vehicle.make || '',
+          model: data.vehicle.model || '',
           version: data.vehicle.version || '',
           year: data.vehicle.year?.toString() || '',
           firstRegistrationDate: data.vehicle.firstRegistrationDate || '',
@@ -297,14 +312,18 @@ export default function VehiculesPage() {
         })
         
         setIsSivModalOpen(false)
+        setSivRegistration('')
         setIsModalOpen(true)
-        toast.success('Véhicule trouvé', 'Données SIV récupérées avec succès')
+        
+        const sourceMsg = data.source === 'mock' ? ' (mode simulation)' : ''
+        toast.success('Véhicule trouvé', `Données SIV récupérées avec succès${sourceMsg}`)
       } else {
+        console.error('❌ Erreur SIV:', data.error)
         toast.error('Erreur', data.error || 'Véhicule non trouvé dans le SIV')
       }
       
     } catch (error) {
-      console.error('Error searching SIV:', error)
+      console.error('❌ Error searching SIV:', error)
       toast.error('Erreur', 'Impossible de se connecter au serveur SIV')
     } finally {
       setSivLoading(false)
@@ -770,8 +789,12 @@ export default function VehiculesPage() {
       {/* Modal SIV */}
       <Modal
         isOpen={isSivModalOpen}
-        onClose={() => setIsSivModalOpen(false)}
-        title="Recherche SIV"
+        onClose={() => {
+          setIsSivModalOpen(false)
+          setSivRegistration('')
+          setSivLoading(false)
+        }}
+        title="Recherche via SIV"
         size="md"
       >
         <div style={{ padding: '24px' }}>
@@ -781,20 +804,43 @@ export default function VehiculesPage() {
             lineHeight: 1.6,
             marginBottom: '20px'
           }}>
-            Entrez l'immatriculation du véhicule pour récupérer automatiquement 
-            ses informations depuis le Système d'Immatriculation des Véhicules.
+            Entrez une immatriculation française pour récupérer automatiquement les informations du véhicule depuis le SIV.
+          </p>
+          
+          <p style={{
+            fontSize: '12px',
+            color: '#9CA3AF',
+            marginBottom: '20px',
+            padding: '12px',
+            backgroundColor: '#F9FAFB',
+            borderRadius: '8px',
+            border: '1px solid #E5E7EB'
+          }}>
+            💡 <strong>Mode simulation actif</strong> : Les données sont générées automatiquement pour les tests.
           </p>
           
           <FormField
             label="Immatriculation"
             name="sivRegistration"
-            placeholder="AB-123-CD"
+            placeholder="AB-123-CD ou AB123CD"
             value={sivRegistration}
-            onChange={(e) => setSivRegistration(e.target.value)}
+            onChange={(e) => {
+              // Formater automatiquement l'immatriculation
+              let value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '')
+              
+              // Format AA-123-AA
+              if (value.length > 2 && value.length <= 5) {
+                value = value.slice(0, 2) + '-' + value.slice(2)
+              } else if (value.length > 5) {
+                value = value.slice(0, 2) + '-' + value.slice(2, 5) + '-' + value.slice(5, 7)
+              }
+              
+              setSivRegistration(value)
+            }}
             onKeyDown={(e) => {
               if (e.key === 'Enter') handleSivSearch()
             }}
-            helperText="Format : AB-123-CD (nouveau) ou 123 ABC 75 (ancien)"
+            helperText="Format accepté : AB-123-CD"
             autoFocus
           />
           
@@ -806,7 +852,11 @@ export default function VehiculesPage() {
           }}>
             <Button
               variant="secondary"
-              onClick={() => setIsSivModalOpen(false)}
+              onClick={() => {
+                setIsSivModalOpen(false)
+                setSivRegistration('')
+                setSivLoading(false)
+              }}
               disabled={sivLoading}
             >
               Annuler
