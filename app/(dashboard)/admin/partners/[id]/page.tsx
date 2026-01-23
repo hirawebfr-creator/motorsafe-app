@@ -350,7 +350,7 @@ export default function AdminPartnerDetailPage({
               value={editEmail}
               onChange={(e) => setEditEmail(e.target.value)}
             />
-            <Select label="Type" value={editType} onChange={(e) => setEditType(e.target.value)}>
+            <Select label="Type" value={editType} onChange={setEditType}>
               {PARTNER_TYPES.map((t) => (
                 <option key={t.value} value={t.value}>{t.label}</option>
               ))}

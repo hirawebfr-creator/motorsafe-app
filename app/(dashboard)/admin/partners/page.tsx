@@ -200,7 +200,7 @@ export default function AdminPartnersPage() {
             onChange={(e) => setFormEmail(e.target.value)}
             placeholder="contact@example.com"
           />
-          <Select label="Type" value={formType} onChange={(e) => setFormType(e.target.value)}>
+          <Select label="Type" value={formType} onChange={setFormType}>
             {PARTNER_TYPES.map((t) => (
               <option key={t.value} value={t.value}>{t.label}</option>
             ))}

@@ -127,3 +127,11 @@ export {
   DialogTitle,
   DialogDescription,
 };
+
+// Alias pour compatibilité avec l'ancien code
+export const Modal = Dialog;
+export const ModalContent = DialogContent;
+export const ModalHeader = DialogHeader;
+export const ModalFooter = DialogFooter;
+export const ModalTitle = DialogTitle;
+export const ModalDescription = DialogDescription;

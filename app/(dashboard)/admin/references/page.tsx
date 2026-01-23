@@ -264,7 +264,7 @@ export default function AdminReferencesPage() {
           <Select
             label="Sévérité"
             value={form.severity}
-            onChange={(event) => setForm((prev) => ({ ...prev, severity: event.target.value }))}
+            onChange={(value) => setForm((prev) => ({ ...prev, severity: value }))}
           >
             <option value="INFO">Info</option>
             <option value="WARNING">Attention</option>
