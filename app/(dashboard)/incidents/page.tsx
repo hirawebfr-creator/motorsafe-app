@@ -17,9 +17,9 @@ import {
 } from "lucide-react";
 import { fetcher } from "@/lib/fetcher";
 
-// ============================================
-// Types
-// ============================================
+// ============================================================================
+// INCIDENTS PAGE - SafeMotor Design System
+// ============================================================================
 
 type ServiceStatus = "OK" | "DELAYED" | "DOWN" | "UNKNOWN";
 
@@ -40,35 +40,11 @@ interface IncidentsStatus {
   lastUpdated: string;
 }
 
-// ============================================
-// Constants
-// ============================================
-
-const STATUS_CONFIG: Record<ServiceStatus, { color: string; bg: string; icon: React.ReactNode; label: string }> = {
-  OK: { 
-    color: "text-green-600", 
-    bg: "bg-green-100", 
-    icon: <CheckCircle size={20} />,
-    label: "Opérationnel",
-  },
-  DELAYED: { 
-    color: "text-yellow-600", 
-    bg: "bg-yellow-100", 
-    icon: <Clock size={20} />,
-    label: "Ralenti",
-  },
-  DOWN: { 
-    color: "text-red-600", 
-    bg: "bg-red-100", 
-    icon: <XCircle size={20} />,
-    label: "Indisponible",
-  },
-  UNKNOWN: { 
-    color: "text-gray-500", 
-    bg: "bg-gray-100", 
-    icon: <AlertTriangle size={20} />,
-    label: "Inconnu",
-  },
+const STATUS_CONFIG: Record<ServiceStatus, { color: string; bg: string; border: string; label: string }> = {
+  OK: { color: "#10B981", bg: "#ECFDF5", border: "#A7F3D0", label: "Opérationnel" },
+  DELAYED: { color: "#F59E0B", bg: "#FFFBEB", border: "#FDE68A", label: "Ralenti" },
+  DOWN: { color: "#EF4444", bg: "#FEF2F2", border: "#FECACA", label: "Indisponible" },
+  UNKNOWN: { color: "#6B7280", bg: "#F3F4F6", border: "#E5E7EB", label: "Inconnu" },
 };
 
 const SERVICE_INFO = {
@@ -77,10 +53,6 @@ const SERVICE_INFO = {
   storage: { name: "Stockage", icon: HardDrive, description: "Stockage des documents et fichiers" },
   lookup: { name: "Recherche véhicule", icon: Search, description: "Recherche automatique des données véhicule" },
 };
-
-// ============================================
-// Component
-// ============================================
 
 export default function IncidentsPage() {
   const [status, setStatus] = useState<IncidentsStatus | null>(null);
@@ -112,13 +84,13 @@ export default function IncidentsPage() {
       const now = new Date();
       const diffMs = now.getTime() - date.getTime();
       const diffMins = Math.round(diffMs / 60000);
-      
+
       if (diffMins < 1) return "À l'instant";
       if (diffMins < 60) return `Il y a ${diffMins} min`;
-      
+
       const diffHours = Math.round(diffMins / 60);
       if (diffHours < 24) return `Il y a ${diffHours}h`;
-      
+
       const diffDays = Math.round(diffHours / 24);
       return `Il y a ${diffDays}j`;
     } catch {
@@ -126,72 +98,179 @@ export default function IncidentsPage() {
     }
   };
 
+  const getStatusIcon = (s: ServiceStatus) => {
+    switch (s) {
+      case "OK": return <CheckCircle size={20} />;
+      case "DELAYED": return <Clock size={20} />;
+      case "DOWN": return <XCircle size={20} />;
+      default: return <AlertTriangle size={20} />;
+    }
+  };
+
   return (
-    <div className="ms-animate-slide-up">
+    <div style={{ padding: "32px", maxWidth: "1000px", margin: "0 auto" }}>
       {/* Header */}
-      <div className="ms-page-header">
-        <div className="flex items-center gap-3">
-          <Activity size={28} className="text-[var(--ms-primary)]" />
+      <div style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "flex-start",
+        marginBottom: "32px",
+        flexWrap: "wrap",
+        gap: "16px",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div style={{
+            width: "48px",
+            height: "48px",
+            borderRadius: "12px",
+            background: "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}>
+            <Activity size={24} color="#fff" />
+          </div>
           <div>
-            <h1 className="ms-page-title">État des services</h1>
-            <p className="ms-page-subtitle">Statut en temps réel des services SafeMotor</p>
+            <h1 style={{
+              fontSize: "28px",
+              fontWeight: 700,
+              color: "#111827",
+              margin: 0,
+            }}>
+              État des services
+            </h1>
+            <p style={{
+              fontSize: "15px",
+              color: "#6B7280",
+              margin: "4px 0 0",
+            }}>
+              Statut en temps réel des services SafeMotor
+            </p>
           </div>
         </div>
+
         <button
           type="button"
           onClick={() => void loadStatus()}
           disabled={loading}
-          className="ms-btn ms-btn-secondary"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            padding: "10px 16px",
+            borderRadius: "10px",
+            border: "1px solid #E5E7EB",
+            background: "#fff",
+            fontSize: "14px",
+            fontWeight: 500,
+            color: "#374151",
+            cursor: loading ? "not-allowed" : "pointer",
+            opacity: loading ? 0.5 : 1,
+          }}
         >
-          <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+          <RefreshCw size={16} style={{ animation: loading ? "spin 1s linear infinite" : "none" }} />
           Actualiser
         </button>
       </div>
 
-      {loading && !status ? (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 size={32} className="animate-spin text-[var(--ms-primary)]" />
+      {/* Loading State */}
+      {loading && !status && (
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "64px 0",
+        }}>
+          <Loader2 size={32} color="#6366F1" style={{ animation: "spin 1s linear infinite" }} />
         </div>
-      ) : error ? (
-        <div className="ms-card">
-          <div className="ms-card-body text-center py-8">
-            <AlertTriangle size={32} className="mx-auto mb-4 text-yellow-500" />
-            <p className="text-[var(--ms-text-muted)]">{error}</p>
-            <button
-              type="button"
-              onClick={() => void loadStatus()}
-              className="ms-btn ms-btn-primary mt-4"
-            >
-              Réessayer
-            </button>
-          </div>
+      )}
+
+      {/* Error State */}
+      {error && (
+        <div style={{
+          background: "#fff",
+          borderRadius: "16px",
+          border: "1px solid #E5E7EB",
+          padding: "48px",
+          textAlign: "center",
+        }}>
+          <AlertTriangle size={32} color="#F59E0B" style={{ marginBottom: "16px" }} />
+          <p style={{ fontSize: "14px", color: "#6B7280", margin: "0 0 16px" }}>{error}</p>
+          <button
+            type="button"
+            onClick={() => void loadStatus()}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "10px 20px",
+              borderRadius: "10px",
+              border: "none",
+              background: "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)",
+              fontSize: "14px",
+              fontWeight: 600,
+              color: "#fff",
+              cursor: "pointer",
+              boxShadow: "0 4px 14px rgba(99, 102, 241, 0.4)",
+            }}
+          >
+            Réessayer
+          </button>
         </div>
-      ) : status ? (
+      )}
+
+      {/* Main Content */}
+      {status && (
         <>
           {/* Overall Status */}
-          <div className="mb-6">
+          <div style={{
+            marginBottom: "24px",
+          }}>
             {(() => {
               const cfg = STATUS_CONFIG[status.overall];
+              const overallMessage = status.overall === "OK"
+                ? "Tous les systèmes sont opérationnels"
+                : status.overall === "DELAYED"
+                ? "Certains services peuvent être ralentis"
+                : status.overall === "DOWN"
+                ? "Des incidents sont en cours"
+                : "Pas assez de données encore";
+
               return (
-                <div className={`rounded-xl border-2 p-6 ${
-                  status.overall === "OK" ? "border-green-200 bg-green-50" :
-                  status.overall === "DELAYED" ? "border-yellow-200 bg-yellow-50" :
-                  status.overall === "DOWN" ? "border-red-200 bg-red-50" :
-                  "border-gray-200 bg-gray-50"
-                }`}>
-                  <div className="flex items-center gap-4">
-                    <div className={`flex h-14 w-14 items-center justify-center rounded-full ${cfg.bg} ${cfg.color}`}>
-                      {cfg.icon}
+                <div style={{
+                  padding: "24px",
+                  borderRadius: "16px",
+                  background: cfg.bg,
+                  border: `2px solid ${cfg.border}`,
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+                    <div style={{
+                      width: "56px",
+                      height: "56px",
+                      borderRadius: "50%",
+                      background: "#fff",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: cfg.color,
+                    }}>
+                      {getStatusIcon(status.overall)}
                     </div>
                     <div>
-                      <h2 className={`text-xl font-bold ${cfg.color}`}>
-                        {status.overall === "OK" ? "Tous les systèmes sont opérationnels" :
-                         status.overall === "DELAYED" ? "Certains services peuvent être ralentis" :
-                         status.overall === "DOWN" ? "Des incidents sont en cours" :
-                         "Pas assez de données encore"}
+                      <h2 style={{
+                        fontSize: "20px",
+                        fontWeight: 700,
+                        color: cfg.color,
+                        margin: 0,
+                      }}>
+                        {overallMessage}
                       </h2>
-                      <p className="text-sm text-[var(--ms-text-muted)]">
-                        Dernière mise à jour: {formatLastCheck(status.lastUpdated)}
+                      <p style={{
+                        fontSize: "14px",
+                        color: "#6B7280",
+                        margin: "4px 0 0",
+                      }}>
+                        Dernière mise à jour : {formatLastCheck(status.lastUpdated)}
                       </p>
                     </div>
                   </div>
@@ -201,36 +280,91 @@ export default function IncidentsPage() {
           </div>
 
           {/* Services Grid */}
-          <div className="grid gap-4 md:grid-cols-2">
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(2, 1fr)",
+            gap: "16px",
+            marginBottom: "32px",
+          }}>
             {(Object.entries(status.services) as [keyof typeof SERVICE_INFO, ServiceInfo][]).map(([key, service]) => {
               const info = SERVICE_INFO[key];
               const cfg = STATUS_CONFIG[service.status];
               const Icon = info.icon;
-              
+
               return (
-                <div key={key} className="ms-card">
-                  <div className="ms-card-body">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[var(--ms-bg)]">
-                          <Icon size={20} className="text-[var(--ms-text-muted)]" />
-                        </div>
-                        <div>
-                          <h3 className="font-semibold text-[var(--ms-text)]">{info.name}</h3>
-                          <p className="text-xs text-[var(--ms-text-muted)]">{info.description}</p>
-                        </div>
+                <div
+                  key={key}
+                  style={{
+                    background: "#fff",
+                    borderRadius: "16px",
+                    border: "1px solid #E5E7EB",
+                    padding: "20px",
+                  }}
+                >
+                  <div style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    justifyContent: "space-between",
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                      <div style={{
+                        width: "40px",
+                        height: "40px",
+                        borderRadius: "10px",
+                        background: "#F3F4F6",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}>
+                        <Icon size={20} color="#6B7280" />
                       </div>
-                      <div className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${cfg.bg} ${cfg.color}`}>
-                        {cfg.icon}
-                        {cfg.label}
+                      <div>
+                        <h3 style={{
+                          fontSize: "15px",
+                          fontWeight: 600,
+                          color: "#111827",
+                          margin: 0,
+                        }}>
+                          {info.name}
+                        </h3>
+                        <p style={{
+                          fontSize: "12px",
+                          color: "#9CA3AF",
+                          margin: "2px 0 0",
+                        }}>
+                          {info.description}
+                        </p>
                       </div>
                     </div>
-                    <div className="mt-4 flex items-center justify-between text-sm">
-                      <span className="text-[var(--ms-text-muted)]">{service.message}</span>
-                      <span className="text-xs text-[var(--ms-text-muted)]">
-                        {formatLastCheck(service.lastCheck)}
-                      </span>
-                    </div>
+                    <span style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "4px",
+                      padding: "4px 10px",
+                      borderRadius: "20px",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      background: cfg.bg,
+                      color: cfg.color,
+                    }}>
+                      {getStatusIcon(service.status)}
+                      {cfg.label}
+                    </span>
+                  </div>
+                  <div style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginTop: "16px",
+                    paddingTop: "16px",
+                    borderTop: "1px solid #F3F4F6",
+                  }}>
+                    <span style={{ fontSize: "13px", color: "#6B7280" }}>
+                      {service.message}
+                    </span>
+                    <span style={{ fontSize: "12px", color: "#9CA3AF" }}>
+                      {formatLastCheck(service.lastCheck)}
+                    </span>
                   </div>
                 </div>
               );
@@ -238,27 +372,72 @@ export default function IncidentsPage() {
           </div>
 
           {/* Help Section */}
-          <div className="mt-8 ms-card">
-            <div className="ms-card-body">
-              <div className="flex items-start gap-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100">
-                  <MessageSquare size={20} className="text-blue-600" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-[var(--ms-text)]">Besoin d'aide ?</h3>
-                  <p className="mt-1 text-sm text-[var(--ms-text-muted)]">
-                    Si vous rencontrez un problème avec l'un de nos services, n'hésitez pas à contacter notre support.
-                    Nous ferons notre maximum pour vous aider rapidement.
-                  </p>
-                  <a href="/support" className="ms-btn ms-btn-primary mt-4">
-                    Contacter le support
-                  </a>
-                </div>
+          <div style={{
+            background: "#fff",
+            borderRadius: "16px",
+            border: "1px solid #E5E7EB",
+            padding: "24px",
+          }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: "16px" }}>
+              <div style={{
+                width: "44px",
+                height: "44px",
+                borderRadius: "12px",
+                background: "#DBEAFE",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}>
+                <MessageSquare size={22} color="#3B82F6" />
+              </div>
+              <div style={{ flex: 1 }}>
+                <h3 style={{
+                  fontSize: "16px",
+                  fontWeight: 600,
+                  color: "#111827",
+                  margin: 0,
+                }}>
+                  Besoin d'aide ?
+                </h3>
+                <p style={{
+                  fontSize: "14px",
+                  color: "#6B7280",
+                  margin: "8px 0 16px",
+                }}>
+                  Si vous rencontrez un problème avec l'un de nos services, n'hésitez pas à contacter notre support.
+                  Nous ferons notre maximum pour vous aider rapidement.
+                </p>
+                <a
+                  href="/support"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    padding: "10px 20px",
+                    borderRadius: "10px",
+                    border: "none",
+                    background: "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)",
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    color: "#fff",
+                    textDecoration: "none",
+                    boxShadow: "0 4px 14px rgba(99, 102, 241, 0.4)",
+                  }}
+                >
+                  Contacter le support
+                </a>
               </div>
             </div>
           </div>
         </>
-      ) : null}
+      )}
+
+      {/* CSS Animation */}
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}} />
     </div>
   );
 }
