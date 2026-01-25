@@ -36,7 +36,7 @@ export function DataTableInline<T extends { id: string | number }>({
   const baseStyles = {
     container: {
       width: '100%',
-      overflow: 'hidden',
+      overflow: 'visible',
       borderRadius: '12px',
       border: '1px solid #E5E7EB',
       backgroundColor: '#ffffff'

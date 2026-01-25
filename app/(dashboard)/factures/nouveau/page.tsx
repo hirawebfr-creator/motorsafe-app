@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, FileText, Loader2, User, Car, Plus, ChevronDown } from "lucide-react";
+import { ArrowLeft, Receipt, User, Car, Plus, ChevronDown } from "lucide-react";
 import { useToast } from "@/components/shared/use-toast";
 
 type ClientOption = { id: number; firstName: string; lastName: string };
@@ -24,7 +24,7 @@ function pickArray(json: unknown): unknown[] {
   return [];
 }
 
-export default function NouveauDevisPage() {
+export default function NouvelleFacturePage() {
   const router = useRouter();
   const toast = useToast();
 
@@ -47,7 +47,7 @@ export default function NouveauDevisPage() {
       const clientsJson = await clientsRes.json().catch(() => null);
       const vehiclesJson = await vehiclesRes.json().catch(() => null);
       if (!clientsRes.ok) throw new Error(clientsJson?.error?.message || "Erreur clients");
-      if (!vehiclesRes.ok) throw new Error(vehiclesJson?.error?.message || "Erreur véhicules");
+      if (!vehiclesRes.ok) throw new Error(vehiclesJson?.error?.message || "Erreur vehicules");
       const clientsList = pickArray(clientsJson) as ClientOption[];
       const vehiclesList = pickArray(vehiclesJson) as VehicleOption[];
       setClients(clientsList);
@@ -65,7 +65,7 @@ export default function NouveauDevisPage() {
   const filteredVehicles = vehicles.filter((v) => v.clientId === selectedClientId);
 
   const handleCreate = async () => {
-    if (!selectedClientId) { setError("Veuillez sélectionner un client"); return; }
+    if (!selectedClientId) { setError("Veuillez selectionner un client"); return; }
     try {
       setCreating(true);
       setError(null);
@@ -74,18 +74,18 @@ export default function NouveauDevisPage() {
         lines: [{ description: "Prestation", qty: 1, unitPriceExcl: 0 }],
       };
       if (selectedVehicleId) body.vehicleId = selectedVehicleId;
-      const res = await fetch("/api/quotes", {
+      const res = await fetch("/api/invoices", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
       const json = await res.json().catch(() => null);
-      if (!res.ok || !json?.ok) throw new Error(json?.error?.message || "Erreur création");
-      const quoteId = json.data?.id;
-      if (quoteId) {
-        toast.success("Devis créé avec succès");
-        router.push(`/devis/${quoteId}`);
-      } else throw new Error("ID non retourné");
+      if (!res.ok || !json?.ok) throw new Error(json?.error?.message || "Erreur creation");
+      const invoiceId = json.data?.id;
+      if (invoiceId) {
+        toast.success("Facture creee avec succes");
+        router.push(`/factures/${invoiceId}`);
+      } else throw new Error("ID non retourne");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur");
       toast.error(e instanceof Error ? e.message : "Erreur");
@@ -108,15 +108,15 @@ export default function NouveauDevisPage() {
   return (
     <div style={{ padding: "24px", maxWidth: "900px", margin: "0 auto" }}>
       {/* Back link */}
-      <Link href="/devis" style={{ display: "inline-flex", alignItems: "center", gap: "8px", fontSize: "14px", fontWeight: "500", color: "#6B7280", textDecoration: "none", marginBottom: "24px" }}>
+      <Link href="/factures" style={{ display: "inline-flex", alignItems: "center", gap: "8px", fontSize: "14px", fontWeight: "500", color: "#6B7280", textDecoration: "none", marginBottom: "24px" }}>
         <ArrowLeft size={16} />
-        Retour aux devis
+        Retour aux factures
       </Link>
 
       {/* Header */}
       <div style={{ marginBottom: "32px" }}>
-        <h1 style={{ fontSize: "28px", fontWeight: "700", color: "#111827", margin: 0 }}>Nouveau devis</h1>
-        <p style={{ fontSize: "14px", color: "#6B7280", marginTop: "4px" }}>Sélectionnez un client pour créer un brouillon</p>
+        <h1 style={{ fontSize: "28px", fontWeight: "700", color: "#111827", margin: 0 }}>Nouvelle facture</h1>
+        <p style={{ fontSize: "14px", color: "#6B7280", marginTop: "4px" }}>Selectionnez un client pour creer un brouillon</p>
       </div>
 
       {/* Error */}
@@ -133,11 +133,11 @@ export default function NouveauDevisPage() {
             <User size={40} color="#6366F1" />
           </div>
           <h3 style={{ fontSize: "20px", fontWeight: "600", color: "#111827", margin: "24px 0 8px" }}>Aucun client</h3>
-          <p style={{ fontSize: "14px", color: "#6B7280", margin: "0 0 24px" }}>Créez un client avant de pouvoir faire un devis</p>
+          <p style={{ fontSize: "14px", color: "#6B7280", margin: "0 0 24px" }}>Creez un client avant de pouvoir faire une facture</p>
           <Link href="/clients" style={{ textDecoration: "none" }}>
             <button style={{ display: "inline-flex", alignItems: "center", gap: "8px", padding: "12px 24px", borderRadius: "12px", border: "none", background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)", fontSize: "14px", fontWeight: "600", color: "#fff", cursor: "pointer" }}>
               <Plus size={18} />
-              Créer un client
+              Creer un client
             </button>
           </Link>
         </div>
@@ -162,7 +162,7 @@ export default function NouveauDevisPage() {
                   onChange={(e) => { setSelectedClientId(Number(e.target.value) || null); setSelectedVehicleId(""); }}
                   style={{ width: "100%", padding: "14px 40px 14px 16px", borderRadius: "12px", border: "1px solid #E5E7EB", background: "#F9FAFB", fontSize: "14px", color: "#111827", appearance: "none", cursor: "pointer", outline: "none" }}
                 >
-                  <option value="">Sélectionner un client...</option>
+                  <option value="">Selectionner un client...</option>
                   {clients.map((c) => (
                     <option key={c.id} value={c.id}>{c.firstName} {c.lastName}</option>
                   ))}
@@ -178,7 +178,7 @@ export default function NouveauDevisPage() {
                   <Car size={24} color="#fff" />
                 </div>
                 <div>
-                  <h3 style={{ fontSize: "16px", fontWeight: "600", color: "#111827", margin: 0 }}>Véhicule</h3>
+                  <h3 style={{ fontSize: "16px", fontWeight: "600", color: "#111827", margin: 0 }}>Vehicule</h3>
                   <p style={{ fontSize: "12px", color: "#6B7280", margin: 0 }}>Optionnel</p>
                 </div>
               </div>
@@ -189,7 +189,7 @@ export default function NouveauDevisPage() {
                   disabled={!selectedClientId || filteredVehicles.length === 0}
                   style={{ width: "100%", padding: "14px 40px 14px 16px", borderRadius: "12px", border: "1px solid #E5E7EB", background: !selectedClientId || filteredVehicles.length === 0 ? "#F3F4F6" : "#F9FAFB", fontSize: "14px", color: "#111827", appearance: "none", cursor: !selectedClientId || filteredVehicles.length === 0 ? "not-allowed" : "pointer", outline: "none", opacity: !selectedClientId || filteredVehicles.length === 0 ? 0.6 : 1 }}
                 >
-                  <option value="">{filteredVehicles.length === 0 ? "Aucun véhicule" : "Aucun (optionnel)"}</option>
+                  <option value="">{filteredVehicles.length === 0 ? "Aucun vehicule" : "Aucun (optionnel)"}</option>
                   {filteredVehicles.map((v) => (
                     <option key={v.id} value={v.id}>{v.brand} {v.model} - {v.plate}</option>
                   ))}
@@ -198,7 +198,7 @@ export default function NouveauDevisPage() {
               </div>
               {selectedClientId && filteredVehicles.length === 0 && (
                 <p style={{ fontSize: "13px", color: "#9CA3AF", marginTop: "12px" }}>
-                  Ce client n'a pas de véhicule enregistré
+                  Ce client n'a pas de vehicule enregistre
                 </p>
               )}
             </div>
@@ -206,7 +206,7 @@ export default function NouveauDevisPage() {
 
           {/* Actions */}
           <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px" }}>
-            <Link href="/devis" style={{ textDecoration: "none" }}>
+            <Link href="/factures" style={{ textDecoration: "none" }}>
               <button style={{ padding: "12px 24px", borderRadius: "12px", border: "1px solid #E5E7EB", background: "#fff", fontSize: "14px", fontWeight: "500", color: "#374151", cursor: "pointer" }}>
                 Annuler
               </button>
@@ -225,13 +225,13 @@ export default function NouveauDevisPage() {
             >
               {creating ? (
                 <>
-                  <Loader2 size={18} style={{ animation: "spin 1s linear infinite" }} />
-                  Création...
+                  <div style={{ width: "18px", height: "18px", border: "2px solid #fff", borderTopColor: "transparent", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
+                  Creation...
                 </>
               ) : (
                 <>
-                  <FileText size={18} />
-                  Créer le brouillon
+                  <Receipt size={18} />
+                  Creer le brouillon
                 </>
               )}
             </button>

@@ -6,6 +6,7 @@ import { requireFeature, FeatureKey } from "@/lib/entitlements";
 import { z } from "zod";
 import { computeLinesWithTotals, ensureEditableQuoteStatus, normalizeVatMode } from "@/lib/quoteInvoice";
 import type { Prisma } from "@prisma/client";
+import { decryptClientData } from "@/lib/encryption";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -51,7 +52,13 @@ export async function GET(req: Request, ctx: Ctx) {
 
     if (!quote) throw new RouteError(404, "NOT_FOUND", "Devis introuvable");
 
-    return NextResponse.json({ ok: true, data: quote });
+    // Decrypt client data for display
+    const decryptedQuote = {
+      ...quote,
+      client: quote.client ? decryptClientData(quote.client as Record<string, unknown>) : quote.client,
+    };
+
+    return NextResponse.json({ ok: true, data: decryptedQuote });
   } catch (err) {
     return toErrorResponse(err);
   }

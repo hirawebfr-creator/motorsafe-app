@@ -210,8 +210,14 @@ export async function sendSignatureEmail(params: SignatureEmailParams): Promise<
   const resend = getResendClient();
   
   if (!resend) {
-    console.log("[Email] Skipping email (no API key configured):", params.to);
-    return { success: true, messageId: "skipped-no-api-key" };
+    // DEV MODE: Log the signature URL prominently so developers can test
+    console.log("\n" + "=".repeat(60));
+    console.log("[Email] ⚠️  RESEND_API_KEY not configured - email simulated");
+    console.log(`[Email] 📧 To: ${params.to}`);
+    console.log(`[Email] 📋 Subject: ${subject}`);
+    console.log(`[Email] 🔗 Signing URL: ${params.signingUrl}`);
+    console.log("=".repeat(60) + "\n");
+    return { success: true, messageId: "dev-mode-no-api-key" };
   }
 
   try {

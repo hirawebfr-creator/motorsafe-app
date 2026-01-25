@@ -7,6 +7,7 @@ import { z } from "zod";
 import { computeLinesWithTotals, normalizeVatMode } from "@/lib/quoteInvoice";
 import type { Prisma } from "@prisma/client";
 import { allocateNumberTx } from "@/lib/numbering";
+import { decryptClientData } from "@/lib/encryption";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -84,7 +85,13 @@ export async function GET(req: Request) {
       }),
     ]);
 
-    return NextResponse.json({ ok: true, data: { items, page, pageSize, total } });
+    // Decrypt client data for display
+    const decryptedItems = items.map((item) => ({
+      ...item,
+      client: item.client ? decryptClientData(item.client as Record<string, unknown>) : item.client,
+    }));
+
+    return NextResponse.json({ ok: true, data: { items: decryptedItems, page, pageSize, total } });
   } catch (err) {
     return toErrorResponse(err);
   }

@@ -737,6 +737,14 @@ model Quote {
   invoicedAt DateTime?
   invoiceId  String?
 
+  // Signature fields
+  signToken      String?   @unique  // Token for client to access and sign
+  signTokenExp   DateTime?          // Expiration of the sign token
+  signedAt       DateTime?          // When client signed
+  signatureData  String?            // Base64 signature image or text
+  signedByName   String?            // Name entered by signer
+  signedByIp     String?            // IP address of signer
+
   invoice Invoice? @relation("QuoteToInvoice")
 
   createdAt DateTime @default(now())

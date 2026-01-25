@@ -1,1182 +1,545 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { DataTableInline } from '@/components/shared/data-table-inline'
-import { FormField } from '@/components/shared/form-field'
-import { Button } from '@/components/shared/button'
-import { Modal } from '@/components/shared/modal'
-import { Badge } from '@/components/shared/badge'
-import { SearchInput } from '@/components/shared/search-input'
-import { Select } from '@/components/shared/select'
-import { Avatar } from '@/components/shared/avatar'
-import { DropdownMenu } from '@/components/shared/dropdown-menu'
-import { useToast } from '@/components/shared/use-toast'
 import { 
-  Search,
-  Plus,
-  MoreVertical,
-  Eye,
-  Edit,
-  Trash2,
+  Search, 
+  Plus, 
+  Car, 
+  Fuel,
+  Filter,
+  ChevronRight,
+  RefreshCw,
+  X,
+  Hash,
+  Calendar,
+  Gauge,
   User,
-  Hash
+  CheckCircle,
+  AlertCircle,
+  Trash2
 } from 'lucide-react'
 
-type FuelType = 'ESSENCE' | 'DIESEL' | 'HYBRID' | 'ELECTRIC' | 'GPL'
+// ============================================================================
+// VEHICLES LIST PAGE - SafeMotor
+// Design moderne avec données réelles et recherche SIV
+// ============================================================================
 
 interface Vehicle {
   id: string
-  registrationNumber: string
-  vin: string
-  make: string
+  registrationNumber?: string
+  plate?: string
+  vin?: string
+  make?: string
+  brand?: string
   model: string
   version?: string
-  year: number
-  firstRegistrationDate: Date
-  mileage: number
+  year?: number
+  mileage?: number
   color?: string
-  fuelType: FuelType
+  fuelType?: string
+  fuel?: string
   clientId: string
-  clientName: string
-  interventionCount: number
-  photoUrl?: string
+  clientName?: string
+  client?: { id: number; firstName: string; lastName: string; name?: string }
   createdAt: Date
-  updatedAt: Date
-}
-
-interface VehicleFormData {
-  registrationNumber: string
-  vin: string
-  make: string
-  model: string
-  version: string
-  year: string
-  firstRegistrationDate: string
-  mileage: string
-  color: string
-  fuelType: FuelType
-  clientId: string
 }
 
 interface Client {
   id: string
   name: string
+  firstName?: string
+  lastName?: string
 }
+
+// Référentiel énergie SIV
+const ENERGY_CODES: Record<string, { label: string; color: string; bg: string }> = {
+  '1': { label: 'Essence', color: '#EF4444', bg: '#FEE2E2' },
+  '2': { label: 'Diesel', color: '#1D4ED8', bg: '#DBEAFE' },
+  '3': { label: 'Essence + GPL', color: '#F59E0B', bg: '#FEF3C7' },
+  '4': { label: 'Hybride', color: '#10B981', bg: '#D1FAE5' },
+  '5': { label: 'Électrique', color: '#6366F1', bg: '#E0E7FF' },
+  '6': { label: 'Bicarburation', color: '#8B5CF6', bg: '#EDE9FE' },
+  '7': { label: 'Hydrogène', color: '#06B6D4', bg: '#CFFAFE' },
+  '8': { label: 'Mixte', color: '#EC4899', bg: '#FCE7F3' },
+  '9': { label: 'Air comprimé', color: '#14B8A6', bg: '#CCFBF1' },
+  '10': { label: 'Superéthanol', color: '#F97316', bg: '#FFEDD5' },
+  '11': { label: 'GNV', color: '#84CC16', bg: '#ECFCCB' },
+  '12': { label: 'Inconnu', color: '#6B7280', bg: '#F3F4F6' },
+  'ESSENCE': { label: 'Essence', color: '#EF4444', bg: '#FEE2E2' },
+  'Essence': { label: 'Essence', color: '#EF4444', bg: '#FEE2E2' },
+  'DIESEL': { label: 'Diesel', color: '#1D4ED8', bg: '#DBEAFE' },
+  'Diesel': { label: 'Diesel', color: '#1D4ED8', bg: '#DBEAFE' },
+  'ELECTRIC': { label: 'Électrique', color: '#6366F1', bg: '#E0E7FF' },
+  'Électrique': { label: 'Électrique', color: '#6366F1', bg: '#E0E7FF' },
+  'HYBRID': { label: 'Hybride', color: '#10B981', bg: '#D1FAE5' },
+  'Hybride': { label: 'Hybride', color: '#10B981', bg: '#D1FAE5' },
+  'GPL': { label: 'GPL', color: '#F59E0B', bg: '#FEF3C7' },
+}
+
+const FUEL_FILTERS = [
+  { value: '', label: 'Tous' },
+  { value: 'ESSENCE', label: 'Essence' },
+  { value: 'DIESEL', label: 'Diesel' },
+  { value: 'ELECTRIC', label: 'Électrique' },
+  { value: 'HYBRID', label: 'Hybride' },
+  { value: 'GPL', label: 'GPL' }
+]
 
 export default function VehiculesPage() {
   const router = useRouter()
-  const toast = useToast()
   
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
-  const [clientFilter, setClientFilter] = useState<string>('all')
-  const [fuelFilter, setFuelFilter] = useState<string>('all')
+  const [fuelFilter, setFuelFilter] = useState('')
   
-  // Modal SIV
-  const [isSivModalOpen, setIsSivModalOpen] = useState(false)
-  const [sivRegistration, setSivRegistration] = useState('')
-  const [sivLoading, setSivLoading] = useState(false)
-  const [sivError, setSivError] = useState('')
-  
-  // Modal création/édition
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null)
-  const [formData, setFormData] = useState<VehicleFormData>({
-    registrationNumber: '',
+  // Create modal
+  const [createModalOpen, setCreateModalOpen] = useState(false)
+  const [formData, setFormData] = useState({
+    clientId: '',
+    plate: '',
     vin: '',
-    make: '',
+    brand: '',
     model: '',
     version: '',
     year: '',
-    firstRegistrationDate: '',
     mileage: '',
     color: '',
-    fuelType: 'ESSENCE',
-    clientId: ''
+    fuel: 'ESSENCE'
   })
-  const [formErrors, setFormErrors] = useState<Partial<Record<keyof VehicleFormData, string>>>({})
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({})
   const [isSaving, setIsSaving] = useState(false)
   
-  // Modal suppression
+  // SIV Lookup
+  const [sivModalOpen, setSivModalOpen] = useState(false)
+  const [sivPlate, setSivPlate] = useState('')
+  const [sivLoading, setSivLoading] = useState(false)
+  const [sivResult, setSivResult] = useState<any>(null)
+  const [sivError, setSivError] = useState<string | null>(null)
+  
+  // Delete modal
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [vehicleToDelete, setVehicleToDelete] = useState<Vehicle | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
-  
-  useEffect(() => {
-    loadVehicles()
-    loadClients()
-  }, [searchQuery, clientFilter, fuelFilter])
-  
-  const loadClients = async () => {
-    try {
-      const response = await fetch('/api/clients')
-      const data = await response.json()
-      
-      if (data.ok && data.data && Array.isArray(data.data.items)) {
-        setClients(data.data.items.map((c: any) => ({
-          id: c.id,
-          name: `${c.firstName} ${c.lastName}`
-        })))
-      } else {
-        console.error('Error loading clients:', data.error || 'Invalid response')
-      }
-    } catch (error) {
-      console.error('Error loading clients:', error)
-      // Fallback
-      setClients([
-        { id: '1', name: 'Jean Dupont' },
-        { id: '2', name: 'Marie Martin' },
-        { id: '3', name: 'Pierre Dubois' },
-        { id: '4', name: 'Sophie Blanc' }
-      ])
-    }
-  }
-  
+
   const loadVehicles = async () => {
     setIsLoading(true)
-    
     try {
       const params = new URLSearchParams()
-      if (searchQuery) params.set('q', searchQuery)
-      if (clientFilter !== 'all') params.set('clientId', clientFilter)
-      if (fuelFilter !== 'all') params.set('fuelType', fuelFilter)
-      params.set('page', '1')
       params.set('pageSize', '100')
+      if (searchQuery) params.set('q', searchQuery)
+      if (fuelFilter) params.set('fuelType', fuelFilter)
       
-      const response = await fetch(`/api/vehicules?${params}`)
+      const response = await fetch(`/api/vehicules?${params.toString()}`)
       const data = await response.json()
       
-      if (data.ok && data.data && Array.isArray(data.data.items)) {
-        setVehicles(data.data.items)
-      } else {
-        console.error('Error loading vehicles:', data.error || 'Invalid response format')
-        toast.error('Erreur', 'Impossible de charger les véhicules')
+      if (data.ok && data.data) {
+        setVehicles(data.data.items || [])
       }
-      
     } catch (error) {
       console.error('Error loading vehicles:', error)
-      toast.error('Erreur', 'Impossible de se connecter au serveur')
-      
-      // Fallback sur données simulées
-      const mockVehicles: Vehicle[] = [
-        {
-          id: '1',
-          registrationNumber: 'AB-123-CD',
-          vin: '1HGBH41JXMN109186',
-          make: 'Peugeot',
-          model: '208',
-          version: 'Active',
-          year: 2020,
-          firstRegistrationDate: new Date('2020-03-15'),
-          mileage: 45000,
-          color: 'Blanc',
-          fuelType: 'ESSENCE',
-          clientId: '1',
-          clientName: 'Jean Dupont',
-          interventionCount: 5,
-          createdAt: new Date('2024-01-10'),
-          updatedAt: new Date('2024-01-10')
-        },
-        {
-          id: '2',
-          registrationNumber: 'EF-456-GH',
-          vin: 'WBADT43452G876543',
-          make: 'Renault',
-          model: 'Clio',
-          version: 'Intens',
-          year: 2019,
-          firstRegistrationDate: new Date('2019-06-20'),
-          mileage: 62000,
-          color: 'Noir',
-          fuelType: 'DIESEL',
-          clientId: '1',
-          clientName: 'Jean Dupont',
-          interventionCount: 8,
-          createdAt: new Date('2024-01-15'),
-          updatedAt: new Date('2024-01-15')
-        },
-        {
-          id: '3',
-          registrationNumber: 'IJ-789-KL',
-          vin: 'VF1RY000555123456',
-          make: 'Citroën',
-          model: 'C3',
-          version: 'Feel',
-          year: 2021,
-          firstRegistrationDate: new Date('2021-09-10'),
-          mileage: 28000,
-          color: 'Rouge',
-          fuelType: 'ESSENCE',
-          clientId: '2',
-          clientName: 'Marie Martin',
-          interventionCount: 2,
-          createdAt: new Date('2024-02-05'),
-          updatedAt: new Date('2024-02-05')
-        },
-        {
-          id: '4',
-          registrationNumber: 'MN-012-OP',
-          vin: '5YJSA1E14FF123456',
-          make: 'Tesla',
-          model: 'Model 3',
-          version: 'Standard Range Plus',
-          year: 2022,
-          firstRegistrationDate: new Date('2022-01-25'),
-          mileage: 15000,
-          color: 'Bleu',
-          fuelType: 'ELECTRIC',
-          clientId: '3',
-          clientName: 'Pierre Dubois',
-          interventionCount: 1,
-          createdAt: new Date('2024-03-01'),
-          updatedAt: new Date('2024-03-01')
-        }
-      ]
-      
-      let filtered = mockVehicles
-      
-      if (searchQuery) {
-        const query = searchQuery.toLowerCase()
-        filtered = filtered.filter(v => 
-          v.registrationNumber.toLowerCase().includes(query) ||
-          v.vin.toLowerCase().includes(query) ||
-          v.make.toLowerCase().includes(query) ||
-          v.model.toLowerCase().includes(query)
-        )
-      }
-      
-      if (clientFilter !== 'all') {
-        filtered = filtered.filter(v => v.clientId === clientFilter)
-      }
-      
-      if (fuelFilter !== 'all') {
-        filtered = filtered.filter(v => v.fuelType === fuelFilter)
-      }
-      
-      setVehicles(filtered)
-      
     } finally {
       setIsLoading(false)
     }
   }
-  
-  // Recherche SIV
-  const handleSivSearch = async () => {
-    setSivError('')
-    
-    if (!sivRegistration.trim()) {
-      setSivError('Veuillez entrer une immatriculation')
-      return
+
+  const loadClients = async () => {
+    try {
+      const response = await fetch('/api/clients?pageSize=100')
+      const data = await response.json()
+      if (data.ok && data.data?.items) {
+        setClients(data.data.items.map((c: any) => ({
+          id: String(c.id),
+          name: c.name || `${c.firstName || ''} ${c.lastName || ''}`.trim()
+        })))
+      }
+    } catch (error) {
+      console.error('Error loading clients:', error)
     }
-    
-    const cleanRegistration = sivRegistration.replace(/[^A-Z0-9]/gi, '').toUpperCase()
-    
-    if (cleanRegistration.length < 7) {
-      setSivError('Immatriculation trop courte (minimum 7 caractères)')
+  }
+
+  useEffect(() => {
+    loadVehicles()
+    loadClients()
+  }, [])
+
+  useEffect(() => {
+    const timer = setTimeout(() => loadVehicles(), 300)
+    return () => clearTimeout(timer)
+  }, [searchQuery, fuelFilter])
+
+  const getPlate = (v: Vehicle) => v.registrationNumber || v.plate || ''
+  const getMake = (v: Vehicle) => v.make || v.brand || ''
+  const getFuel = (v: Vehicle) => v.fuelType || v.fuel || ''
+  
+  const getClientName = (v: Vehicle) => {
+    if (v.clientName) return v.clientName
+    if (v.client) {
+      if (v.client.name) return v.client.name
+      return `${v.client.firstName || ''} ${v.client.lastName || ''}`.trim()
+    }
+    return 'Client inconnu'
+  }
+
+  const getFuelConfig = (fuel: string) => {
+    return ENERGY_CODES[fuel] || { label: fuel || 'Inconnu', color: '#6B7280', bg: '#F3F4F6' }
+  }
+
+  // Stats
+  const stats = useMemo(() => {
+    const total = vehicles.length
+    const essence = vehicles.filter(v => {
+      const f = getFuel(v).toUpperCase()
+      return f === 'ESSENCE' || f === '1'
+    }).length
+    const diesel = vehicles.filter(v => {
+      const f = getFuel(v).toUpperCase()
+      return f === 'DIESEL' || f === '2'
+    }).length
+    const electric = vehicles.filter(v => {
+      const f = getFuel(v).toUpperCase()
+      return f === 'ELECTRIC' || f === 'ÉLECTRIQUE' || f === '5'
+    }).length
+    return { total, essence, diesel, electric }
+  }, [vehicles])
+
+  const handleSivSearch = async () => {
+    if (!sivPlate.trim()) {
+      setSivError("Entrez une plaque d'immatriculation")
       return
     }
     
     setSivLoading(true)
+    setSivError(null)
+    setSivResult(null)
     
     try {
-      console.log('🔍 [SIV] Recherche pour:', cleanRegistration)
-      
       const response = await fetch('/api/siv/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          registrationNumber: cleanRegistration,
-          country: 'FR' 
-        })
+        body: JSON.stringify({ registrationNumber: sivPlate.trim() })
       })
       
-      console.log('📡 [SIV] Response status:', response.status)
-      
       const data = await response.json()
-      console.log('📦 [SIV] Response data:', data)
       
       if (data.ok && data.vehicle) {
-        console.log('✅ [SIV] Véhicule trouvé')
-        
-        // Mapper tous les champs disponibles
-        setFormData({
-          registrationNumber: data.vehicle.registrationNumber || cleanRegistration,
-          vin: data.vehicle.vin || '',
-          make: data.vehicle.make || '',
-          model: data.vehicle.model || '',
-          version: data.vehicle.version || '',
-          year: data.vehicle.year?.toString() || '',
-          firstRegistrationDate: data.vehicle.firstRegistrationDate || '',
-          mileage: '',
-          color: data.vehicle.color || '',
-          fuelType: data.vehicle.fuelType || 'ESSENCE',
-          clientId: ''
-        })
-        
-        // Fermer modal SIV
-        setIsSivModalOpen(false)
-        setSivRegistration('')
-        setSivError('')
-        
-        // Ouvrir modal création
-        setFormErrors({})
-        setEditingVehicle(null)
-        setIsModalOpen(true)
-        
-        const sourceMsg = data.source === 'mock' ? ' (mode simulation)' : ''
-        toast.success(
-          'Véhicule trouvé', 
-          `${data.vehicle.make} ${data.vehicle.model} - ${data.vehicle.year || 'Année inconnue'}${sourceMsg}`
-        )
-        
+        setSivResult(data.vehicle)
       } else {
-        // Gérer les erreurs spécifiques
-        const errorCode = data.code || 'UNKNOWN'
-        
-        if (errorCode === 'API_CREDITS_EXHAUSTED') {
-          setSivError('⚠️ Plus de crédits API. Veuillez saisir manuellement.')
-          
-          // Mode dégradé : ouvrir formulaire vide après délai
-          setTimeout(() => {
-            setIsSivModalOpen(false)
-            setSivRegistration('')
-            setSivError('')
-            setFormData({
-              registrationNumber: cleanRegistration,
-              vin: '',
-              make: '',
-              model: '',
-              version: '',
-              year: '',
-              firstRegistrationDate: '',
-              mileage: '',
-              color: '',
-              fuelType: 'ESSENCE',
-              clientId: ''
-            })
-            setIsModalOpen(true)
-            toast.info('Mode manuel', 'Saisie manuelle requise (crédits API épuisés)')
-          }, 2000)
-          
-        } else if (errorCode === 'VEHICLE_NOT_FOUND') {
-          setSivError('Aucun véhicule trouvé avec cette immatriculation')
-        } else {
-          setSivError(data.error || 'Erreur lors de la recherche')
-        }
+        setSivError(data.error || 'Véhicule non trouvé')
       }
-      
     } catch (error) {
-      console.error('❌ [SIV] Exception:', error)
-      setSivError('Impossible de se connecter au serveur SIV')
+      setSivError('Erreur de connexion')
     } finally {
       setSivLoading(false)
     }
   }
-  
+
+  const handleSivImport = () => {
+    if (!sivResult) return
+    
+    setFormData({
+      ...formData,
+      plate: sivPlate.toUpperCase(),
+      brand: sivResult.make || sivResult.brand || sivResult.marque || '',
+      model: sivResult.model || sivResult.modele || '',
+      version: sivResult.version || '',
+      year: sivResult.year?.toString() || '',
+      fuel: sivResult.fuelType || sivResult.fuel || 'ESSENCE',
+      vin: sivResult.vin || '',
+      color: sivResult.color || ''
+    })
+    
+    setSivModalOpen(false)
+    setCreateModalOpen(true)
+  }
+
   const validateForm = (): boolean => {
-    const errors: Partial<Record<keyof VehicleFormData, string>> = {}
-    
-    if (!formData.registrationNumber.trim()) {
-      errors.registrationNumber = 'L\'immatriculation est requise'
-    }
-    
-    if (!formData.vin.trim()) {
-      errors.vin = 'Le VIN est requis'
-    } else if (formData.vin.length !== 17) {
-      errors.vin = 'Le VIN doit contenir 17 caractères'
-    }
-    
-    if (!formData.make.trim()) errors.make = 'La marque est requise'
+    const errors: Record<string, string> = {}
+    if (!formData.plate.trim()) errors.plate = "L'immatriculation est requise"
+    if (!formData.brand.trim()) errors.brand = 'La marque est requise'
     if (!formData.model.trim()) errors.model = 'Le modèle est requis'
-    
-    if (!formData.year) {
-      errors.year = 'L\'année est requise'
-    } else {
-      const year = parseInt(formData.year)
-      if (year < 1900 || year > new Date().getFullYear() + 1) {
-        errors.year = 'Année invalide'
-      }
-    }
-    
     if (!formData.clientId) errors.clientId = 'Le client est requis'
-    
+    if (formData.vin && formData.vin.length !== 17) errors.vin = 'Le VIN doit contenir 17 caractères'
     setFormErrors(errors)
     return Object.keys(errors).length === 0
   }
-  
-  const handleCreate = () => {
-    setEditingVehicle(null)
-    setFormData({
-      registrationNumber: '',
-      vin: '',
-      make: '',
-      model: '',
-      version: '',
-      year: '',
-      firstRegistrationDate: '',
-      mileage: '',
-      color: '',
-      fuelType: 'ESSENCE',
-      clientId: ''
-    })
-    setFormErrors({})
-    setIsModalOpen(true)
-  }
-  
-  const handleEdit = (vehicle: Vehicle) => {
-    setEditingVehicle(vehicle)
-    setFormData({
-      registrationNumber: vehicle.registrationNumber,
-      vin: vehicle.vin,
-      make: vehicle.make,
-      model: vehicle.model,
-      version: vehicle.version || '',
-      year: vehicle.year.toString(),
-      firstRegistrationDate: vehicle.firstRegistrationDate.toISOString().split('T')[0],
-      mileage: vehicle.mileage.toString(),
-      color: vehicle.color || '',
-      fuelType: vehicle.fuelType,
-      clientId: vehicle.clientId
-    })
-    setFormErrors({})
-    setIsModalOpen(true)
-  }
-  
-  const handleSave = async () => {
-    if (!validateForm()) {
-      toast.error('Erreur', 'Veuillez corriger les erreurs du formulaire')
-      return
-    }
-    
+
+  const handleCreate = async () => {
+    if (!validateForm()) return
     setIsSaving(true)
     
     try {
-      const url = editingVehicle 
-        ? `/api/vehicules/${editingVehicle.id}`
-        : '/api/vehicules'
-      
-      const method = editingVehicle ? 'PATCH' : 'POST'
-      
-      const payload = {
-        ...formData,
-        year: parseInt(formData.year),
-        mileage: formData.mileage ? parseInt(formData.mileage) : undefined
-      }
-      
-      const response = await fetch(url, {
-        method,
+      const response = await fetch('/api/vehicules', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({
+          clientId: parseInt(formData.clientId),
+          registrationNumber: formData.plate.toUpperCase(),
+          vin: formData.vin || undefined,
+          make: formData.brand,
+          model: formData.model,
+          version: formData.version || undefined,
+          year: formData.year ? parseInt(formData.year) : undefined,
+          mileage: formData.mileage ? parseInt(formData.mileage) : undefined,
+          color: formData.color || undefined,
+          fuelType: formData.fuel
+        })
       })
       
       const data = await response.json()
       
       if (data.ok) {
-        toast.success(
-          editingVehicle ? 'Véhicule modifié' : 'Véhicule créé',
-          'Les modifications ont été enregistrées'
-        )
-        setIsModalOpen(false)
+        setCreateModalOpen(false)
+        setFormData({ clientId: '', plate: '', vin: '', brand: '', model: '', version: '', year: '', mileage: '', color: '', fuel: 'ESSENCE' })
         loadVehicles()
       } else {
-        toast.error('Erreur', data.error || 'Impossible de sauvegarder le véhicule')
+        setFormErrors({ plate: data.error || 'Erreur de création' })
       }
-      
     } catch (error) {
-      console.error('Error saving vehicle:', error)
-      toast.error('Erreur', 'Impossible de se connecter au serveur')
+      console.error('Error creating vehicle:', error)
+      setFormErrors({ plate: 'Erreur de connexion' })
     } finally {
       setIsSaving(false)
     }
   }
-  
-  const handleDeleteClick = (vehicle: Vehicle) => {
-    setVehicleToDelete(vehicle)
-    setDeleteModalOpen(true)
-  }
-  
-  const handleDeleteConfirm = async () => {
+
+  const handleDelete = async () => {
     if (!vehicleToDelete) return
-    
     setIsDeleting(true)
     
     try {
-      const response = await fetch(`/api/vehicules/${vehicleToDelete.id}`, {
-        method: 'DELETE'
-      })
-      
+      const response = await fetch(`/api/vehicules/${vehicleToDelete.id}`, { method: 'DELETE' })
       const data = await response.json()
       
       if (data.ok) {
-        toast.success('Véhicule supprimé', 'Le véhicule a été supprimé avec succès')
         setDeleteModalOpen(false)
         setVehicleToDelete(null)
         loadVehicles()
-      } else {
-        toast.error('Erreur', data.error || 'Impossible de supprimer le véhicule')
       }
-      
     } catch (error) {
       console.error('Error deleting vehicle:', error)
-      toast.error('Erreur', 'Impossible de se connecter au serveur')
     } finally {
       setIsDeleting(false)
     }
   }
-  
-  const getFuelTypeLabel = (type: FuelType): string => {
-    const labels = {
-      ESSENCE: 'Essence',
-      DIESEL: 'Diesel',
-      HYBRID: 'Hybride',
-      ELECTRIC: 'Électrique',
-      GPL: 'GPL'
-    }
-    return labels[type]
-  }
-  
-  const getFuelTypeBadgeVariant = (type: FuelType) => {
-    const variants = {
-      ESSENCE: 'default',
-      DIESEL: 'neutral',
-      HYBRID: 'success',
-      ELECTRIC: 'info',
-      GPL: 'warning'
-    }
-    return variants[type] as any
-  }
-  
-  const columns = [
-    {
-      key: 'vehicle',
-      label: 'Véhicule',
-      sortable: true,
-      render: (vehicle: Vehicle) => (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <Avatar
-            name={vehicle.make}
-            size="md"
-            shape="square"
-          />
-          <div>
-            <div style={{ 
-              fontSize: '14px', 
-              fontWeight: 500, 
-              color: '#111827' 
-            }}>
-              {vehicle.make} {vehicle.model}
-            </div>
-            <div style={{ 
-              fontSize: '12px', 
-              color: '#6B7280',
-              marginTop: '2px'
-            }}>
-              {vehicle.version || 'Version non spécifiée'}
-            </div>
-          </div>
-        </div>
-      )
-    },
-    {
-      key: 'registration',
-      label: 'Immatriculation',
-      sortable: true,
-      render: (vehicle: Vehicle) => (
-        <div style={{
-          fontFamily: 'monospace',
-          fontSize: '14px',
-          fontWeight: 600,
-          color: '#111827',
-          backgroundColor: '#F9FAFB',
-          padding: '4px 8px',
-          borderRadius: '4px',
-          display: 'inline-block'
-        }}>
-          {vehicle.registrationNumber}
-        </div>
-      )
-    },
-    {
-      key: 'client',
-      label: 'Propriétaire',
-      sortable: true,
-      render: (vehicle: Vehicle) => (
-        <div style={{ 
-          fontSize: '13px', 
-          color: '#6B7280',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px'
-        }}>
-          <User size={14} />
-          {vehicle.clientName}
-        </div>
-      )
-    },
-    {
-      key: 'vin',
-      label: 'VIN',
-      sortable: false,
-      render: (vehicle: Vehicle) => (
-        <div style={{ 
-          fontSize: '12px', 
-          color: '#9CA3AF',
-          fontFamily: 'monospace',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px'
-        }}>
-          <Hash size={12} />
-          {vehicle.vin}
-        </div>
-      )
-    },
-    {
-      key: 'year',
-      label: 'Année',
-      sortable: true,
-      render: (vehicle: Vehicle) => (
-        <div style={{ fontSize: '13px', color: '#6B7280' }}>
-          {vehicle.year}
-        </div>
-      )
-    },
-    {
-      key: 'fuel',
-      label: 'Carburant',
-      sortable: true,
-      render: (vehicle: Vehicle) => (
-        <Badge 
-          variant={getFuelTypeBadgeVariant(vehicle.fuelType)}
-          size="sm"
-        >
-          {getFuelTypeLabel(vehicle.fuelType)}
-        </Badge>
-      )
-    },
-    {
-      key: 'interventions',
-      label: 'Interventions',
-      sortable: true,
-      render: (vehicle: Vehicle) => (
-        <Badge variant={vehicle.interventionCount > 0 ? 'default' : 'neutral'}>
-          {vehicle.interventionCount}
-        </Badge>
-      )
-    },
-    {
-      key: 'actions',
-      label: 'Actions',
-      sortable: false,
-      render: (vehicle: Vehicle) => (
-        <DropdownMenu
-          trigger={
-            <button
-              style={{
-                padding: '6px',
-                backgroundColor: 'transparent',
-                border: 'none',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                color: '#6B7280',
-                transition: 'all 0.15s ease'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = '#F9FAFB'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'transparent'
-              }}
-            >
-              <MoreVertical size={16} />
-            </button>
-          }
-          items={[
-            {
-              id: 'view',
-              label: 'Voir détails',
-              icon: <Eye size={16} />,
-              onClick: () => router.push(`/vehicules/${vehicle.id}`)
-            },
-            {
-              id: 'edit',
-              label: 'Modifier',
-              icon: <Edit size={16} />,
-              onClick: () => handleEdit(vehicle)
-            },
-            { id: 'separator', separator: true },
-            {
-              id: 'delete',
-              label: 'Supprimer',
-              icon: <Trash2 size={16} />,
-              danger: true,
-              onClick: () => handleDeleteClick(vehicle)
-            }
-          ]}
-        />
-      )
-    }
-  ]
-  
+
   return (
-    <div style={{ padding: '24px', maxWidth: '1600px', margin: '0 auto' }}>
+    <div style={{ padding: '32px', maxWidth: '1400px', margin: '0 auto' }}>
       {/* Header */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '24px'
-      }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
         <div>
-          <h1 style={{
-            fontSize: '32px',
-            fontWeight: 700,
-            color: '#111827',
-            margin: 0,
-            marginBottom: '4px'
-          }}>
-            Véhicules
-          </h1>
-          <p style={{
-            fontSize: '14px',
-            color: '#6B7280',
-            margin: 0
-          }}>
-            Gérez le parc automobile de vos clients
-          </p>
+          <h1 style={{ fontSize: '28px', fontWeight: 700, color: '#111827', margin: 0, marginBottom: '4px' }}>Véhicules</h1>
+          <p style={{ fontSize: '14px', color: '#6B7280', margin: 0 }}>Gérez la flotte de véhicules</p>
         </div>
-        
         <div style={{ display: 'flex', gap: '12px' }}>
-          <Button
-            variant="secondary"
-            size="lg"
-            leftIcon={<Search size={20} />}
-            onClick={() => setIsSivModalOpen(true)}
-          >
-            Recherche SIV
-          </Button>
-          <Button
-            variant="primary"
-            size="lg"
-            leftIcon={<Plus size={20} />}
-            onClick={handleCreate}
-          >
-            Nouveau véhicule
-          </Button>
+          <button onClick={() => { setSivPlate(''); setSivResult(null); setSivError(null); setSivModalOpen(true) }} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 20px', borderRadius: '12px', border: '1px solid #E5E7EB', background: '#fff', fontSize: '14px', fontWeight: 600, color: '#374151', cursor: 'pointer' }}>
+            <Search size={18} /> Recherche SIV
+          </button>
+          <button onClick={() => { setFormData({ clientId: '', plate: '', vin: '', brand: '', model: '', version: '', year: '', mileage: '', color: '', fuel: 'ESSENCE' }); setFormErrors({}); setCreateModalOpen(true) }} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 20px', borderRadius: '12px', border: 'none', background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)', fontSize: '14px', fontWeight: 600, color: '#fff', cursor: 'pointer', boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)' }}>
+            <Plus size={18} /> Ajouter un véhicule
+          </button>
         </div>
       </div>
-      
-      {/* Filters */}
-      <div style={{
-        display: 'flex',
-        gap: '12px',
-        marginBottom: '20px',
-        flexWrap: 'wrap'
-      }}>
-        <div style={{ flex: 1, minWidth: '300px' }}>
-          <SearchInput
-            placeholder="Rechercher (immatriculation, VIN, marque, modèle)..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onClear={() => setSearchQuery('')}
-          />
+
+      {/* Stats */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '32px' }}>
+        <div style={{ padding: '20px', borderRadius: '16px', background: '#fff', border: '1px solid #E5E7EB' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#EEF2FF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Car size={24} color="#6366F1" /></div>
+            <div><p style={{ fontSize: '13px', color: '#6B7280', margin: 0 }}>Total</p><p style={{ fontSize: '28px', fontWeight: 700, color: '#111827', margin: 0 }}>{stats.total}</p></div>
+          </div>
         </div>
-        
-        <Select
-          value={clientFilter}
-          onChange={(e) => setClientFilter(e.target.value)}
-          options={[
-            { value: 'all', label: 'Tous les clients' },
-            ...clients.map(c => ({ value: c.id, label: c.name }))
-          ]}
-        />
-        
-        <Select
-          value={fuelFilter}
-          onChange={(e) => setFuelFilter(e.target.value)}
-          options={[
-            { value: 'all', label: 'Tous les carburants' },
-            { value: 'ESSENCE', label: 'Essence' },
-            { value: 'DIESEL', label: 'Diesel' },
-            { value: 'HYBRID', label: 'Hybride' },
-            { value: 'ELECTRIC', label: 'Électrique' },
-            { value: 'GPL', label: 'GPL' }
-          ]}
-        />
+        <div style={{ padding: '20px', borderRadius: '16px', background: '#fff', border: '1px solid #E5E7EB' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Fuel size={24} color="#EF4444" /></div>
+            <div><p style={{ fontSize: '13px', color: '#6B7280', margin: 0 }}>Essence</p><p style={{ fontSize: '28px', fontWeight: 700, color: '#EF4444', margin: 0 }}>{stats.essence}</p></div>
+          </div>
+        </div>
+        <div style={{ padding: '20px', borderRadius: '16px', background: '#fff', border: '1px solid #E5E7EB' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#DBEAFE', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Fuel size={24} color="#1D4ED8" /></div>
+            <div><p style={{ fontSize: '13px', color: '#6B7280', margin: 0 }}>Diesel</p><p style={{ fontSize: '28px', fontWeight: 700, color: '#1D4ED8', margin: 0 }}>{stats.diesel}</p></div>
+          </div>
+        </div>
+        <div style={{ padding: '20px', borderRadius: '16px', background: '#fff', border: '1px solid #E5E7EB' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#E0E7FF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Fuel size={24} color="#6366F1" /></div>
+            <div><p style={{ fontSize: '13px', color: '#6B7280', margin: 0 }}>Électrique</p><p style={{ fontSize: '28px', fontWeight: 700, color: '#6366F1', margin: 0 }}>{stats.electric}</p></div>
+          </div>
+        </div>
       </div>
-      
-      {/* Table */}
-      <DataTableInline
-        data={vehicles}
-        columns={columns}
-        loading={isLoading}
-        emptyState={
-          <div style={{ textAlign: 'center', padding: '48px 24px' }}>
-            <div style={{ fontSize: '16px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>
-              Aucun véhicule
-            </div>
-            <div style={{ fontSize: '14px', color: '#6B7280', marginBottom: '16px' }}>
-              {searchQuery 
-                ? 'Aucun véhicule ne correspond à votre recherche'
-                : 'Commencez par ajouter un véhicule ou utilisez la recherche SIV'}
-            </div>
-            {!searchQuery && (
-              <Button variant="primary" onClick={() => setIsSivModalOpen(true)}>
-                Recherche SIV
-              </Button>
-            )}
+
+      {/* Search & Filters */}
+      <div style={{ display: 'flex', gap: '16px', marginBottom: '24px' }}>
+        <div style={{ flex: 1, position: 'relative' }}>
+          <Search size={20} color="#9CA3AF" style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)' }} />
+          <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Rechercher par immatriculation, marque, modèle..." style={{ width: '100%', padding: '14px 14px 14px 48px', borderRadius: '12px', border: '1px solid #E5E7EB', fontSize: '14px', outline: 'none' }} />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', borderRadius: '12px', border: '1px solid #E5E7EB', background: '#fff' }}>
+          <Filter size={18} color="#6B7280" />
+          <select value={fuelFilter} onChange={(e) => setFuelFilter(e.target.value)} style={{ border: 'none', background: 'transparent', fontSize: '14px', color: '#374151', outline: 'none', cursor: 'pointer' }}>
+            {FUEL_FILTERS.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
+          </select>
+        </div>
+      </div>
+
+      {/* Vehicles List */}
+      <div style={{ background: '#fff', borderRadius: '16px', border: '1px solid #E5E7EB', overflow: 'hidden' }}>
+        {isLoading ? (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '64px' }}>
+            <RefreshCw size={32} color="#6366F1" style={{ animation: 'spin 1s linear infinite' }} />
           </div>
-        }
-      />
-      
-      {/* Modal SIV */}
-      <Modal
-        isOpen={isSivModalOpen}
-        onClose={() => {
-          setIsSivModalOpen(false)
-          setSivRegistration('')
-          setSivError('')
-          setSivLoading(false)
-        }}
-        title="Recherche SIV"
-        size="md"
-      >
-        <div style={{ padding: '24px' }}>
-          <p style={{
-            fontSize: '14px',
-            color: '#6B7280',
-            lineHeight: 1.6,
-            marginBottom: '20px'
-          }}>
-            Entrez l'immatriculation d'un véhicule pour récupérer automatiquement toutes ses informations depuis le SIV (Système d'Immatriculation des Véhicules).
-          </p>
-          
-          {/* Info API */}
-          <div style={{
-            fontSize: '12px',
-            color: '#9CA3AF',
-            marginBottom: '20px',
-            padding: '12px',
-            backgroundColor: '#F9FAFB',
-            borderRadius: '8px',
-            border: '1px solid #E5E7EB'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-              <span>💡</span>
-              <strong>API utilisée :</strong>
-              <span>apiplaqueimmatriculation.com</span>
-            </div>
-            <div style={{ fontSize: '11px', color: '#9CA3AF' }}>
-              Données officielles • 40+ champs disponibles
-            </div>
+        ) : vehicles.length === 0 ? (
+          <div style={{ padding: '64px', textAlign: 'center' }}>
+            <Car size={48} color="#D1D5DB" style={{ marginBottom: '16px' }} />
+            <h3 style={{ fontSize: '16px', fontWeight: 600, color: '#111827', margin: 0, marginBottom: '8px' }}>Aucun véhicule</h3>
+            <p style={{ fontSize: '14px', color: '#6B7280', margin: 0 }}>Commencez par ajouter un véhicule</p>
           </div>
-          
-          {/* Erreur affichée */}
-          {sivError && (
-            <div style={{
-              padding: '12px 16px',
-              backgroundColor: '#FEF2F2',
-              border: '1px solid #FEE2E2',
-              borderRadius: '8px',
-              marginBottom: '20px'
-            }}>
-              <div style={{
-                fontSize: '14px',
-                fontWeight: 500,
-                color: '#991B1B',
-                marginBottom: '4px'
-              }}>
-                ❌ Erreur
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+                <th style={{ padding: '14px 20px', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#6B7280', textTransform: 'uppercase' }}>Véhicule</th>
+                <th style={{ padding: '14px 20px', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#6B7280', textTransform: 'uppercase' }}>Immatriculation</th>
+                <th style={{ padding: '14px 20px', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#6B7280', textTransform: 'uppercase' }}>Client</th>
+                <th style={{ padding: '14px 20px', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#6B7280', textTransform: 'uppercase' }}>Énergie</th>
+                <th style={{ padding: '14px 20px', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#6B7280', textTransform: 'uppercase' }}>Année</th>
+                <th style={{ padding: '14px 20px', textAlign: 'right', fontSize: '12px', fontWeight: 600, color: '#6B7280', textTransform: 'uppercase' }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {vehicles.map((vehicle, index) => {
+                const fuelConfig = getFuelConfig(getFuel(vehicle))
+                return (
+                  <tr key={vehicle.id} style={{ borderBottom: index < vehicles.length - 1 ? '1px solid #F3F4F6' : 'none', cursor: 'pointer' }} onClick={() => router.push(`/vehicules/${vehicle.id}`)} onMouseEnter={(e) => e.currentTarget.style.background = '#F9FAFB'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+                    <td style={{ padding: '16px 20px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Car size={20} color="#fff" /></div>
+                        <div>
+                          <div style={{ fontSize: '14px', fontWeight: 600, color: '#111827' }}>{getMake(vehicle)} {vehicle.model}</div>
+                          {vehicle.version && <div style={{ fontSize: '12px', color: '#6B7280' }}>{vehicle.version}</div>}
+                        </div>
+                      </div>
+                    </td>
+                    <td style={{ padding: '16px 20px' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 12px', borderRadius: '6px', fontSize: '13px', fontWeight: 700, background: '#EEF2FF', color: '#6366F1' }}>
+                        <Hash size={14} /> {getPlate(vehicle)}
+                      </span>
+                    </td>
+                    <td style={{ padding: '16px 20px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <User size={16} color="#9CA3AF" />
+                        <span style={{ fontSize: '14px', color: '#374151' }}>{getClientName(vehicle)}</span>
+                      </div>
+                    </td>
+                    <td style={{ padding: '16px 20px' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 12px', borderRadius: '100px', fontSize: '12px', fontWeight: 600, background: fuelConfig.bg, color: fuelConfig.color }}>
+                        <Fuel size={12} /> {fuelConfig.label}
+                      </span>
+                    </td>
+                    <td style={{ padding: '16px 20px' }}>
+                      <span style={{ fontSize: '14px', color: '#374151' }}>{vehicle.year || '-'}</span>
+                    </td>
+                    <td style={{ padding: '16px 20px', textAlign: 'right' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px' }}>
+                        <button onClick={(e) => { e.stopPropagation(); setVehicleToDelete(vehicle); setDeleteModalOpen(true) }} style={{ padding: '8px', borderRadius: '8px', border: '1px solid #FECACA', background: '#FEF2F2', cursor: 'pointer' }}><Trash2 size={16} color="#EF4444" /></button>
+                        <ChevronRight size={18} color="#D1D5DB" />
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* Create Modal */}
+      {createModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '20px' }} onClick={() => setCreateModalOpen(false)}>
+          <div style={{ background: '#fff', borderRadius: '20px', width: '100%', maxWidth: '550px', maxHeight: '90vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: '1px solid #E5E7EB' }}>
+              <h2 style={{ fontSize: '18px', fontWeight: 600, color: '#111827', margin: 0 }}>Nouveau véhicule</h2>
+              <button onClick={() => setCreateModalOpen(false)} style={{ padding: '8px', background: 'transparent', border: 'none', cursor: 'pointer' }}><X size={20} color="#6B7280" /></button>
+            </div>
+            <div style={{ padding: '24px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                <div><label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#374151', marginBottom: '6px' }}>Immatriculation *</label><input type="text" value={formData.plate} onChange={(e) => setFormData({ ...formData, plate: e.target.value.toUpperCase() })} style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: formErrors.plate ? '1px solid #EF4444' : '1px solid #E5E7EB', fontSize: '14px', outline: 'none', textTransform: 'uppercase' }} />{formErrors.plate && <p style={{ fontSize: '12px', color: '#EF4444', margin: '4px 0 0' }}>{formErrors.plate}</p>}</div>
+                <div><label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#374151', marginBottom: '6px' }}>VIN</label><input type="text" value={formData.vin} onChange={(e) => setFormData({ ...formData, vin: e.target.value.toUpperCase() })} style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: formErrors.vin ? '1px solid #EF4444' : '1px solid #E5E7EB', fontSize: '14px', outline: 'none' }} />{formErrors.vin && <p style={{ fontSize: '12px', color: '#EF4444', margin: '4px 0 0' }}>{formErrors.vin}</p>}</div>
               </div>
-              <div style={{ fontSize: '13px', color: '#DC2626' }}>
-                {sivError}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                <div><label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#374151', marginBottom: '6px' }}>Marque *</label><input type="text" value={formData.brand} onChange={(e) => setFormData({ ...formData, brand: e.target.value })} style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: formErrors.brand ? '1px solid #EF4444' : '1px solid #E5E7EB', fontSize: '14px', outline: 'none' }} />{formErrors.brand && <p style={{ fontSize: '12px', color: '#EF4444', margin: '4px 0 0' }}>{formErrors.brand}</p>}</div>
+                <div><label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#374151', marginBottom: '6px' }}>Modèle *</label><input type="text" value={formData.model} onChange={(e) => setFormData({ ...formData, model: e.target.value })} style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: formErrors.model ? '1px solid #EF4444' : '1px solid #E5E7EB', fontSize: '14px', outline: 'none' }} />{formErrors.model && <p style={{ fontSize: '12px', color: '#EF4444', margin: '4px 0 0' }}>{formErrors.model}</p>}</div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                <div><label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#374151', marginBottom: '6px' }}>Version</label><input type="text" value={formData.version} onChange={(e) => setFormData({ ...formData, version: e.target.value })} style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid #E5E7EB', fontSize: '14px', outline: 'none' }} /></div>
+                <div><label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#374151', marginBottom: '6px' }}>Année</label><input type="number" value={formData.year} onChange={(e) => setFormData({ ...formData, year: e.target.value })} style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid #E5E7EB', fontSize: '14px', outline: 'none' }} /></div>
+                <div><label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#374151', marginBottom: '6px' }}>Couleur</label><input type="text" value={formData.color} onChange={(e) => setFormData({ ...formData, color: e.target.value })} style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid #E5E7EB', fontSize: '14px', outline: 'none' }} /></div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                <div><label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#374151', marginBottom: '6px' }}>Énergie</label><select value={formData.fuel} onChange={(e) => setFormData({ ...formData, fuel: e.target.value })} style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid #E5E7EB', fontSize: '14px', outline: 'none', background: '#fff' }}><option value="ESSENCE">Essence</option><option value="DIESEL">Diesel</option><option value="ELECTRIC">Électrique</option><option value="HYBRID">Hybride</option><option value="GPL">GPL</option></select></div>
+                <div><label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#374151', marginBottom: '6px' }}>Kilométrage</label><input type="number" value={formData.mileage} onChange={(e) => setFormData({ ...formData, mileage: e.target.value })} style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid #E5E7EB', fontSize: '14px', outline: 'none' }} /></div>
+              </div>
+              <div style={{ marginBottom: '24px' }}><label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#374151', marginBottom: '6px' }}>Client *</label><select value={formData.clientId} onChange={(e) => setFormData({ ...formData, clientId: e.target.value })} style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: formErrors.clientId ? '1px solid #EF4444' : '1px solid #E5E7EB', fontSize: '14px', outline: 'none', background: '#fff' }}><option value="">Sélectionnez un client</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select>{formErrors.clientId && <p style={{ fontSize: '12px', color: '#EF4444', margin: '4px 0 0' }}>{formErrors.clientId}</p>}</div>
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                <button onClick={() => setCreateModalOpen(false)} disabled={isSaving} style={{ padding: '12px 20px', borderRadius: '10px', border: '1px solid #E5E7EB', background: '#fff', fontSize: '14px', fontWeight: 600, color: '#374151', cursor: 'pointer' }}>Annuler</button>
+                <button onClick={handleCreate} disabled={isSaving} style={{ padding: '12px 24px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)', fontSize: '14px', fontWeight: 600, color: '#fff', cursor: isSaving ? 'wait' : 'pointer', opacity: isSaving ? 0.7 : 1 }}>{isSaving ? 'Création...' : 'Créer'}</button>
               </div>
             </div>
-          )}
-          
-          <FormField
-            label="Immatriculation"
-            name="sivRegistration"
-            placeholder="Ex: AB-123-CD"
-            value={sivRegistration}
-            onChange={(e) => {
-              // Auto-formatter l'immatriculation
-              let value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '')
-              
-              // Ajouter les tirets automatiquement (format AA-123-AA)
-              if (value.length > 2 && value.length <= 5) {
-                value = value.slice(0, 2) + '-' + value.slice(2)
-              } else if (value.length > 5) {
-                value = value.slice(0, 2) + '-' + value.slice(2, 5) + '-' + value.slice(5, 7)
-              }
-              
-              setSivRegistration(value)
-              setSivError('') // Clear error on type
-            }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleSivSearch()
-            }}
-            helperText="Format : AB-123-CD (les tirets sont automatiques)"
-            error={sivError ? ' ' : ''}
-            autoFocus
-          />
-          
-          <div style={{
-            display: 'flex',
-            gap: '12px',
-            justifyContent: 'flex-end',
-            marginTop: '24px'
-          }}>
-            <Button
-              variant="secondary"
-              onClick={() => {
-                setIsSivModalOpen(false)
-                setSivRegistration('')
-                setSivError('')
-                setSivLoading(false)
-              }}
-              disabled={sivLoading}
-            >
-              Annuler
-            </Button>
-            <Button
-              variant="primary"
-              onClick={handleSivSearch}
-              loading={sivLoading}
-              disabled={sivLoading || !sivRegistration.trim()}
-            >
-              {sivLoading ? 'Recherche...' : 'Rechercher'}
-            </Button>
           </div>
         </div>
-      </Modal>
-      
-      {/* Modal création/édition */}
-      <Modal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title={editingVehicle ? 'Modifier le véhicule' : 'Nouveau véhicule'}
-        size="lg"
-      >
-        <div style={{ padding: '24px' }}>
-          <Select
-            label="Propriétaire"
-            value={formData.clientId}
-            onChange={(e) => setFormData({ ...formData, clientId: e.target.value })}
-            options={[
-              { value: '', label: 'Sélectionner un client' },
-              ...clients.map(c => ({ value: c.id, label: c.name }))
-            ]}
-            error={formErrors.clientId}
-            required
-          />
-          
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: '16px'
-          }}>
-            <FormField
-              label="Immatriculation"
-              name="registrationNumber"
-              placeholder="AB-123-CD"
-              value={formData.registrationNumber}
-              onChange={(e) => setFormData({ ...formData, registrationNumber: e.target.value })}
-              error={formErrors.registrationNumber}
-              required
-            />
-            
-            <FormField
-              label="VIN (17 caractères)"
-              name="vin"
-              placeholder="1HGBH41JXMN109186"
-              value={formData.vin}
-              onChange={(e) => setFormData({ ...formData, vin: e.target.value })}
-              error={formErrors.vin}
-              helperText="Numéro de série du véhicule"
-              required
-            />
-          </div>
-          
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: '16px'
-          }}>
-            <FormField
-              label="Marque"
-              name="make"
-              placeholder="Peugeot"
-              value={formData.make}
-              onChange={(e) => setFormData({ ...formData, make: e.target.value })}
-              error={formErrors.make}
-              required
-            />
-            
-            <FormField
-              label="Modèle"
-              name="model"
-              placeholder="208"
-              value={formData.model}
-              onChange={(e) => setFormData({ ...formData, model: e.target.value })}
-              error={formErrors.model}
-              required
-            />
-          </div>
-          
-          <FormField
-            label="Version (optionnel)"
-            name="version"
-            placeholder="Active, GT Line, etc."
-            value={formData.version}
-            onChange={(e) => setFormData({ ...formData, version: e.target.value })}
-          />
-          
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: '16px'
-          }}>
-            <FormField
-              label="Année"
-              type="number"
-              name="year"
-              placeholder="2020"
-              value={formData.year}
-              onChange={(e) => setFormData({ ...formData, year: e.target.value })}
-              error={formErrors.year}
-              required
-            />
-            
-            <Select
-              label="Type de carburant"
-              value={formData.fuelType}
-              onChange={(e) => setFormData({ ...formData, fuelType: e.target.value as FuelType })}
-              options={[
-                { value: 'ESSENCE', label: 'Essence' },
-                { value: 'DIESEL', label: 'Diesel' },
-                { value: 'HYBRID', label: 'Hybride' },
-                { value: 'ELECTRIC', label: 'Électrique' },
-                { value: 'GPL', label: 'GPL' }
-              ]}
-              required
-            />
-          </div>
-          
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: '16px'
-          }}>
-            <FormField
-              label="1ère immatriculation (optionnel)"
-              type="date"
-              name="firstRegistrationDate"
-              value={formData.firstRegistrationDate}
-              onChange={(e) => setFormData({ ...formData, firstRegistrationDate: e.target.value })}
-            />
-            
-            <FormField
-              label="Kilométrage (optionnel)"
-              type="number"
-              name="mileage"
-              placeholder="50000"
-              value={formData.mileage}
-              onChange={(e) => setFormData({ ...formData, mileage: e.target.value })}
-            />
-          </div>
-          
-          <FormField
-            label="Couleur (optionnel)"
-            name="color"
-            placeholder="Blanc, Noir, Rouge..."
-            value={formData.color}
-            onChange={(e) => setFormData({ ...formData, color: e.target.value })}
-          />
-          
-          <div style={{
-            display: 'flex',
-            gap: '12px',
-            justifyContent: 'flex-end',
-            marginTop: '24px',
-            paddingTop: '20px',
-            borderTop: '1px solid #E5E7EB'
-          }}>
-            <Button
-              variant="secondary"
-              onClick={() => setIsModalOpen(false)}
-              disabled={isSaving}
-            >
-              Annuler
-            </Button>
-            <Button
-              variant="primary"
-              onClick={handleSave}
-              loading={isSaving}
-              disabled={isSaving}
-            >
-              {editingVehicle ? 'Enregistrer' : 'Créer'}
-            </Button>
+      )}
+
+      {/* SIV Search Modal */}
+      {sivModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '20px' }} onClick={() => setSivModalOpen(false)}>
+          <div style={{ background: '#fff', borderRadius: '20px', width: '100%', maxWidth: '500px' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: '1px solid #E5E7EB' }}>
+              <h2 style={{ fontSize: '18px', fontWeight: 600, color: '#111827', margin: 0 }}>Recherche SIV</h2>
+              <button onClick={() => setSivModalOpen(false)} style={{ padding: '8px', background: 'transparent', border: 'none', cursor: 'pointer' }}><X size={20} color="#6B7280" /></button>
+            </div>
+            <div style={{ padding: '24px' }}>
+              <p style={{ fontSize: '14px', color: '#6B7280', margin: '0 0 16px' }}>Recherchez un véhicule par sa plaque d'immatriculation dans le registre SIV.</p>
+              <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
+                <input type="text" value={sivPlate} onChange={(e) => setSivPlate(e.target.value.toUpperCase())} placeholder="Ex: AB-123-CD" style={{ flex: 1, padding: '12px 14px', borderRadius: '10px', border: '1px solid #E5E7EB', fontSize: '15px', fontWeight: 600, outline: 'none', textTransform: 'uppercase', letterSpacing: '1px' }} onKeyDown={(e) => e.key === 'Enter' && handleSivSearch()} />
+                <button onClick={handleSivSearch} disabled={sivLoading} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 20px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)', color: '#fff', fontSize: '14px', fontWeight: 600, cursor: sivLoading ? 'wait' : 'pointer', opacity: sivLoading ? 0.7 : 1 }}>{sivLoading ? <RefreshCw size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Search size={16} />}Rechercher</button>
+              </div>
+              {sivError && <div style={{ padding: '12px 16px', borderRadius: '10px', background: '#FEF2F2', border: '1px solid #FECACA', marginBottom: '16px' }}><div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><AlertCircle size={16} color="#EF4444" /><span style={{ fontSize: '13px', color: '#DC2626' }}>{sivError}</span></div></div>}
+              {sivResult && (
+                <div style={{ padding: '20px', borderRadius: '12px', background: '#F0FDF4', border: '1px solid #BBF7D0' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}><CheckCircle size={18} color="#10B981" /><span style={{ fontSize: '14px', fontWeight: 600, color: '#166534' }}>Véhicule trouvé</span></div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px' }}>
+                    <div><div style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Marque</div><div style={{ fontSize: '15px', fontWeight: 600, color: '#111827' }}>{sivResult.make || '-'}</div></div>
+                    <div><div style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Modèle</div><div style={{ fontSize: '15px', fontWeight: 600, color: '#111827' }}>{sivResult.model || '-'}</div></div>
+                    <div><div style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Année</div><div style={{ fontSize: '15px', fontWeight: 600, color: '#111827' }}>{sivResult.year || '-'}</div></div>
+                    <div><div style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Énergie</div><div style={{ fontSize: '15px', fontWeight: 600, color: '#111827' }}>{sivResult.fuelType || '-'}</div></div>
+                  </div>
+                  <button onClick={handleSivImport} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)', color: '#fff', fontSize: '14px', fontWeight: 600, cursor: 'pointer' }}>Importer ces informations</button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
-      </Modal>
-      
-      {/* Modal suppression */}
-      <Modal
-        isOpen={deleteModalOpen}
-        onClose={() => setDeleteModalOpen(false)}
-        title="Supprimer le véhicule"
-        size="md"
-      >
-        <div style={{ padding: '24px' }}>
-          <p style={{
-            fontSize: '15px',
-            color: '#6B7280',
-            lineHeight: 1.6,
-            margin: 0,
-            marginBottom: '20px'
-          }}>
-            Êtes-vous sûr de vouloir supprimer le véhicule{' '}
-            <strong style={{ color: '#111827' }}>
-              {vehicleToDelete?.make} {vehicleToDelete?.model}
-            </strong>{' '}
-            ({vehicleToDelete?.registrationNumber}) ?
-            {vehicleToDelete?.interventionCount && vehicleToDelete.interventionCount > 0 && (
-              <span style={{ display: 'block', marginTop: '12px', color: '#DC2626' }}>
-                ⚠️ Ce véhicule possède {vehicleToDelete.interventionCount} intervention(s) associée(s).
-              </span>
-            )}
-          </p>
-          
-          <div style={{
-            display: 'flex',
-            gap: '12px',
-            justifyContent: 'flex-end'
-          }}>
-            <Button
-              variant="secondary"
-              onClick={() => setDeleteModalOpen(false)}
-              disabled={isDeleting}
-            >
-              Annuler
-            </Button>
-            <Button
-              variant="primary"
-              onClick={handleDeleteConfirm}
-              loading={isDeleting}
-              disabled={isDeleting}
-              style={{
-                backgroundColor: '#DC2626'
-              }}
-            >
-              Supprimer
-            </Button>
+      )}
+
+      {/* Delete Modal */}
+      {deleteModalOpen && vehicleToDelete && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '20px' }} onClick={() => setDeleteModalOpen(false)}>
+          <div style={{ background: '#fff', borderRadius: '20px', width: '100%', maxWidth: '400px', padding: '24px' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ width: '56px', height: '56px', borderRadius: '14px', background: '#FEF2F2', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px' }}><Trash2 size={28} color="#EF4444" /></div>
+            <h3 style={{ fontSize: '18px', fontWeight: 600, color: '#111827', margin: 0, marginBottom: '8px' }}>Supprimer le véhicule</h3>
+            <p style={{ fontSize: '14px', color: '#6B7280', margin: 0, lineHeight: 1.6 }}>Êtes-vous sûr de vouloir supprimer <strong style={{ color: '#111827' }}>{getMake(vehicleToDelete)} {vehicleToDelete.model}</strong> ({getPlate(vehicleToDelete)}) ?</p>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px' }}>
+              <button onClick={() => setDeleteModalOpen(false)} disabled={isDeleting} style={{ padding: '12px 20px', borderRadius: '10px', border: '1px solid #E5E7EB', background: '#fff', fontSize: '14px', fontWeight: 600, color: '#374151', cursor: 'pointer' }}>Annuler</button>
+              <button onClick={handleDelete} disabled={isDeleting} style={{ padding: '12px 24px', borderRadius: '10px', border: 'none', background: '#EF4444', fontSize: '14px', fontWeight: 600, color: '#fff', cursor: isDeleting ? 'wait' : 'pointer', opacity: isDeleting ? 0.7 : 1 }}>{isDeleting ? 'Suppression...' : 'Supprimer'}</button>
+            </div>
           </div>
         </div>
-      </Modal>
+      )}
+
+      <style dangerouslySetInnerHTML={{ __html: `@keyframes spin { to { transform: rotate(360deg); } }` }} />
     </div>
   )
 }

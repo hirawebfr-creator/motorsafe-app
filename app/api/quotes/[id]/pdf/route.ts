@@ -3,10 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { requireApprovedTenant, requireUser, PLAN_LIMITS, FREE_UPGRADE_MESSAGE } from "@/lib/guards";
 import { RouteError, toErrorResponse } from "@/lib/routeErrors";
 import { requireFeature, FeatureKey } from "@/lib/entitlements";
-import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import type { Plan } from "@/lib/guards";
 import { decryptClientData } from "@/lib/encryption";
-import { buildPdfBrandingContext, renderPdfLibHeader, renderPdfLibFooter } from "@/lib/pdf/branding";
+import { buildPdfBrandingContext } from "@/lib/pdf/branding";
+import { generateQuotePdf, QuotePdfData } from "@/lib/pdf/quoteTemplate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -77,80 +77,61 @@ export async function GET(req: Request, ctx: Ctx) {
     // Déchiffrer les données du client
     const client = decryptClientData(quote.client as Record<string, unknown>) as typeof quote.client;
 
-    const pdf = await PDFDocument.create();
-    const page = pdf.addPage([595.28, 841.89]); // A4
-    const font = await pdf.embedFont(StandardFonts.Helvetica);
-    const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
-
-    const left = 50;
-    const lineH = 14;
-
-    // WHITE-LABEL-PARTNERS-01: Load branding and render header
+    // Load branding context
     const brandingCtx = await buildPdfBrandingContext(effectiveOrgId);
-    let y: number;
     
-    if (brandingCtx) {
-      y = await renderPdfLibHeader(page, { regular: font, bold }, brandingCtx, {
-        title: "DEVIS",
-        documentNumber: quote.quoteNumber ?? quote.id,
-        date: new Date().toLocaleDateString("fr-FR"),
-      });
-      renderPdfLibFooter(page, { regular: font }, brandingCtx);
-    } else {
-      y = 800;
-      page.drawText("MotorSafe", { x: left, y, size: 18, font: bold });
-      y -= lineH;
-      page.drawText(`DEVIS ${quote.quoteNumber ?? quote.id}`, { x: left, y, size: 14, font: bold });
-      y -= lineH;
-      page.drawText(`Date: ${new Date().toLocaleDateString("fr-FR")}`, { x: left, y, size: 12, font });
-      y -= lineH + 8;
-    }
-
-    const draw = (text: string, isBold = false, size = 12) => {
-      page.drawText(text, { x: left, y, size, font: isBold ? bold : font });
-      y -= lineH;
+    // Prepare PDF data
+    const pdfData: QuotePdfData = {
+      quoteNumber: quote.quoteNumber,
+      status: quote.status,
+      createdAt: quote.createdAt,
+      sentAt: quote.sentAt,
+      acceptedAt: quote.acceptedAt,
+      client: {
+        firstName: client.firstName,
+        lastName: client.lastName,
+        email: client.email,
+        phone: client.phone,
+        address: (client as Record<string, unknown>).address as string | undefined,
+        city: (client as Record<string, unknown>).city as string | undefined,
+        postalCode: (client as Record<string, unknown>).postalCode as string | undefined,
+      },
+      vehicle: quote.vehicle ? {
+        brand: quote.vehicle.brand,
+        model: quote.vehicle.model,
+        plate: quote.vehicle.plate,
+        vin: quote.vehicle.vin,
+        mileage: quote.vehicle.mileage,
+      } : null,
+      lines: quote.lines.map((l) => ({
+        description: l.description,
+        qty: l.qty,
+        unitPriceExcl: l.unitPriceExcl,
+        vatRate: l.vatRate,
+        lineTotalExcl: l.lineTotalExcl,
+        lineVatAmount: l.lineVatAmount,
+        lineTotalIncl: l.lineTotalIncl,
+      })),
+      subtotalExcl: quote.subtotalExcl,
+      totalVat: quote.totalVat,
+      totalIncl: quote.totalIncl,
+      currency: quote.currency,
+      organisation: {
+        name: quote.organisation.name,
+        displayName: quote.organisation.displayName,
+        address: quote.organisation.address,
+        city: quote.organisation.city,
+        postalCode: quote.organisation.postalCode,
+        phone: quote.organisation.phone,
+        email: quote.organisation.email,
+        siret: quote.organisation.siret,
+        vatNumber: quote.organisation.vatNumber,
+      },
     };
 
-    draw("Client", true);
-    draw(`${client.firstName} ${client.lastName}`);
-    if (client.email) draw(`Email: ${client.email}`);
-    if (client.phone) draw(`Tel: ${client.phone}`);
-    y -= 8;
-
-    if (quote.vehicle) {
-      draw("Vehicule", true);
-      draw(`${quote.vehicle.brand} ${quote.vehicle.model} - ${quote.vehicle.plate}`);
-      y -= 8;
-    }
-
-    draw("Lignes", true);
-    for (const l of quote.lines) {
-      draw(`- ${l.description} | qte ${l.qty} | PU HT ${l.unitPriceExcl.toFixed(2)} | TVA ${(l.vatRate * 100).toFixed(1)}% | TTC ${l.lineTotalIncl.toFixed(2)}`);
-      if (y < 80) {
-        y = 800;
-        pdf.addPage([595.28, 841.89]);
-      }
-    }
-
-    y -= 10;
-    draw(`Sous-total HT: ${quote.subtotalExcl.toFixed(2)} ${quote.currency}`, true);
-    draw(`TVA: ${quote.totalVat.toFixed(2)} ${quote.currency}`, true);
-    draw(`Total TTC: ${quote.totalIncl.toFixed(2)} ${quote.currency}`, true);
-
-    // Footer is already added by renderPdfLibFooter if branding is available
-    if (!brandingCtx) {
-      page.drawText("Généré avec SafeMotor — motorsafe.fr", {
-        x: left,
-        y: 30,
-        size: 8,
-        font,
-        color: rgb(0.6, 0.6, 0.6),
-      });
-    }
-
-    const bytes = await pdf.save();
+    // Generate PDF using modern template
+    const bytes = await generateQuotePdf(pdfData, brandingCtx);
     const buffer = Buffer.from(bytes);
-
     const fileName = `devis-${safeFilePart(quote.quoteNumber ?? quote.id)}.pdf`;
 
     // On Vercel serverless, we can't write to the filesystem (except /tmp)

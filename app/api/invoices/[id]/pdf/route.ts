@@ -3,10 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { requireApprovedTenant, requireUser, PLAN_LIMITS, FREE_UPGRADE_MESSAGE } from "@/lib/guards";
 import { RouteError, toErrorResponse } from "@/lib/routeErrors";
 import { requireFeature, FeatureKey } from "@/lib/entitlements";
-import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import type { Plan } from "@/lib/guards";
 import { decryptClientData } from "@/lib/encryption";
-import { buildPdfBrandingContext, renderPdfLibHeader, renderPdfLibFooter } from "@/lib/pdf/branding";
+import { buildPdfBrandingContext } from "@/lib/pdf/branding";
+import { generateInvoicePdf, InvoicePdfData } from "@/lib/pdf/invoiceTemplate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -77,79 +77,68 @@ export async function GET(req: Request, ctx: Ctx) {
     // Déchiffrer les données du client
     const client = decryptClientData(invoice.client as Record<string, unknown>) as typeof invoice.client;
 
-    const pdf = await PDFDocument.create();
-    const page = pdf.addPage([595.28, 841.89]);
-    const font = await pdf.embedFont(StandardFonts.Helvetica);
-    const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
-
-    const left = 50;
-    const lineH = 14;
-
-    // WHITE-LABEL-PARTNERS-01: Load branding and render header
+    // WHITE-LABEL-PARTNERS-01: Load branding
     const brandingCtx = await buildPdfBrandingContext(effectiveOrgId);
-    let y: number;
-    
-    if (brandingCtx) {
-      y = await renderPdfLibHeader(page, { regular: font, bold }, brandingCtx, {
-        title: "FACTURE",
-        documentNumber: invoice.invoiceNumber ?? invoice.id,
-        date: new Date().toLocaleDateString("fr-FR"),
-      });
-      renderPdfLibFooter(page, { regular: font }, brandingCtx);
-    } else {
-      y = 800;
-      page.drawText("MotorSafe", { x: left, y, size: 18, font: bold });
-      y -= lineH;
-      page.drawText(`FACTURE ${invoice.invoiceNumber ?? invoice.id}`, { x: left, y, size: 14, font: bold });
-      y -= lineH;
-      page.drawText(`Date: ${new Date().toLocaleDateString("fr-FR")}`, { x: left, y, size: 12, font });
-      y -= lineH + 8;
-    }
 
-    const draw = (text: string, isBold = false, size = 12) => {
-      page.drawText(text, { x: left, y, size, font: isBold ? bold : font });
-      y -= lineH;
+    // Build data for the modern invoice template
+    const pdfData: InvoicePdfData = {
+      invoiceNumber: invoice.invoiceNumber,
+      status: invoice.status,
+      createdAt: invoice.createdAt,
+      dueDate: invoice.dueDate,
+      paidAt: invoice.paidAt,
+      
+      client: {
+        firstName: client.firstName,
+        lastName: client.lastName,
+        email: client.email,
+        phone: client.phone,
+        address: client.address,
+        city: client.city,
+        postalCode: client.postalCode,
+      },
+      
+      vehicle: invoice.vehicle ? {
+        brand: invoice.vehicle.brand,
+        model: invoice.vehicle.model,
+        plate: invoice.vehicle.plate,
+        vin: invoice.vehicle.vin,
+        mileage: invoice.vehicle.mileage,
+      } : null,
+      
+      lines: invoice.lines.map(l => ({
+        description: l.description,
+        qty: l.qty,
+        unitPriceExcl: Number(l.unitPriceExcl),
+        vatRate: Number(l.vatRate),
+        lineTotalExcl: Number(l.lineTotalExcl),
+        lineVatAmount: Number(l.lineVatAmount),
+        lineTotalIncl: Number(l.lineTotalIncl),
+      })),
+      
+      subtotalExcl: Number(invoice.subtotalExcl),
+      totalVat: Number(invoice.totalVat),
+      totalIncl: Number(invoice.totalIncl),
+      amountPaid: Number(invoice.amountPaid),
+      currency: invoice.currency,
+      
+      organisation: {
+        name: invoice.organisation.name,
+        displayName: invoice.organisation.displayName,
+        address: invoice.organisation.address,
+        city: invoice.organisation.city,
+        postalCode: invoice.organisation.postalCode,
+        phone: invoice.organisation.phone,
+        email: invoice.organisation.email,
+        siret: invoice.organisation.siret,
+        vatNumber: invoice.organisation.vatNumber,
+        iban: invoice.organisation.iban,
+        bic: invoice.organisation.bic,
+      },
     };
 
-    draw("Client", true);
-    draw(`${client.firstName} ${client.lastName}`);
-    if (client.email) draw(`Email: ${client.email}`);
-    if (client.phone) draw(`Tel: ${client.phone}`);
-    y -= 8;
-
-    if (invoice.vehicle) {
-      draw("Vehicule", true);
-      draw(`${invoice.vehicle.brand} ${invoice.vehicle.model} - ${invoice.vehicle.plate}`);
-      y -= 8;
-    }
-
-    draw("Lignes", true);
-    for (const l of invoice.lines) {
-      draw(`- ${l.description} | qte ${l.qty} | PU HT ${l.unitPriceExcl.toFixed(2)} | TVA ${(l.vatRate * 100).toFixed(1)}% | TTC ${l.lineTotalIncl.toFixed(2)}`);
-      if (y < 80) {
-        y = 800;
-        pdf.addPage([595.28, 841.89]);
-      }
-    }
-
-    y -= 10;
-    draw(`Sous-total HT: ${invoice.subtotalExcl.toFixed(2)} ${invoice.currency}`, true);
-    draw(`TVA: ${invoice.totalVat.toFixed(2)} ${invoice.currency}`, true);
-    draw(`Total TTC: ${invoice.totalIncl.toFixed(2)} ${invoice.currency}`, true);
-    draw(`Deja paye: ${invoice.amountPaid.toFixed(2)} ${invoice.currency}`, true);
-
-    // Footer is already added by renderPdfLibFooter if branding is available
-    if (!brandingCtx) {
-      page.drawText("Généré avec SafeMotor — motorsafe.fr", {
-        x: left,
-        y: 30,
-        size: 8,
-        font,
-        color: rgb(0.6, 0.6, 0.6),
-      });
-    }
-
-    const bytes = await pdf.save();
+    // Generate the modern PDF
+    const bytes = await generateInvoicePdf(pdfData, brandingCtx);
     const buffer = Buffer.from(bytes);
 
     const fileName = `facture-${safeFilePart(invoice.invoiceNumber ?? invoice.id)}.pdf`;

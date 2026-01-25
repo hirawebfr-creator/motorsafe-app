@@ -97,11 +97,27 @@ export async function POST(req: Request) {
   try {
     const user = requireApprovedTenant(await requireUser(req));
     const isAdmin = user.role === "ADMIN";
-    const organisationId = isAdmin ? undefined : (user.garageId ?? -1);
+    let organisationId = isAdmin ? undefined : (user.garageId ?? -1);
+
+    // For ADMIN users without garageId, use first active garage
+    if (isAdmin && !organisationId) {
+      const firstGarage = await prisma.garage.findFirst({
+        where: { status: "ACTIVE" },
+        select: { id: true },
+        orderBy: { createdAt: "asc" },
+      });
+      if (firstGarage) {
+        organisationId = firstGarage.id;
+      }
+    }
 
     // Feature gate
     if (!isAdmin && organisationId) {
       await requireFeature(organisationId, FeatureKey.APPOINTMENTS);
+    }
+
+    if (!organisationId) {
+      throw new RouteError(400, "BAD_REQUEST", "Aucun garage disponible");
     }
 
     // Rate limit: max 20 appointments per 10 minutes per garage

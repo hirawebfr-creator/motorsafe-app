@@ -396,7 +396,7 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
               top: label ? 'calc(100% - 16px)' : 'calc(100% + 4px)',
               left: 0,
               right: 0,
-              zIndex: 50,
+              zIndex: 9999,
               backgroundColor: COLORS.bgWhite,
               border: `1px solid ${COLORS.borderDefault}`,
               borderRadius: '8px',

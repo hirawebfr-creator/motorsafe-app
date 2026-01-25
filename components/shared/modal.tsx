@@ -262,7 +262,7 @@ export function Modal({
               '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
             display: 'flex',
             flexDirection: 'column',
-            overflow: 'hidden',
+            overflow: 'visible',
             opacity: isAnimating ? 1 : 0,
             transform: isAnimating ? 'scale(1)' : 'scale(0.95)',
             transition: isAnimating
@@ -348,8 +348,7 @@ export function Modal({
             style={{
               flex: 1,
               padding: '24px',
-              overflowY: 'auto',
-              overflowX: 'hidden',
+              overflow: 'visible',
             }}
           >
             {children}

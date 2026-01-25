@@ -6,6 +6,7 @@ import { requireFeature, FeatureKey } from "@/lib/entitlements";
 import { z } from "zod";
 import { computeLinesWithTotals, normalizeVatMode } from "@/lib/quoteInvoice";
 import type { Prisma } from "@prisma/client";
+import { decryptClientData } from "@/lib/encryption";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -52,7 +53,13 @@ export async function GET(req: Request, ctx: Ctx) {
 
     if (!invoice) throw new RouteError(404, "NOT_FOUND", "Facture introuvable");
 
-    return NextResponse.json({ ok: true, data: invoice });
+    // Decrypt client data for display
+    const decryptedInvoice = {
+      ...invoice,
+      client: invoice.client ? decryptClientData(invoice.client as Record<string, unknown>) : invoice.client,
+    };
+
+    return NextResponse.json({ ok: true, data: decryptedInvoice });
   } catch (err) {
     return toErrorResponse(err);
   }

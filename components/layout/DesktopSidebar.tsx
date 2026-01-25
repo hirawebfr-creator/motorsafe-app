@@ -3,45 +3,30 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { SessionUser } from "@/lib/auth";
-import type { NavItem } from "@/components/layout/nav-config";
+import { NAV_ITEMS, NAV_SECTIONS, getItemsByGroup, type NavItem, type NavGroup } from "@/components/layout/nav-config";
 import { GarageEmulator } from "@/components/admin/GarageEmulator";
 import {
-  LayoutDashboard,
-  Users,
-  Car,
-  Wrench,
-  FileText,
-  Settings,
   LogOut,
-  Sparkles,
-  ChevronRight,
+  Search,
+  Shield,
   Crown,
-  Zap,
-  CheckCircle,
-  ArrowRight,
+  Sparkles,
+  ChevronDown,
+  Wrench,
+  Users,
   FileCheck,
   Receipt,
-  ShieldCheck,
-  Search,
 } from "lucide-react";
+import { useState, useMemo } from "react";
 
-type SidebarIcon = React.ComponentType<{ size?: number; className?: string }>;
-
-const ICONS_BY_HREF: Record<string, SidebarIcon> = {
-  "/dashboard": LayoutDashboard,
-  "/clients": Users,
-  "/vehicules": Car,
-  "/interventions": Wrench,
-  "/devis": FileCheck,
-  "/factures": Receipt,
-  "/documents": FileText,
-  "/parametres": Settings,
-  "/garage": ShieldCheck,
-};
+// ============================================================
+// DESKTOP SIDEBAR - SafeMotor
+// Design moderne avec sections collapsibles et actions rapides
+// ============================================================
 
 export function DesktopSidebar({
   user,
-  navItems = [],
+  navItems = NAV_ITEMS,
   onLogout = () => {},
 }: {
   user?: SessionUser;
@@ -51,210 +36,456 @@ export function DesktopSidebar({
   onLogout?: () => void;
 }) {
   const pathname = (usePathname() || "/").split("?")[0];
+  const [collapsedSections, setCollapsedSections] = useState<Set<NavGroup>>(new Set());
 
-  // Check plan from user's garage info if available
-  // Show CTA for FREE plan or if plan is undefined (treat as FREE)
-  const garagePlan = user?.garage?.plan ?? "FREE";
-  const isPro = garagePlan === "PRO";
+  // User info
   const isAdmin = user?.role === "ADMIN";
-  const showUpgradeCTA = !isPro && !isAdmin;
+  const garagePlan = user?.garage?.plan ?? "FREE";
+  const isPro = garagePlan !== "FREE";
+  const garageName = user?.garage?.name || "Mon Garage";
 
-  const order = [
-    "/dashboard",
-    "/clients",
-    "/vehicules",
-    "/interventions",
-    "/devis",
-    "/factures",
-    "/documents",
-    "/garage",
-    "/parametres",
-    "/aide",
-    "/support",
+  // Filter items based on admin status
+  const filteredItems = useMemo(
+    () => navItems.filter((item) => !item.adminOnly || isAdmin),
+    [navItems, isAdmin]
+  );
+
+  // Toggle section collapse
+  const toggleSection = (group: NavGroup) => {
+    setCollapsedSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(group)) {
+        next.delete(group);
+      } else {
+        next.add(group);
+      }
+      return next;
+    });
+  };
+
+  // Check if path is active
+  const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
+
+  // Quick actions
+  const quickActions = [
+    { label: "Client", href: "/clients/nouveau", icon: Users },
+    { label: "Intervention", href: "/interventions/nouvelle", icon: Wrench },
+    { label: "Devis", href: "/devis/nouveau", icon: FileCheck },
+    { label: "Facture", href: "/factures/nouvelle", icon: Receipt },
   ];
 
-  const items = order
-    .map((href) => navItems.find((n) => n.href === href))
-    .filter(Boolean) as NavItem[];
-
-  // Admin items (only visible to admin)
-  const adminItems = navItems.filter((n) => n.group === "admin" && n.adminOnly);
-
   return (
-    <aside className="fixed left-0 top-0 z-40 flex h-screen w-[260px] flex-col border-r border-[var(--ms-border)] bg-white">
-      {/* Brand */}
-      <div className="flex items-center gap-3 px-6 py-6">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--ms-primary)] to-[#8B5CF6]">
-          <Car size={20} className="text-white" />
+    <aside
+      style={{
+        position: "fixed",
+        left: 0,
+        top: 0,
+        zIndex: 40,
+        display: "flex",
+        height: "100vh",
+        width: "260px",
+        flexDirection: "column",
+        background: "linear-gradient(180deg, #FFFFFF 0%, #FAFBFC 100%)",
+        borderRight: "1px solid #E5E7EB",
+      }}
+    >
+      {/* Header / Brand */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "12px",
+          padding: "20px 16px",
+          borderBottom: "1px solid #E5E7EB",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: "42px",
+            height: "42px",
+            borderRadius: "12px",
+            background: "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)",
+            boxShadow: "0 4px 12px rgba(99, 102, 241, 0.3)",
+          }}
+        >
+          <Shield size={22} color="#fff" />
         </div>
-        <div>
-          <div className="text-lg font-bold text-[var(--ms-text)]">MotorSafe</div>
-          <div className="text-xs text-[var(--ms-text-muted)]">Garage Management</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: "18px", fontWeight: 700, color: "#111827" }}>SafeMotor</div>
+          <div
+            style={{
+              fontSize: "12px",
+              color: "#6B7280",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+          >
+            {garageName}
+          </div>
         </div>
+        {isPro && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "4px",
+              padding: "4px 8px",
+              borderRadius: "6px",
+              background: "linear-gradient(135deg, #10B981 0%, #059669 100%)",
+              fontSize: "10px",
+              fontWeight: 700,
+              color: "#fff",
+              textTransform: "uppercase",
+              letterSpacing: "0.5px",
+            }}
+          >
+            <Crown size={10} />
+            PRO
+          </div>
+        )}
       </div>
 
-      {/* Search Button - triggers Command Palette */}
-      <div className="px-3 mb-2">
+      {/* Search Trigger */}
+      <div style={{ padding: "12px 12px 8px" }}>
         <button
           type="button"
           onClick={() => {
-            document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }));
+            document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true }));
           }}
-          className="flex w-full items-center gap-2 h-10 px-3 rounded-lg border border-[var(--ms-border)] bg-[var(--ms-bg-subtle)] text-sm text-[var(--ms-text-muted)] hover:bg-[var(--ms-surface-hover)] hover:border-[var(--ms-text-muted)] transition-colors"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            width: "100%",
+            height: "38px",
+            padding: "0 12px",
+            borderRadius: "10px",
+            border: "1px solid #E5E7EB",
+            background: "#F9FAFB",
+            fontSize: "13px",
+            color: "#9CA3AF",
+            cursor: "pointer",
+            transition: "all 0.15s ease",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = "#6366F1";
+            e.currentTarget.style.background = "#fff";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = "#E5E7EB";
+            e.currentTarget.style.background = "#F9FAFB";
+          }}
         >
-          <Search size={16} />
-          <span className="flex-1 text-left">Rechercher...</span>
-          <kbd className="hidden sm:inline-flex items-center gap-1 rounded border border-[var(--ms-border)] bg-white px-1.5 py-0.5 text-[10px] font-mono text-[var(--ms-text-muted)]">
+          <Search size={15} color="#9CA3AF" />
+          <span style={{ flex: 1, textAlign: "left" }}>Rechercher...</span>
+          <kbd
+            style={{
+              padding: "2px 6px",
+              borderRadius: "4px",
+              border: "1px solid #E5E7EB",
+              background: "#fff",
+              fontSize: "10px",
+              fontFamily: "monospace",
+              color: "#9CA3AF",
+            }}
+          >
             ⌘K
           </kbd>
         </button>
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto px-3 py-4">
-        {/* Main navigation */}
-        <div className="space-y-1">
-          {items.map((item) => {
-            const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
-            const Icon = item.icon ?? ICONS_BY_HREF[item.href] ?? LayoutDashboard;
-
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150 ${
-                  isActive
-                    ? "bg-gradient-to-r from-[var(--ms-primary)] to-[#8B5CF6] text-white shadow-lg shadow-[var(--ms-primary)]/25"
-                    : "text-[var(--ms-text-secondary)] hover:bg-[var(--ms-bg-subtle)] hover:text-[var(--ms-text)]"
-                }`}
+      {/* Quick Actions */}
+      <div style={{ padding: "8px 12px 12px" }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(4, 1fr)",
+            gap: "6px",
+          }}
+        >
+          {quickActions.map((action) => (
+            <Link
+              key={action.href}
+              href={action.href}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: "4px",
+                padding: "10px 4px",
+                borderRadius: "10px",
+                background: "#F3F4F6",
+                textDecoration: "none",
+                transition: "all 0.15s ease",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "#EEF2FF";
+                e.currentTarget.style.transform = "translateY(-1px)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "#F3F4F6";
+                e.currentTarget.style.transform = "translateY(0)";
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: "28px",
+                  height: "28px",
+                  borderRadius: "8px",
+                  background: "#fff",
+                  border: "1px solid #E5E7EB",
+                }}
               >
-                <Icon
-                  size={20}
-                  className={`transition-colors ${
-                    isActive ? "text-white" : "text-[var(--ms-text-muted)] group-hover:text-[var(--ms-text-secondary)]"
-                  }`}
-                />
-                <span>{item.label}</span>
-                {isActive && (
-                  <ChevronRight size={16} className="ml-auto text-white/80" />
-                )}
-              </Link>
-            );
-          })}
-        </div>
-
-        {/* Admin section */}
-        {isAdmin && adminItems.length > 0 && (
-          <>
-            <div className="my-4 px-3">
-              <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[var(--ms-text-muted)]">
-                <ShieldCheck size={14} />
-                Administration
+                <action.icon size={14} color="#6366F1" />
               </div>
-            </div>
-            
-            {/* Garage Emulator - allows admin to view as a specific garage */}
-            <div className="mb-3 px-3">
-              <GarageEmulator />
-            </div>
-            
-            <div className="space-y-1">
-              {adminItems.map((item) => {
-                const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
-                const Icon = item.icon ?? LayoutDashboard;
+              <span style={{ fontSize: "10px", color: "#6B7280", fontWeight: 500 }}>{action.label}</span>
+            </Link>
+          ))}
+        </div>
+      </div>
 
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150 ${
-                      isActive
-                        ? "bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/25"
-                        : "text-[var(--ms-text-secondary)] hover:bg-amber-50 hover:text-amber-700"
-                    }`}
-                  >
-                    <Icon
-                      size={20}
-                      className={`transition-colors ${
-                        isActive ? "text-white" : "text-amber-500/70 group-hover:text-amber-600"
-                      }`}
-                    />
-                    <span>{item.label}</span>
-                    {isActive && (
-                      <ChevronRight size={16} className="ml-auto text-white/80" />
-                    )}
-                  </Link>
-                );
-              })}
+      {/* Navigation */}
+      <nav
+        style={{
+          flex: 1,
+          overflowY: "auto",
+          padding: "0 12px",
+        }}
+      >
+        {NAV_SECTIONS.filter((section) => !section.adminOnly || isAdmin).map((section) => {
+          const sectionItems = getItemsByGroup(filteredItems, section.id);
+          if (sectionItems.length === 0) return null;
+
+          const isCollapsed = collapsedSections.has(section.id);
+          const isAdminSection = section.id === "admin";
+
+          return (
+            <div key={section.id} style={{ marginBottom: "8px" }}>
+              {/* Section Header */}
+              {section.label && (
+                <button
+                  type="button"
+                  onClick={() => toggleSection(section.id)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    width: "100%",
+                    padding: "8px 10px",
+                    marginBottom: "4px",
+                    borderRadius: "8px",
+                    border: "none",
+                    background: isAdminSection ? "rgba(245, 158, 11, 0.1)" : "transparent",
+                    fontSize: "11px",
+                    fontWeight: 600,
+                    color: isAdminSection ? "#D97706" : "#9CA3AF",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.5px",
+                    cursor: "pointer",
+                    transition: "all 0.15s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isAdminSection) e.currentTarget.style.background = "#F3F4F6";
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isAdminSection) e.currentTarget.style.background = "transparent";
+                  }}
+                >
+                  {isAdminSection && <Shield size={12} />}
+                  <span style={{ flex: 1, textAlign: "left" }}>{section.label}</span>
+                  <ChevronDown
+                    size={14}
+                    style={{
+                      transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)",
+                      transition: "transform 0.2s ease",
+                    }}
+                  />
+                </button>
+              )}
+
+              {/* Section Items */}
+              {!isCollapsed && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                  {sectionItems.map((item) => {
+                    const active = isActive(item.href);
+                    const Icon = item.icon;
+
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "10px",
+                          padding: "10px 12px",
+                          borderRadius: "10px",
+                          textDecoration: "none",
+                          background: active
+                            ? isAdminSection
+                              ? "linear-gradient(135deg, #F59E0B 0%, #D97706 100%)"
+                              : "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)"
+                            : "transparent",
+                          boxShadow: active
+                            ? isAdminSection
+                              ? "0 4px 12px rgba(245, 158, 11, 0.25)"
+                              : "0 4px 12px rgba(99, 102, 241, 0.25)"
+                            : "none",
+                          transition: "all 0.15s ease",
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!active) {
+                            e.currentTarget.style.background = isAdminSection
+                              ? "rgba(245, 158, 11, 0.1)"
+                              : "#F3F4F6";
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!active) {
+                            e.currentTarget.style.background = "transparent";
+                          }
+                        }}
+                      >
+                        <Icon
+                          size={18}
+                          color={active ? "#fff" : isAdminSection ? "#D97706" : "#6B7280"}
+                        />
+                        <span
+                          style={{
+                            flex: 1,
+                            fontSize: "14px",
+                            fontWeight: active ? 600 : 500,
+                            color: active ? "#fff" : "#374151",
+                          }}
+                        >
+                          {item.label}
+                        </span>
+                        {item.isNew && (
+                          <span
+                            style={{
+                              padding: "2px 6px",
+                              borderRadius: "4px",
+                              background: active ? "rgba(255,255,255,0.2)" : "#6366F1",
+                              fontSize: "9px",
+                              fontWeight: 700,
+                              color: "#fff",
+                              textTransform: "uppercase",
+                            }}
+                          >
+                            New
+                          </span>
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Admin Emulator */}
+              {isAdminSection && !isCollapsed && isAdmin && (
+                <div style={{ padding: "8px 0" }}>
+                  <GarageEmulator />
+                </div>
+              )}
             </div>
-          </>
-        )}
+          );
+        })}
       </nav>
 
-      {/* Upgrade Card - Always show for non-Pro, non-Admin users */}
-      {showUpgradeCTA && (
-        <div className="mx-3 mb-4">
-          <Link href="/parametres?tab=abonnement" className="block group">
-            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#6366F1] via-[#8B5CF6] to-[#A855F7] p-5 shadow-lg shadow-purple-500/20 transition-all duration-300 group-hover:shadow-xl group-hover:shadow-purple-500/30 group-hover:scale-[1.02]">
-              {/* Animated background elements */}
-              <div className="absolute -right-4 -top-4 h-24 w-24 rounded-full bg-white/20 blur-2xl transition-transform duration-500 group-hover:scale-150" />
-              <div className="absolute -bottom-6 -left-6 h-20 w-20 rounded-full bg-white/15 blur-xl" />
-              <div className="absolute top-1/2 right-1/4 h-8 w-8 rounded-full bg-yellow-400/30 blur-lg" />
-              
-              <div className="relative z-10">
-                {/* Animated sparkle */}
-                <div className="absolute -top-1 -right-1 flex h-6 w-6 items-center justify-center">
-                  <Sparkles size={16} className="text-yellow-300 animate-pulse" />
-                </div>
-                
-                {/* Content */}
-                <div className="mb-3">
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white/25 backdrop-blur-sm px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white">
-                    <Zap size={10} className="fill-current" />
-                    Offre limitée
+      {/* Upgrade CTA for Free users */}
+      {!isPro && !isAdmin && (
+        <div style={{ padding: "12px" }}>
+          <Link href="/parametres?tab=abonnement" style={{ textDecoration: "none" }}>
+            <div
+              style={{
+                position: "relative",
+                overflow: "hidden",
+                padding: "20px",
+                borderRadius: "16px",
+                background: "linear-gradient(135deg, #6366F1 0%, #8B5CF6 50%, #A855F7 100%)",
+                boxShadow: "0 8px 24px rgba(99, 102, 241, 0.3)",
+                cursor: "pointer",
+                transition: "transform 0.2s ease, box-shadow 0.2s ease",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = "translateY(-2px)";
+                e.currentTarget.style.boxShadow = "0 12px 32px rgba(99, 102, 241, 0.4)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = "translateY(0)";
+                e.currentTarget.style.boxShadow = "0 8px 24px rgba(99, 102, 241, 0.3)";
+              }}
+            >
+              {/* Decorative elements */}
+              <div
+                style={{
+                  position: "absolute",
+                  top: "-20px",
+                  right: "-20px",
+                  width: "80px",
+                  height: "80px",
+                  borderRadius: "50%",
+                  background: "rgba(255,255,255,0.15)",
+                  filter: "blur(20px)",
+                }}
+              />
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: "-10px",
+                  left: "-10px",
+                  width: "60px",
+                  height: "60px",
+                  borderRadius: "50%",
+                  background: "rgba(255,255,255,0.1)",
+                  filter: "blur(15px)",
+                }}
+              />
+
+              <div style={{ position: "relative", zIndex: 1 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "8px" }}>
+                  <Sparkles size={14} color="#FCD34D" />
+                  <span
+                    style={{
+                      fontSize: "10px",
+                      fontWeight: 700,
+                      color: "#FCD34D",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                    }}
+                  >
+                    Passez Pro
                   </span>
                 </div>
-                
-                <h3 className="text-xl font-bold text-white mb-1.5 tracking-tight">
-                  Passez Pro 🚀
-                </h3>
-                
-                <p className="text-sm text-white/80 leading-snug mb-4">
-                  Véhicules illimités<br />
-                  + fonctionnalités avancées
-                </p>
-                
-                {/* Price */}
-                <div className="flex items-end gap-1 mb-4">
-                  <span className="text-3xl font-extrabold text-white">29€</span>
-                  <span className="text-white/70 text-sm mb-1">/mois</span>
+                <div style={{ fontSize: "16px", fontWeight: 700, color: "#fff", marginBottom: "4px" }}>
+                  Protection complète
                 </div>
-                
-                {/* CTA Button */}
-                <div className="flex items-center justify-center gap-2 h-11 rounded-xl bg-white font-bold text-[var(--ms-primary)] text-sm shadow-lg transition-transform group-hover:scale-[1.02]">
+                <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.8)", marginBottom: "12px" }}>
+                  Véhicules illimités • IA Copilot • SIV
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "6px",
+                    padding: "10px",
+                    borderRadius: "10px",
+                    background: "#fff",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    color: "#6366F1",
+                  }}
+                >
                   Essai gratuit 14j
-                  <ArrowRight size={16} className="transition-transform group-hover:translate-x-0.5" />
                 </div>
-              </div>
-            </div>
-          </Link>
-        </div>
-      )}
-
-      {/* Pro Badge for Pro users */}
-      {isPro && !isAdmin && (
-        <div className="mx-3 mb-4">
-          <Link href="/parametres?tab=abonnement" className="block">
-            <div className="flex items-center gap-3 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 p-4 transition-all hover:border-emerald-300 hover:shadow-md">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 shadow-lg shadow-emerald-500/30">
-                <Crown size={22} className="text-white" />
-              </div>
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-bold text-emerald-700">Plan Pro</span>
-                  <CheckCircle size={16} className="text-emerald-500 fill-emerald-100" />
-                </div>
-                <span className="text-xs text-emerald-600/80">Abonnement actif</span>
               </div>
             </div>
           </Link>
@@ -262,26 +493,85 @@ export function DesktopSidebar({
       )}
 
       {/* User Profile */}
-      <div className="border-t border-[var(--ms-border)] p-3">
-        <div className="flex items-center gap-3 rounded-xl p-2.5 hover:bg-[var(--ms-bg-subtle)] transition-colors">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#F472B6] to-[#EC4899] shadow-md">
-            <span className="text-sm font-bold text-white">
-              {user?.email ? user.email.charAt(0).toUpperCase() : "U"}
-            </span>
+      <div
+        style={{
+          padding: "12px",
+          borderTop: "1px solid #E5E7EB",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            padding: "10px",
+            borderRadius: "12px",
+            background: "#F9FAFB",
+          }}
+        >
+          {/* Avatar */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: "38px",
+              height: "38px",
+              borderRadius: "10px",
+              background: "linear-gradient(135deg, #EC4899 0%, #F472B6 100%)",
+              fontSize: "14px",
+              fontWeight: 700,
+              color: "#fff",
+            }}
+          >
+            {user?.email ? user.email.charAt(0).toUpperCase() : "U"}
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="truncate text-sm font-semibold text-[var(--ms-text)]">
+
+          {/* Info */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div
+              style={{
+                fontSize: "13px",
+                fontWeight: 600,
+                color: "#111827",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
               {user?.email ? user.email.split("@")[0] : "Utilisateur"}
             </div>
-            <div className="text-xs text-[var(--ms-text-muted)]">
-              {user?.role === "ADMIN" ? "Administrateur" : isPro ? "Plan Pro" : "Plan Gratuit"}
+            <div style={{ fontSize: "11px", color: "#6B7280" }}>
+              {isAdmin ? "Administrateur" : isPro ? "Plan Pro" : "Plan Gratuit"}
             </div>
           </div>
+
+          {/* Logout */}
           <button
             type="button"
             onClick={onLogout}
-            className="flex h-9 w-9 items-center justify-center rounded-lg text-[var(--ms-text-muted)] hover:bg-red-50 hover:text-red-500 transition-colors"
             title="Déconnexion"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: "34px",
+              height: "34px",
+              borderRadius: "8px",
+              border: "none",
+              background: "transparent",
+              color: "#9CA3AF",
+              cursor: "pointer",
+              transition: "all 0.15s ease",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = "#FEE2E2";
+              e.currentTarget.style.color = "#EF4444";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "transparent";
+              e.currentTarget.style.color = "#9CA3AF";
+            }}
           >
             <LogOut size={18} />
           </button>

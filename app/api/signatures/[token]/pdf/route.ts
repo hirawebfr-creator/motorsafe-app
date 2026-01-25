@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { failure } from "@/lib/api";
 import { buildOrderMasterPdf } from "@/lib/pdf/orderMaster";
+import { generateQuotePdf, QuotePdfData } from "@/lib/pdf/quoteTemplate";
+import { buildPdfBrandingContext } from "@/lib/pdf/branding";
+import { decryptClientData } from "@/lib/encryption";
 import { isGarageSubscriptionActive } from "@/lib/guards";
 import { checkIpRateLimit, rateLimitHeaders } from "@/lib/rateLimit";
 
@@ -53,6 +56,98 @@ export async function GET(req: Request, ctx: Ctx) {
     // Check expiration
     if (signatureRequest.expiresAt < new Date()) {
       return NextResponse.json(failure("Ce lien de signature a expiré"), { status: 410 });
+    }
+
+    // Support QUOTE and INTERVENTION_ORDER documents
+    if (signatureRequest.documentType === "QUOTE") {
+      // Generate Quote PDF
+      try {
+        const quote = await prisma.quote.findUnique({
+          where: { id: signatureRequest.documentId },
+          include: {
+            lines: { where: { deletedAt: null }, orderBy: { createdAt: "asc" } },
+            client: true,
+            vehicle: true,
+            organisation: true,
+          },
+        });
+
+        if (!quote) {
+          return NextResponse.json(failure("Devis introuvable"), { status: 404 });
+        }
+
+        // Decrypt client data
+        const client = decryptClientData(quote.client as Record<string, unknown>) as typeof quote.client;
+
+        // Load branding context
+        const brandingCtx = await buildPdfBrandingContext(quote.organisationId);
+
+        // Prepare PDF data
+        const pdfData: QuotePdfData = {
+          quoteNumber: quote.quoteNumber,
+          status: quote.status,
+          createdAt: quote.createdAt,
+          sentAt: quote.sentAt,
+          acceptedAt: quote.acceptedAt,
+          signedAt: signatureRequest.status === "SIGNED" && signatureRequest.signedAt ? signatureRequest.signedAt : undefined,
+          signerName: signatureRequest.status === "SIGNED" ? signatureRequest.signerNameDeclared || undefined : undefined,
+          client: {
+            firstName: client.firstName,
+            lastName: client.lastName,
+            email: client.email,
+            phone: client.phone,
+            address: (client as Record<string, unknown>).address as string | undefined,
+            city: (client as Record<string, unknown>).city as string | undefined,
+            postalCode: (client as Record<string, unknown>).postalCode as string | undefined,
+          },
+          vehicle: quote.vehicle ? {
+            brand: quote.vehicle.brand,
+            model: quote.vehicle.model,
+            plate: quote.vehicle.plate,
+            vin: quote.vehicle.vin,
+          } : null,
+          lines: quote.lines.map((l) => ({
+            description: l.description,
+            qty: l.qty,
+            unitPriceExcl: l.unitPriceExcl,
+            vatRate: l.vatRate,
+            lineTotalExcl: l.lineTotalExcl,
+            lineVatAmount: l.lineVatAmount,
+            lineTotalIncl: l.lineTotalIncl,
+          })),
+          subtotalExcl: quote.subtotalExcl,
+          totalVat: quote.totalVat,
+          totalIncl: quote.totalIncl,
+          currency: quote.currency,
+          organisation: {
+            name: quote.organisation.name,
+            displayName: quote.organisation.displayName,
+            address: quote.organisation.address,
+            city: quote.organisation.city,
+            postalCode: quote.organisation.postalCode,
+            phone: quote.organisation.phone,
+            email: quote.organisation.email,
+            siret: quote.organisation.siret,
+            vatNumber: quote.organisation.vatNumber,
+          },
+        };
+
+        const bytes = await generateQuotePdf(pdfData, brandingCtx);
+        const buffer = Buffer.from(bytes);
+        const fileName = `devis-${quote.quoteNumber || quote.id}.pdf`;
+
+        return new NextResponse(new Uint8Array(buffer), {
+          status: 200,
+          headers: {
+            "Content-Type": "application/pdf",
+            "Content-Disposition": `inline; filename="${fileName}"`,
+            "Cache-Control": "private, no-store",
+          },
+        });
+      } catch (pdfErr) {
+        console.error("Quote PDF generation error:", pdfErr);
+        return NextResponse.json(failure("Erreur lors de la génération du PDF"), { status: 500 });
+      }
     }
 
     // Only support INTERVENTION_ORDER for now (the master document)

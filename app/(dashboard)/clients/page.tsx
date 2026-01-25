@@ -1,750 +1,283 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { DataTableInline } from '@/components/shared/data-table-inline'
-import { FormField } from '@/components/shared/form-field'
-import { Button } from '@/components/shared/button'
-import { Modal } from '@/components/shared/modal'
-import { Badge } from '@/components/shared/badge'
-import { SearchInput } from '@/components/shared/search-input'
-import { DropdownMenu } from '@/components/shared/dropdown-menu'
-import { useToast } from '@/components/shared/use-toast'
 import { 
-  UserPlus, 
-  MoreVertical,
-  Eye,
-  Edit,
-  Trash2,
-  Phone,
+  Search, 
+  Plus, 
+  Users, 
+  User,
   Mail,
-  MapPin
+  Phone,
+  ChevronRight,
+  RefreshCw,
+  X,
+  MapPin,
+  Car,
+  Euro,
+  Trash2,
+  Building2
 } from 'lucide-react'
+
+// ============================================================================
+// CLIENTS LIST PAGE - SafeMotor
+// Design moderne avec données réelles
+// ============================================================================
 
 interface Client {
   id: string
-  firstName: string
-  lastName: string
-  email: string
-  phone: string
-  address: string
-  postalCode: string
-  city: string
-  vehicleCount: number
-  status: 'ACTIVE' | 'INACTIVE'
+  name?: string
+  firstName?: string
+  lastName?: string
+  email?: string
+  phone?: string
+  address?: string
+  city?: string
+  postalCode?: string
+  country?: string
+  genre?: string
+  vatMode?: string
+  garageId?: number
+  vehicleCount?: number
+  interventionCount?: number
+  totalRevenue?: number
   createdAt: Date
-  updatedAt: Date
-}
-
-interface ClientFormData {
-  firstName: string
-  lastName: string
-  email: string
-  phone: string
-  address: string
-  postalCode: string
-  city: string
 }
 
 export default function ClientsPage() {
   const router = useRouter()
-  const toast = useToast()
   
   const [clients, setClients] = useState<Client[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'all' | 'ACTIVE' | 'INACTIVE'>('all')
   
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [editingClient, setEditingClient] = useState<Client | null>(null)
-  const [formData, setFormData] = useState<ClientFormData>({
-    firstName: '',
-    lastName: '',
-    email: '',
-    phone: '',
-    address: '',
-    postalCode: '',
-    city: ''
-  })
-  const [formErrors, setFormErrors] = useState<Partial<Record<keyof ClientFormData, string>>>({})
-  const [isSaving, setIsSaving] = useState(false)
-  
+  // Delete modal
   const [deleteModalOpen, setDeleteModalOpen] = useState(false)
   const [clientToDelete, setClientToDelete] = useState<Client | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
-  
-  useEffect(() => {
-    loadClients()
-  }, [searchQuery, statusFilter])
-  
+
   const loadClients = async () => {
     setIsLoading(true)
-    
     try {
       const params = new URLSearchParams()
-      if (searchQuery) params.set('q', searchQuery)
-      if (statusFilter !== 'all') params.set('status', statusFilter)
-      params.set('page', '1')
       params.set('pageSize', '100')
+      if (searchQuery) params.set('q', searchQuery)
       
-      const response = await fetch(`/api/clients?${params}`)
+      const response = await fetch(`/api/clients?${params.toString()}`)
       const data = await response.json()
       
-      if (data.ok && data.data && Array.isArray(data.data.items)) {
-        // Transformer les dates si nécessaire
-        const clientsWithDates = data.data.items.map((c: Client & { createdAt?: string; updatedAt?: string }) => ({
-          ...c,
-          createdAt: c.createdAt ? new Date(c.createdAt) : new Date(),
-          updatedAt: c.updatedAt ? new Date(c.updatedAt) : new Date()
-        }))
-        setClients(clientsWithDates)
-      } else {
-        console.error('Error loading clients:', data.error || 'Invalid response format')
-        toast.error('Erreur', 'Impossible de charger les clients')
+      if (data.ok && data.data) {
+        setClients(data.data.items || [])
       }
-      
     } catch (error) {
       console.error('Error loading clients:', error)
-      toast.error('Erreur', 'Impossible de se connecter au serveur')
-      
-      // Fallback sur données simulées en cas d'erreur réseau
-      const mockClients: Client[] = [
-        {
-          id: '1',
-          firstName: 'Jean',
-          lastName: 'Dupont',
-          email: 'jean.dupont@email.fr',
-          phone: '06 12 34 56 78',
-          address: '12 Rue de la République',
-          postalCode: '75001',
-          city: 'Paris',
-          vehicleCount: 2,
-          status: 'ACTIVE',
-          createdAt: new Date('2024-01-15'),
-          updatedAt: new Date('2024-01-15')
-        },
-        {
-          id: '2',
-          firstName: 'Marie',
-          lastName: 'Martin',
-          email: 'marie.martin@email.fr',
-          phone: '06 98 76 54 32',
-          address: '8 Avenue des Fleurs',
-          postalCode: '69002',
-          city: 'Lyon',
-          vehicleCount: 1,
-          status: 'ACTIVE',
-          createdAt: new Date('2024-02-20'),
-          updatedAt: new Date('2024-02-20')
-        },
-        {
-          id: '3',
-          firstName: 'Pierre',
-          lastName: 'Dubois',
-          email: 'pierre.dubois@email.fr',
-          phone: '07 11 22 33 44',
-          address: '45 Boulevard du Lac',
-          postalCode: '33000',
-          city: 'Bordeaux',
-          vehicleCount: 3,
-          status: 'ACTIVE',
-          createdAt: new Date('2024-03-10'),
-          updatedAt: new Date('2024-03-10')
-        },
-        {
-          id: '4',
-          firstName: 'Sophie',
-          lastName: 'Blanc',
-          email: 'sophie.blanc@email.fr',
-          phone: '06 55 66 77 88',
-          address: '3 Rue du Commerce',
-          postalCode: '13001',
-          city: 'Marseille',
-          vehicleCount: 0,
-          status: 'INACTIVE',
-          createdAt: new Date('2023-12-05'),
-          updatedAt: new Date('2024-01-10')
-        }
-      ]
-      
-      let filtered = mockClients
-      
-      if (searchQuery) {
-        const query = searchQuery.toLowerCase()
-        filtered = filtered.filter(c => 
-          c.firstName.toLowerCase().includes(query) ||
-          c.lastName.toLowerCase().includes(query) ||
-          c.email.toLowerCase().includes(query) ||
-          c.phone.includes(query)
-        )
-      }
-      
-      if (statusFilter !== 'all') {
-        filtered = filtered.filter(c => c.status === statusFilter)
-      }
-      
-      setClients(filtered)
-      
     } finally {
       setIsLoading(false)
     }
   }
-  
-  const validateForm = (): boolean => {
-    const errors: Partial<Record<keyof ClientFormData, string>> = {}
-    
-    if (!formData.firstName.trim()) errors.firstName = 'Le prénom est requis'
-    if (!formData.lastName.trim()) errors.lastName = 'Le nom est requis'
-    
-    if (!formData.email.trim()) {
-      errors.email = 'L\'email est requis'
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      errors.email = 'Format d\'email invalide'
-    }
-    
-    if (!formData.phone.trim()) {
-      errors.phone = 'Le téléphone est requis'
-    } else if (!/^0[1-9]\d{8}$/.test(formData.phone.replace(/\s/g, ''))) {
-      errors.phone = 'Format de téléphone invalide (10 chiffres)'
-    }
-    
-    if (!formData.address.trim()) errors.address = 'L\'adresse est requise'
-    
-    if (!formData.postalCode.trim()) {
-      errors.postalCode = 'Le code postal est requis'
-    } else if (!/^\d{5}$/.test(formData.postalCode)) {
-      errors.postalCode = 'Code postal invalide (5 chiffres)'
-    }
-    
-    if (!formData.city.trim()) errors.city = 'La ville est requise'
-    
-    setFormErrors(errors)
-    return Object.keys(errors).length === 0
+
+  useEffect(() => {
+    loadClients()
+  }, [])
+
+  useEffect(() => {
+    const timer = setTimeout(() => loadClients(), 300)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
+
+  const getClientName = (c: Client) => {
+    if (c.name) return c.name
+    return `${c.firstName || ''} ${c.lastName || ''}`.trim() || `Client #${c.id}`
   }
-  
-  const handleCreate = () => {
-    setEditingClient(null)
-    setFormData({
-      firstName: '',
-      lastName: '',
-      email: '',
-      phone: '',
-      address: '',
-      postalCode: '',
-      city: ''
-    })
-    setFormErrors({})
-    setIsModalOpen(true)
-  }
-  
-  const handleEdit = (client: Client) => {
-    setEditingClient(client)
-    setFormData({
-      firstName: client.firstName,
-      lastName: client.lastName,
-      email: client.email,
-      phone: client.phone,
-      address: client.address,
-      postalCode: client.postalCode,
-      city: client.city
-    })
-    setFormErrors({})
-    setIsModalOpen(true)
-  }
-  
-  const handleSave = async () => {
-    if (!validateForm()) {
-      toast.error('Erreur', 'Veuillez corriger les erreurs du formulaire')
-      return
+
+  const getInitials = (c: Client) => {
+    const name = getClientName(c)
+    const parts = name.split(' ')
+    if (parts.length >= 2) {
+      return `${parts[0][0]}${parts[1][0]}`.toUpperCase()
     }
-    
-    setIsSaving(true)
-    
-    try {
-      const url = editingClient 
-        ? `/api/clients/${editingClient.id}`
-        : '/api/clients'
-      
-      const method = editingClient ? 'PATCH' : 'POST'
-      
-      const response = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
-      })
-      
-      const data = await response.json()
-      
-      if (data.ok) {
-        toast.success(
-          editingClient ? 'Client modifié' : 'Client créé',
-          'Les modifications ont été enregistrées'
-        )
-        setIsModalOpen(false)
-        loadClients()
-      } else {
-        toast.error('Erreur', data.error || 'Impossible de sauvegarder le client')
-      }
-      
-    } catch (error) {
-      console.error('Error saving client:', error)
-      toast.error('Erreur', 'Impossible de se connecter au serveur')
-    } finally {
-      setIsSaving(false)
-    }
+    return name.substring(0, 2).toUpperCase()
   }
-  
-  const handleDeleteClick = (client: Client) => {
-    setClientToDelete(client)
-    setDeleteModalOpen(true)
-  }
-  
-  const handleDeleteConfirm = async () => {
+
+  // Stats
+  const stats = useMemo(() => {
+    const total = clients.length
+    const withEmail = clients.filter(c => c.email).length
+    const withPhone = clients.filter(c => c.phone).length
+    const totalRevenue = clients.reduce((sum, c) => sum + (c.totalRevenue || 0), 0)
+    return { total, withEmail, withPhone, totalRevenue }
+  }, [clients])
+
+  const handleDelete = async () => {
     if (!clientToDelete) return
-    
     setIsDeleting(true)
     
     try {
-      const response = await fetch(`/api/clients/${clientToDelete.id}`, {
-        method: 'DELETE'
-      })
-      
+      const response = await fetch(`/api/clients/${clientToDelete.id}`, { method: 'DELETE' })
       const data = await response.json()
       
       if (data.ok) {
-        toast.success('Client supprimé', 'Le client a été supprimé avec succès')
         setDeleteModalOpen(false)
         setClientToDelete(null)
         loadClients()
-      } else {
-        toast.error('Erreur', data.error || 'Impossible de supprimer le client')
       }
-      
     } catch (error) {
       console.error('Error deleting client:', error)
-      toast.error('Erreur', 'Impossible de se connecter au serveur')
     } finally {
       setIsDeleting(false)
     }
   }
-  
-  const columns = [
-    {
-      key: 'name',
-      label: 'Nom',
-      sortable: true,
-      render: (client: Client) => (
-        <div>
-          <div style={{ 
-            fontSize: '14px', 
-            fontWeight: 500, 
-            color: '#111827' 
-          }}>
-            {client.firstName} {client.lastName}
-          </div>
-          <div style={{ 
-            fontSize: '12px', 
-            color: '#6B7280',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px',
-            marginTop: '2px'
-          }}>
-            <Mail size={12} />
-            {client.email}
-          </div>
-        </div>
-      )
-    },
-    {
-      key: 'phone',
-      label: 'Téléphone',
-      sortable: false,
-      render: (client: Client) => (
-        <div style={{ 
-          fontSize: '13px', 
-          color: '#6B7280',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px'
-        }}>
-          <Phone size={14} />
-          {client.phone}
-        </div>
-      )
-    },
-    {
-      key: 'city',
-      label: 'Ville',
-      sortable: true,
-      render: (client: Client) => (
-        <div style={{ 
-          fontSize: '13px', 
-          color: '#6B7280',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px'
-        }}>
-          <MapPin size={14} />
-          {client.city}
-        </div>
-      )
-    },
-    {
-      key: 'vehicleCount',
-      label: 'Véhicules',
-      sortable: true,
-      render: (client: Client) => (
-        <Badge variant={client.vehicleCount > 0 ? 'default' : 'neutral'}>
-          {client.vehicleCount}
-        </Badge>
-      )
-    },
-    {
-      key: 'status',
-      label: 'Statut',
-      sortable: true,
-      render: (client: Client) => (
-        <Badge 
-          variant={client.status === 'ACTIVE' ? 'success' : 'neutral'}
-          dot
-        >
-          {client.status === 'ACTIVE' ? 'Actif' : 'Inactif'}
-        </Badge>
-      )
-    },
-    {
-      key: 'actions',
-      label: 'Actions',
-      sortable: false,
-      render: (client: Client) => (
-        <DropdownMenu
-          trigger={
-            <button
-              style={{
-                padding: '6px',
-                backgroundColor: 'transparent',
-                border: 'none',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                color: '#6B7280',
-                transition: 'all 0.15s ease'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = '#F9FAFB'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'transparent'
-              }}
-            >
-              <MoreVertical size={16} />
-            </button>
-          }
-          items={[
-            {
-              id: 'view',
-              label: 'Voir détails',
-              icon: <Eye size={16} />,
-              onClick: () => router.push(`/clients/${client.id}`)
-            },
-            {
-              id: 'edit',
-              label: 'Modifier',
-              icon: <Edit size={16} />,
-              onClick: () => handleEdit(client)
-            },
-            { id: 'separator', separator: true },
-            {
-              id: 'delete',
-              label: 'Supprimer',
-              icon: <Trash2 size={16} />,
-              danger: true,
-              onClick: () => handleDeleteClick(client)
-            }
-          ]}
-        />
-      )
-    }
-  ]
-  
+
+  const formatCurrency = (amount?: number): string => {
+    if (!amount) return '0 €'
+    return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(amount)
+  }
+
   return (
-    <div style={{ padding: '24px', maxWidth: '1400px', margin: '0 auto' }}>
+    <div style={{ padding: '32px', maxWidth: '1400px', margin: '0 auto' }}>
       {/* Header */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '24px'
-      }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
         <div>
-          <h1 style={{
-            fontSize: '32px',
-            fontWeight: 700,
-            color: '#111827',
-            margin: 0,
-            marginBottom: '4px'
-          }}>
-            Clients
-          </h1>
-          <p style={{
-            fontSize: '14px',
-            color: '#6B7280',
-            margin: 0
-          }}>
-            Gérez vos clients et leurs informations
-          </p>
+          <h1 style={{ fontSize: '28px', fontWeight: 700, color: '#111827', margin: 0, marginBottom: '4px' }}>Clients</h1>
+          <p style={{ fontSize: '14px', color: '#6B7280', margin: 0 }}>Gérez votre portefeuille clients</p>
         </div>
-        
-        <Button
-          variant="primary"
-          size="lg"
-          leftIcon={<UserPlus size={20} />}
-          onClick={handleCreate}
-        >
-          Nouveau client
-        </Button>
+        <button onClick={() => router.push('/clients/nouveau')} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 20px', borderRadius: '12px', border: 'none', background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)', fontSize: '14px', fontWeight: 600, color: '#fff', cursor: 'pointer', boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)' }}>
+          <Plus size={18} /> Nouveau client
+        </button>
       </div>
-      
-      {/* Filters */}
-      <div style={{
-        display: 'flex',
-        gap: '12px',
-        marginBottom: '20px',
-        flexWrap: 'wrap'
-      }}>
-        <div style={{ flex: 1, minWidth: '300px' }}>
-          <SearchInput
-            placeholder="Rechercher un client (nom, email, téléphone)..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onClear={() => setSearchQuery('')}
-          />
+
+      {/* Stats */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '32px' }}>
+        <div style={{ padding: '20px', borderRadius: '16px', background: '#fff', border: '1px solid #E5E7EB' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#EEF2FF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Users size={24} color="#6366F1" /></div>
+            <div><p style={{ fontSize: '13px', color: '#6B7280', margin: 0 }}>Total clients</p><p style={{ fontSize: '28px', fontWeight: 700, color: '#111827', margin: 0 }}>{stats.total}</p></div>
+          </div>
         </div>
-        
-        <div style={{
-          display: 'flex',
-          gap: '8px',
-          backgroundColor: '#F9FAFB',
-          padding: '4px',
-          borderRadius: '8px',
-          border: '1px solid #E5E7EB'
-        }}>
-          {[
-            { value: 'all', label: 'Tous' },
-            { value: 'ACTIVE', label: 'Actifs' },
-            { value: 'INACTIVE', label: 'Inactifs' }
-          ].map((option) => (
-            <button
-              key={option.value}
-              onClick={() => setStatusFilter(option.value as typeof statusFilter)}
-              style={{
-                padding: '8px 16px',
-                fontSize: '14px',
-                fontWeight: 500,
-                color: statusFilter === option.value ? '#FFFFFF' : '#6B7280',
-                backgroundColor: statusFilter === option.value ? '#0A1628' : 'transparent',
-                border: 'none',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                transition: 'all 0.15s ease'
-              }}
-            >
-              {option.label}
-            </button>
-          ))}
+        <div style={{ padding: '20px', borderRadius: '16px', background: '#fff', border: '1px solid #E5E7EB' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#DBEAFE', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Mail size={24} color="#3B82F6" /></div>
+            <div><p style={{ fontSize: '13px', color: '#6B7280', margin: 0 }}>Avec email</p><p style={{ fontSize: '28px', fontWeight: 700, color: '#3B82F6', margin: 0 }}>{stats.withEmail}</p></div>
+          </div>
+        </div>
+        <div style={{ padding: '20px', borderRadius: '16px', background: '#fff', border: '1px solid #E5E7EB' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#D1FAE5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Phone size={24} color="#10B981" /></div>
+            <div><p style={{ fontSize: '13px', color: '#6B7280', margin: 0 }}>Avec téléphone</p><p style={{ fontSize: '28px', fontWeight: 700, color: '#10B981', margin: 0 }}>{stats.withPhone}</p></div>
+          </div>
+        </div>
+        <div style={{ padding: '20px', borderRadius: '16px', background: '#fff', border: '1px solid #E5E7EB' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#FEF3C7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Euro size={24} color="#F59E0B" /></div>
+            <div><p style={{ fontSize: '13px', color: '#6B7280', margin: 0 }}>CA Total</p><p style={{ fontSize: '28px', fontWeight: 700, color: '#F59E0B', margin: 0 }}>{formatCurrency(stats.totalRevenue)}</p></div>
+          </div>
         </div>
       </div>
-      
-      {/* Table */}
-      <DataTableInline
-        data={clients}
-        columns={columns}
-        loading={isLoading}
-        emptyState={
-          <div style={{ textAlign: 'center', padding: '48px 24px' }}>
-            <div style={{ fontSize: '16px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>
-              Aucun client
+
+      {/* Search */}
+      <div style={{ marginBottom: '24px' }}>
+        <div style={{ position: 'relative', maxWidth: '400px' }}>
+          <Search size={20} color="#9CA3AF" style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)' }} />
+          <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Rechercher par nom, email, téléphone..." style={{ width: '100%', padding: '14px 14px 14px 48px', borderRadius: '12px', border: '1px solid #E5E7EB', fontSize: '14px', outline: 'none' }} />
+        </div>
+      </div>
+
+      {/* Clients List */}
+      <div style={{ background: '#fff', borderRadius: '16px', border: '1px solid #E5E7EB', overflow: 'hidden' }}>
+        {isLoading ? (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '64px' }}>
+            <RefreshCw size={32} color="#6366F1" style={{ animation: 'spin 1s linear infinite' }} />
+          </div>
+        ) : clients.length === 0 ? (
+          <div style={{ padding: '64px', textAlign: 'center' }}>
+            <Users size={48} color="#D1D5DB" style={{ marginBottom: '16px' }} />
+            <h3 style={{ fontSize: '16px', fontWeight: 600, color: '#111827', margin: 0, marginBottom: '8px' }}>Aucun client</h3>
+            <p style={{ fontSize: '14px', color: '#6B7280', margin: 0 }}>Commencez par ajouter un client</p>
+          </div>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
+                <th style={{ padding: '14px 20px', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#6B7280', textTransform: 'uppercase' }}>Client</th>
+                <th style={{ padding: '14px 20px', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#6B7280', textTransform: 'uppercase' }}>Contact</th>
+                <th style={{ padding: '14px 20px', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#6B7280', textTransform: 'uppercase' }}>Adresse</th>
+                <th style={{ padding: '14px 20px', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#6B7280', textTransform: 'uppercase' }}>Véhicules</th>
+                <th style={{ padding: '14px 20px', textAlign: 'right', fontSize: '12px', fontWeight: 600, color: '#6B7280', textTransform: 'uppercase' }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {clients.map((client, index) => (
+                <tr key={client.id} style={{ borderBottom: index < clients.length - 1 ? '1px solid #F3F4F6' : 'none', cursor: 'pointer' }} onClick={() => router.push(`/clients/${client.id}`)} onMouseEnter={(e) => e.currentTarget.style.background = '#F9FAFB'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+                  <td style={{ padding: '16px 20px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '14px', fontWeight: 700 }}>{getInitials(client)}</div>
+                      <div>
+                        <div style={{ fontSize: '14px', fontWeight: 600, color: '#111827' }}>{getClientName(client)}</div>
+                        {client.genre && <div style={{ fontSize: '12px', color: '#6B7280' }}>{client.genre === 'M' ? 'Homme' : client.genre === 'F' ? 'Femme' : client.genre}</div>}
+                      </div>
+                    </div>
+                  </td>
+                  <td style={{ padding: '16px 20px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      {client.email && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#374151' }}>
+                          <Mail size={14} color="#9CA3AF" /> {client.email}
+                        </div>
+                      )}
+                      {client.phone && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#374151' }}>
+                          <Phone size={14} color="#9CA3AF" /> {client.phone}
+                        </div>
+                      )}
+                      {!client.email && !client.phone && <span style={{ fontSize: '13px', color: '#9CA3AF' }}>-</span>}
+                    </div>
+                  </td>
+                  <td style={{ padding: '16px 20px' }}>
+                    {client.address || client.city ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: '#374151' }}>
+                        <MapPin size={14} color="#9CA3AF" />
+                        <span>{[client.address, client.postalCode, client.city].filter(Boolean).join(', ')}</span>
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: '13px', color: '#9CA3AF' }}>-</span>
+                    )}
+                  </td>
+                  <td style={{ padding: '16px 20px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <Car size={16} color="#6366F1" />
+                      <span style={{ fontSize: '14px', fontWeight: 600, color: '#111827' }}>{client.vehicleCount || 0}</span>
+                    </div>
+                  </td>
+                  <td style={{ padding: '16px 20px', textAlign: 'right' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px' }}>
+                      <button onClick={(e) => { e.stopPropagation(); setClientToDelete(client); setDeleteModalOpen(true) }} style={{ padding: '8px', borderRadius: '8px', border: '1px solid #FECACA', background: '#FEF2F2', cursor: 'pointer' }}><Trash2 size={16} color="#EF4444" /></button>
+                      <ChevronRight size={18} color="#D1D5DB" />
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* Delete Modal */}
+      {deleteModalOpen && clientToDelete && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '20px' }} onClick={() => setDeleteModalOpen(false)}>
+          <div style={{ background: '#fff', borderRadius: '20px', width: '100%', maxWidth: '400px', padding: '24px' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ width: '56px', height: '56px', borderRadius: '14px', background: '#FEF2F2', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px' }}><Trash2 size={28} color="#EF4444" /></div>
+            <h3 style={{ fontSize: '18px', fontWeight: 600, color: '#111827', margin: 0, marginBottom: '8px' }}>Supprimer le client</h3>
+            <p style={{ fontSize: '14px', color: '#6B7280', margin: 0, lineHeight: 1.6 }}>Êtes-vous sûr de vouloir supprimer <strong style={{ color: '#111827' }}>{getClientName(clientToDelete)}</strong> ?</p>
+            {(clientToDelete.vehicleCount || 0) > 0 && <p style={{ fontSize: '13px', color: '#DC2626', margin: '16px 0 0', padding: '10px 12px', background: '#FEF2F2', borderRadius: '8px' }}>⚠️ Ce client a {clientToDelete.vehicleCount} véhicule(s)</p>}
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px' }}>
+              <button onClick={() => setDeleteModalOpen(false)} disabled={isDeleting} style={{ padding: '12px 20px', borderRadius: '10px', border: '1px solid #E5E7EB', background: '#fff', fontSize: '14px', fontWeight: 600, color: '#374151', cursor: 'pointer' }}>Annuler</button>
+              <button onClick={handleDelete} disabled={isDeleting} style={{ padding: '12px 24px', borderRadius: '10px', border: 'none', background: '#EF4444', fontSize: '14px', fontWeight: 600, color: '#fff', cursor: isDeleting ? 'wait' : 'pointer', opacity: isDeleting ? 0.7 : 1 }}>{isDeleting ? 'Suppression...' : 'Supprimer'}</button>
             </div>
-            <div style={{ fontSize: '14px', color: '#6B7280', marginBottom: '16px' }}>
-              {searchQuery 
-                ? 'Aucun client ne correspond à votre recherche'
-                : 'Commencez par créer votre premier client'}
-            </div>
-            {!searchQuery && (
-              <Button variant="primary" onClick={handleCreate}>
-                Nouveau client
-              </Button>
-            )}
-          </div>
-        }
-      />
-      
-      {/* Modal création/édition */}
-      <Modal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title={editingClient ? 'Modifier le client' : 'Nouveau client'}
-        size="lg"
-      >
-        <div style={{ padding: '24px' }}>
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: '16px'
-          }}>
-            <FormField
-              label="Prénom"
-              name="firstName"
-              value={formData.firstName}
-              onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-              error={formErrors.firstName}
-              required
-            />
-            
-            <FormField
-              label="Nom"
-              name="lastName"
-              value={formData.lastName}
-              onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-              error={formErrors.lastName}
-              required
-            />
-          </div>
-          
-          <FormField
-            label="Email"
-            type="email"
-            name="email"
-            value={formData.email}
-            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-            error={formErrors.email}
-            required
-          />
-          
-          <FormField
-            label="Téléphone"
-            type="tel"
-            name="phone"
-            placeholder="06 12 34 56 78"
-            value={formData.phone}
-            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-            error={formErrors.phone}
-            required
-          />
-          
-          <FormField
-            label="Adresse"
-            name="address"
-            value={formData.address}
-            onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-            error={formErrors.address}
-            required
-          />
-          
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 2fr',
-            gap: '16px'
-          }}>
-            <FormField
-              label="Code postal"
-              name="postalCode"
-              placeholder="75001"
-              value={formData.postalCode}
-              onChange={(e) => setFormData({ ...formData, postalCode: e.target.value })}
-              error={formErrors.postalCode}
-              required
-            />
-            
-            <FormField
-              label="Ville"
-              name="city"
-              value={formData.city}
-              onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-              error={formErrors.city}
-              required
-            />
-          </div>
-          
-          <div style={{
-            display: 'flex',
-            gap: '12px',
-            justifyContent: 'flex-end',
-            marginTop: '24px',
-            paddingTop: '20px',
-            borderTop: '1px solid #E5E7EB'
-          }}>
-            <Button
-              variant="secondary"
-              onClick={() => setIsModalOpen(false)}
-              disabled={isSaving}
-            >
-              Annuler
-            </Button>
-            <Button
-              variant="primary"
-              onClick={handleSave}
-              loading={isSaving}
-              disabled={isSaving}
-            >
-              {editingClient ? 'Enregistrer' : 'Créer'}
-            </Button>
           </div>
         </div>
-      </Modal>
-      
-      {/* Modal suppression */}
-      <Modal
-        isOpen={deleteModalOpen}
-        onClose={() => setDeleteModalOpen(false)}
-        title="Supprimer le client"
-        size="md"
-      >
-        <div style={{ padding: '24px' }}>
-          <p style={{
-            fontSize: '15px',
-            color: '#6B7280',
-            lineHeight: 1.6,
-            margin: 0,
-            marginBottom: '20px'
-          }}>
-            Êtes-vous sûr de vouloir supprimer le client{' '}
-            <strong style={{ color: '#111827' }}>
-              {clientToDelete?.firstName} {clientToDelete?.lastName}
-            </strong> ?
-            {clientToDelete?.vehicleCount && clientToDelete.vehicleCount > 0 && (
-              <span style={{ display: 'block', marginTop: '12px', color: '#DC2626' }}>
-                ⚠️ Ce client possède {clientToDelete.vehicleCount} véhicule(s) associé(s).
-              </span>
-            )}
-          </p>
-          
-          <div style={{
-            display: 'flex',
-            gap: '12px',
-            justifyContent: 'flex-end'
-          }}>
-            <Button
-              variant="secondary"
-              onClick={() => setDeleteModalOpen(false)}
-              disabled={isDeleting}
-            >
-              Annuler
-            </Button>
-            <Button
-              variant="primary"
-              onClick={handleDeleteConfirm}
-              loading={isDeleting}
-              disabled={isDeleting}
-              style={{
-                backgroundColor: '#DC2626'
-              }}
-            >
-              Supprimer
-            </Button>
-          </div>
-        </div>
-      </Modal>
+      )}
+
+      <style dangerouslySetInnerHTML={{ __html: `@keyframes spin { to { transform: rotate(360deg); } }` }} />
     </div>
   )
 }

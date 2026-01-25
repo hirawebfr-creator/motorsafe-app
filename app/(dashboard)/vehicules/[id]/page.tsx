@@ -2,13 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { Badge } from '@/components/shared/badge'
-import { Button } from '@/components/shared/button'
-import { Modal } from '@/components/shared/modal'
-import { FormField } from '@/components/shared/form-field'
-import { Select } from '@/components/shared/select'
-import { Avatar } from '@/components/shared/avatar'
-import { useToast } from '@/components/shared/use-toast'
 import { 
   ArrowLeft,
   Edit,
@@ -20,31 +13,43 @@ import {
   Wrench,
   CheckCircle,
   Clock,
-  PlayCircle,
-  XCircle
+  X,
+  Car,
+  Fuel,
+  Settings,
+  RefreshCw,
+  AlertCircle,
+  ChevronRight,
+  Trash2,
+  FileText,
+  Plus
 } from 'lucide-react'
 
-type InterventionStatus = 'DRAFT' | 'OPEN' | 'DONE' | 'CANCELED'
+// ============================================================================
+// VEHICLE DETAIL PAGE - SafeMotor
+// Design moderne avec données réelles
+// ============================================================================
 
 interface Vehicle {
   id: string
-  plate: string
+  registrationNumber?: string
+  plate?: string
   vin: string
-  brand: string
+  make?: string
+  brand?: string
   model: string
+  version?: string
   engine?: string
   year: number
   firstRegistrationDate?: Date
-  mileage?: number
+  mileage: number
   color?: string
-  fuel: string
+  fuelType?: string
+  fuel?: string
   clientId: string
-  client?: {
-    id: number
-    firstName: string
-    lastName: string
-  }
-  interventionCount?: number
+  clientName?: string
+  client?: { id: number; firstName: string; lastName: string; name?: string }
+  interventionCount: number
   totalRevenue?: number
   lastInterventionDate?: Date
   createdAt: Date
@@ -53,908 +58,475 @@ interface Vehicle {
 
 interface Intervention {
   id: string
-  number?: string
+  number: string
   createdAt: Date
   performedAt?: Date
-  status: InterventionStatus
+  entryDate?: Date
+  status: string
   title?: string
-  type: string
-  notes?: string
+  description?: string
+  type?: string
   odometerKm?: number
+  amount?: number
+  totalAmount?: number
   amountCents?: number
-  agreementAt?: Date
-  closedAt?: Date
-}
-
-interface VehicleFormData {
-  clientId: string
-  plate: string
-  vin: string
-  brand: string
-  model: string
-  engine: string
-  year: string
-  mileage: string
-  color: string
-  fuel: string
 }
 
 interface Client {
   id: string
   name: string
+  firstName?: string
+  lastName?: string
+}
+
+const FUEL_TYPES: Record<string, { label: string; color: string; bg: string }> = {
+  'ESSENCE': { label: 'Essence', color: '#EF4444', bg: '#FEE2E2' },
+  'Essence': { label: 'Essence', color: '#EF4444', bg: '#FEE2E2' },
+  'DIESEL': { label: 'Diesel', color: '#1D4ED8', bg: '#DBEAFE' },
+  'Diesel': { label: 'Diesel', color: '#1D4ED8', bg: '#DBEAFE' },
+  'ELECTRIC': { label: 'Électrique', color: '#6366F1', bg: '#E0E7FF' },
+  'Électrique': { label: 'Électrique', color: '#6366F1', bg: '#E0E7FF' },
+  'HYBRID': { label: 'Hybride', color: '#10B981', bg: '#D1FAE5' },
+  'Hybride': { label: 'Hybride', color: '#10B981', bg: '#D1FAE5' },
+  'GPL': { label: 'GPL', color: '#F59E0B', bg: '#FEF3C7' },
+}
+
+const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string; icon: any }> = {
+  'DRAFT': { label: 'Brouillon', color: '#6B7280', bg: '#F3F4F6', icon: FileText },
+  'EN_ATTENTE': { label: 'En attente', color: '#F59E0B', bg: '#FEF3C7', icon: Clock },
+  'OPEN': { label: 'En cours', color: '#3B82F6', bg: '#DBEAFE', icon: Wrench },
+  'EN_COURS': { label: 'En cours', color: '#3B82F6', bg: '#DBEAFE', icon: Wrench },
+  'DONE': { label: 'Terminé', color: '#10B981', bg: '#D1FAE5', icon: CheckCircle },
+  'TERMINE': { label: 'Terminé', color: '#10B981', bg: '#D1FAE5', icon: CheckCircle },
+  'CANCELED': { label: 'Annulé', color: '#EF4444', bg: '#FEE2E2', icon: X },
+  'ANNULE': { label: 'Annulé', color: '#EF4444', bg: '#FEE2E2', icon: X },
 }
 
 export default function VehicleDetailPage() {
   const router = useRouter()
   const params = useParams()
-  const toast = useToast()
   const vehicleId = params.id as string
   
   const [vehicle, setVehicle] = useState<Vehicle | null>(null)
   const [interventions, setInterventions] = useState<Intervention[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
-  const [formData, setFormData] = useState<VehicleFormData>({
+  // Edit modal
+  const [editModalOpen, setEditModalOpen] = useState(false)
+  const [formData, setFormData] = useState({
     clientId: '',
     plate: '',
     vin: '',
     brand: '',
     model: '',
-    engine: '',
+    version: '',
     year: '',
     mileage: '',
     color: '',
-    fuel: 'Essence'
+    fuel: 'ESSENCE'
   })
-  const [formErrors, setFormErrors] = useState<Partial<Record<keyof VehicleFormData, string>>>({})
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({})
   const [isSaving, setIsSaving] = useState(false)
   
-  useEffect(() => {
-    loadVehicleData()
-    loadClients()
-  }, [vehicleId])
-  
-  const loadClients = async () => {
-    try {
-      const response = await fetch('/api/clients')
-      const data = await response.json()
-      
-      if (data.ok && data.data && Array.isArray(data.data.items)) {
-        setClients(data.data.items.map((c: any) => ({
-          id: String(c.id),
-          name: `${c.firstName} ${c.lastName}`
-        })))
-      }
-    } catch (error) {
-      console.error('Error loading clients:', error)
-      setClients([
-        { id: '1', name: 'Jean Dupont' },
-        { id: '2', name: 'Marie Martin' }
-      ])
-    }
-  }
-  
+  // Delete modal
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+
   const loadVehicleData = async () => {
     setIsLoading(true)
+    setError(null)
     
     try {
-      // Charger véhicule
       const vehicleResponse = await fetch(`/api/vehicules/${vehicleId}`)
       const vehicleData = await vehicleResponse.json()
       
       if (vehicleData.ok && vehicleData.data) {
         setVehicle(vehicleData.data)
       } else {
-        toast.error('Erreur', 'Véhicule introuvable')
-        router.push('/vehicules')
+        setError('Véhicule introuvable')
         return
       }
       
-      // Charger interventions
       const interventionsResponse = await fetch(`/api/interventions?vehicleId=${vehicleId}`)
       const interventionsData = await interventionsResponse.json()
       
-      if (interventionsData.ok && interventionsData.data && Array.isArray(interventionsData.data.items)) {
-        setInterventions(interventionsData.data.items)
+      if (interventionsData.ok && interventionsData.data) {
+        setInterventions(interventionsData.data.items || [])
       }
-      
-    } catch (error) {
-      console.error('Error loading vehicle:', error)
-      toast.error('Erreur', 'Impossible de charger les données')
-      
-      // Fallback mock data
-      setVehicle({
-        id: vehicleId,
-        plate: 'AB-123-CD',
-        vin: '1HGBH41JXMN109186',
-        brand: 'Peugeot',
-        model: '208',
-        engine: '1.2 PureTech 100',
-        year: 2020,
-        mileage: 45000,
-        color: 'Blanc',
-        fuel: 'Essence',
-        clientId: '1',
-        client: { id: 1, firstName: 'Jean', lastName: 'Dupont' },
-        interventionCount: 5,
-        totalRevenue: 2250.00,
-        lastInterventionDate: new Date('2024-01-15'),
-        createdAt: new Date('2024-01-10'),
-        updatedAt: new Date('2024-01-10')
-      })
-      
-      setInterventions([
-        {
-          id: '1',
-          number: 'INT-2024-001',
-          createdAt: new Date('2024-01-15'),
-          status: 'DONE',
-          type: 'revision',
-          title: 'Révision 20 000 km + changement plaquettes',
-          odometerKm: 45000,
-          amountCents: 45000,
-          agreementAt: new Date('2024-01-15'),
-          closedAt: new Date('2024-01-16')
-        },
-        {
-          id: '2',
-          number: 'INT-2023-045',
-          createdAt: new Date('2023-06-10'),
-          status: 'DONE',
-          type: 'revision',
-          title: 'Vidange + filtres',
-          odometerKm: 35000,
-          amountCents: 18000,
-          agreementAt: new Date('2023-06-10'),
-          closedAt: new Date('2023-06-11')
-        }
-      ])
-      
+    } catch (err) {
+      console.error('Error loading vehicle:', err)
+      setError('Impossible de charger les données')
     } finally {
       setIsLoading(false)
     }
   }
+
+  const loadClients = async () => {
+    try {
+      const response = await fetch('/api/clients?pageSize=100')
+      const data = await response.json()
+      if (data.ok && data.data?.items) {
+        setClients(data.data.items.map((c: any) => ({
+          id: String(c.id),
+          name: c.name || `${c.firstName || ''} ${c.lastName || ''}`.trim()
+        })))
+      }
+    } catch (err) {
+      console.error('Error loading clients:', err)
+    }
+  }
+
+  useEffect(() => {
+    loadVehicleData()
+    loadClients()
+  }, [vehicleId])
+
+  const getPlate = () => vehicle?.registrationNumber || vehicle?.plate || ''
+  const getMake = () => vehicle?.make || vehicle?.brand || ''
+  const getFuel = () => vehicle?.fuelType || vehicle?.fuel || 'ESSENCE'
   
+  const getClientName = () => {
+    if (vehicle?.clientName) return vehicle.clientName
+    if (vehicle?.client) {
+      if (vehicle.client.name) return vehicle.client.name
+      return `${vehicle.client.firstName || ''} ${vehicle.client.lastName || ''}`.trim()
+    }
+    return 'Client inconnu'
+  }
+
   const handleEdit = () => {
     if (!vehicle) return
     
     setFormData({
       clientId: String(vehicle.clientId),
-      plate: vehicle.plate,
+      plate: getPlate(),
       vin: vehicle.vin || '',
-      brand: vehicle.brand,
-      model: vehicle.model,
-      engine: vehicle.engine || '',
+      brand: getMake(),
+      model: vehicle.model || '',
+      version: vehicle.version || vehicle.engine || '',
       year: vehicle.year?.toString() || '',
       mileage: vehicle.mileage?.toString() || '',
       color: vehicle.color || '',
-      fuel: vehicle.fuel || 'Essence'
+      fuel: getFuel()
     })
     setFormErrors({})
-    setIsEditModalOpen(true)
+    setEditModalOpen(true)
   }
-  
+
   const validateForm = (): boolean => {
-    const errors: Partial<Record<keyof VehicleFormData, string>> = {}
-    
-    if (!formData.plate.trim()) {
-      errors.plate = 'L\'immatriculation est requise'
-    }
-    
-    if (formData.vin && formData.vin.length !== 17) {
-      errors.vin = 'Le VIN doit contenir 17 caractères'
-    }
-    
+    const errors: Record<string, string> = {}
+    if (!formData.plate.trim()) errors.plate = "L'immatriculation est requise"
     if (!formData.brand.trim()) errors.brand = 'La marque est requise'
     if (!formData.model.trim()) errors.model = 'Le modèle est requis'
-    
-    if (formData.year) {
-      const year = parseInt(formData.year)
-      if (year < 1900 || year > new Date().getFullYear() + 1) {
-        errors.year = 'Année invalide'
-      }
-    }
-    
     if (!formData.clientId) errors.clientId = 'Le client est requis'
-    
+    if (formData.vin && formData.vin.length !== 17) errors.vin = 'Le VIN doit contenir 17 caractères'
     setFormErrors(errors)
     return Object.keys(errors).length === 0
   }
-  
+
   const handleSave = async () => {
     if (!validateForm() || !vehicle) return
-    
     setIsSaving(true)
     
     try {
-      const payload = {
-        clientId: parseInt(formData.clientId),
-        plate: formData.plate,
-        vin: formData.vin || undefined,
-        brand: formData.brand,
-        model: formData.model,
-        engine: formData.engine || undefined,
-        year: formData.year ? parseInt(formData.year) : undefined,
-        fuel: formData.fuel
-      }
-      
       const response = await fetch(`/api/vehicules/${vehicle.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({
+          clientId: parseInt(formData.clientId),
+          registrationNumber: formData.plate,
+          vin: formData.vin || undefined,
+          make: formData.brand,
+          model: formData.model,
+          version: formData.version || undefined,
+          year: formData.year ? parseInt(formData.year) : undefined,
+          mileage: formData.mileage ? parseInt(formData.mileage) : undefined,
+          color: formData.color || undefined,
+          fuelType: formData.fuel
+        })
       })
       
       const data = await response.json()
       
       if (data.ok) {
-        toast.success('Véhicule modifié', 'Les modifications ont été enregistrées')
-        setIsEditModalOpen(false)
+        setEditModalOpen(false)
         loadVehicleData()
       } else {
-        toast.error('Erreur', data.error?.message || 'Impossible de sauvegarder')
+        setFormErrors({ plate: data.error || 'Erreur de sauvegarde' })
       }
-      
-    } catch (error) {
-      console.error('Error saving vehicle:', error)
-      toast.error('Erreur', 'Impossible de se connecter au serveur')
+    } catch (err) {
+      console.error('Error saving vehicle:', err)
+      setFormErrors({ plate: 'Erreur de connexion' })
     } finally {
       setIsSaving(false)
     }
   }
-  
-  const formatCurrency = (amountCents?: number): string => {
-    if (!amountCents) return '-'
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'EUR'
-    }).format(amountCents / 100)
-  }
-  
-  const getFuelTypeBadgeVariant = (type: string) => {
-    const variants: Record<string, string> = {
-      'Essence': 'default',
-      'Diesel': 'neutral',
-      'Hybride': 'success',
-      'Électrique': 'info',
-      'GPL': 'warning'
-    }
-    return (variants[type] || 'default') as any
-  }
-  
-  const getStatusBadge = (status: InterventionStatus) => {
-    const variants: Record<string, string> = {
-      DRAFT: 'neutral',
-      OPEN: 'info',
-      DONE: 'success',
-      CANCELED: 'error'
-    }
+
+  const handleDelete = async () => {
+    if (!vehicle) return
+    setIsDeleting(true)
     
-    const labels: Record<string, string> = {
-      DRAFT: 'Brouillon',
-      OPEN: 'En cours',
-      DONE: 'Terminée',
-      CANCELED: 'Annulée'
-    }
-    
-    const getIcon = (s: string): React.ReactNode => {
-      switch (s) {
-        case 'DRAFT': return <Clock size={14} />
-        case 'OPEN': return <PlayCircle size={14} />
-        case 'DONE': return <CheckCircle size={14} />
-        case 'CANCELED': return <XCircle size={14} />
-        default: return <Clock size={14} />
+    try {
+      const response = await fetch(`/api/vehicules/${vehicle.id}`, { method: 'DELETE' })
+      const data = await response.json()
+      
+      if (data.ok) {
+        router.push('/vehicules')
+      } else {
+        setError(data.error || 'Erreur de suppression')
+        setDeleteModalOpen(false)
       }
+    } catch (err) {
+      console.error('Error deleting vehicle:', err)
+      setError('Erreur de connexion')
+      setDeleteModalOpen(false)
+    } finally {
+      setIsDeleting(false)
     }
-    
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-        {getIcon(status)}
-        <Badge variant={variants[status] as any}>
-          {labels[status]}
-        </Badge>
-      </div>
-    )
   }
-  
-  const getClientName = (): string => {
-    if (vehicle?.client) {
-      return `${vehicle.client.firstName} ${vehicle.client.lastName}`
-    }
-    return 'Client inconnu'
+
+  const formatCurrency = (amount?: number): string => {
+    if (!amount) return '0 €'
+    // Handle amountCents
+    const value = amount > 1000 ? amount / 100 : amount
+    return new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' }).format(value)
   }
-  
+
   if (isLoading) {
     return (
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: '400px'
-      }}>
-        <div style={{
-          width: '40px',
-          height: '40px',
-          border: '4px solid #F3F4F6',
-          borderTopColor: '#0A1628',
-          borderRadius: '50%',
-          animation: 'spin 0.8s linear infinite'
-        }} />
-        <style>{`
-          @keyframes spin {
-            to { transform: rotate(360deg); }
-          }
-        `}</style>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '400px' }}>
+        <RefreshCw size={32} color="#6366F1" style={{ animation: 'spin 1s linear infinite' }} />
+        <style dangerouslySetInnerHTML={{ __html: `@keyframes spin { to { transform: rotate(360deg); } }` }} />
       </div>
     )
   }
-  
-  if (!vehicle) {
+
+  if (error || !vehicle) {
     return (
-      <div style={{ padding: '24px' }}>
-        <p style={{ fontSize: '14px', color: '#6B7280' }}>Véhicule introuvable</p>
+      <div style={{ padding: '32px', maxWidth: '600px', margin: '0 auto', textAlign: 'center' }}>
+        <AlertCircle size={48} color="#EF4444" style={{ marginBottom: '16px' }} />
+        <h2 style={{ fontSize: '20px', fontWeight: 600, color: '#111827', marginBottom: '8px' }}>{error || 'Véhicule introuvable'}</h2>
+        <p style={{ fontSize: '14px', color: '#6B7280', marginBottom: '24px' }}>Ce véhicule n'existe pas ou a été supprimé.</p>
+        <button onClick={() => router.push('/vehicules')} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '12px 24px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)', color: '#fff', fontSize: '14px', fontWeight: 600, cursor: 'pointer' }}>
+          <ArrowLeft size={18} /> Retour aux véhicules
+        </button>
       </div>
     )
   }
-  
+
+  const fuelConfig = FUEL_TYPES[getFuel()] || FUEL_TYPES['ESSENCE']
+  const totalRevenue = vehicle.totalRevenue || interventions.reduce((sum, i) => sum + (i.totalAmount || i.amount || (i.amountCents ? i.amountCents / 100 : 0)), 0)
+
   return (
-    <div style={{ padding: '24px', maxWidth: '1400px', margin: '0 auto' }}>
+    <div style={{ padding: '32px', maxWidth: '1200px', margin: '0 auto' }}>
+      {/* Back */}
+      <button onClick={() => router.push('/vehicules')} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '24px', padding: '10px 16px', borderRadius: '10px', border: '1px solid #E5E7EB', background: '#fff', fontSize: '14px', fontWeight: 500, color: '#374151', cursor: 'pointer' }}>
+        <ArrowLeft size={18} /> Retour aux véhicules
+      </button>
+
       {/* Header */}
-      <div style={{ marginBottom: '24px' }}>
-        <Button
-          variant="secondary"
-          leftIcon={<ArrowLeft size={20} />}
-          onClick={() => router.push('/vehicules')}
-          style={{ marginBottom: '16px' }}
-        >
-          Retour aux véhicules
-        </Button>
-        
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-start'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <Avatar
-              name={vehicle.brand}
-              size="lg"
-              shape="square"
-            />
-            <div>
-              <h1 style={{
-                fontSize: '32px',
-                fontWeight: 700,
-                color: '#111827',
-                margin: 0,
-                marginBottom: '4px'
-              }}>
-                {vehicle.brand} {vehicle.model}
-              </h1>
-              <div style={{
-                display: 'flex',
-                gap: '12px',
-                alignItems: 'center'
-              }}>
-                <div style={{
-                  fontFamily: 'monospace',
-                  fontSize: '16px',
-                  fontWeight: 600,
-                  color: '#111827',
-                  backgroundColor: '#F9FAFB',
-                  padding: '4px 8px',
-                  borderRadius: '4px'
-                }}>
-                  {vehicle.plate}
-                </div>
-                <Badge variant={getFuelTypeBadgeVariant(vehicle.fuel)}>
-                  {vehicle.fuel}
-                </Badge>
-              </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px', flexWrap: 'wrap', gap: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <div style={{ width: '80px', height: '80px', borderRadius: '20px', background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Car size={40} color="#fff" />
+          </div>
+          <div>
+            <h1 style={{ fontSize: '28px', fontWeight: 700, color: '#111827', margin: 0, marginBottom: '8px' }}>
+              {getMake()} {vehicle.model}
+            </h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 14px', borderRadius: '8px', fontSize: '15px', fontWeight: 700, background: '#EEF2FF', color: '#6366F1' }}>
+                <Hash size={16} />
+                {getPlate()}
+              </span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 12px', borderRadius: '100px', fontSize: '13px', fontWeight: 600, background: fuelConfig.bg, color: fuelConfig.color }}>
+                <Fuel size={14} />
+                {fuelConfig.label}
+              </span>
             </div>
           </div>
-          
-          <Button
-            variant="primary"
-            leftIcon={<Edit size={20} />}
-            onClick={handleEdit}
-          >
-            Modifier
-          </Button>
+        </div>
+        
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <button onClick={() => setDeleteModalOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 20px', borderRadius: '12px', border: '1px solid #FECACA', background: '#FEF2F2', fontSize: '14px', fontWeight: 600, color: '#EF4444', cursor: 'pointer' }}>
+            <Trash2 size={18} /> Supprimer
+          </button>
+          <button onClick={handleEdit} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 20px', borderRadius: '12px', border: 'none', background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)', fontSize: '14px', fontWeight: 600, color: '#fff', cursor: 'pointer', boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)' }}>
+            <Edit size={18} /> Modifier
+          </button>
         </div>
       </div>
-      
+
       {/* Stats */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(4, 1fr)',
-        gap: '16px',
-        marginBottom: '32px'
-      }}>
-        <div style={{
-          backgroundColor: '#FFFFFF',
-          borderRadius: '12px',
-          border: '1px solid #E5E7EB',
-          padding: '20px'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
-            <div style={{
-              width: '40px',
-              height: '40px',
-              borderRadius: '8px',
-              backgroundColor: '#F9FAFB',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <Wrench size={20} style={{ color: '#0A1628' }} />
-            </div>
-            <span style={{ fontSize: '14px', fontWeight: 500, color: '#6B7280' }}>
-              Interventions
-            </span>
-          </div>
-          <div style={{ fontSize: '28px', fontWeight: 700, color: '#111827' }}>
-            {interventions.length}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '32px' }}>
+        <div style={{ padding: '20px', borderRadius: '16px', background: '#fff', border: '1px solid #E5E7EB' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#EEF2FF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Calendar size={24} color="#6366F1" /></div>
+            <div><p style={{ fontSize: '13px', color: '#6B7280', margin: 0 }}>Année</p><p style={{ fontSize: '24px', fontWeight: 700, color: '#111827', margin: 0 }}>{vehicle.year || '-'}</p></div>
           </div>
         </div>
-        
-        <div style={{
-          backgroundColor: '#FFFFFF',
-          borderRadius: '12px',
-          border: '1px solid #E5E7EB',
-          padding: '20px'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
-            <div style={{
-              width: '40px',
-              height: '40px',
-              borderRadius: '8px',
-              backgroundColor: '#F9FAFB',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <Euro size={20} style={{ color: '#0A1628' }} />
-            </div>
-            <span style={{ fontSize: '14px', fontWeight: 500, color: '#6B7280' }}>
-              CA Total
-            </span>
-          </div>
-          <div style={{ fontSize: '28px', fontWeight: 700, color: '#111827' }}>
-            {formatCurrency(interventions.reduce((sum, i) => sum + (i.amountCents || 0), 0))}
+        <div style={{ padding: '20px', borderRadius: '16px', background: '#fff', border: '1px solid #E5E7EB' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#FEF3C7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Gauge size={24} color="#F59E0B" /></div>
+            <div><p style={{ fontSize: '13px', color: '#6B7280', margin: 0 }}>Kilométrage</p><p style={{ fontSize: '24px', fontWeight: 700, color: '#111827', margin: 0 }}>{vehicle.mileage?.toLocaleString() || 0} km</p></div>
           </div>
         </div>
-        
-        <div style={{
-          backgroundColor: '#FFFFFF',
-          borderRadius: '12px',
-          border: '1px solid #E5E7EB',
-          padding: '20px'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
-            <div style={{
-              width: '40px',
-              height: '40px',
-              borderRadius: '8px',
-              backgroundColor: '#F9FAFB',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <Gauge size={20} style={{ color: '#0A1628' }} />
-            </div>
-            <span style={{ fontSize: '14px', fontWeight: 500, color: '#6B7280' }}>
-              Kilométrage
-            </span>
-          </div>
-          <div style={{ fontSize: '28px', fontWeight: 700, color: '#111827' }}>
-            {vehicle.mileage ? `${vehicle.mileage.toLocaleString('fr-FR')} km` : '-'}
+        <div style={{ padding: '20px', borderRadius: '16px', background: '#fff', border: '1px solid #E5E7EB' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#DBEAFE', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Wrench size={24} color="#3B82F6" /></div>
+            <div><p style={{ fontSize: '13px', color: '#6B7280', margin: 0 }}>Interventions</p><p style={{ fontSize: '24px', fontWeight: 700, color: '#111827', margin: 0 }}>{interventions.length}</p></div>
           </div>
         </div>
-        
-        <div style={{
-          backgroundColor: '#FFFFFF',
-          borderRadius: '12px',
-          border: '1px solid #E5E7EB',
-          padding: '20px'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
-            <div style={{
-              width: '40px',
-              height: '40px',
-              borderRadius: '8px',
-              backgroundColor: '#F9FAFB',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <Calendar size={20} style={{ color: '#0A1628' }} />
-            </div>
-            <span style={{ fontSize: '14px', fontWeight: 500, color: '#6B7280' }}>
-              Dernier passage
-            </span>
-          </div>
-          <div style={{ fontSize: '20px', fontWeight: 600, color: '#111827' }}>
-            {interventions.length > 0 
-              ? new Date(interventions[0].createdAt).toLocaleDateString('fr-FR')
-              : 'Jamais'
-            }
+        <div style={{ padding: '20px', borderRadius: '16px', background: '#fff', border: '1px solid #E5E7EB' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#D1FAE5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Euro size={24} color="#10B981" /></div>
+            <div><p style={{ fontSize: '13px', color: '#6B7280', margin: 0 }}>CA Total</p><p style={{ fontSize: '24px', fontWeight: 700, color: '#10B981', margin: 0 }}>{formatCurrency(totalRevenue)}</p></div>
           </div>
         </div>
       </div>
-      
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 2fr',
-        gap: '24px'
-      }}>
-        {/* Informations techniques */}
-        <div style={{
-          backgroundColor: '#FFFFFF',
-          borderRadius: '12px',
-          border: '1px solid #E5E7EB',
-          padding: '24px'
-        }}>
-          <h2 style={{
-            fontSize: '18px',
-            fontWeight: 600,
-            color: '#111827',
-            margin: 0,
-            marginBottom: '20px'
-          }}>
-            Informations techniques
-          </h2>
+
+      {/* Info + Interventions */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+        {/* Vehicle Info */}
+        <div style={{ background: '#fff', borderRadius: '16px', border: '1px solid #E5E7EB', padding: '24px' }}>
+          <h3 style={{ fontSize: '16px', fontWeight: 600, color: '#111827', margin: 0, marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Settings size={20} color="#6366F1" /> Informations
+          </h3>
           
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div>
-              <div style={{ fontSize: '12px', fontWeight: 500, color: '#6B7280', marginBottom: '6px' }}>
-                Propriétaire
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <User size={16} style={{ color: '#9CA3AF' }} />
-                <span style={{ fontSize: '14px', color: '#111827' }}>{getClientName()}</span>
-              </div>
+          <div style={{ display: 'grid', gap: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px', background: '#F9FAFB', borderRadius: '10px' }}>
+              <span style={{ fontSize: '14px', color: '#6B7280' }}>Propriétaire</span>
+              <span style={{ fontSize: '14px', fontWeight: 600, color: '#111827', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <User size={16} color="#6366F1" />
+                {getClientName()}
+              </span>
             </div>
             
             {vehicle.vin && (
-              <div>
-                <div style={{ fontSize: '12px', fontWeight: 500, color: '#6B7280', marginBottom: '6px' }}>
-                  VIN
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Hash size={16} style={{ color: '#9CA3AF' }} />
-                  <span style={{ 
-                    fontSize: '12px', 
-                    color: '#111827',
-                    fontFamily: 'monospace'
-                  }}>
-                    {vehicle.vin}
-                  </span>
-                </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px', background: '#F9FAFB', borderRadius: '10px' }}>
+                <span style={{ fontSize: '14px', color: '#6B7280' }}>VIN</span>
+                <span style={{ fontSize: '14px', fontWeight: 500, color: '#111827', fontFamily: 'monospace' }}>{vehicle.vin}</span>
               </div>
             )}
             
-            {vehicle.engine && (
-              <div>
-                <div style={{ fontSize: '12px', fontWeight: 500, color: '#6B7280', marginBottom: '6px' }}>
-                  Motorisation
-                </div>
-                <div style={{ fontSize: '14px', color: '#111827' }}>
-                  {vehicle.engine}
-                </div>
-              </div>
-            )}
-            
-            {vehicle.year && (
-              <div>
-                <div style={{ fontSize: '12px', fontWeight: 500, color: '#6B7280', marginBottom: '6px' }}>
-                  Année
-                </div>
-                <div style={{ fontSize: '14px', color: '#111827' }}>
-                  {vehicle.year}
-                </div>
+            {(vehicle.version || vehicle.engine) && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px', background: '#F9FAFB', borderRadius: '10px' }}>
+                <span style={{ fontSize: '14px', color: '#6B7280' }}>Version</span>
+                <span style={{ fontSize: '14px', fontWeight: 500, color: '#111827' }}>{vehicle.version || vehicle.engine}</span>
               </div>
             )}
             
             {vehicle.color && (
-              <div>
-                <div style={{ fontSize: '12px', fontWeight: 500, color: '#6B7280', marginBottom: '6px' }}>
-                  Couleur
-                </div>
-                <div style={{ fontSize: '14px', color: '#111827' }}>
-                  {vehicle.color}
-                </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px', background: '#F9FAFB', borderRadius: '10px' }}>
+                <span style={{ fontSize: '14px', color: '#6B7280' }}>Couleur</span>
+                <span style={{ fontSize: '14px', fontWeight: 500, color: '#111827' }}>{vehicle.color}</span>
               </div>
             )}
             
-            <div>
-              <div style={{ fontSize: '12px', fontWeight: 500, color: '#6B7280', marginBottom: '6px' }}>
-                Carburant
-              </div>
-              <Badge variant={getFuelTypeBadgeVariant(vehicle.fuel)}>
-                {vehicle.fuel}
-              </Badge>
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 16px', background: '#F9FAFB', borderRadius: '10px' }}>
+              <span style={{ fontSize: '14px', color: '#6B7280' }}>Ajouté le</span>
+              <span style={{ fontSize: '14px', fontWeight: 500, color: '#111827' }}>{new Date(vehicle.createdAt).toLocaleDateString('fr-FR')}</span>
             </div>
           </div>
         </div>
-        
-        {/* Timeline interventions */}
-        <div style={{
-          backgroundColor: '#FFFFFF',
-          borderRadius: '12px',
-          border: '1px solid #E5E7EB',
-          padding: '24px'
-        }}>
-          <h2 style={{
-            fontSize: '18px',
-            fontWeight: 600,
-            color: '#111827',
-            margin: 0,
-            marginBottom: '20px'
-          }}>
-            Historique interventions
-          </h2>
+
+        {/* Interventions */}
+        <div style={{ background: '#fff', borderRadius: '16px', border: '1px solid #E5E7EB', overflow: 'hidden' }}>
+          <div style={{ padding: '20px 24px', borderBottom: '1px solid #E5E7EB', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: 600, color: '#111827', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <Wrench size={20} color="#6366F1" /> Interventions ({interventions.length})
+            </h3>
+            <button onClick={() => router.push(`/interventions/nouveau?vehicleId=${vehicle.id}`)} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '8px', border: 'none', background: '#EEF2FF', color: '#6366F1', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>
+              <Plus size={16} /> Nouvelle
+            </button>
+          </div>
           
           {interventions.length === 0 ? (
-            <div style={{
-              textAlign: 'center',
-              padding: '48px 24px',
-              color: '#6B7280'
-            }}>
-              <Wrench size={48} style={{ color: '#D1D5DB', marginBottom: '16px' }} />
-              <p style={{ fontSize: '14px', margin: 0 }}>
-                Aucune intervention pour ce véhicule
-              </p>
+            <div style={{ padding: '48px', textAlign: 'center' }}>
+              <Wrench size={40} color="#D1D5DB" style={{ marginBottom: '12px' }} />
+              <p style={{ fontSize: '14px', color: '#6B7280', margin: 0 }}>Aucune intervention</p>
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
-              {interventions.map((intervention, index) => (
-                <div
-                  key={intervention.id}
-                  style={{
-                    paddingLeft: '24px',
-                    borderLeft: index === interventions.length - 1 ? 'none' : '2px solid #E5E7EB',
-                    position: 'relative',
-                    paddingBottom: index === interventions.length - 1 ? 0 : '16px'
-                  }}
-                >
-                  <div style={{
-                    position: 'absolute',
-                    left: '-7px',
-                    top: '8px',
-                    width: '12px',
-                    height: '12px',
-                    borderRadius: '50%',
-                    backgroundColor: intervention.status === 'DONE' ? '#16A34A' : 
-                                     intervention.status === 'OPEN' ? '#3B82F6' :
-                                     intervention.status === 'CANCELED' ? '#DC2626' : '#9CA3AF',
-                    border: '2px solid #FFFFFF',
-                    boxShadow: '0 0 0 2px #E5E7EB'
-                  }} />
-                  
-                  <div style={{
-                    backgroundColor: '#F9FAFB',
-                    borderRadius: '8px',
-                    padding: '16px',
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
-                    border: '1px solid transparent'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = '#F3F4F6'
-                    e.currentTarget.style.borderColor = '#E5E7EB'
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = '#F9FAFB'
-                    e.currentTarget.style.borderColor = 'transparent'
-                  }}
-                  onClick={() => router.push(`/interventions/${intervention.id}`)}
-                  >
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'flex-start',
-                      marginBottom: '8px'
-                    }}>
-                      <div>
-                        <div style={{
-                          fontFamily: 'monospace',
-                          fontSize: '14px',
-                          fontWeight: 600,
-                          color: '#111827',
-                          marginBottom: '4px'
-                        }}>
-                          {intervention.number || `#${String(intervention.id).slice(0, 8)}`}
-                        </div>
-                        <div style={{ fontSize: '12px', color: '#6B7280' }}>
-                          {new Date(intervention.createdAt).toLocaleDateString('fr-FR')}
-                          {intervention.odometerKm && ` • ${intervention.odometerKm.toLocaleString('fr-FR')} km`}
-                        </div>
-                      </div>
-                      {getStatusBadge(intervention.status)}
+            <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+              {interventions.map((intervention, index) => {
+                const statusConfig = STATUS_CONFIG[intervention.status] || STATUS_CONFIG['DRAFT']
+                const StatusIcon = statusConfig.icon
+                const amount = intervention.totalAmount || intervention.amount || (intervention.amountCents ? intervention.amountCents / 100 : 0)
+                
+                return (
+                  <div key={intervention.id} style={{ display: 'flex', alignItems: 'center', padding: '14px 24px', borderBottom: index < interventions.length - 1 ? '1px solid #F3F4F6' : 'none', cursor: 'pointer' }} onClick={() => router.push(`/interventions/${intervention.id}`)} onMouseEnter={(e) => e.currentTarget.style.background = '#F9FAFB'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+                    <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: statusConfig.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: '14px' }}>
+                      <StatusIcon size={20} color={statusConfig.color} />
                     </div>
-                    
-                    <p style={{
-                      fontSize: '14px',
-                      color: '#374151',
-                      margin: 0,
-                      marginBottom: '12px',
-                      lineHeight: 1.5
-                    }}>
-                      {intervention.title || intervention.type}
-                    </p>
-                    
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center'
-                    }}>
-                      <div style={{
-                        display: 'flex',
-                        gap: '6px',
-                        alignItems: 'center'
-                      }}>
-                        <Badge variant={intervention.agreementAt ? 'success' : 'neutral'} size="sm">
-                          {intervention.agreementAt ? '✓' : '○'} Accord
-                        </Badge>
-                        <Badge variant={intervention.closedAt ? 'success' : 'neutral'} size="sm">
-                          {intervention.closedAt ? '✓' : '○'} Clôturé
-                        </Badge>
-                      </div>
-                      
-                      {intervention.amountCents && (
-                        <div style={{
-                          fontSize: '16px',
-                          fontWeight: 600,
-                          color: '#111827'
-                        }}>
-                          {formatCurrency(intervention.amountCents)}
-                        </div>
-                      )}
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '14px', fontWeight: 600, color: '#111827', marginBottom: '4px' }}>{intervention.number}</div>
+                      <div style={{ fontSize: '12px', color: '#6B7280' }}>{new Date(intervention.createdAt || intervention.entryDate || new Date()).toLocaleDateString('fr-FR')}</div>
                     </div>
+                    <div style={{ fontSize: '14px', fontWeight: 600, color: amount > 0 ? '#111827' : '#9CA3AF', marginRight: '12px' }}>{formatCurrency(amount)}</div>
+                    <ChevronRight size={16} color="#D1D5DB" />
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>
       </div>
-      
-      {/* Modal édition */}
-      <Modal
-        isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        title="Modifier le véhicule"
-        size="lg"
-      >
-        <div style={{ padding: '24px' }}>
-          <Select
-            label="Propriétaire"
-            value={formData.clientId}
-            onChange={(e) => setFormData({ ...formData, clientId: e.target.value })}
-            options={[
-              { value: '', label: 'Sélectionner un client' },
-              ...clients.map(c => ({ value: c.id, label: c.name }))
-            ]}
-            error={formErrors.clientId}
-            required
-          />
-          
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: '16px',
-            marginTop: '16px'
-          }}>
-            <FormField
-              label="Immatriculation"
-              name="plate"
-              value={formData.plate}
-              onChange={(e) => setFormData({ ...formData, plate: e.target.value.toUpperCase() })}
-              error={formErrors.plate}
-              required
-            />
-            
-            <FormField
-              label="VIN (17 caractères)"
-              name="vin"
-              value={formData.vin}
-              onChange={(e) => setFormData({ ...formData, vin: e.target.value.toUpperCase() })}
-              error={formErrors.vin}
-            />
-          </div>
-          
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: '16px',
-            marginTop: '16px'
-          }}>
-            <FormField
-              label="Marque"
-              name="brand"
-              value={formData.brand}
-              onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
-              error={formErrors.brand}
-              required
-            />
-            
-            <FormField
-              label="Modèle"
-              name="model"
-              value={formData.model}
-              onChange={(e) => setFormData({ ...formData, model: e.target.value })}
-              error={formErrors.model}
-              required
-            />
-          </div>
-          
-          <div style={{ marginTop: '16px' }}>
-            <FormField
-              label="Motorisation (optionnel)"
-              name="engine"
-              value={formData.engine}
-              onChange={(e) => setFormData({ ...formData, engine: e.target.value })}
-            />
-          </div>
-          
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: '16px',
-            marginTop: '16px'
-          }}>
-            <FormField
-              label="Année"
-              type="number"
-              name="year"
-              value={formData.year}
-              onChange={(e) => setFormData({ ...formData, year: e.target.value })}
-              error={formErrors.year}
-            />
-            
-            <Select
-              label="Carburant"
-              value={formData.fuel}
-              onChange={(e) => setFormData({ ...formData, fuel: e.target.value })}
-              options={[
-                { value: 'Essence', label: 'Essence' },
-                { value: 'Diesel', label: 'Diesel' },
-                { value: 'Hybride', label: 'Hybride' },
-                { value: 'Électrique', label: 'Électrique' },
-                { value: 'GPL', label: 'GPL' }
-              ]}
-              required
-            />
-          </div>
-          
-          <div style={{
-            display: 'flex',
-            gap: '12px',
-            justifyContent: 'flex-end',
-            marginTop: '24px',
-            paddingTop: '20px',
-            borderTop: '1px solid #E5E7EB'
-          }}>
-            <Button
-              variant="secondary"
-              onClick={() => setIsEditModalOpen(false)}
-              disabled={isSaving}
-            >
-              Annuler
-            </Button>
-            <Button
-              variant="primary"
-              onClick={handleSave}
-              loading={isSaving}
-              disabled={isSaving}
-            >
-              Enregistrer
-            </Button>
+
+      {/* Edit Modal */}
+      {editModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '20px' }} onClick={() => setEditModalOpen(false)}>
+          <div style={{ background: '#fff', borderRadius: '20px', width: '100%', maxWidth: '550px', maxHeight: '90vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: '1px solid #E5E7EB' }}>
+              <h2 style={{ fontSize: '18px', fontWeight: 600, color: '#111827', margin: 0 }}>Modifier le véhicule</h2>
+              <button onClick={() => setEditModalOpen(false)} style={{ padding: '8px', background: 'transparent', border: 'none', cursor: 'pointer' }}><X size={20} color="#6B7280" /></button>
+            </div>
+            <div style={{ padding: '24px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                <div><label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#374151', marginBottom: '6px' }}>Immatriculation *</label><input type="text" value={formData.plate} onChange={(e) => setFormData({ ...formData, plate: e.target.value.toUpperCase() })} style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: formErrors.plate ? '1px solid #EF4444' : '1px solid #E5E7EB', fontSize: '14px', outline: 'none', textTransform: 'uppercase' }} />{formErrors.plate && <p style={{ fontSize: '12px', color: '#EF4444', margin: '4px 0 0' }}>{formErrors.plate}</p>}</div>
+                <div><label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#374151', marginBottom: '6px' }}>VIN</label><input type="text" value={formData.vin} onChange={(e) => setFormData({ ...formData, vin: e.target.value.toUpperCase() })} style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: formErrors.vin ? '1px solid #EF4444' : '1px solid #E5E7EB', fontSize: '14px', outline: 'none' }} />{formErrors.vin && <p style={{ fontSize: '12px', color: '#EF4444', margin: '4px 0 0' }}>{formErrors.vin}</p>}</div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                <div><label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#374151', marginBottom: '6px' }}>Marque *</label><input type="text" value={formData.brand} onChange={(e) => setFormData({ ...formData, brand: e.target.value })} style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: formErrors.brand ? '1px solid #EF4444' : '1px solid #E5E7EB', fontSize: '14px', outline: 'none' }} />{formErrors.brand && <p style={{ fontSize: '12px', color: '#EF4444', margin: '4px 0 0' }}>{formErrors.brand}</p>}</div>
+                <div><label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#374151', marginBottom: '6px' }}>Modèle *</label><input type="text" value={formData.model} onChange={(e) => setFormData({ ...formData, model: e.target.value })} style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: formErrors.model ? '1px solid #EF4444' : '1px solid #E5E7EB', fontSize: '14px', outline: 'none' }} />{formErrors.model && <p style={{ fontSize: '12px', color: '#EF4444', margin: '4px 0 0' }}>{formErrors.model}</p>}</div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                <div><label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#374151', marginBottom: '6px' }}>Version</label><input type="text" value={formData.version} onChange={(e) => setFormData({ ...formData, version: e.target.value })} style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid #E5E7EB', fontSize: '14px', outline: 'none' }} /></div>
+                <div><label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#374151', marginBottom: '6px' }}>Année</label><input type="number" value={formData.year} onChange={(e) => setFormData({ ...formData, year: e.target.value })} style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid #E5E7EB', fontSize: '14px', outline: 'none' }} /></div>
+                <div><label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#374151', marginBottom: '6px' }}>Couleur</label><input type="text" value={formData.color} onChange={(e) => setFormData({ ...formData, color: e.target.value })} style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid #E5E7EB', fontSize: '14px', outline: 'none' }} /></div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                <div><label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#374151', marginBottom: '6px' }}>Énergie</label><select value={formData.fuel} onChange={(e) => setFormData({ ...formData, fuel: e.target.value })} style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid #E5E7EB', fontSize: '14px', outline: 'none', background: '#fff' }}><option value="ESSENCE">Essence</option><option value="DIESEL">Diesel</option><option value="ELECTRIC">Électrique</option><option value="HYBRID">Hybride</option><option value="GPL">GPL</option></select></div>
+                <div><label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#374151', marginBottom: '6px' }}>Kilométrage</label><input type="number" value={formData.mileage} onChange={(e) => setFormData({ ...formData, mileage: e.target.value })} style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid #E5E7EB', fontSize: '14px', outline: 'none' }} /></div>
+              </div>
+              <div style={{ marginBottom: '24px' }}><label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#374151', marginBottom: '6px' }}>Client *</label><select value={formData.clientId} onChange={(e) => setFormData({ ...formData, clientId: e.target.value })} style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: formErrors.clientId ? '1px solid #EF4444' : '1px solid #E5E7EB', fontSize: '14px', outline: 'none', background: '#fff' }}><option value="">Sélectionnez un client</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</select>{formErrors.clientId && <p style={{ fontSize: '12px', color: '#EF4444', margin: '4px 0 0' }}>{formErrors.clientId}</p>}</div>
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                <button onClick={() => setEditModalOpen(false)} disabled={isSaving} style={{ padding: '12px 20px', borderRadius: '10px', border: '1px solid #E5E7EB', background: '#fff', fontSize: '14px', fontWeight: 600, color: '#374151', cursor: 'pointer' }}>Annuler</button>
+                <button onClick={handleSave} disabled={isSaving} style={{ padding: '12px 24px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)', fontSize: '14px', fontWeight: 600, color: '#fff', cursor: isSaving ? 'wait' : 'pointer', opacity: isSaving ? 0.7 : 1 }}>{isSaving ? 'Enregistrement...' : 'Enregistrer'}</button>
+              </div>
+            </div>
           </div>
         </div>
-      </Modal>
+      )}
+
+      {/* Delete Modal */}
+      {deleteModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: '20px' }} onClick={() => setDeleteModalOpen(false)}>
+          <div style={{ background: '#fff', borderRadius: '20px', width: '100%', maxWidth: '400px', padding: '24px' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ width: '56px', height: '56px', borderRadius: '14px', background: '#FEF2F2', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px' }}><Trash2 size={28} color="#EF4444" /></div>
+            <h3 style={{ fontSize: '18px', fontWeight: 600, color: '#111827', margin: 0, marginBottom: '8px' }}>Supprimer le véhicule</h3>
+            <p style={{ fontSize: '14px', color: '#6B7280', margin: 0, lineHeight: 1.6 }}>Êtes-vous sûr de vouloir supprimer <strong style={{ color: '#111827' }}>{getMake()} {vehicle.model}</strong> ({getPlate()}) ?</p>
+            {interventions.length > 0 && <p style={{ fontSize: '13px', color: '#DC2626', margin: '16px 0 0', padding: '10px 12px', background: '#FEF2F2', borderRadius: '8px' }}>⚠️ Ce véhicule a {interventions.length} intervention(s)</p>}
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px' }}>
+              <button onClick={() => setDeleteModalOpen(false)} disabled={isDeleting} style={{ padding: '12px 20px', borderRadius: '10px', border: '1px solid #E5E7EB', background: '#fff', fontSize: '14px', fontWeight: 600, color: '#374151', cursor: 'pointer' }}>Annuler</button>
+              <button onClick={handleDelete} disabled={isDeleting} style={{ padding: '12px 24px', borderRadius: '10px', border: 'none', background: '#EF4444', fontSize: '14px', fontWeight: 600, color: '#fff', cursor: isDeleting ? 'wait' : 'pointer', opacity: isDeleting ? 0.7 : 1 }}>{isDeleting ? 'Suppression...' : 'Supprimer'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style dangerouslySetInnerHTML={{ __html: `@keyframes spin { to { transform: rotate(360deg); } }` }} />
     </div>
   )
 }

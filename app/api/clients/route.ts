@@ -141,8 +141,12 @@ export async function POST(req: Request) {
   try {
     const user = requireApprovedTenant(await requireUser(req));
     const json = await req.json().catch(() => null);
+    
+    console.log("[API:clients:POST] Input:", JSON.stringify(json));
+    
     const parsed = CreateSchema.safeParse(json);
     if (!parsed.success) {
+      console.log("[API:clients:POST] Validation error:", JSON.stringify(parsed.error.flatten()));
       return NextResponse.json(
         { ok: false, error: { code: "BAD_REQUEST", message: "Body invalide", details: parsed.error.flatten() } },
         { status: 400 }
@@ -150,7 +154,20 @@ export async function POST(req: Request) {
     }
 
     const input = parsed.data as any;
-    const targetGarageId = user.role === "ADMIN" ? input.garageId : user.garageId;
+    let targetGarageId = user.role === "ADMIN" ? input.garageId : user.garageId;
+    
+    // Pour les ADMINs sans garageId spécifié, utiliser le premier garage actif
+    if (user.role === "ADMIN" && !targetGarageId) {
+      const firstGarage = await prisma.garage.findFirst({
+        where: { status: "ACTIVE" },
+        select: { id: true },
+        orderBy: { id: "asc" }
+      });
+      targetGarageId = firstGarage?.id;
+    }
+    
+    console.log("[API:clients:POST] targetGarageId:", targetGarageId, "user.garageId:", user.garageId, "user.role:", user.role);
+    
     if (!targetGarageId) {
       return NextResponse.json(
         { ok: false, error: { code: "TENANT_REQUIRED", message: "Garage invalide." } },

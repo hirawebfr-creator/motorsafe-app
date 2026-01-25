@@ -235,6 +235,10 @@ interface GarageSubscriptionInfo {
 
 /** Vérifie si un garage a un abonnement actif (pour routes publiques tokenisées) */
 export function isGarageSubscriptionActive(garage: GarageSubscriptionInfo): boolean {
+  // DEV MODE: Always allow in development
+  if (process.env.NODE_ENV === "development") {
+    return true;
+  }
   const status = garage.subscriptionStatus;
   const isActive = status === "ACTIVE" || status === "TRIALING" || status === "PAST_DUE";
   if (!isActive) return false;

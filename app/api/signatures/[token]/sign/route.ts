@@ -173,6 +173,21 @@ export async function POST(req: Request, ctx: Ctx) {
       },
     });
 
+    // Update Quote status to ACCEPTED when client signs
+    if (signatureRequest.documentType === "QUOTE") {
+      await prisma.quote.update({
+        where: { id: signatureRequest.documentId },
+        data: { 
+          status: "ACCEPTED", 
+          acceptedAt: signedAt,
+          signedAt,
+          signedByName: signerName.trim(),
+          signatureData: signatureImage || null,
+          signedByIp: ip,
+        },
+      });
+    }
+
     // Create signed event with full audit trail
     await prisma.signatureEvent.create({
       data: {

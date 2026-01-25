@@ -1,400 +1,652 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import Link from 'next/link'
-import { FormField } from '@/components/shared/form-field'
-import { Button } from '@/components/shared/button'
-import { useToast } from '@/components/shared/use-toast'
-import { Shield, Mail, Lock, Chrome } from 'lucide-react'
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { Shield, Mail, Lock, ArrowRight, Sparkles, Check, AlertCircle } from "lucide-react";
 
 // ============================================================================
-// LOGIN PAGE
+// LOGIN PAGE - SafeMotor
+// Design moderne avec gradient et animations
 // ============================================================================
 
-export default function LoginPage() {
-  const router = useRouter()
-  const toast = useToast()
+// Google Icon SVG
+function GoogleIcon() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+      <path
+        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+        fill="#4285F4"
+      />
+      <path
+        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+        fill="#34A853"
+      />
+      <path
+        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+        fill="#FBBC05"
+      />
+      <path
+        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+        fill="#EA4335"
+      />
+    </svg>
+  );
+}
 
-  const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-  })
+// Error messages mapping
+const ERROR_MESSAGES: Record<string, string> = {
+  google_access_denied: "Vous avez annulé la connexion Google.",
+  invalid_state: "Session expirée. Veuillez réessayer.",
+  no_code: "Erreur de connexion Google. Veuillez réessayer.",
+  token_exchange_failed: "Erreur de connexion Google. Veuillez réessayer.",
+  user_info_failed: "Impossible de récupérer vos informations Google.",
+  email_not_verified: "Votre email Google n'est pas vérifié.",
+  account_rejected: "Votre compte a été refusé.",
+  server_error: "Erreur serveur. Veuillez réessayer.",
+};
 
-  const [errors, setErrors] = useState<Record<string, string>>({})
-  const [isLoading, setIsLoading] = useState(false)
+function LoginContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [formData, setFormData] = useState({ email: "", password: "" });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [globalError, setGlobalError] = useState<string | null>(null);
 
-  // --------------------------------------------------------------------------
-  // Validation
-  // --------------------------------------------------------------------------
+  // Check for OAuth errors in URL
+  useEffect(() => {
+    const error = searchParams.get("error");
+    if (error) {
+      setGlobalError(ERROR_MESSAGES[error] || "Erreur de connexion");
+    }
+  }, [searchParams]);
+
   const validateForm = (): boolean => {
-    const newErrors: Record<string, string> = {}
-
-    // Email validation
+    const newErrors: Record<string, string> = {};
     if (!formData.email) {
-      newErrors.email = "L'email est requis"
+      newErrors.email = "L'email est requis";
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = "Format d'email invalide"
+      newErrors.email = "Format d'email invalide";
     }
-
-    // Password validation
     if (!formData.password) {
-      newErrors.password = 'Le mot de passe est requis'
+      newErrors.password = "Le mot de passe est requis";
     } else if (formData.password.length < 8) {
-      newErrors.password = 'Le mot de passe doit contenir au moins 8 caractères'
+      newErrors.password = "Minimum 8 caractères";
     }
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
-    setErrors(newErrors)
-    return Object.keys(newErrors).length === 0
-  }
-
-  // --------------------------------------------------------------------------
-  // Submit handler
-  // --------------------------------------------------------------------------
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
+    if (!validateForm()) return;
 
-    if (!validateForm()) return
-
-    setIsLoading(true)
-    setErrors({})
+    setIsLoading(true);
+    setErrors({});
+    setGlobalError(null);
 
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
-      })
+      });
 
-      const data = await response.json()
+      const data = await response.json();
 
       if (response.status === 403) {
-        // Account pending approval
-        window.location.href = '/pro/en-attente'
-        return
+        window.location.href = "/pro/en-attente";
+        return;
       }
 
       if (data.ok) {
-        toast.success('Connexion réussie', 'Redirection vers votre tableau de bord...')
-
-        // Redirect after success
-        setTimeout(() => {
-          router.push('/dashboard')
-        }, 500)
+        router.push("/dashboard");
       } else {
         const errorMsg =
-          typeof data.error === 'string'
+          typeof data.error === "string"
             ? data.error
-            : data.error?.message || 'Email ou mot de passe incorrect'
-
-        toast.error('Erreur de connexion', errorMsg)
-
-        setErrors({
-          password: errorMsg,
-        })
+            : data.error?.message || "Email ou mot de passe incorrect";
+        setGlobalError(errorMsg);
       }
     } catch {
-      toast.error('Erreur', 'Impossible de se connecter au serveur')
+      setGlobalError("Impossible de se connecter au serveur");
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
-  // --------------------------------------------------------------------------
-  // OAuth handler (placeholder)
-  // --------------------------------------------------------------------------
-  const handleOAuthGoogle = () => {
-    toast.info('Bientôt disponible', "L'authentification Google sera disponible prochainement")
-  }
+  const handleGoogleLogin = () => {
+    setIsGoogleLoading(true);
+    setGlobalError(null);
+    window.location.href = "/api/auth/google";
+  };
 
-  // --------------------------------------------------------------------------
-  // Render
-  // --------------------------------------------------------------------------
+  const features = [
+    "Signature électronique légale",
+    "Dossiers prêts pour assurance",
+    "IA d'aide juridique",
+    "Traçabilité complète",
+  ];
+
   return (
     <div
       style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '24px',
-        background: 'linear-gradient(135deg, #F9FAFB 0%, #E5E7EB 100%)',
+        minHeight: "100vh",
+        display: "flex",
+        background: "#0A0A0F",
       }}
     >
+      {/* Left Panel - Branding */}
       <div
         style={{
-          width: '100%',
-          maxWidth: '440px',
+          display: "none",
+          width: "50%",
+          background: "linear-gradient(135deg, #0A0A0F 0%, #1A1A2E 100%)",
+          padding: "48px",
+          position: "relative",
+          overflow: "hidden",
         }}
+        className="lg:flex lg:flex-col lg:justify-between"
       >
-        {/* Card */}
+        {/* Decorative gradient orbs */}
         <div
           style={{
-            backgroundColor: '#FFFFFF',
-            borderRadius: '16px',
-            border: '1px solid #E5E7EB',
-            boxShadow:
-              '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-            padding: '40px',
+            position: "absolute",
+            top: "-100px",
+            right: "-100px",
+            width: "400px",
+            height: "400px",
+            borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(99, 102, 241, 0.3) 0%, transparent 70%)",
+            filter: "blur(60px)",
           }}
-        >
-          {/* Logo + Title */}
-          <div
-            style={{
-              textAlign: 'center',
-              marginBottom: '32px',
-            }}
-          >
+        />
+        <div
+          style={{
+            position: "absolute",
+            bottom: "-50px",
+            left: "-50px",
+            width: "300px",
+            height: "300px",
+            borderRadius: "50%",
+            background: "radial-gradient(circle, rgba(139, 92, 246, 0.2) 0%, transparent 70%)",
+            filter: "blur(40px)",
+          }}
+        />
+
+        {/* Logo */}
+        <div style={{ position: "relative", zIndex: 1 }}>
+          <Link href="/" style={{ display: "inline-flex", alignItems: "center", gap: "12px", textDecoration: "none" }}>
             <div
               style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: '64px',
-                height: '64px',
-                backgroundColor: '#0A1628',
-                borderRadius: '16px',
-                marginBottom: '16px',
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: "48px",
+                height: "48px",
+                borderRadius: "14px",
+                background: "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)",
+                boxShadow: "0 8px 24px rgba(99, 102, 241, 0.4)",
               }}
             >
-              <Shield size={32} style={{ color: '#FFFFFF' }} />
+              <Shield size={24} color="#fff" />
             </div>
+            <span style={{ fontSize: "24px", fontWeight: 700, color: "#fff" }}>SafeMotor</span>
+          </Link>
+        </div>
 
-            <h1
-              style={{
-                fontSize: '28px',
-                fontWeight: 700,
-                color: '#111827',
-                marginBottom: '8px',
-                margin: '0 0 8px 0',
-              }}
-            >
+        {/* Center content */}
+        <div style={{ position: "relative", zIndex: 1 }}>
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "8px 16px",
+              borderRadius: "100px",
+              background: "rgba(99, 102, 241, 0.15)",
+              border: "1px solid rgba(99, 102, 241, 0.3)",
+              marginBottom: "24px",
+            }}
+          >
+            <Sparkles size={16} color="#A5B4FC" />
+            <span style={{ fontSize: "13px", color: "#A5B4FC", fontWeight: 500 }}>
+              Protection juridique pour garages
+            </span>
+          </div>
+
+          <h1
+            style={{
+              fontSize: "42px",
+              fontWeight: 800,
+              color: "#fff",
+              lineHeight: 1.2,
+              marginBottom: "16px",
+            }}
+          >
+            Protégez votre garage contre les litiges
+          </h1>
+
+          <p
+            style={{
+              fontSize: "18px",
+              color: "rgba(255, 255, 255, 0.6)",
+              lineHeight: 1.6,
+              marginBottom: "40px",
+              maxWidth: "480px",
+            }}
+          >
+            SafeMotor ne sert pas à mieux réparer une voiture. Il sert à éviter que la réparation vous retombe dessus.
+          </p>
+
+          {/* Features list */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+            {features.map((feature, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: "28px",
+                    height: "28px",
+                    borderRadius: "8px",
+                    background: "rgba(16, 185, 129, 0.15)",
+                    border: "1px solid rgba(16, 185, 129, 0.3)",
+                  }}
+                >
+                  <Check size={14} color="#10B981" />
+                </div>
+                <span style={{ fontSize: "15px", color: "rgba(255, 255, 255, 0.8)" }}>{feature}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div style={{ position: "relative", zIndex: 1 }}>
+          <p style={{ fontSize: "13px", color: "rgba(255, 255, 255, 0.4)" }}>
+            © 2026 SafeMotor · Tous droits réservés
+          </p>
+        </div>
+      </div>
+
+      {/* Right Panel - Login Form */}
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "24px",
+          background: "#fff",
+        }}
+        className="lg:w-1/2"
+      >
+        <div style={{ width: "100%", maxWidth: "400px" }}>
+          {/* Mobile Logo */}
+          <div style={{ textAlign: "center", marginBottom: "32px" }} className="lg:hidden">
+            <Link href="/" style={{ display: "inline-flex", alignItems: "center", gap: "10px", textDecoration: "none" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: "44px",
+                  height: "44px",
+                  borderRadius: "12px",
+                  background: "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)",
+                }}
+              >
+                <Shield size={22} color="#fff" />
+              </div>
+              <span style={{ fontSize: "22px", fontWeight: 700, color: "#111827" }}>SafeMotor</span>
+            </Link>
+          </div>
+
+          {/* Header */}
+          <div style={{ textAlign: "center", marginBottom: "32px" }}>
+            <h1 style={{ fontSize: "28px", fontWeight: 700, color: "#111827", marginBottom: "8px" }}>
               Connexion
             </h1>
-
-            <p
-              style={{
-                fontSize: '15px',
-                color: '#6B7280',
-                margin: 0,
-              }}
-            >
-              Accédez à votre espace MotorSafe
+            <p style={{ fontSize: "15px", color: "#6B7280" }}>
+              Accédez à votre espace SafeMotor
             </p>
           </div>
 
-          {/* Form */}
+          {/* Global Error */}
+          {globalError && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                padding: "12px 16px",
+                borderRadius: "10px",
+                background: "#FEF2F2",
+                border: "1px solid #FECACA",
+                marginBottom: "24px",
+              }}
+            >
+              <AlertCircle size={18} color="#EF4444" />
+              <span style={{ fontSize: "14px", color: "#DC2626" }}>{globalError}</span>
+            </div>
+          )}
+
+          {/* Google Login Button */}
+          <button
+            type="button"
+            onClick={handleGoogleLogin}
+            disabled={isGoogleLoading || isLoading}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "12px",
+              width: "100%",
+              height: "48px",
+              borderRadius: "12px",
+              border: "1px solid #E5E7EB",
+              background: "#fff",
+              fontSize: "15px",
+              fontWeight: 600,
+              color: "#374151",
+              cursor: isGoogleLoading ? "wait" : "pointer",
+              opacity: isGoogleLoading ? 0.7 : 1,
+              transition: "all 0.15s ease",
+            }}
+            onMouseEnter={(e) => {
+              if (!isGoogleLoading) {
+                e.currentTarget.style.background = "#F9FAFB";
+                e.currentTarget.style.borderColor = "#D1D5DB";
+              }
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = "#fff";
+              e.currentTarget.style.borderColor = "#E5E7EB";
+            }}
+          >
+            {isGoogleLoading ? (
+              <div
+                style={{
+                  width: "20px",
+                  height: "20px",
+                  border: "2px solid #E5E7EB",
+                  borderTopColor: "#6366F1",
+                  borderRadius: "50%",
+                  animation: "spin 0.8s linear infinite",
+                }}
+              />
+            ) : (
+              <GoogleIcon />
+            )}
+            {isGoogleLoading ? "Connexion..." : "Continuer avec Google"}
+          </button>
+
+          {/* Divider */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "16px",
+              margin: "24px 0",
+            }}
+          >
+            <div style={{ flex: 1, height: "1px", background: "#E5E7EB" }} />
+            <span style={{ fontSize: "13px", color: "#9CA3AF", fontWeight: 500 }}>ou</span>
+            <div style={{ flex: 1, height: "1px", background: "#E5E7EB" }} />
+          </div>
+
+          {/* Email/Password Form */}
           <form onSubmit={handleSubmit}>
             {/* Email */}
-            <div style={{ marginBottom: '16px' }}>
-              <FormField
-                label="Email"
-                type="email"
-                name="email"
-                placeholder="vous@garage.fr"
-                value={formData.email}
-                onChange={(e) =>
-                  setFormData({ ...formData, email: e.target.value })
-                }
-                error={errors.email}
-                disabled={isLoading}
-                required
-                leftIcon={<Mail size={18} />}
-                fullWidth
-              />
+            <div style={{ marginBottom: "16px" }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "14px",
+                  fontWeight: 500,
+                  color: "#374151",
+                  marginBottom: "6px",
+                }}
+              >
+                Email
+              </label>
+              <div style={{ position: "relative" }}>
+                <Mail
+                  size={18}
+                  color="#9CA3AF"
+                  style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)" }}
+                />
+                <input
+                  type="email"
+                  placeholder="vous@garage.fr"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  disabled={isLoading}
+                  style={{
+                    width: "100%",
+                    height: "48px",
+                    paddingLeft: "44px",
+                    paddingRight: "16px",
+                    borderRadius: "12px",
+                    border: errors.email ? "1px solid #EF4444" : "1px solid #E5E7EB",
+                    fontSize: "15px",
+                    color: "#111827",
+                    outline: "none",
+                    transition: "border-color 0.15s ease",
+                  }}
+                  onFocus={(e) => (e.currentTarget.style.borderColor = "#6366F1")}
+                  onBlur={(e) => (e.currentTarget.style.borderColor = errors.email ? "#EF4444" : "#E5E7EB")}
+                />
+              </div>
+              {errors.email && (
+                <p style={{ fontSize: "13px", color: "#EF4444", marginTop: "6px" }}>{errors.email}</p>
+              )}
             </div>
 
             {/* Password */}
-            <div style={{ marginBottom: '8px' }}>
-              <FormField
-                label="Mot de passe"
-                type="password"
-                name="password"
-                placeholder="••••••••"
-                value={formData.password}
-                onChange={(e) =>
-                  setFormData({ ...formData, password: e.target.value })
-                }
-                error={errors.password}
-                disabled={isLoading}
-                required
-                leftIcon={<Lock size={18} />}
-                fullWidth
-              />
+            <div style={{ marginBottom: "8px" }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "14px",
+                  fontWeight: 500,
+                  color: "#374151",
+                  marginBottom: "6px",
+                }}
+              >
+                Mot de passe
+              </label>
+              <div style={{ position: "relative" }}>
+                <Lock
+                  size={18}
+                  color="#9CA3AF"
+                  style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)" }}
+                />
+                <input
+                  type="password"
+                  placeholder="••••••••"
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  disabled={isLoading}
+                  style={{
+                    width: "100%",
+                    height: "48px",
+                    paddingLeft: "44px",
+                    paddingRight: "16px",
+                    borderRadius: "12px",
+                    border: errors.password ? "1px solid #EF4444" : "1px solid #E5E7EB",
+                    fontSize: "15px",
+                    color: "#111827",
+                    outline: "none",
+                    transition: "border-color 0.15s ease",
+                  }}
+                  onFocus={(e) => (e.currentTarget.style.borderColor = "#6366F1")}
+                  onBlur={(e) => (e.currentTarget.style.borderColor = errors.password ? "#EF4444" : "#E5E7EB")}
+                />
+              </div>
+              {errors.password && (
+                <p style={{ fontSize: "13px", color: "#EF4444", marginTop: "6px" }}>{errors.password}</p>
+              )}
             </div>
 
-            {/* Forgot password link */}
-            <div
-              style={{
-                textAlign: 'right',
-                marginBottom: '24px',
-              }}
-            >
+            {/* Forgot password */}
+            <div style={{ textAlign: "right", marginBottom: "24px" }}>
               <Link
                 href="/auth/forgot-password"
                 style={{
-                  fontSize: '14px',
-                  color: '#0A1628',
-                  textDecoration: 'none',
+                  fontSize: "14px",
+                  color: "#6366F1",
+                  textDecoration: "none",
                   fontWeight: 500,
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.textDecoration = 'underline'
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.textDecoration = 'none'
                 }}
               >
                 Mot de passe oublié ?
               </Link>
             </div>
 
-            {/* Submit button */}
-            <Button
+            {/* Submit */}
+            <button
               type="submit"
-              variant="primary"
-              size="lg"
-              fullWidth
               disabled={isLoading}
-              loading={isLoading}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "8px",
+                width: "100%",
+                height: "48px",
+                borderRadius: "12px",
+                border: "none",
+                background: "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)",
+                fontSize: "15px",
+                fontWeight: 600,
+                color: "#fff",
+                cursor: isLoading ? "wait" : "pointer",
+                boxShadow: "0 4px 14px rgba(99, 102, 241, 0.4)",
+                opacity: isLoading ? 0.8 : 1,
+                transition: "all 0.15s ease",
+              }}
+              onMouseEnter={(e) => {
+                if (!isLoading) e.currentTarget.style.transform = "translateY(-1px)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = "translateY(0)";
+              }}
             >
-              {isLoading ? 'Connexion...' : 'Se connecter'}
-            </Button>
+              {isLoading ? (
+                <div
+                  style={{
+                    width: "20px",
+                    height: "20px",
+                    border: "2px solid rgba(255,255,255,0.3)",
+                    borderTopColor: "#fff",
+                    borderRadius: "50%",
+                    animation: "spin 0.8s linear infinite",
+                  }}
+                />
+              ) : (
+                <>
+                  Se connecter
+                  <ArrowRight size={18} />
+                </>
+              )}
+            </button>
           </form>
-
-          {/* Divider */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '16px',
-              margin: '24px 0',
-            }}
-          >
-            <div
-              style={{
-                flex: 1,
-                height: '1px',
-                backgroundColor: '#E5E7EB',
-              }}
-            />
-            <span
-              style={{
-                fontSize: '13px',
-                color: '#9CA3AF',
-                fontWeight: 500,
-              }}
-            >
-              OU
-            </span>
-            <div
-              style={{
-                flex: 1,
-                height: '1px',
-                backgroundColor: '#E5E7EB',
-              }}
-            />
-          </div>
-
-          {/* OAuth Google */}
-          <Button
-            type="button"
-            variant="secondary"
-            size="lg"
-            fullWidth
-            onClick={handleOAuthGoogle}
-            leftIcon={<Chrome size={20} />}
-          >
-            Continuer avec Google
-          </Button>
 
           {/* Sign up link */}
           <div
             style={{
-              marginTop: '32px',
-              paddingTop: '24px',
-              borderTop: '1px solid #E5E7EB',
-              textAlign: 'center',
+              marginTop: "32px",
+              paddingTop: "24px",
+              borderTop: "1px solid #E5E7EB",
+              textAlign: "center",
             }}
           >
-            <p
-              style={{
-                fontSize: '14px',
-                color: '#6B7280',
-                margin: 0,
-              }}
-            >
-              Pas encore de compte ?{' '}
+            <p style={{ fontSize: "14px", color: "#6B7280" }}>
+              Pas encore de compte ?{" "}
               <Link
                 href="/pro/inscription"
                 style={{
-                  color: '#0A1628',
-                  textDecoration: 'none',
+                  color: "#6366F1",
+                  textDecoration: "none",
                   fontWeight: 600,
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.textDecoration = 'underline'
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.textDecoration = 'none'
                 }}
               >
                 Créer un compte
               </Link>
             </p>
           </div>
-        </div>
 
-        {/* Footer */}
-        <div
-          style={{
-            marginTop: '24px',
-            textAlign: 'center',
-          }}
-        >
-          <p
-            style={{
-              fontSize: '13px',
-              color: '#9CA3AF',
-              margin: 0,
-            }}
-          >
-            © 2026 MotorSafe · Tous droits réservés
-          </p>
+          {/* Footer links */}
           <div
             style={{
-              marginTop: '8px',
-              display: 'flex',
-              gap: '16px',
-              justifyContent: 'center',
+              marginTop: "24px",
+              display: "flex",
+              justifyContent: "center",
+              gap: "24px",
             }}
           >
             {[
-              { label: 'CGU', href: '/cgu' },
-              { label: 'Confidentialité', href: '/politique-confidentialite' },
-              { label: 'Support', href: '/contact' },
+              { label: "CGU", href: "/cgu" },
+              { label: "Confidentialité", href: "/politique-confidentialite" },
+              { label: "Contact", href: "/contact" },
             ].map((link, i) => (
               <Link
                 key={i}
                 href={link.href}
-                style={{
-                  fontSize: '13px',
-                  color: '#9CA3AF',
-                  textDecoration: 'none',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.color = '#6B7280'
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.color = '#9CA3AF'
-                }}
+                style={{ fontSize: "13px", color: "#9CA3AF", textDecoration: "none" }}
               >
                 {link.label}
               </Link>
             ))}
           </div>
+
+          {/* Spin animation */}
+          <style dangerouslySetInnerHTML={{ __html: `
+            @keyframes spin {
+              to { transform: rotate(360deg); }
+            }
+          `}} />
         </div>
       </div>
     </div>
-  )
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div
+          style={{
+            minHeight: "100vh",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "#fff",
+          }}
+        >
+          <div
+            style={{
+              width: "32px",
+              height: "32px",
+              border: "3px solid #E5E7EB",
+              borderTopColor: "#6366F1",
+              borderRadius: "50%",
+              animation: "spin 0.8s linear infinite",
+            }}
+          />
+          <style dangerouslySetInnerHTML={{ __html: `
+            @keyframes spin { to { transform: rotate(360deg); } }
+          `}} />
+        </div>
+      }
+    >
+      <LoginContent />
+    </Suspense>
+  );
 }

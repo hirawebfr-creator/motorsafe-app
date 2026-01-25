@@ -342,12 +342,12 @@ export default function InterventionDetailPage() {
     setIsChangingStatus(true)
     
     try {
-      const response = await fetch(`/api/interventions/${intervention.id}/status`, {
+      const response = await fetch(`/api/interventions/${intervention.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           status: mapLocalStatusToApi(newStatus),
-          comment: statusComment
+          notes: statusComment || undefined
         })
       })
       

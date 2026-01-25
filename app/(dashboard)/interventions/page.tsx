@@ -131,7 +131,7 @@ export default function InterventionsPage() {
       
       if (data.ok && data.data && Array.isArray(data.data.items)) {
         setClients(data.data.items.map((c: any) => ({
-          id: c.id,
+          id: String(c.id),
           name: `${c.firstName} ${c.lastName}`
         })))
       } else {
@@ -155,9 +155,9 @@ export default function InterventionsPage() {
       
       if (data.ok && data.data && Array.isArray(data.data.items)) {
         setVehicles(data.data.items.map((v: any) => ({
-          id: v.id,
-          clientId: v.clientId,
-          info: `${v.make} ${v.model} - ${v.registrationNumber}`
+          id: String(v.id),
+          clientId: String(v.clientId),
+          info: `${v.brand} ${v.model} - ${v.plate}`
         })))
       } else {
         console.error('Error loading vehicles:', data.error || 'Invalid response')
@@ -189,7 +189,35 @@ export default function InterventionsPage() {
       const data = await response.json()
       
       if (data.ok && data.data && Array.isArray(data.data.items)) {
-        setInterventions(data.data.items)
+        // Mapper les données de l'API vers le format attendu par le frontend
+        const mapped = data.data.items.map((itv: any) => ({
+          id: itv.id,
+          number: itv.number || `INT-${itv.id}`,
+          clientId: String(itv.vehicle?.clientId || ''),
+          clientName: itv.vehicle?.client 
+            ? `${itv.vehicle.client.firstName} ${itv.vehicle.client.lastName}` 
+            : 'Client inconnu',
+          vehicleId: itv.vehicleId,
+          vehicleInfo: itv.vehicle 
+            ? `${itv.vehicle.brand} ${itv.vehicle.model} - ${itv.vehicle.plate}` 
+            : 'Véhicule inconnu',
+          entryDate: itv.performedAt ? new Date(itv.performedAt) : new Date(itv.createdAt),
+          exitDate: itv.completedAt ? new Date(itv.completedAt) : undefined,
+          status: itv.status === 'DRAFT' ? 'EN_ATTENTE' 
+                : itv.status === 'OPEN' ? 'EN_COURS'
+                : itv.status === 'DONE' ? 'TERMINE'
+                : itv.status === 'CANCELED' ? 'ANNULE'
+                : itv.status,
+          description: itv.notes || itv.title || itv.type || '',
+          mileage: itv.odometerKm || 0,
+          amount: itv.amountCents ? itv.amountCents / 100 : undefined,
+          isClientSigned: !!itv.clientSignedAt,
+          isGarageSigned: !!itv.garageSignedAt,
+          signedAt: itv.clientSignedAt ? new Date(itv.clientSignedAt) : undefined,
+          createdAt: new Date(itv.createdAt),
+          updatedAt: new Date(itv.updatedAt)
+        }))
+        setInterventions(mapped)
       } else {
         console.error('Error loading interventions:', data.error || 'Invalid response format')
         toast.error('Erreur', 'Impossible de charger les interventions')
@@ -358,10 +386,16 @@ export default function InterventionsPage() {
       
       const method = editingIntervention ? 'PATCH' : 'POST'
       
+      // Mapper les champs du formulaire vers ceux de l'API
       const payload = {
-        ...formData,
-        mileage: parseInt(formData.mileage)
+        vehicleId: formData.vehicleId,
+        type: 'Autre', // Type par défaut
+        notes: formData.description || undefined,
+        odometerKm: formData.mileage ? parseInt(formData.mileage) : undefined,
+        performedAt: formData.entryDate || undefined,
       }
+      
+      console.log('[DEBUG] Intervention payload:', JSON.stringify(payload))
       
       const response = await fetch(url, {
         method,
@@ -431,12 +465,19 @@ export default function InterventionsPage() {
     setIsChangingStatus(true)
     
     try {
-      const response = await fetch(`/api/interventions/${statusChangeIntervention.id}/status`, {
+      // Mapper le statut frontend vers le statut API
+      const apiStatus = newStatus === 'EN_ATTENTE' ? 'DRAFT'
+        : newStatus === 'EN_COURS' ? 'OPEN'
+        : newStatus === 'TERMINE' ? 'DONE'
+        : newStatus === 'ANNULE' ? 'CANCELED'
+        : newStatus
+      
+      const response = await fetch(`/api/interventions/${statusChangeIntervention.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          status: newStatus,
-          comment: statusComment
+          status: apiStatus,
+          notes: statusComment || undefined
         })
       })
       

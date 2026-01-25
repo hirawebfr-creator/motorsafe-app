@@ -190,6 +190,14 @@ export async function POST(req: Request) {
       },
     });
 
+    // Update Quote status to SENT when sending signature request
+    if (documentType === "QUOTE") {
+      await prisma.quote.update({
+        where: { id: documentId },
+        data: { status: "SENT", sentAt: new Date() },
+      });
+    }
+
     // Create events
     await prisma.signatureEvent.createMany({
       data: [

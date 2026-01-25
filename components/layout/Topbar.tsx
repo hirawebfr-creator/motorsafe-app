@@ -76,7 +76,7 @@ export function TopBar({
             <span className="text-sm font-extrabold tracking-tight text-primary2">MS</span>
           </div>
           <div className="hidden sm:block leading-tight">
-            <div className="text-sm font-semibold text-text">MotorSafe</div>
+            <div className="text-sm font-semibold text-text">SafeMotor</div>
             <div className="text-xs text-muted2">Panel garages</div>
           </div>
         </Link>

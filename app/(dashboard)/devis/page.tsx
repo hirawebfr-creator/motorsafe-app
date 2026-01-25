@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   FileText,
   Plus,
@@ -11,11 +12,12 @@ import {
   CheckCircle,
   XCircle,
   Clock,
-  MoreHorizontal,
+  RefreshCw,
+  FileDown,
+  Trash2,
+  ChevronRight,
 } from "lucide-react";
-import { SectionHeader } from "@/components/ui/SectionHeader";
-import { Card } from "@/components/ui/Card";
-import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/shared/use-toast";
 
 type QuoteItem = {
   id: string;
@@ -60,228 +62,359 @@ function fmtDate(input?: string | null) {
   if (!input) return "—";
   const d = new Date(input);
   if (Number.isNaN(d.getTime())) return "—";
-  return new Intl.DateTimeFormat("fr-FR", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(d);
+  return new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "short", year: "numeric" }).format(d);
 }
 
 function fmtEur(amount: number) {
-  return new Intl.NumberFormat("fr-FR", {
-    style: "currency",
-    currency: "EUR",
-  }).format(amount);
+  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(amount);
 }
 
-const STATUS_CONFIG: Record<string, { bg: string; text: string; label: string; icon: typeof Clock }> = {
-  DRAFT: { bg: "bg-gray-100", text: "text-gray-700", label: "Brouillon", icon: Clock },
-  SENT: { bg: "bg-blue-100", text: "text-blue-700", label: "Envoyé", icon: Send },
-  ACCEPTED: { bg: "bg-green-100", text: "text-green-700", label: "Accepté", icon: CheckCircle },
-  REJECTED: { bg: "bg-red-100", text: "text-red-700", label: "Refusé", icon: XCircle },
-  INVOICED: { bg: "bg-purple-100", text: "text-purple-700", label: "Facturé", icon: FileText },
+const STATUS_CONFIG: Record<string, { bg: string; text: string; border: string; label: string; icon: typeof Clock }> = {
+  DRAFT: { bg: "#F3F4F6", text: "#4B5563", border: "#9CA3AF", label: "Brouillon", icon: Clock },
+  SENT: { bg: "#DBEAFE", text: "#1D4ED8", border: "#60A5FA", label: "Envoyé", icon: Send },
+  ACCEPTED: { bg: "#D1FAE5", text: "#047857", border: "#34D399", label: "Accepté", icon: CheckCircle },
+  REJECTED: { bg: "#FEE2E2", text: "#B91C1C", border: "#F87171", label: "Refusé", icon: XCircle },
+  INVOICED: { bg: "#EDE9FE", text: "#6D28D9", border: "#A78BFA", label: "Facturé", icon: FileText },
 };
 
 export default function DevisPage() {
+  const router = useRouter();
+  const toast = useToast();
   const [q, setQ] = useState("");
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<QuoteItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [total, setTotal] = useState(0);
-
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const debounceRef = useRef<number | null>(null);
 
-  async function load(search: string) {
+  const load = useCallback(async (search: string) => {
     try {
       setLoading(true);
       setError(null);
-
       const url = new URL("/api/quotes", window.location.origin);
       url.searchParams.set("page", "1");
       url.searchParams.set("pageSize", "50");
       if (search.trim()) url.searchParams.set("q", search.trim());
-
       const res = await fetch(url.toString(), { cache: "no-store" });
       const json = await res.json().catch(() => null);
-      if (!res.ok) {
-        const message = json?.error?.message || json?.error || `GET /api/quotes ${res.status}`;
-        throw new Error(message);
-      }
-
+      if (!res.ok) throw new Error(json?.error?.message || `Erreur ${res.status}`);
       const data = unwrapOk(json);
-      if (isRecord(data) && typeof data.total === "number") {
-        setTotal(data.total);
-      }
+      if (isRecord(data) && typeof data.total === "number") setTotal(data.total);
       setItems(pickArray(json) as QuoteItem[]);
     } catch (e) {
       setItems([]);
-      setError(e instanceof Error ? e.message : "Erreur inconnue");
+      setError(e instanceof Error ? e.message : "Erreur");
     } finally {
       setLoading(false);
     }
-  }
-
-  useEffect(() => {
-    void load("");
   }, []);
+
+  useEffect(() => { void load(""); }, [load]);
 
   useEffect(() => {
     if (debounceRef.current) window.clearTimeout(debounceRef.current);
-    debounceRef.current = window.setTimeout(() => {
-      void load(q);
-    }, 300);
-    return () => {
-      if (debounceRef.current) window.clearTimeout(debounceRef.current);
-    };
-  }, [q]);
+    debounceRef.current = window.setTimeout(() => void load(q), 300);
+    return () => { if (debounceRef.current) window.clearTimeout(debounceRef.current); };
+  }, [q, load]);
 
-  // Stats
+  const handleDelete = useCallback(async () => {
+    if (!deleteId) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/quotes/${deleteId}`, { method: "DELETE" });
+      const json = await res.json();
+      if (!res.ok || !json.ok) throw new Error(json.error?.message || "Erreur");
+      toast.success("Devis supprimé");
+      setDeleteId(null);
+      void load(q);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erreur");
+    } finally {
+      setDeleting(false);
+    }
+  }, [deleteId, q, load, toast]);
+
+  const handleDownloadPdf = useCallback(async (id: string, quoteNumber: string | null) => {
+    try {
+      const res = await fetch(`/api/quotes/${id}/pdf`);
+      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error?.message || "Erreur PDF");
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `devis-${quoteNumber || id.slice(0, 8)}.pdf`;
+      a.click();
+      window.URL.revokeObjectURL(url);
+      toast.success("PDF téléchargé");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erreur PDF");
+    }
+  }, [toast]);
+
   const stats = useMemo(() => {
-    const draft = items.filter((i) => i.status === "DRAFT").length;
     const sent = items.filter((i) => i.status === "SENT").length;
     const accepted = items.filter((i) => i.status === "ACCEPTED").length;
     const totalAmount = items.reduce((acc, i) => acc + (i.totalIncl || 0), 0);
-    return { draft, sent, accepted, totalAmount };
+    return { sent, accepted, totalAmount };
   }, [items]);
 
   return (
-    <div className="space-y-6">
-      <SectionHeader
-        title="Devis"
-        description="Gérez vos devis clients"
-        action={
-          <Link href="/devis/nouveau">
-            <Button>
+    <div style={{ padding: "24px", maxWidth: "1400px", margin: "0 auto" }}>
+      {/* Header */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "32px" }}>
+        <div>
+          <h1 style={{ fontSize: "28px", fontWeight: "700", color: "#111827", margin: 0 }}>Devis</h1>
+          <p style={{ fontSize: "14px", color: "#6B7280", marginTop: "4px" }}>Gérez vos devis clients</p>
+        </div>
+        <div style={{ display: "flex", gap: "12px" }}>
+          <button
+            onClick={() => void load(q)}
+            disabled={loading}
+            style={{
+              display: "flex", alignItems: "center", gap: "8px",
+              padding: "10px 16px", borderRadius: "12px",
+              border: "1px solid #E5E7EB", background: "#fff",
+              fontSize: "14px", fontWeight: "500", color: "#374151",
+              cursor: loading ? "not-allowed" : "pointer", opacity: loading ? 0.5 : 1,
+            }}
+          >
+            <RefreshCw size={16} style={{ animation: loading ? "spin 1s linear infinite" : "none" }} />
+          </button>
+          <Link href="/devis/nouveau" style={{ textDecoration: "none" }}>
+            <button style={{
+              display: "flex", alignItems: "center", gap: "8px",
+              padding: "10px 20px", borderRadius: "12px",
+              border: "none", background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)",
+              fontSize: "14px", fontWeight: "600", color: "#fff",
+              cursor: "pointer", boxShadow: "0 4px 14px rgba(79, 70, 229, 0.4)",
+            }}>
               <Plus size={18} />
               Nouveau devis
-            </Button>
+            </button>
           </Link>
-        }
-      />
+        </div>
+      </div>
 
       {/* Stats */}
-      <div className="grid gap-4 sm:grid-cols-4">
-        <Card className="p-4">
-          <div className="flex items-center justify-between">
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px", marginBottom: "24px" }}>
+        <div style={{ padding: "20px", borderRadius: "16px", background: "#fff", border: "1px solid #E5E7EB", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
-              <p className="text-sm text-muted2">Total</p>
-              <p className="text-2xl font-bold">{total}</p>
+              <p style={{ fontSize: "13px", fontWeight: "500", color: "#6B7280", margin: 0 }}>Total devis</p>
+              <p style={{ fontSize: "28px", fontWeight: "700", color: "#111827", margin: "4px 0 0" }}>{total}</p>
             </div>
-            <FileText size={24} className="text-indigo-500" />
+            <div style={{ width: "48px", height: "48px", borderRadius: "12px", background: "linear-gradient(135deg, #6366F1 0%, #4F46E5 100%)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 12px rgba(99, 102, 241, 0.3)" }}>
+              <FileText size={24} color="#fff" />
+            </div>
           </div>
-        </Card>
-        <Card className="p-4">
-          <div className="flex items-center justify-between">
+        </div>
+        <div style={{ padding: "20px", borderRadius: "16px", background: "#fff", border: "1px solid #E5E7EB", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
-              <p className="text-sm text-muted2">En attente</p>
-              <p className="text-2xl font-bold">{stats.sent}</p>
+              <p style={{ fontSize: "13px", fontWeight: "500", color: "#6B7280", margin: 0 }}>En attente</p>
+              <p style={{ fontSize: "28px", fontWeight: "700", color: "#111827", margin: "4px 0 0" }}>{stats.sent}</p>
             </div>
-            <Send size={24} className="text-blue-500" />
+            <div style={{ width: "48px", height: "48px", borderRadius: "12px", background: "linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 12px rgba(59, 130, 246, 0.3)" }}>
+              <Send size={24} color="#fff" />
+            </div>
           </div>
-        </Card>
-        <Card className="p-4">
-          <div className="flex items-center justify-between">
+        </div>
+        <div style={{ padding: "20px", borderRadius: "16px", background: "#fff", border: "1px solid #E5E7EB", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
-              <p className="text-sm text-muted2">Acceptés</p>
-              <p className="text-2xl font-bold">{stats.accepted}</p>
+              <p style={{ fontSize: "13px", fontWeight: "500", color: "#6B7280", margin: 0 }}>Acceptés</p>
+              <p style={{ fontSize: "28px", fontWeight: "700", color: "#111827", margin: "4px 0 0" }}>{stats.accepted}</p>
             </div>
-            <CheckCircle size={24} className="text-green-500" />
+            <div style={{ width: "48px", height: "48px", borderRadius: "12px", background: "linear-gradient(135deg, #10B981 0%, #059669 100%)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 12px rgba(16, 185, 129, 0.3)" }}>
+              <CheckCircle size={24} color="#fff" />
+            </div>
           </div>
-        </Card>
-        <Card className="p-4">
-          <div className="flex items-center justify-between">
+        </div>
+        <div style={{ padding: "20px", borderRadius: "16px", background: "#fff", border: "1px solid #E5E7EB", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
-              <p className="text-sm text-muted2">Montant total</p>
-              <p className="text-2xl font-bold">{fmtEur(stats.totalAmount)}</p>
+              <p style={{ fontSize: "13px", fontWeight: "500", color: "#6B7280", margin: 0 }}>Montant total</p>
+              <p style={{ fontSize: "24px", fontWeight: "700", color: "#111827", margin: "4px 0 0" }}>{fmtEur(stats.totalAmount)}</p>
             </div>
-            <TrendingUp size={24} className="text-emerald-500" />
+            <div style={{ width: "48px", height: "48px", borderRadius: "12px", background: "linear-gradient(135deg, #F59E0B 0%, #D97706 100%)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 12px rgba(245, 158, 11, 0.3)" }}>
+              <TrendingUp size={24} color="#fff" />
+            </div>
           </div>
-        </Card>
+        </div>
       </div>
 
       {/* Search */}
-      <Card className="p-4">
-        <div className="relative">
-          <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted2" />
+      <div style={{ padding: "16px", borderRadius: "16px", background: "#fff", border: "1px solid #E5E7EB", marginBottom: "24px", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+        <div style={{ position: "relative" }}>
+          <Search size={20} style={{ position: "absolute", left: "16px", top: "50%", transform: "translateY(-50%)", color: "#9CA3AF" }} />
           <input
             type="text"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Rechercher par numéro, client..."
-            className="w-full rounded-lg border border-border bg-transparent py-2.5 pl-10 pr-4 text-sm outline-none focus:border-primary"
+            placeholder="Rechercher par numéro, client, véhicule..."
+            style={{
+              width: "100%", padding: "14px 16px 14px 48px",
+              borderRadius: "12px", border: "1px solid #E5E7EB",
+              fontSize: "14px", color: "#111827", background: "#F9FAFB",
+              outline: "none", boxSizing: "border-box",
+            }}
           />
         </div>
-      </Card>
+      </div>
 
       {/* Error */}
       {error && (
-        <Card className="border-red-200 bg-red-50 p-4 text-red-700">
-          {error}
-        </Card>
+        <div style={{ padding: "16px", borderRadius: "12px", background: "#FEF2F2", border: "1px solid #FECACA", color: "#DC2626", marginBottom: "24px" }}>
+          <strong>Erreur:</strong> {error}
+        </div>
+      )}
+
+      {/* Loading */}
+      {loading && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+          {[1, 2, 3].map((i) => (
+            <div key={i} style={{ padding: "20px", borderRadius: "16px", background: "#fff", border: "1px solid #E5E7EB" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+                <div style={{ width: "48px", height: "48px", borderRadius: "12px", background: "#E5E7EB", animation: "pulse 1.5s infinite" }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ width: "30%", height: "16px", borderRadius: "4px", background: "#E5E7EB", marginBottom: "8px" }} />
+                  <div style={{ width: "20%", height: "12px", borderRadius: "4px", background: "#E5E7EB" }} />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Empty */}
+      {!loading && items.length === 0 && !error && (
+        <div style={{ textAlign: "center", padding: "64px 24px", borderRadius: "20px", background: "#fff", border: "1px solid #E5E7EB" }}>
+          <div style={{ width: "80px", height: "80px", margin: "0 auto", borderRadius: "50%", background: "linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <FileText size={40} color="#6366F1" />
+          </div>
+          <h3 style={{ fontSize: "20px", fontWeight: "600", color: "#111827", margin: "24px 0 8px" }}>Aucun devis</h3>
+          <p style={{ fontSize: "14px", color: "#6B7280", margin: 0 }}>Créez votre premier devis pour commencer</p>
+          <Link href="/devis/nouveau" style={{ textDecoration: "none" }}>
+            <button style={{
+              display: "inline-flex", alignItems: "center", gap: "8px",
+              padding: "12px 24px", borderRadius: "12px", marginTop: "24px",
+              border: "none", background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)",
+              fontSize: "14px", fontWeight: "600", color: "#fff", cursor: "pointer",
+            }}>
+              <Plus size={18} />
+              Nouveau devis
+            </button>
+          </Link>
+        </div>
       )}
 
       {/* List */}
-      <Card className="overflow-hidden p-0">
-        {loading ? (
-          <div className="space-y-2 p-4">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="h-16 animate-pulse rounded-lg bg-gray-100" />
-            ))}
-          </div>
-        ) : items.length === 0 ? (
-          <div className="py-16 text-center">
-            <FileText size={48} className="mx-auto mb-4 text-gray-300" />
-            <p className="text-muted2">Aucun devis trouvé</p>
-            <Link href="/devis/nouveau" className="mt-4 inline-block">
-              <Button variant="secondary" size="sm">
-                <Plus size={16} />
-                Créer un devis
-              </Button>
-            </Link>
-          </div>
-        ) : (
-          <div className="divide-y divide-border">
-            {items.map((item) => {
-              const cfg = STATUS_CONFIG[item.status] || STATUS_CONFIG.DRAFT;
-              const Icon = cfg.icon;
-              return (
-                <Link
-                  key={item.id}
-                  href={`/devis/${item.id}`}
-                  className="flex items-center justify-between px-5 py-4 transition-colors hover:bg-surface2"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${cfg.bg}`}>
-                      <Icon size={20} className={cfg.text} />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold">
-                          {item.quoteNumber || `Brouillon #${item.id.slice(0, 6)}`}
-                        </span>
-                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${cfg.bg} ${cfg.text}`}>
-                          {cfg.label}
-                        </span>
-                      </div>
-                      <p className="text-sm text-muted2">
-                        {item.client.firstName} {item.client.lastName}
-                        {item.vehicle && ` • ${item.vehicle.brand} ${item.vehicle.model}`}
-                      </p>
-                    </div>
+      {!loading && items.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+          {items.map((item) => {
+            const cfg = STATUS_CONFIG[item.status] || STATUS_CONFIG.DRAFT;
+            const Icon = cfg.icon;
+            return (
+              <div
+                key={item.id}
+                onClick={() => router.push(`/devis/${item.id}`)}
+                style={{
+                  display: "flex", alignItems: "center", gap: "16px",
+                  padding: "20px", borderRadius: "16px",
+                  background: "#fff", border: "1px solid #E5E7EB",
+                  cursor: "pointer", transition: "all 0.2s",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#A5B4FC"; e.currentTarget.style.boxShadow = "0 4px 12px rgba(99, 102, 241, 0.15)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#E5E7EB"; e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.05)"; }}
+              >
+                <div style={{ width: "48px", height: "48px", borderRadius: "12px", display: "flex", alignItems: "center", justifyContent: "center", background: cfg.bg }}>
+                  <Icon size={24} style={{ color: cfg.text }} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                    <span style={{ fontSize: "15px", fontWeight: "600", color: "#111827" }}>
+                      {item.quoteNumber || `Brouillon #${item.id.slice(0, 8)}`}
+                    </span>
+                    <span style={{ padding: "5px 12px", borderRadius: "9999px", fontSize: "12px", fontWeight: "600", background: cfg.bg, color: cfg.text, border: `2px solid ${cfg.border}` }}>
+                      {cfg.label}
+                    </span>
                   </div>
-                  <div className="flex items-center gap-6">
-                    <div className="text-right">
-                      <p className="font-semibold">{fmtEur(item.totalIncl)}</p>
-                      <p className="text-xs text-muted2">{fmtDate(item.createdAt)}</p>
-                    </div>
-                    <MoreHorizontal size={20} className="text-muted2" />
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px", marginTop: "4px", fontSize: "13px", color: "#6B7280" }}>
+                    <span style={{ fontWeight: "500", color: "#374151" }}>{item.client.firstName} {item.client.lastName}</span>
+                    {item.vehicle && (
+                      <>
+                        <span>•</span>
+                        <span>{item.vehicle.brand} {item.vehicle.model}</span>
+                        <span style={{ fontFamily: "monospace", fontSize: "11px", background: "#F3F4F6", padding: "2px 6px", borderRadius: "4px" }}>{item.vehicle.plate}</span>
+                      </>
+                    )}
                   </div>
-                </Link>
-              );
-            })}
+                </div>
+                <div style={{ textAlign: "right", display: "none" }} className="sm:block">
+                  <p style={{ fontSize: "18px", fontWeight: "700", color: "#111827", margin: 0 }}>{fmtEur(item.totalIncl)}</p>
+                  <p style={{ fontSize: "13px", color: "#6B7280", margin: "2px 0 0" }}>{fmtDate(item.createdAt)}</p>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "4px" }} onClick={(e) => e.stopPropagation()}>
+                  <button
+                    onClick={() => void handleDownloadPdf(item.id, item.quoteNumber)}
+                    style={{ width: "36px", height: "36px", borderRadius: "8px", border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#9CA3AF" }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = "#F3F4F6"; e.currentTarget.style.color = "#374151"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#9CA3AF"; }}
+                  >
+                    <FileDown size={18} />
+                  </button>
+                  {item.status === "DRAFT" && (
+                    <button
+                      onClick={() => setDeleteId(item.id)}
+                      style={{ width: "36px", height: "36px", borderRadius: "8px", border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#9CA3AF" }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = "#FEF2F2"; e.currentTarget.style.color = "#DC2626"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#9CA3AF"; }}
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  )}
+                  <ChevronRight size={20} style={{ marginLeft: "8px", color: "#D1D5DB" }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Delete Modal */}
+      {deleteId && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }} onClick={() => setDeleteId(null)}>
+          <div style={{ background: "#fff", borderRadius: "20px", padding: "24px", maxWidth: "400px", width: "90%", boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ fontSize: "18px", fontWeight: "600", color: "#111827", margin: "0 0 12px" }}>Supprimer le devis</h3>
+            <p style={{ fontSize: "14px", color: "#6B7280", margin: "0 0 24px" }}>Êtes-vous sûr de vouloir supprimer ce devis ? Cette action est irréversible.</p>
+            <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
+              <button
+                onClick={() => setDeleteId(null)}
+                disabled={deleting}
+                style={{ padding: "10px 20px", borderRadius: "10px", border: "1px solid #E5E7EB", background: "#fff", fontSize: "14px", fontWeight: "500", color: "#374151", cursor: "pointer" }}
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                style={{ padding: "10px 20px", borderRadius: "10px", border: "none", background: "#DC2626", fontSize: "14px", fontWeight: "600", color: "#fff", cursor: deleting ? "not-allowed" : "pointer", opacity: deleting ? 0.5 : 1 }}
+              >
+                {deleting ? "Suppression..." : "Supprimer"}
+              </button>
+            </div>
           </div>
-        )}
-      </Card>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        @media (min-width: 640px) { .sm\\:block { display: block !important; } }
+      `}</style>
     </div>
   );
 }
