@@ -1,1039 +1,1038 @@
-'use client'
+"use client";
 
-import React, { useState, useEffect } from 'react'
-import { useRouter, useParams } from 'next/navigation'
-import { Badge } from '@/components/shared/badge'
-import { Button } from '@/components/shared/button'
-import { Modal } from '@/components/shared/modal'
-import { Select } from '@/components/shared/select'
-import { Textarea } from '@/components/shared/textarea'
-import { Avatar } from '@/components/shared/avatar'
-import { useToast } from '@/components/shared/use-toast'
-import { 
+import React, { useState, useEffect } from "react";
+import { useRouter, useParams } from "next/navigation";
+import Link from "next/link";
+import {
   ArrowLeft,
   Calendar,
-  User,
   Gauge,
   FileText,
-  Image as ImageIcon,
   CheckCircle,
   XCircle,
   Clock,
   PlayCircle,
-  FileSignature
-} from 'lucide-react'
+  FileSignature,
+  Car,
+  Trash2,
+  Download,
+  AlertTriangle,
+  RefreshCw,
+  Mail,
+  Phone,
+  Image as ImageIcon,
+  ExternalLink,
+} from "lucide-react";
 
-type InterventionStatus = 'EN_ATTENTE' | 'EN_COURS' | 'TERMINE' | 'ANNULE'
+// ============================================================================
+// INTERVENTION DETAIL PAGE - SafeMotor Design System
+// Détails complets d'une intervention
+// ============================================================================
+
+type InterventionStatus = "EN_ATTENTE" | "EN_COURS" | "TERMINE" | "ANNULE";
 
 interface Intervention {
-  id: string
-  number: string
-  clientId: string
-  clientName: string
-  clientEmail: string
-  clientPhone: string
-  vehicleId: string
-  vehicleInfo: string
-  vehicleRegistration: string
-  entryDate: Date
-  exitDate?: Date
-  status: InterventionStatus
-  description: string
-  diagnosticNotes?: string
-  mileage: number
-  laborCost?: number
-  partsCost?: number
-  totalAmount?: number
-  isClientSigned: boolean
-  isGarageSigned: boolean
-  clientSignedAt?: Date
-  garageSignedAt?: Date
-  createdAt: Date
-  updatedAt: Date
-  createdBy?: string
+  id: string;
+  number: string;
+  clientId: string;
+  clientName: string;
+  clientEmail: string;
+  clientPhone: string;
+  vehicleId: string;
+  vehicleInfo: string;
+  vehicleRegistration: string;
+  entryDate: Date;
+  exitDate?: Date;
+  status: InterventionStatus;
+  type: string;
+  description: string;
+  diagnosticNotes?: string;
+  mileage: number;
+  laborCost?: number;
+  partsCost?: number;
+  totalAmount?: number;
+  isClientSigned: boolean;
+  isGarageSigned: boolean;
+  clientSignedAt?: Date;
+  garageSignedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 interface TimelineEvent {
-  id: string
-  type: 'status_change' | 'signature' | 'document' | 'note'
-  title: string
-  description?: string
-  user: string
-  timestamp: Date
+  id: string;
+  type: "status_change" | "signature" | "document" | "note";
+  title: string;
+  description?: string;
+  user: string;
+  timestamp: Date;
 }
 
+const STATUS_CONFIG: Record<InterventionStatus, { label: string; color: string; bgColor: string; icon: typeof Clock }> = {
+  EN_ATTENTE: { label: "En attente", color: "#F59E0B", bgColor: "rgba(245, 158, 11, 0.1)", icon: Clock },
+  EN_COURS: { label: "En cours", color: "#3B82F6", bgColor: "rgba(59, 130, 246, 0.1)", icon: PlayCircle },
+  TERMINE: { label: "Terminée", color: "#10B981", bgColor: "rgba(16, 185, 129, 0.1)", icon: CheckCircle },
+  ANNULE: { label: "Annulée", color: "#EF4444", bgColor: "rgba(239, 68, 68, 0.1)", icon: XCircle },
+};
+
 export default function InterventionDetailPage() {
-  const router = useRouter()
-  const params = useParams()
-  const toast = useToast()
-  const interventionId = params.id as string
-  
-  const [intervention, setIntervention] = useState<Intervention | null>(null)
-  const [timeline, setTimeline] = useState<TimelineEvent[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  
-  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false)
-  const [newStatus, setNewStatus] = useState<InterventionStatus>('EN_ATTENTE')
-  const [statusComment, setStatusComment] = useState('')
-  const [isChangingStatus, setIsChangingStatus] = useState(false)
-  
+  const router = useRouter();
+  const params = useParams();
+  const interventionId = params.id as string;
+
+  const [intervention, setIntervention] = useState<Intervention | null>(null);
+  const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const [statusModalOpen, setStatusModalOpen] = useState(false);
+  const [newStatus, setNewStatus] = useState<InterventionStatus>("EN_ATTENTE");
+  const [statusComment, setStatusComment] = useState("");
+  const [isChangingStatus, setIsChangingStatus] = useState(false);
+
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   useEffect(() => {
-    loadInterventionData()
-  }, [interventionId])
-  
+    loadInterventionData();
+  }, [interventionId]);
+
+  const mapApiStatus = (apiStatus: string): InterventionStatus => {
+    const mapping: Record<string, InterventionStatus> = {
+      DRAFT: "EN_ATTENTE",
+      OPEN: "EN_COURS",
+      DONE: "TERMINE",
+      CANCELED: "ANNULE",
+    };
+    return mapping[apiStatus] || "EN_ATTENTE";
+  };
+
+  const mapStatusToApi = (status: InterventionStatus): string => {
+    const mapping: Record<InterventionStatus, string> = {
+      EN_ATTENTE: "DRAFT",
+      EN_COURS: "OPEN",
+      TERMINE: "DONE",
+      ANNULE: "CANCELED",
+    };
+    return mapping[status];
+  };
+
   const loadInterventionData = async () => {
-    setIsLoading(true)
-    
+    setIsLoading(true);
     try {
-      // Charger intervention
-      const interventionResponse = await fetch(`/api/interventions/${interventionId}`)
-      const interventionData = await interventionResponse.json()
-      
-      if (interventionData.ok && interventionData.data) {
-        const itv = interventionData.data
-        
-        // Mapper depuis l'API vers notre interface
-        const mappedIntervention: Intervention = {
+      const res = await fetch(`/api/interventions/${interventionId}`);
+      const data = await res.json();
+
+      if (data.ok && data.data) {
+        const itv = data.data;
+        const mapped: Intervention = {
           id: itv.id,
           number: itv.number || `INT-${String(itv.id).slice(0, 8)}`,
-          clientId: itv.vehicle?.client?.id?.toString() || '',
-          clientName: itv.vehicle?.client 
-            ? `${itv.vehicle.client.firstName} ${itv.vehicle.client.lastName}`
-            : 'Client inconnu',
-          clientEmail: itv.vehicle?.client?.email || '',
-          clientPhone: itv.vehicle?.client?.phone || '',
-          vehicleId: itv.vehicleId || '',
-          vehicleInfo: itv.vehicle ? `${itv.vehicle.brand} ${itv.vehicle.model}` : 'Véhicule inconnu',
-          vehicleRegistration: itv.vehicle?.plate || '',
+          clientId: itv.vehicle?.client?.id?.toString() || "",
+          clientName: itv.vehicle?.client ? `${itv.vehicle.client.firstName} ${itv.vehicle.client.lastName}` : "Client inconnu",
+          clientEmail: itv.vehicle?.client?.email || "",
+          clientPhone: itv.vehicle?.client?.phone || "",
+          vehicleId: itv.vehicleId || "",
+          vehicleInfo: itv.vehicle ? `${itv.vehicle.brand} ${itv.vehicle.model}` : "Véhicule inconnu",
+          vehicleRegistration: itv.vehicle?.plate || "",
           entryDate: new Date(itv.performedAt || itv.createdAt),
           exitDate: itv.closedAt ? new Date(itv.closedAt) : undefined,
-          status: mapApiStatusToLocal(itv.status),
-          description: itv.title || itv.type || 'Intervention',
+          status: mapApiStatus(itv.status),
+          type: itv.type || "Intervention",
+          description: itv.title || itv.notes || "Aucune description",
           diagnosticNotes: itv.notes,
           mileage: itv.odometerKm || 0,
-          laborCost: undefined,
-          partsCost: undefined,
           totalAmount: itv.amountCents ? itv.amountCents / 100 : undefined,
-          isClientSigned: !!itv.agreementAt,
-          isGarageSigned: !!itv.closedAt,
+          isClientSigned: !!itv.agreementAt || !!itv.clientSignedAt,
+          isGarageSigned: !!itv.closedAt || !!itv.garageSignedAt,
           clientSignedAt: itv.agreementAt ? new Date(itv.agreementAt) : undefined,
           garageSignedAt: itv.closedAt ? new Date(itv.closedAt) : undefined,
           createdAt: new Date(itv.createdAt),
           updatedAt: new Date(itv.updatedAt),
-          createdBy: itv.createdBy
-        }
-        
-        setIntervention(mappedIntervention)
-        
-        // Générer timeline depuis l'intervention
-        const mockTimeline: TimelineEvent[] = [
+        };
+
+        setIntervention(mapped);
+
+        // Build timeline
+        const events: TimelineEvent[] = [
           {
-            id: '1',
-            type: 'status_change',
-            title: 'Intervention créée',
-            description: `Statut initial : ${getStatusLabel('EN_ATTENTE')}`,
-            user: mappedIntervention.createdBy || 'Système',
-            timestamp: new Date(mappedIntervention.createdAt)
-          }
-        ]
-        
-        if (mappedIntervention.status !== 'EN_ATTENTE') {
-          mockTimeline.push({
-            id: '2',
-            type: 'status_change',
-            title: 'Intervention démarrée',
-            description: `Statut changé en ${getStatusLabel('EN_COURS')}`,
-            user: 'Atelier',
-            timestamp: new Date(mappedIntervention.updatedAt)
-          })
+            id: "1",
+            type: "status_change",
+            title: "Intervention créée",
+            description: `Statut initial : ${STATUS_CONFIG.EN_ATTENTE.label}`,
+            user: "Système",
+            timestamp: mapped.createdAt,
+          },
+        ];
+
+        if (mapped.status !== "EN_ATTENTE") {
+          events.push({
+            id: "2",
+            type: "status_change",
+            title: "Intervention démarrée",
+            description: `Statut : ${STATUS_CONFIG.EN_COURS.label}`,
+            user: "Atelier",
+            timestamp: mapped.updatedAt,
+          });
         }
-        
-        if (mappedIntervention.isClientSigned) {
-          mockTimeline.push({
-            id: '3',
-            type: 'signature',
-            title: 'Signature client',
-            description: 'Le client a signé le bon de commande',
-            user: mappedIntervention.clientName,
-            timestamp: mappedIntervention.clientSignedAt || new Date()
-          })
+
+        if (mapped.isClientSigned) {
+          events.push({
+            id: "3",
+            type: "signature",
+            title: "Signature client",
+            description: "Le client a signé le bon d'intervention",
+            user: mapped.clientName,
+            timestamp: mapped.clientSignedAt || new Date(),
+          });
         }
-        
-        if (mappedIntervention.isGarageSigned) {
-          mockTimeline.push({
-            id: '4',
-            type: 'signature',
-            title: 'Signature atelier',
+
+        if (mapped.isGarageSigned) {
+          events.push({
+            id: "4",
+            type: "signature",
+            title: "Signature atelier",
             description: "L'atelier a validé les travaux",
-            user: 'Atelier',
-            timestamp: mappedIntervention.garageSignedAt || new Date()
-          })
+            user: "Atelier",
+            timestamp: mapped.garageSignedAt || new Date(),
+          });
         }
-        
-        if (mappedIntervention.status === 'TERMINE') {
-          mockTimeline.push({
-            id: '5',
-            type: 'status_change',
-            title: 'Intervention terminée',
-            description: 'Les travaux sont terminés',
-            user: 'Atelier',
-            timestamp: new Date(mappedIntervention.updatedAt)
-          })
+
+        if (mapped.status === "TERMINE") {
+          events.push({
+            id: "5",
+            type: "status_change",
+            title: "Intervention terminée",
+            description: "Les travaux sont finalisés",
+            user: "Atelier",
+            timestamp: mapped.exitDate || mapped.updatedAt,
+          });
         }
-        
-        setTimeline(mockTimeline.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime()))
-        
+
+        setTimeline(events.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime()));
       } else {
-        toast.error('Erreur', 'Intervention introuvable')
-        router.push('/interventions')
-        return
+        router.push("/interventions");
       }
-      
     } catch (error) {
-      console.error('Error loading intervention:', error)
-      toast.error('Erreur', 'Impossible de charger les données')
-      
-      // Fallback mock data
-      setIntervention({
-        id: interventionId,
-        number: 'INT-2024-001',
-        clientId: '1',
-        clientName: 'Jean Dupont',
-        clientEmail: 'jean.dupont@email.fr',
-        clientPhone: '06 12 34 56 78',
-        vehicleId: '1',
-        vehicleInfo: 'Peugeot 208 Active',
-        vehicleRegistration: 'AB-123-CD',
-        entryDate: new Date('2024-01-15'),
-        status: 'EN_COURS',
-        description: 'Révision 20 000 km + changement plaquettes de frein avant',
-        diagnosticNotes: 'RAS au diagnostic. Plaquettes avant à 2mm.',
-        mileage: 45000,
-        laborCost: 150.00,
-        partsCost: 120.00,
-        totalAmount: 270.00,
-        isClientSigned: true,
-        isGarageSigned: false,
-        clientSignedAt: new Date('2024-01-15T14:30:00'),
-        createdAt: new Date('2024-01-15T10:00:00'),
-        updatedAt: new Date('2024-01-15T10:00:00'),
-        createdBy: 'Pierre Martin'
-      })
-      
-      setTimeline([
-        {
-          id: '1',
-          type: 'status_change',
-          title: 'Intervention créée',
-          description: 'Statut initial : En attente',
-          user: 'Pierre Martin',
-          timestamp: new Date('2024-01-15T10:00:00')
-        },
-        {
-          id: '2',
-          type: 'status_change',
-          title: 'Intervention démarrée',
-          description: 'Statut changé en En cours',
-          user: 'Atelier',
-          timestamp: new Date('2024-01-15T10:30:00')
-        },
-        {
-          id: '3',
-          type: 'signature',
-          title: 'Signature client',
-          description: 'Le client a signé le bon de commande',
-          user: 'Jean Dupont',
-          timestamp: new Date('2024-01-15T14:30:00')
-        }
-      ])
-      
+      console.error("Error loading intervention:", error);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
-  
-  const mapApiStatusToLocal = (apiStatus: string): InterventionStatus => {
-    const mapping: Record<string, InterventionStatus> = {
-      'DRAFT': 'EN_ATTENTE',
-      'OPEN': 'EN_COURS',
-      'DONE': 'TERMINE',
-      'CANCELED': 'ANNULE'
-    }
-    return mapping[apiStatus] || 'EN_ATTENTE'
-  }
-  
-  const mapLocalStatusToApi = (localStatus: InterventionStatus): string => {
-    const mapping: Record<InterventionStatus, string> = {
-      'EN_ATTENTE': 'DRAFT',
-      'EN_COURS': 'OPEN',
-      'TERMINE': 'DONE',
-      'ANNULE': 'CANCELED'
-    }
-    return mapping[localStatus]
-  }
-  
-  const getStatusLabel = (status: InterventionStatus): string => {
-    const labels: Record<InterventionStatus, string> = {
-      EN_ATTENTE: 'En attente',
-      EN_COURS: 'En cours',
-      TERMINE: 'Terminée',
-      ANNULE: 'Annulée'
-    }
-    return labels[status]
-  }
-  
-  const getStatusBadgeVariant = (status: InterventionStatus) => {
-    const variants: Record<InterventionStatus, string> = {
-      EN_ATTENTE: 'warning',
-      EN_COURS: 'info',
-      TERMINE: 'success',
-      ANNULE: 'error'
-    }
-    return variants[status] as 'warning' | 'info' | 'success' | 'error'
-  }
-  
-  const getStatusIcon = (status: InterventionStatus): React.ReactNode => {
-    switch (status) {
-      case 'EN_ATTENTE': return <Clock size={20} />
-      case 'EN_COURS': return <PlayCircle size={20} />
-      case 'TERMINE': return <CheckCircle size={20} />
-      case 'ANNULE': return <XCircle size={20} />
-      default: return <Clock size={20} />
-    }
-  }
-  
-  const getAvailableStatuses = (currentStatus: InterventionStatus): InterventionStatus[] => {
-    switch (currentStatus) {
-      case 'EN_ATTENTE':
-        return ['EN_ATTENTE', 'EN_COURS', 'ANNULE']
-      case 'EN_COURS':
-        return ['EN_COURS', 'TERMINE', 'ANNULE']
-      case 'TERMINE':
-        return ['TERMINE']
-      case 'ANNULE':
-        return ['ANNULE']
-      default:
-        return []
-    }
-  }
-  
-  const handleStatusChangeClick = () => {
-    if (!intervention) return
-    
-    const nextStatus = getNextStatus(intervention.status)
-    setNewStatus(nextStatus)
-    setStatusComment('')
-    setIsStatusModalOpen(true)
-  }
-  
-  const getNextStatus = (currentStatus: InterventionStatus): InterventionStatus => {
-    switch (currentStatus) {
-      case 'EN_ATTENTE': return 'EN_COURS'
-      case 'EN_COURS': return 'TERMINE'
-      case 'TERMINE': return 'TERMINE'
-      case 'ANNULE': return 'ANNULE'
-      default: return 'EN_ATTENTE'
-    }
-  }
-  
+  };
+
   const handleStatusChange = async () => {
-    if (!intervention) return
-    
-    setIsChangingStatus(true)
-    
+    if (!intervention) return;
+    setIsChangingStatus(true);
     try {
-      const response = await fetch(`/api/interventions/${intervention.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          status: mapLocalStatusToApi(newStatus),
-          notes: statusComment || undefined
-        })
-      })
-      
-      const data = await response.json()
-      
-      if (data.ok) {
-        toast.success('Statut modifié', `L'intervention est maintenant ${getStatusLabel(newStatus)}`)
-        setIsStatusModalOpen(false)
-        loadInterventionData()
-      } else {
-        toast.error('Erreur', data.error?.message || 'Impossible de changer le statut')
+      const res = await fetch(`/api/interventions/${intervention.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: mapStatusToApi(newStatus), notes: statusComment || undefined }),
+      });
+
+      if (res.ok) {
+        setStatusModalOpen(false);
+        loadInterventionData();
       }
-      
     } catch (error) {
-      console.error('Error changing status:', error)
-      toast.error('Erreur', 'Impossible de se connecter au serveur')
+      console.error("Error changing status:", error);
     } finally {
-      setIsChangingStatus(false)
+      setIsChangingStatus(false);
     }
-  }
-  
-  const formatCurrency = (amount?: number): string => {
-    if (!amount) return '-'
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'EUR'
-    }).format(amount)
-  }
-  
-  const getTimelineIcon = (type: TimelineEvent['type']): React.ReactNode => {
-    switch (type) {
-      case 'status_change': return <PlayCircle size={16} style={{ color: '#3B82F6' }} />
-      case 'signature': return <FileSignature size={16} style={{ color: '#16A34A' }} />
-      case 'document': return <FileText size={16} style={{ color: '#F59E0B' }} />
-      case 'note': return <FileText size={16} style={{ color: '#6B7280' }} />
-      default: return <FileText size={16} style={{ color: '#6B7280' }} />
+  };
+
+  const handleDelete = async () => {
+    if (!intervention) return;
+    setIsDeleting(true);
+    try {
+      const res = await fetch(`/api/interventions/${intervention.id}`, { method: "DELETE" });
+      if (res.ok) {
+        router.push("/interventions");
+      }
+    } catch (error) {
+      console.error("Error deleting:", error);
+    } finally {
+      setIsDeleting(false);
     }
-  }
-  
+  };
+
+  const formatDate = (date: Date) => {
+    return new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "long", year: "numeric" }).format(date);
+  };
+
+  const formatDateTime = (date: Date) => {
+    return new Intl.DateTimeFormat("fr-FR", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(date);
+  };
+
+  const formatCurrency = (amount?: number) => {
+    if (!amount) return "-";
+    return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(amount);
+  };
+
+  // Styles
+  const cardStyle: React.CSSProperties = {
+    background: "#fff",
+    borderRadius: "16px",
+    border: "1px solid #E5E7EB",
+    padding: "24px",
+  };
+
+  const canChangeStatus = intervention && intervention.status !== "TERMINE" && intervention.status !== "ANNULE";
+
   if (isLoading) {
     return (
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: '400px'
-      }}>
-        <div style={{
-          width: '40px',
-          height: '40px',
-          border: '4px solid #F3F4F6',
-          borderTopColor: '#0A1628',
-          borderRadius: '50%',
-          animation: 'spin 0.8s linear infinite'
-        }} />
-        <style>{`
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "400px", padding: "32px" }}>
+        <RefreshCw size={32} color="#6366F1" style={{ animation: "spin 1s linear infinite" }} />
+        <style jsx>{`
           @keyframes spin {
-            to { transform: rotate(360deg); }
+            from {
+              transform: rotate(0deg);
+            }
+            to {
+              transform: rotate(360deg);
+            }
           }
         `}</style>
       </div>
-    )
+    );
   }
-  
+
   if (!intervention) {
     return (
-      <div style={{ padding: '24px' }}>
-        <p style={{ fontSize: '14px', color: '#6B7280' }}>Intervention introuvable</p>
-      </div>
-    )
-  }
-  
-  const canChangeStatus = intervention.status !== 'TERMINE' && intervention.status !== 'ANNULE'
-  
-  return (
-    <div style={{ padding: '24px', maxWidth: '1600px', margin: '0 auto' }}>
-      {/* Header */}
-      <div style={{ marginBottom: '24px' }}>
-        <Button
-          variant="secondary"
-          leftIcon={<ArrowLeft size={20} />}
-          onClick={() => router.push('/interventions')}
-          style={{ marginBottom: '16px' }}
-        >
+      <div style={{ padding: "32px", textAlign: "center" }}>
+        <p style={{ color: "#6B7280" }}>Intervention introuvable</p>
+        <Link href="/interventions" style={{ color: "#6366F1" }}>
           Retour aux interventions
-        </Button>
-        
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-start'
-        }}>
+        </Link>
+      </div>
+    );
+  }
+
+  const statusConfig = STATUS_CONFIG[intervention.status];
+  const StatusIcon = statusConfig.icon;
+
+  return (
+    <div style={{ padding: "32px", maxWidth: "1400px", margin: "0 auto" }}>
+      {/* Header */}
+      <div style={{ marginBottom: "32px" }}>
+        <Link
+          href="/interventions"
+          style={{ display: "inline-flex", alignItems: "center", gap: "8px", fontSize: "14px", color: "#6B7280", textDecoration: "none", marginBottom: "16px" }}
+        >
+          <ArrowLeft size={16} />
+          Retour aux interventions
+        </Link>
+
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "16px" }}>
           <div>
-            <h1 style={{
-              fontSize: '32px',
-              fontWeight: 700,
-              color: '#111827',
-              margin: 0,
-              marginBottom: '8px'
-            }}>
-              {intervention.number}
-            </h1>
-            <div style={{
-              display: 'flex',
-              gap: '12px',
-              alignItems: 'center'
-            }}>
-              <Badge variant={getStatusBadgeVariant(intervention.status)}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  {getStatusIcon(intervention.status)}
-                  {getStatusLabel(intervention.status)}
-                </div>
-              </Badge>
-              <span style={{ fontSize: '14px', color: '#6B7280' }}>
-                Créée le {new Date(intervention.createdAt).toLocaleDateString('fr-FR')}
-              </span>
-            </div>
-          </div>
-          
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <Button
-              variant="secondary"
-              leftIcon={<FileText size={20} />}
-              onClick={() => toast.info('Génération', 'Fonctionnalité disponible prochainement')}
-            >
-              Générer devis
-            </Button>
-            {intervention.status === 'TERMINE' && (
-              <Button
-                variant="secondary"
-                leftIcon={<FileText size={20} />}
-                onClick={() => toast.info('Génération', 'Fonctionnalité disponible prochainement')}
+            <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "8px" }}>
+              <h1 style={{ fontSize: "32px", fontWeight: "700", color: "#111827", margin: 0, fontFamily: "monospace" }}>{intervention.number}</h1>
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "8px 16px",
+                  borderRadius: "100px",
+                  background: statusConfig.bgColor,
+                  fontSize: "14px",
+                  fontWeight: "600",
+                  color: statusConfig.color,
+                }}
               >
-                Générer facture
-              </Button>
-            )}
+                <StatusIcon size={18} />
+                {statusConfig.label}
+              </div>
+            </div>
+            <p style={{ fontSize: "14px", color: "#6B7280", margin: 0 }}>
+              Créée le {formatDate(intervention.createdAt)} • {intervention.type}
+            </p>
+          </div>
+
+          <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+            <Link href={`/interventions/${intervention.id}/reception`} style={{ textDecoration: "none" }}>
+              <button
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "10px 16px",
+                  borderRadius: "10px",
+                  border: "1px solid #E5E7EB",
+                  background: "#fff",
+                  fontSize: "14px",
+                  fontWeight: "500",
+                  color: "#374151",
+                  cursor: "pointer",
+                }}
+              >
+                <FileSignature size={16} />
+                PV Réception
+              </button>
+            </Link>
+            <Link href={`/interventions/${intervention.id}/tech`} style={{ textDecoration: "none" }}>
+              <button
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "10px 16px",
+                  borderRadius: "10px",
+                  border: "1px solid #E5E7EB",
+                  background: "#fff",
+                  fontSize: "14px",
+                  fontWeight: "500",
+                  color: "#374151",
+                  cursor: "pointer",
+                }}
+              >
+                <FileText size={16} />
+                Fiche technique
+              </button>
+            </Link>
             {canChangeStatus && (
-              <Button
-                variant="primary"
-                onClick={handleStatusChangeClick}
+              <button
+                onClick={() => {
+                  setNewStatus(intervention.status === "EN_ATTENTE" ? "EN_COURS" : "TERMINE");
+                  setStatusComment("");
+                  setStatusModalOpen(true);
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  padding: "10px 20px",
+                  borderRadius: "10px",
+                  border: "none",
+                  background: "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)",
+                  fontSize: "14px",
+                  fontWeight: "600",
+                  color: "#fff",
+                  cursor: "pointer",
+                  boxShadow: "0 4px 12px rgba(99, 102, 241, 0.3)",
+                }}
               >
                 Changer statut
-              </Button>
+              </button>
             )}
           </div>
         </div>
       </div>
-      
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        gap: '24px'
-      }}>
-        {/* Colonne gauche */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 400px", gap: "24px" }}>
+        {/* Colonne principale */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
           {/* Informations intervention */}
-          <div style={{
-            backgroundColor: '#FFFFFF',
-            borderRadius: '12px',
-            border: '1px solid #E5E7EB',
-            padding: '24px'
-          }}>
-            <h2 style={{
-              fontSize: '18px',
-              fontWeight: 600,
-              color: '#111827',
-              margin: 0,
-              marginBottom: '20px'
-            }}>
-              Informations
-            </h2>
-            
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div style={cardStyle}>
+            <h2 style={{ fontSize: "18px", fontWeight: "600", color: "#111827", marginBottom: "20px" }}>Informations</h2>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
               <div>
-                <div style={{ fontSize: '12px', fontWeight: 500, color: '#6B7280', marginBottom: '6px' }}>
-                  Date d'entrée
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Calendar size={16} style={{ color: '#9CA3AF' }} />
-                  <span style={{ fontSize: '14px', color: '#111827' }}>
-                    {new Date(intervention.entryDate).toLocaleDateString('fr-FR')}
-                  </span>
+                <div style={{ fontSize: "12px", fontWeight: "500", color: "#6B7280", marginBottom: "6px" }}>Date d'entrée</div>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <Calendar size={16} color="#9CA3AF" />
+                  <span style={{ fontSize: "14px", color: "#111827" }}>{formatDate(intervention.entryDate)}</span>
                 </div>
               </div>
-              
               {intervention.exitDate && (
                 <div>
-                  <div style={{ fontSize: '12px', fontWeight: 500, color: '#6B7280', marginBottom: '6px' }}>
-                    Date de sortie
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Calendar size={16} style={{ color: '#9CA3AF' }} />
-                    <span style={{ fontSize: '14px', color: '#111827' }}>
-                      {new Date(intervention.exitDate).toLocaleDateString('fr-FR')}
-                    </span>
+                  <div style={{ fontSize: "12px", fontWeight: "500", color: "#6B7280", marginBottom: "6px" }}>Date de sortie</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <Calendar size={16} color="#9CA3AF" />
+                    <span style={{ fontSize: "14px", color: "#111827" }}>{formatDate(intervention.exitDate)}</span>
                   </div>
                 </div>
               )}
-              
               <div>
-                <div style={{ fontSize: '12px', fontWeight: 500, color: '#6B7280', marginBottom: '6px' }}>
-                  Kilométrage
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Gauge size={16} style={{ color: '#9CA3AF' }} />
-                  <span style={{ fontSize: '14px', color: '#111827' }}>
-                    {intervention.mileage.toLocaleString('fr-FR')} km
-                  </span>
+                <div style={{ fontSize: "12px", fontWeight: "500", color: "#6B7280", marginBottom: "6px" }}>Kilométrage</div>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <Gauge size={16} color="#9CA3AF" />
+                  <span style={{ fontSize: "14px", color: "#111827" }}>{intervention.mileage.toLocaleString("fr-FR")} km</span>
                 </div>
               </div>
-              
-              <div>
-                <div style={{ fontSize: '12px', fontWeight: 500, color: '#6B7280', marginBottom: '6px' }}>
-                  Description des travaux
+              {intervention.totalAmount && (
+                <div>
+                  <div style={{ fontSize: "12px", fontWeight: "500", color: "#6B7280", marginBottom: "6px" }}>Montant TTC</div>
+                  <span style={{ fontSize: "20px", fontWeight: "700", color: "#111827" }}>{formatCurrency(intervention.totalAmount)}</span>
                 </div>
-                <p style={{
-                  fontSize: '14px',
-                  color: '#374151',
-                  lineHeight: 1.6,
-                  margin: 0,
-                  backgroundColor: '#F9FAFB',
-                  padding: '12px',
-                  borderRadius: '8px'
-                }}>
+              )}
+            </div>
+
+            {intervention.description && (
+              <div style={{ marginTop: "20px" }}>
+                <div style={{ fontSize: "12px", fontWeight: "500", color: "#6B7280", marginBottom: "6px" }}>Description</div>
+                <p
+                  style={{
+                    fontSize: "14px",
+                    color: "#374151",
+                    lineHeight: 1.6,
+                    margin: 0,
+                    padding: "12px",
+                    borderRadius: "10px",
+                    background: "#F9FAFB",
+                  }}
+                >
                   {intervention.description}
                 </p>
               </div>
-              
-              {intervention.diagnosticNotes && (
-                <div>
-                  <div style={{ fontSize: '12px', fontWeight: 500, color: '#6B7280', marginBottom: '6px' }}>
-                    Notes de diagnostic
-                  </div>
-                  <p style={{
-                    fontSize: '14px',
-                    color: '#374151',
+            )}
+
+            {intervention.diagnosticNotes && intervention.diagnosticNotes !== intervention.description && (
+              <div style={{ marginTop: "16px" }}>
+                <div style={{ fontSize: "12px", fontWeight: "500", color: "#6B7280", marginBottom: "6px" }}>Notes techniques</div>
+                <p
+                  style={{
+                    fontSize: "14px",
+                    color: "#92400E",
                     lineHeight: 1.6,
                     margin: 0,
-                    backgroundColor: '#FEF3C7',
-                    padding: '12px',
-                    borderRadius: '8px'
-                  }}>
-                    {intervention.diagnosticNotes}
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-          
-          {/* Client */}
-          <div style={{
-            backgroundColor: '#FFFFFF',
-            borderRadius: '12px',
-            border: '1px solid #E5E7EB',
-            padding: '24px'
-          }}>
-            <h2 style={{
-              fontSize: '18px',
-              fontWeight: 600,
-              color: '#111827',
-              margin: 0,
-              marginBottom: '20px'
-            }}>
-              Client
-            </h2>
-            
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div>
-                <div style={{ fontSize: '12px', fontWeight: 500, color: '#6B7280', marginBottom: '6px' }}>
-                  Nom
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <User size={16} style={{ color: '#9CA3AF' }} />
-                  <span 
-                    style={{ 
-                      fontSize: '14px', 
-                      color: '#3B82F6',
-                      cursor: 'pointer',
-                      textDecoration: 'underline'
-                    }}
-                    onClick={() => router.push(`/clients/${intervention.clientId}`)}
-                  >
-                    {intervention.clientName}
-                  </span>
-                </div>
+                    padding: "12px",
+                    borderRadius: "10px",
+                    background: "#FEF3C7",
+                  }}
+                >
+                  {intervention.diagnosticNotes}
+                </p>
               </div>
-              
-              {intervention.clientEmail && (
-                <div>
-                  <div style={{ fontSize: '12px', fontWeight: 500, color: '#6B7280', marginBottom: '6px' }}>
-                    Email
-                  </div>
-                  <div style={{ fontSize: '14px', color: '#111827' }}>
+            )}
+          </div>
+
+          {/* Client */}
+          <div style={cardStyle}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+              <h2 style={{ fontSize: "18px", fontWeight: "600", color: "#111827", margin: 0 }}>Client</h2>
+              <Link
+                href={`/clients/${intervention.clientId}`}
+                style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "13px", color: "#6366F1", textDecoration: "none" }}
+              >
+                Voir fiche <ExternalLink size={14} />
+              </Link>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+              <div
+                style={{
+                  width: "56px",
+                  height: "56px",
+                  borderRadius: "50%",
+                  background: "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#fff",
+                  fontSize: "20px",
+                  fontWeight: "600",
+                }}
+              >
+                {intervention.clientName
+                  .split(" ")
+                  .map((n) => n[0])
+                  .join("")
+                  .slice(0, 2)
+                  .toUpperCase()}
+              </div>
+              <div>
+                <div style={{ fontSize: "16px", fontWeight: "600", color: "#111827" }}>{intervention.clientName}</div>
+                {intervention.clientEmail && (
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", color: "#6B7280", marginTop: "4px" }}>
+                    <Mail size={14} />
                     {intervention.clientEmail}
                   </div>
-                </div>
-              )}
-              
-              {intervention.clientPhone && (
-                <div>
-                  <div style={{ fontSize: '12px', fontWeight: 500, color: '#6B7280', marginBottom: '6px' }}>
-                    Téléphone
-                  </div>
-                  <div style={{ fontSize: '14px', color: '#111827' }}>
+                )}
+                {intervention.clientPhone && (
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", color: "#6B7280", marginTop: "2px" }}>
+                    <Phone size={14} />
                     {intervention.clientPhone}
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
-          
+
           {/* Véhicule */}
-          <div style={{
-            backgroundColor: '#FFFFFF',
-            borderRadius: '12px',
-            border: '1px solid #E5E7EB',
-            padding: '24px'
-          }}>
-            <h2 style={{
-              fontSize: '18px',
-              fontWeight: 600,
-              color: '#111827',
-              margin: 0,
-              marginBottom: '20px'
-            }}>
-              Véhicule
-            </h2>
-            
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-              <Avatar name={intervention.vehicleInfo} size="md" shape="square" />
+          <div style={cardStyle}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+              <h2 style={{ fontSize: "18px", fontWeight: "600", color: "#111827", margin: 0 }}>Véhicule</h2>
+              <Link
+                href={`/vehicules/${intervention.vehicleId}`}
+                style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "13px", color: "#6366F1", textDecoration: "none" }}
+              >
+                Voir fiche <ExternalLink size={14} />
+              </Link>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+              <div
+                style={{
+                  width: "56px",
+                  height: "56px",
+                  borderRadius: "12px",
+                  background: "rgba(99, 102, 241, 0.1)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Car size={28} color="#6366F1" />
+              </div>
               <div>
-                <div 
-                  style={{ 
-                    fontSize: '14px', 
-                    fontWeight: 500, 
-                    color: '#3B82F6',
-                    cursor: 'pointer',
-                    textDecoration: 'underline'
+                <div style={{ fontSize: "16px", fontWeight: "600", color: "#111827" }}>{intervention.vehicleInfo}</div>
+                <div
+                  style={{
+                    display: "inline-block",
+                    marginTop: "6px",
+                    padding: "4px 10px",
+                    borderRadius: "6px",
+                    background: "#F3F4F6",
+                    fontFamily: "monospace",
+                    fontSize: "14px",
+                    fontWeight: "600",
+                    color: "#111827",
                   }}
-                  onClick={() => router.push(`/vehicules/${intervention.vehicleId}`)}
                 >
-                  {intervention.vehicleInfo}
-                </div>
-                <div style={{
-                  fontFamily: 'monospace',
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  color: '#111827',
-                  backgroundColor: '#F9FAFB',
-                  padding: '2px 6px',
-                  borderRadius: '4px',
-                  display: 'inline-block',
-                  marginTop: '4px'
-                }}>
                   {intervention.vehicleRegistration}
                 </div>
               </div>
             </div>
           </div>
-          
-          {/* Montants */}
-          {(intervention.laborCost || intervention.partsCost || intervention.totalAmount) && (
-            <div style={{
-              backgroundColor: '#FFFFFF',
-              borderRadius: '12px',
-              border: '1px solid #E5E7EB',
-              padding: '24px'
-            }}>
-              <h2 style={{
-                fontSize: '18px',
-                fontWeight: 600,
-                color: '#111827',
-                margin: 0,
-                marginBottom: '20px'
-              }}>
-                Montants
-              </h2>
-              
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {intervention.laborCost && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: '14px', color: '#6B7280' }}>Main d'œuvre</span>
-                    <span style={{ fontSize: '14px', fontWeight: 500, color: '#111827' }}>
-                      {formatCurrency(intervention.laborCost)}
-                    </span>
-                  </div>
-                )}
-                
-                {intervention.partsCost && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: '14px', color: '#6B7280' }}>Pièces</span>
-                    <span style={{ fontSize: '14px', fontWeight: 500, color: '#111827' }}>
-                      {formatCurrency(intervention.partsCost)}
-                    </span>
-                  </div>
-                )}
-                
-                {intervention.totalAmount && (
-                  <>
-                    <div style={{ borderTop: '1px solid #E5E7EB', marginTop: '8px', paddingTop: '12px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ fontSize: '16px', fontWeight: 600, color: '#111827' }}>
-                          Total TTC
-                        </span>
-                        <span style={{ fontSize: '20px', fontWeight: 700, color: '#111827' }}>
-                          {formatCurrency(intervention.totalAmount)}
-                        </span>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
+
+          {/* Photos placeholder */}
+          <div style={cardStyle}>
+            <h2 style={{ fontSize: "18px", fontWeight: "600", color: "#111827", marginBottom: "16px" }}>Photos</h2>
+            <div
+              style={{
+                padding: "40px",
+                borderRadius: "12px",
+                border: "2px dashed #E5E7EB",
+                textAlign: "center",
+              }}
+            >
+              <ImageIcon size={40} color="#9CA3AF" style={{ marginBottom: "12px" }} />
+              <p style={{ fontSize: "14px", color: "#6B7280", margin: 0 }}>Aucune photo attachée</p>
             </div>
-          )}
+          </div>
         </div>
-        
-        {/* Colonne droite */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+
+        {/* Colonne latérale */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
           {/* Signatures */}
-          <div style={{
-            backgroundColor: '#FFFFFF',
-            borderRadius: '12px',
-            border: '1px solid #E5E7EB',
-            padding: '24px'
-          }}>
-            <h2 style={{
-              fontSize: '18px',
-              fontWeight: 600,
-              color: '#111827',
-              margin: 0,
-              marginBottom: '20px'
-            }}>
-              Signatures
-            </h2>
-            
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '12px',
-                backgroundColor: intervention.isClientSigned ? '#F0FDF4' : '#F9FAFB',
-                borderRadius: '8px'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div style={{
-                    width: '40px',
-                    height: '40px',
-                    borderRadius: '50%',
-                    backgroundColor: intervention.isClientSigned ? '#16A34A' : '#E5E7EB',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#FFFFFF'
-                  }}>
-                    {intervention.isClientSigned ? <CheckCircle size={20} /> : <Clock size={20} />}
+          <div style={cardStyle}>
+            <h2 style={{ fontSize: "18px", fontWeight: "600", color: "#111827", marginBottom: "16px" }}>Signatures</h2>
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "14px",
+                  borderRadius: "12px",
+                  background: intervention.isClientSigned ? "rgba(16, 185, 129, 0.1)" : "#F9FAFB",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                  <div
+                    style={{
+                      width: "40px",
+                      height: "40px",
+                      borderRadius: "50%",
+                      background: intervention.isClientSigned ? "#10B981" : "#E5E7EB",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "#fff",
+                    }}
+                  >
+                    {intervention.isClientSigned ? <CheckCircle size={20} /> : <Clock size={20} color="#9CA3AF" />}
                   </div>
                   <div>
-                    <div style={{ fontSize: '14px', fontWeight: 500, color: '#111827' }}>
-                      Signature client
-                    </div>
+                    <div style={{ fontSize: "14px", fontWeight: "500", color: "#111827" }}>Signature client</div>
                     {intervention.clientSignedAt && (
-                      <div style={{ fontSize: '12px', color: '#6B7280' }}>
-                        {new Date(intervention.clientSignedAt).toLocaleDateString('fr-FR')} à{' '}
-                        {new Date(intervention.clientSignedAt).toLocaleTimeString('fr-FR', { 
-                          hour: '2-digit', 
-                          minute: '2-digit' 
-                        })}
-                      </div>
+                      <div style={{ fontSize: "12px", color: "#6B7280" }}>{formatDateTime(intervention.clientSignedAt)}</div>
                     )}
                   </div>
                 </div>
-                <Badge variant={intervention.isClientSigned ? 'success' : 'neutral'}>
-                  {intervention.isClientSigned ? 'Signée' : 'En attente'}
-                </Badge>
-              </div>
-              
-              <div style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                padding: '12px',
-                backgroundColor: intervention.isGarageSigned ? '#F0FDF4' : '#F9FAFB',
-                borderRadius: '8px'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div style={{
-                    width: '40px',
-                    height: '40px',
-                    borderRadius: '50%',
-                    backgroundColor: intervention.isGarageSigned ? '#16A34A' : '#E5E7EB',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#FFFFFF'
-                  }}>
-                    {intervention.isGarageSigned ? <CheckCircle size={20} /> : <Clock size={20} />}
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '14px', fontWeight: 500, color: '#111827' }}>
-                      Signature atelier
-                    </div>
-                    {intervention.garageSignedAt && (
-                      <div style={{ fontSize: '12px', color: '#6B7280' }}>
-                        {new Date(intervention.garageSignedAt).toLocaleDateString('fr-FR')} à{' '}
-                        {new Date(intervention.garageSignedAt).toLocaleTimeString('fr-FR', { 
-                          hour: '2-digit', 
-                          minute: '2-digit' 
-                        })}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <Badge variant={intervention.isGarageSigned ? 'success' : 'neutral'}>
-                  {intervention.isGarageSigned ? 'Signée' : 'En attente'}
-                </Badge>
-              </div>
-            </div>
-          </div>
-          
-          {/* Photos */}
-          <div style={{
-            backgroundColor: '#FFFFFF',
-            borderRadius: '12px',
-            border: '1px solid #E5E7EB',
-            padding: '24px'
-          }}>
-            <h2 style={{
-              fontSize: '18px',
-              fontWeight: 600,
-              color: '#111827',
-              margin: 0,
-              marginBottom: '20px'
-            }}>
-              Photos
-            </h2>
-            
-            <div style={{
-              textAlign: 'center',
-              padding: '32px 24px',
-              backgroundColor: '#F9FAFB',
-              borderRadius: '8px',
-              border: '2px dashed #E5E7EB'
-            }}>
-              <ImageIcon size={32} style={{ color: '#9CA3AF', marginBottom: '12px' }} />
-              <p style={{ fontSize: '14px', color: '#6B7280', margin: 0 }}>
-                Aucune photo pour le moment
-              </p>
-              <p style={{ fontSize: '12px', color: '#9CA3AF', margin: '8px 0 0 0' }}>
-                Fonctionnalité disponible prochainement
-              </p>
-            </div>
-          </div>
-          
-          {/* Timeline */}
-          <div style={{
-            backgroundColor: '#FFFFFF',
-            borderRadius: '12px',
-            border: '1px solid #E5E7EB',
-            padding: '24px'
-          }}>
-            <h2 style={{
-              fontSize: '18px',
-              fontWeight: 600,
-              color: '#111827',
-              margin: 0,
-              marginBottom: '20px'
-            }}>
-              Historique
-            </h2>
-            
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {timeline.map((event, index) => (
-                <div
-                  key={event.id}
+                <span
                   style={{
-                    paddingLeft: '20px',
-                    borderLeft: index === timeline.length - 1 ? 'none' : '2px solid #E5E7EB',
-                    position: 'relative',
-                    paddingBottom: index === timeline.length - 1 ? 0 : '16px'
+                    padding: "4px 10px",
+                    borderRadius: "100px",
+                    fontSize: "12px",
+                    fontWeight: "500",
+                    background: intervention.isClientSigned ? "rgba(16, 185, 129, 0.15)" : "rgba(156, 163, 175, 0.15)",
+                    color: intervention.isClientSigned ? "#059669" : "#6B7280",
                   }}
                 >
-                  <div style={{
-                    position: 'absolute',
-                    left: '-9px',
-                    top: '6px',
-                    width: '16px',
-                    height: '16px',
-                    borderRadius: '50%',
-                    backgroundColor: '#FFFFFF',
-                    border: '2px solid #E5E7EB',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}>
-                    {getTimelineIcon(event.type)}
+                  {intervention.isClientSigned ? "Signée" : "En attente"}
+                </span>
+              </div>
+
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "14px",
+                  borderRadius: "12px",
+                  background: intervention.isGarageSigned ? "rgba(16, 185, 129, 0.1)" : "#F9FAFB",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                  <div
+                    style={{
+                      width: "40px",
+                      height: "40px",
+                      borderRadius: "50%",
+                      background: intervention.isGarageSigned ? "#10B981" : "#E5E7EB",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "#fff",
+                    }}
+                  >
+                    {intervention.isGarageSigned ? <CheckCircle size={20} /> : <Clock size={20} color="#9CA3AF" />}
                   </div>
-                  
                   <div>
-                    <div style={{ fontSize: '14px', fontWeight: 500, color: '#111827', marginBottom: '4px' }}>
-                      {event.title}
-                    </div>
-                    {event.description && (
-                      <p style={{ fontSize: '13px', color: '#6B7280', margin: '0 0 8px 0' }}>
-                        {event.description}
-                      </p>
+                    <div style={{ fontSize: "14px", fontWeight: "500", color: "#111827" }}>Signature atelier</div>
+                    {intervention.garageSignedAt && (
+                      <div style={{ fontSize: "12px", color: "#6B7280" }}>{formatDateTime(intervention.garageSignedAt)}</div>
                     )}
-                    <div style={{ fontSize: '12px', color: '#9CA3AF' }}>
-                      {event.user} • {new Date(event.timestamp).toLocaleDateString('fr-FR')} à{' '}
-                      {new Date(event.timestamp).toLocaleTimeString('fr-FR', { 
-                        hour: '2-digit', 
-                        minute: '2-digit' 
-                      })}
+                  </div>
+                </div>
+                <span
+                  style={{
+                    padding: "4px 10px",
+                    borderRadius: "100px",
+                    fontSize: "12px",
+                    fontWeight: "500",
+                    background: intervention.isGarageSigned ? "rgba(16, 185, 129, 0.15)" : "rgba(156, 163, 175, 0.15)",
+                    color: intervention.isGarageSigned ? "#059669" : "#6B7280",
+                  }}
+                >
+                  {intervention.isGarageSigned ? "Signée" : "En attente"}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Timeline */}
+          <div style={cardStyle}>
+            <h2 style={{ fontSize: "18px", fontWeight: "600", color: "#111827", marginBottom: "16px" }}>Historique</h2>
+            <div style={{ display: "flex", flexDirection: "column", gap: "0" }}>
+              {timeline.map((event, idx) => (
+                <div key={event.id} style={{ display: "flex", gap: "12px", paddingBottom: idx < timeline.length - 1 ? "16px" : 0 }}>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                    <div
+                      style={{
+                        width: "32px",
+                        height: "32px",
+                        borderRadius: "50%",
+                        background:
+                          event.type === "signature"
+                            ? "rgba(16, 185, 129, 0.1)"
+                            : event.type === "status_change"
+                            ? "rgba(59, 130, 246, 0.1)"
+                            : "rgba(156, 163, 175, 0.1)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      {event.type === "signature" ? (
+                        <FileSignature size={14} color="#10B981" />
+                      ) : event.type === "status_change" ? (
+                        <PlayCircle size={14} color="#3B82F6" />
+                      ) : (
+                        <FileText size={14} color="#6B7280" />
+                      )}
+                    </div>
+                    {idx < timeline.length - 1 && <div style={{ width: "2px", flex: 1, background: "#E5E7EB", marginTop: "4px" }} />}
+                  </div>
+                  <div style={{ flex: 1, paddingTop: "4px" }}>
+                    <div style={{ fontSize: "14px", fontWeight: "500", color: "#111827" }}>{event.title}</div>
+                    {event.description && <div style={{ fontSize: "13px", color: "#6B7280", marginTop: "2px" }}>{event.description}</div>}
+                    <div style={{ fontSize: "12px", color: "#9CA3AF", marginTop: "4px" }}>
+                      {event.user} • {formatDateTime(event.timestamp)}
                     </div>
                   </div>
                 </div>
               ))}
             </div>
           </div>
+
+          {/* Actions */}
+          <div style={cardStyle}>
+            <h2 style={{ fontSize: "18px", fontWeight: "600", color: "#111827", marginBottom: "16px" }}>Actions</h2>
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+              <button
+                onClick={() => router.push(`/interventions/${intervention.id}/restitution`)}
+                style={{
+                  width: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  padding: "12px 16px",
+                  borderRadius: "10px",
+                  border: "1px solid #E5E7EB",
+                  background: "#fff",
+                  fontSize: "14px",
+                  fontWeight: "500",
+                  color: "#374151",
+                  cursor: "pointer",
+                  textAlign: "left",
+                }}
+              >
+                <FileSignature size={18} color="#6B7280" />
+                PV de restitution
+              </button>
+              <button
+                style={{
+                  width: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  padding: "12px 16px",
+                  borderRadius: "10px",
+                  border: "1px solid #E5E7EB",
+                  background: "#fff",
+                  fontSize: "14px",
+                  fontWeight: "500",
+                  color: "#374151",
+                  cursor: "pointer",
+                  textAlign: "left",
+                }}
+              >
+                <Download size={18} color="#6B7280" />
+                Télécharger PDF
+              </button>
+              <div style={{ height: "1px", background: "#E5E7EB", margin: "8px 0" }} />
+              <button
+                onClick={() => setDeleteModalOpen(true)}
+                style={{
+                  width: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  padding: "12px 16px",
+                  borderRadius: "10px",
+                  border: "1px solid rgba(239, 68, 68, 0.2)",
+                  background: "rgba(239, 68, 68, 0.05)",
+                  fontSize: "14px",
+                  fontWeight: "500",
+                  color: "#DC2626",
+                  cursor: "pointer",
+                  textAlign: "left",
+                }}
+              >
+                <Trash2 size={18} />
+                Supprimer l'intervention
+              </button>
+            </div>
+          </div>
         </div>
       </div>
-      
-      {/* Modal changement statut */}
-      <Modal
-        isOpen={isStatusModalOpen}
-        onClose={() => setIsStatusModalOpen(false)}
-        title="Changer le statut"
-        size="md"
-      >
-        <div style={{ padding: '24px' }}>
-          <p style={{
-            fontSize: '15px',
-            color: '#6B7280',
-            lineHeight: 1.6,
-            marginBottom: '20px'
-          }}>
-            Intervention : <strong>{intervention.number}</strong>
-          </p>
-          
-          <Select
-            label="Nouveau statut"
-            value={newStatus}
-            onChange={(e) => setNewStatus(e.target.value as InterventionStatus)}
-            options={getAvailableStatuses(intervention.status).map(s => ({
-              value: s,
-              label: getStatusLabel(s)
-            }))}
-          />
-          
-          <div style={{ marginTop: '16px' }}>
-            <Textarea
-              label="Commentaire (optionnel)"
-              name="statusComment"
-              placeholder="Raison du changement de statut..."
-              value={statusComment}
-              onChange={(e) => setStatusComment(e.target.value)}
-              rows={3}
-            />
-          </div>
-          
-          <div style={{
-            display: 'flex',
-            gap: '12px',
-            justifyContent: 'flex-end',
-            marginTop: '24px',
-            paddingTop: '20px',
-            borderTop: '1px solid #E5E7EB'
-          }}>
-            <Button
-              variant="secondary"
-              onClick={() => setIsStatusModalOpen(false)}
-              disabled={isChangingStatus}
-            >
-              Annuler
-            </Button>
-            <Button
-              variant="primary"
-              onClick={handleStatusChange}
-              loading={isChangingStatus}
-              disabled={isChangingStatus}
-            >
-              Changer
-            </Button>
+
+      {/* Status Change Modal */}
+      {statusModalOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 100,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(0,0,0,0.5)",
+          }}
+          onClick={() => setStatusModalOpen(false)}
+        >
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: "20px",
+              padding: "32px",
+              maxWidth: "440px",
+              width: "100%",
+              margin: "16px",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ fontSize: "20px", fontWeight: "600", color: "#111827", marginBottom: "20px" }}>Changer le statut</h3>
+
+            <div style={{ marginBottom: "20px" }}>
+              <label style={{ display: "block", fontSize: "13px", fontWeight: "500", color: "#374151", marginBottom: "6px" }}>Nouveau statut</label>
+              <select
+                value={newStatus}
+                onChange={(e) => setNewStatus(e.target.value as InterventionStatus)}
+                style={{
+                  width: "100%",
+                  padding: "12px 14px",
+                  borderRadius: "10px",
+                  border: "1px solid #E5E7EB",
+                  fontSize: "14px",
+                }}
+              >
+                {Object.entries(STATUS_CONFIG).map(([key, config]) => (
+                  <option key={key} value={key} disabled={key === "EN_ATTENTE" && intervention.status !== "EN_ATTENTE"}>
+                    {config.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ marginBottom: "24px" }}>
+              <label style={{ display: "block", fontSize: "13px", fontWeight: "500", color: "#374151", marginBottom: "6px" }}>Commentaire (optionnel)</label>
+              <textarea
+                value={statusComment}
+                onChange={(e) => setStatusComment(e.target.value)}
+                placeholder="Notes sur ce changement de statut..."
+                rows={3}
+                style={{
+                  width: "100%",
+                  padding: "12px 14px",
+                  borderRadius: "10px",
+                  border: "1px solid #E5E7EB",
+                  fontSize: "14px",
+                  resize: "vertical",
+                }}
+              />
+            </div>
+
+            <div style={{ display: "flex", gap: "12px" }}>
+              <button
+                onClick={() => setStatusModalOpen(false)}
+                style={{
+                  flex: 1,
+                  padding: "12px",
+                  borderRadius: "10px",
+                  border: "1px solid #E5E7EB",
+                  background: "#fff",
+                  fontSize: "14px",
+                  fontWeight: "500",
+                  color: "#374151",
+                  cursor: "pointer",
+                }}
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleStatusChange}
+                disabled={isChangingStatus}
+                style={{
+                  flex: 1,
+                  padding: "12px",
+                  borderRadius: "10px",
+                  border: "none",
+                  background: "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)",
+                  fontSize: "14px",
+                  fontWeight: "600",
+                  color: "#fff",
+                  cursor: isChangingStatus ? "not-allowed" : "pointer",
+                  opacity: isChangingStatus ? 0.7 : 1,
+                }}
+              >
+                {isChangingStatus ? "Modification..." : "Confirmer"}
+              </button>
+            </div>
           </div>
         </div>
-      </Modal>
+      )}
+
+      {/* Delete Modal */}
+      {deleteModalOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 100,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(0,0,0,0.5)",
+          }}
+          onClick={() => setDeleteModalOpen(false)}
+        >
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: "20px",
+              padding: "32px",
+              maxWidth: "440px",
+              width: "100%",
+              margin: "16px",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                width: "56px",
+                height: "56px",
+                margin: "0 auto 20px",
+                borderRadius: "50%",
+                background: "rgba(239, 68, 68, 0.1)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <AlertTriangle size={28} color="#EF4444" />
+            </div>
+
+            <h3 style={{ fontSize: "20px", fontWeight: "600", color: "#111827", textAlign: "center", margin: "0 0 8px" }}>Supprimer l'intervention ?</h3>
+            <p style={{ fontSize: "14px", color: "#6B7280", textAlign: "center", margin: "0 0 24px" }}>
+              Cette action est irréversible. Toutes les données associées seront perdues.
+            </p>
+
+            <div style={{ display: "flex", gap: "12px" }}>
+              <button
+                onClick={() => setDeleteModalOpen(false)}
+                style={{
+                  flex: 1,
+                  padding: "12px",
+                  borderRadius: "10px",
+                  border: "1px solid #E5E7EB",
+                  background: "#fff",
+                  fontSize: "14px",
+                  fontWeight: "500",
+                  color: "#374151",
+                  cursor: "pointer",
+                }}
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={isDeleting}
+                style={{
+                  flex: 1,
+                  padding: "12px",
+                  borderRadius: "10px",
+                  border: "none",
+                  background: "#EF4444",
+                  fontSize: "14px",
+                  fontWeight: "600",
+                  color: "#fff",
+                  cursor: isDeleting ? "not-allowed" : "pointer",
+                  opacity: isDeleting ? 0.7 : 1,
+                }}
+              >
+                {isDeleting ? "Suppression..." : "Supprimer"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style jsx>{`
+        @keyframes spin {
+          from {
+            transform: rotate(0deg);
+          }
+          to {
+            transform: rotate(360deg);
+          }
+        }
+      `}</style>
     </div>
-  )
+  );
 }

@@ -1,22 +1,13 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { DataTableInline } from '@/components/shared/data-table-inline'
-import { FormField } from '@/components/shared/form-field'
-import { Textarea } from '@/components/shared/textarea'
-import { Button } from '@/components/shared/button'
-import { Modal } from '@/components/shared/modal'
-import { Badge } from '@/components/shared/badge'
-import { SearchInput } from '@/components/shared/search-input'
-import { Select } from '@/components/shared/select'
-import { DropdownMenu } from '@/components/shared/dropdown-menu'
-import { useToast } from '@/components/shared/use-toast'
-import { 
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import {
   Plus,
+  Search,
   MoreVertical,
   Eye,
-  Edit,
   Trash2,
   CheckCircle,
   XCircle,
@@ -24,1054 +15,762 @@ import {
   PlayCircle,
   FileSignature,
   User,
-  Car
-} from 'lucide-react'
+  Car,
+  Wrench,
+  Calendar,
+  AlertTriangle,
+  RefreshCw,
+} from "lucide-react";
 
-type InterventionStatus = 'EN_ATTENTE' | 'EN_COURS' | 'TERMINE' | 'ANNULE'
+// ============================================================================
+// INTERVENTIONS PAGE - SafeMotor Design System
+// Liste des interventions avec filtres et actions
+// ============================================================================
+
+type InterventionStatus = "EN_ATTENTE" | "EN_COURS" | "TERMINE" | "ANNULE";
 
 interface Intervention {
-  id: string
-  number: string
-  clientId: string
-  clientName: string
-  vehicleId: string
-  vehicleInfo: string
-  entryDate: Date
-  exitDate?: Date
-  status: InterventionStatus
-  description: string
-  mileage: number
-  amount?: number
-  isClientSigned: boolean
-  isGarageSigned: boolean
-  signedAt?: Date
-  createdAt: Date
-  updatedAt: Date
-}
-
-interface InterventionFormData {
-  clientId: string
-  vehicleId: string
-  entryDate: string
-  mileage: string
-  description: string
+  id: string;
+  number: string;
+  clientId: string;
+  clientName: string;
+  vehicleId: string;
+  vehicleInfo: string;
+  entryDate: Date;
+  exitDate?: Date;
+  status: InterventionStatus;
+  type: string;
+  description: string;
+  mileage: number;
+  amount?: number;
+  isClientSigned: boolean;
+  isGarageSigned: boolean;
+  signedAt?: Date;
+  hasIncident?: boolean;
+  createdAt: Date;
 }
 
 interface Client {
-  id: string
-  name: string
+  id: string;
+  name: string;
 }
 
-interface Vehicle {
-  id: string
-  clientId: string
-  info: string
-}
+const STATUS_CONFIG: Record<InterventionStatus, { label: string; color: string; bgColor: string; icon: typeof Clock }> = {
+  EN_ATTENTE: { label: "En attente", color: "#F59E0B", bgColor: "rgba(245, 158, 11, 0.1)", icon: Clock },
+  EN_COURS: { label: "En cours", color: "#3B82F6", bgColor: "rgba(59, 130, 246, 0.1)", icon: PlayCircle },
+  TERMINE: { label: "Terminée", color: "#10B981", bgColor: "rgba(16, 185, 129, 0.1)", icon: CheckCircle },
+  ANNULE: { label: "Annulée", color: "#EF4444", bgColor: "rgba(239, 68, 68, 0.1)", icon: XCircle },
+};
 
 export default function InterventionsPage() {
-  const router = useRouter()
-  const toast = useToast()
-  
-  const [interventions, setInterventions] = useState<Intervention[]>([])
-  const [clients, setClients] = useState<Client[]>([])
-  const [vehicles, setVehicles] = useState<Vehicle[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  
-  const [searchQuery, setSearchQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState<string>('all')
-  const [clientFilter, setClientFilter] = useState<string>('all')
-  
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [editingIntervention, setEditingIntervention] = useState<Intervention | null>(null)
-  const [formData, setFormData] = useState<InterventionFormData>({
-    clientId: '',
-    vehicleId: '',
-    entryDate: new Date().toISOString().split('T')[0],
-    mileage: '',
-    description: ''
-  })
-  const [formErrors, setFormErrors] = useState<Partial<Record<keyof InterventionFormData, string>>>({})
-  const [isSaving, setIsSaving] = useState(false)
-  
-  const [clientVehicles, setClientVehicles] = useState<Vehicle[]>([])
-  
-  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false)
-  const [statusChangeIntervention, setStatusChangeIntervention] = useState<Intervention | null>(null)
-  const [newStatus, setNewStatus] = useState<InterventionStatus>('EN_ATTENTE')
-  const [statusComment, setStatusComment] = useState('')
-  const [isChangingStatus, setIsChangingStatus] = useState(false)
-  
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
-  const [interventionToDelete, setInterventionToDelete] = useState<Intervention | null>(null)
-  const [isDeleting, setIsDeleting] = useState(false)
-  
+  const router = useRouter();
+
+  const [interventions, setInterventions] = useState<Intervention[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [clientFilter, setClientFilter] = useState<string>("all");
+
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [interventionToDelete, setInterventionToDelete] = useState<Intervention | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+
+  // Stats
+  const stats = {
+    total: interventions.length,
+    enAttente: interventions.filter((i) => i.status === "EN_ATTENTE").length,
+    enCours: interventions.filter((i) => i.status === "EN_COURS").length,
+    terminees: interventions.filter((i) => i.status === "TERMINE").length,
+    aSigner: interventions.filter((i) => !i.isClientSigned && i.status !== "ANNULE").length,
+  };
+
   useEffect(() => {
-    loadInterventions()
-    loadClients()
-    loadVehicles()
-  }, [searchQuery, statusFilter, clientFilter])
-  
+    loadData();
+  }, [searchQuery, statusFilter, clientFilter]);
+
   useEffect(() => {
-    if (formData.clientId) {
-      const filtered = vehicles.filter(v => v.clientId === formData.clientId)
-      setClientVehicles(filtered)
-      
-      if (formData.vehicleId && !filtered.find(v => v.id === formData.vehicleId)) {
-        setFormData(prev => ({ ...prev, vehicleId: '' }))
-      }
-    } else {
-      setClientVehicles([])
-    }
-  }, [formData.clientId, vehicles])
-  
-  const loadClients = async () => {
+    const handleClickOutside = () => setOpenDropdown(null);
+    document.addEventListener("click", handleClickOutside);
+    return () => document.removeEventListener("click", handleClickOutside);
+  }, []);
+
+  const loadData = async () => {
+    setIsLoading(true);
     try {
-      const response = await fetch('/api/clients')
-      const data = await response.json()
-      
-      if (data.ok && data.data && Array.isArray(data.data.items)) {
-        setClients(data.data.items.map((c: any) => ({
-          id: String(c.id),
-          name: `${c.firstName} ${c.lastName}`
-        })))
-      } else {
-        console.error('Error loading clients:', data.error || 'Invalid response')
+      // Load clients
+      const clientsRes = await fetch("/api/clients");
+      const clientsData = await clientsRes.json();
+      if (clientsData.ok && clientsData.data?.items) {
+        setClients(
+          clientsData.data.items.map((c: any) => ({
+            id: String(c.id),
+            name: `${c.firstName} ${c.lastName}`,
+          }))
+        );
       }
-    } catch (error) {
-      console.error('Error loading clients:', error)
-      // Fallback
-      setClients([
-        { id: '1', name: 'Jean Dupont' },
-        { id: '2', name: 'Marie Martin' },
-        { id: '3', name: 'Pierre Dubois' }
-      ])
-    }
-  }
-  
-  const loadVehicles = async () => {
-    try {
-      const response = await fetch('/api/vehicules')
-      const data = await response.json()
-      
-      if (data.ok && data.data && Array.isArray(data.data.items)) {
-        setVehicles(data.data.items.map((v: any) => ({
-          id: String(v.id),
-          clientId: String(v.clientId),
-          info: `${v.brand} ${v.model} - ${v.plate}`
-        })))
-      } else {
-        console.error('Error loading vehicles:', data.error || 'Invalid response')
-      }
-    } catch (error) {
-      console.error('Error loading vehicles:', error)
-      // Fallback
-      setVehicles([
-        { id: '1', clientId: '1', info: 'Peugeot 208 - AB-123-CD' },
-        { id: '2', clientId: '1', info: 'Renault Clio - EF-456-GH' },
-        { id: '3', clientId: '2', info: 'Citroën C3 - IJ-789-KL' },
-        { id: '4', clientId: '3', info: 'Tesla Model 3 - MN-012-OP' }
-      ])
-    }
-  }
-  
-  const loadInterventions = async () => {
-    setIsLoading(true)
-    
-    try {
-      const params = new URLSearchParams()
-      if (searchQuery) params.set('q', searchQuery)
-      if (statusFilter !== 'all') params.set('status', statusFilter)
-      if (clientFilter !== 'all') params.set('clientId', clientFilter)
-      params.set('page', '1')
-      params.set('pageSize', '100')
-      
-      const response = await fetch(`/api/interventions?${params}`)
-      const data = await response.json()
-      
-      if (data.ok && data.data && Array.isArray(data.data.items)) {
-        // Mapper les données de l'API vers le format attendu par le frontend
+
+      // Load interventions
+      const params = new URLSearchParams();
+      if (searchQuery) params.set("q", searchQuery);
+      if (statusFilter !== "all") params.set("status", statusFilter);
+      if (clientFilter !== "all") params.set("clientId", clientFilter);
+      params.set("pageSize", "100");
+
+      const res = await fetch(`/api/interventions?${params}`);
+      const data = await res.json();
+
+      if (data.ok && data.data?.items) {
         const mapped = data.data.items.map((itv: any) => ({
           id: itv.id,
           number: itv.number || `INT-${itv.id}`,
-          clientId: String(itv.vehicle?.clientId || ''),
-          clientName: itv.vehicle?.client 
-            ? `${itv.vehicle.client.firstName} ${itv.vehicle.client.lastName}` 
-            : 'Client inconnu',
+          clientId: String(itv.vehicle?.clientId || ""),
+          clientName: itv.vehicle?.client
+            ? `${itv.vehicle.client.firstName} ${itv.vehicle.client.lastName}`
+            : "Client inconnu",
           vehicleId: itv.vehicleId,
-          vehicleInfo: itv.vehicle 
-            ? `${itv.vehicle.brand} ${itv.vehicle.model} - ${itv.vehicle.plate}` 
-            : 'Véhicule inconnu',
+          vehicleInfo: itv.vehicle
+            ? `${itv.vehicle.brand} ${itv.vehicle.model} - ${itv.vehicle.plate}`
+            : "Véhicule inconnu",
           entryDate: itv.performedAt ? new Date(itv.performedAt) : new Date(itv.createdAt),
           exitDate: itv.completedAt ? new Date(itv.completedAt) : undefined,
-          status: itv.status === 'DRAFT' ? 'EN_ATTENTE' 
-                : itv.status === 'OPEN' ? 'EN_COURS'
-                : itv.status === 'DONE' ? 'TERMINE'
-                : itv.status === 'CANCELED' ? 'ANNULE'
-                : itv.status,
-          description: itv.notes || itv.title || itv.type || '',
+          status:
+            itv.status === "DRAFT"
+              ? "EN_ATTENTE"
+              : itv.status === "OPEN"
+              ? "EN_COURS"
+              : itv.status === "DONE"
+              ? "TERMINE"
+              : itv.status === "CANCELED"
+              ? "ANNULE"
+              : itv.status,
+          type: itv.type || "Autre",
+          description: itv.notes || itv.title || "",
           mileage: itv.odometerKm || 0,
           amount: itv.amountCents ? itv.amountCents / 100 : undefined,
           isClientSigned: !!itv.clientSignedAt,
           isGarageSigned: !!itv.garageSignedAt,
           signedAt: itv.clientSignedAt ? new Date(itv.clientSignedAt) : undefined,
+          hasIncident: !!itv.disputeOpenedAt,
           createdAt: new Date(itv.createdAt),
-          updatedAt: new Date(itv.updatedAt)
-        }))
-        setInterventions(mapped)
-      } else {
-        console.error('Error loading interventions:', data.error || 'Invalid response format')
-        toast.error('Erreur', 'Impossible de charger les interventions')
+        }));
+        setInterventions(mapped);
       }
-      
     } catch (error) {
-      console.error('Error loading interventions:', error)
-      toast.error('Erreur', 'Impossible de se connecter au serveur')
-      
-      // Fallback sur données simulées
-      const mockInterventions: Intervention[] = [
-        {
-          id: '1',
-          number: 'INT-2024-001',
-          clientId: '1',
-          clientName: 'Jean Dupont',
-          vehicleId: '1',
-          vehicleInfo: 'Peugeot 208 - AB-123-CD',
-          entryDate: new Date('2024-01-15'),
-          status: 'TERMINE',
-          description: 'Révision 20 000 km + changement plaquettes',
-          mileage: 20000,
-          amount: 450.00,
-          isClientSigned: true,
-          isGarageSigned: true,
-          signedAt: new Date('2024-01-16'),
-          createdAt: new Date('2024-01-15'),
-          updatedAt: new Date('2024-01-16')
-        },
-        {
-          id: '2',
-          number: 'INT-2024-002',
-          clientId: '2',
-          clientName: 'Marie Martin',
-          vehicleId: '3',
-          vehicleInfo: 'Citroën C3 - IJ-789-KL',
-          entryDate: new Date('2024-01-20'),
-          status: 'EN_COURS',
-          description: 'Diagnostic électronique + réparation essuie-glaces',
-          mileage: 35000,
-          isClientSigned: true,
-          isGarageSigned: false,
-          createdAt: new Date('2024-01-20'),
-          updatedAt: new Date('2024-01-20')
-        },
-        {
-          id: '3',
-          number: 'INT-2024-003',
-          clientId: '1',
-          clientName: 'Jean Dupont',
-          vehicleId: '2',
-          vehicleInfo: 'Renault Clio - EF-456-GH',
-          entryDate: new Date('2024-01-22'),
-          status: 'EN_ATTENTE',
-          description: 'Contrôle technique + réparations éventuelles',
-          mileage: 62000,
-          isClientSigned: false,
-          isGarageSigned: false,
-          createdAt: new Date('2024-01-22'),
-          updatedAt: new Date('2024-01-22')
-        },
-        {
-          id: '4',
-          number: 'INT-2024-004',
-          clientId: '3',
-          clientName: 'Pierre Dubois',
-          vehicleId: '4',
-          vehicleInfo: 'Tesla Model 3 - MN-012-OP',
-          entryDate: new Date('2024-01-10'),
-          exitDate: new Date('2024-01-11'),
-          status: 'ANNULE',
-          description: 'Révision annuelle',
-          mileage: 15000,
-          isClientSigned: false,
-          isGarageSigned: false,
-          createdAt: new Date('2024-01-10'),
-          updatedAt: new Date('2024-01-11')
-        }
-      ]
-      
-      let filtered = mockInterventions
-      
-      if (searchQuery) {
-        const query = searchQuery.toLowerCase()
-        filtered = filtered.filter(i => 
-          i.number.toLowerCase().includes(query) ||
-          i.clientName.toLowerCase().includes(query) ||
-          i.vehicleInfo.toLowerCase().includes(query)
-        )
-      }
-      
-      if (statusFilter !== 'all') {
-        filtered = filtered.filter(i => i.status === statusFilter)
-      }
-      
-      if (clientFilter !== 'all') {
-        filtered = filtered.filter(i => i.clientId === clientFilter)
-      }
-      
-      setInterventions(filtered)
-      
+      console.error("Error loading data:", error);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
-  
-  const validateForm = (): boolean => {
-    const errors: Partial<Record<keyof InterventionFormData, string>> = {}
-    
-    if (!formData.clientId) errors.clientId = 'Le client est requis'
-    if (!formData.vehicleId) errors.vehicleId = 'Le véhicule est requis'
-    if (!formData.entryDate) errors.entryDate = 'La date d\'entrée est requise'
-    
-    if (!formData.mileage) {
-      errors.mileage = 'Le kilométrage est requis'
-    } else if (parseInt(formData.mileage) < 0) {
-      errors.mileage = 'Le kilométrage ne peut pas être négatif'
-    }
-    
-    if (!formData.description.trim()) {
-      errors.description = 'La description est requise'
-    }
-    
-    setFormErrors(errors)
-    return Object.keys(errors).length === 0
-  }
-  
-  const handleCreate = () => {
-    setEditingIntervention(null)
-    setFormData({
-      clientId: '',
-      vehicleId: '',
-      entryDate: new Date().toISOString().split('T')[0],
-      mileage: '',
-      description: ''
-    })
-    setFormErrors({})
-    setIsModalOpen(true)
-  }
-  
-  const handleEdit = (intervention: Intervention) => {
-    setEditingIntervention(intervention)
-    setFormData({
-      clientId: intervention.clientId,
-      vehicleId: intervention.vehicleId,
-      entryDate: intervention.entryDate.toISOString().split('T')[0],
-      mileage: intervention.mileage.toString(),
-      description: intervention.description
-    })
-    setFormErrors({})
-    setIsModalOpen(true)
-  }
-  
-  const handleSave = async () => {
-    if (!validateForm()) {
-      toast.error('Erreur', 'Veuillez corriger les erreurs du formulaire')
-      return
-    }
-    
-    setIsSaving(true)
-    
+  };
+
+  const handleDelete = async () => {
+    if (!interventionToDelete) return;
+    setIsDeleting(true);
     try {
-      const url = editingIntervention 
-        ? `/api/interventions/${editingIntervention.id}`
-        : '/api/interventions'
-      
-      const method = editingIntervention ? 'PATCH' : 'POST'
-      
-      // Mapper les champs du formulaire vers ceux de l'API
-      const payload = {
-        vehicleId: formData.vehicleId,
-        type: 'Autre', // Type par défaut
-        notes: formData.description || undefined,
-        odometerKm: formData.mileage ? parseInt(formData.mileage) : undefined,
-        performedAt: formData.entryDate || undefined,
+      const res = await fetch(`/api/interventions/${interventionToDelete.id}`, { method: "DELETE" });
+      if (res.ok) {
+        loadData();
+        setDeleteModalOpen(false);
+        setInterventionToDelete(null);
       }
-      
-      console.log('[DEBUG] Intervention payload:', JSON.stringify(payload))
-      
-      const response = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      })
-      
-      const data = await response.json()
-      
-      if (data.ok) {
-        toast.success(
-          editingIntervention ? 'Intervention modifiée' : 'Intervention créée',
-          'Les modifications ont été enregistrées'
-        )
-        setIsModalOpen(false)
-        loadInterventions()
-      } else {
-        toast.error('Erreur', data.error || 'Impossible de sauvegarder l\'intervention')
-      }
-      
     } catch (error) {
-      console.error('Error saving intervention:', error)
-      toast.error('Erreur', 'Impossible de se connecter au serveur')
+      console.error("Error deleting:", error);
     } finally {
-      setIsSaving(false)
+      setIsDeleting(false);
     }
-  }
-  
-  const handleStatusChangeClick = (intervention: Intervention) => {
-    setStatusChangeIntervention(intervention)
-    
-    const nextStatus = getNextStatus(intervention.status)
-    setNewStatus(nextStatus)
-    
-    setStatusComment('')
-    setIsStatusModalOpen(true)
-  }
-  
-  const getNextStatus = (currentStatus: InterventionStatus): InterventionStatus => {
-    switch (currentStatus) {
-      case 'EN_ATTENTE': return 'EN_COURS'
-      case 'EN_COURS': return 'TERMINE'
-      case 'TERMINE': return 'TERMINE'
-      case 'ANNULE': return 'ANNULE'
-      default: return 'EN_ATTENTE'
-    }
-  }
-  
-  const getAvailableStatuses = (currentStatus: InterventionStatus): InterventionStatus[] => {
-    switch (currentStatus) {
-      case 'EN_ATTENTE':
-        return ['EN_ATTENTE', 'EN_COURS', 'ANNULE']
-      case 'EN_COURS':
-        return ['EN_COURS', 'TERMINE', 'ANNULE']
-      case 'TERMINE':
-        return ['TERMINE']
-      case 'ANNULE':
-        return ['ANNULE']
-      default:
-        return []
-    }
-  }
-  
-  const handleStatusChange = async () => {
-    if (!statusChangeIntervention) return
-    
-    setIsChangingStatus(true)
-    
-    try {
-      // Mapper le statut frontend vers le statut API
-      const apiStatus = newStatus === 'EN_ATTENTE' ? 'DRAFT'
-        : newStatus === 'EN_COURS' ? 'OPEN'
-        : newStatus === 'TERMINE' ? 'DONE'
-        : newStatus === 'ANNULE' ? 'CANCELED'
-        : newStatus
-      
-      const response = await fetch(`/api/interventions/${statusChangeIntervention.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          status: apiStatus,
-          notes: statusComment || undefined
-        })
-      })
-      
-      const data = await response.json()
-      
-      if (data.ok) {
-        toast.success('Statut modifié', `L'intervention est maintenant ${getStatusLabel(newStatus)}`)
-        setIsStatusModalOpen(false)
-        setStatusChangeIntervention(null)
-        loadInterventions()
-      } else {
-        toast.error('Erreur', data.error || 'Impossible de changer le statut')
-      }
-      
-    } catch (error) {
-      console.error('Error changing status:', error)
-      toast.error('Erreur', 'Impossible de se connecter au serveur')
-    } finally {
-      setIsChangingStatus(false)
-    }
-  }
-  
-  const handleDeleteClick = (intervention: Intervention) => {
-    setInterventionToDelete(intervention)
-    setDeleteModalOpen(true)
-  }
-  
-  const handleDeleteConfirm = async () => {
-    if (!interventionToDelete) return
-    
-    setIsDeleting(true)
-    
-    try {
-      const response = await fetch(`/api/interventions/${interventionToDelete.id}`, {
-        method: 'DELETE'
-      })
-      
-      const data = await response.json()
-      
-      if (data.ok) {
-        toast.success('Intervention supprimée', 'L\'intervention a été supprimée avec succès')
-        setDeleteModalOpen(false)
-        setInterventionToDelete(null)
-        loadInterventions()
-      } else {
-        toast.error('Erreur', data.error || 'Impossible de supprimer l\'intervention')
-      }
-      
-    } catch (error) {
-      console.error('Error deleting intervention:', error)
-      toast.error('Erreur', 'Impossible de se connecter au serveur')
-    } finally {
-      setIsDeleting(false)
-    }
-  }
-  
-  const getStatusLabel = (status: InterventionStatus): string => {
-    const labels = {
-      EN_ATTENTE: 'En attente',
-      EN_COURS: 'En cours',
-      TERMINE: 'Terminée',
-      ANNULE: 'Annulée'
-    }
-    return labels[status]
-  }
-  
-  const getStatusBadgeVariant = (status: InterventionStatus) => {
-    const variants = {
-      EN_ATTENTE: 'warning',
-      EN_COURS: 'info',
-      TERMINE: 'success',
-      ANNULE: 'error'
-    }
-    return variants[status] as any
-  }
-  
-  const getStatusIcon = (status: InterventionStatus) => {
-    const icons = {
-      EN_ATTENTE: <Clock size={16} />,
-      EN_COURS: <PlayCircle size={16} />,
-      TERMINE: <CheckCircle size={16} />,
-      ANNULE: <XCircle size={16} />
-    }
-    return icons[status]
-  }
-  
-  const formatCurrency = (amount?: number): string => {
-    if (!amount) return '-'
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'EUR'
-    }).format(amount)
-  }
-  
-  const columns = [
-    {
-      key: 'number',
-      label: 'Numéro',
-      sortable: true,
-      render: (intervention: Intervention) => (
-        <div>
-          <div style={{
-            fontFamily: 'monospace',
-            fontSize: '14px',
-            fontWeight: 600,
-            color: '#111827'
-          }}>
-            {intervention.number}
-          </div>
-          <div style={{ 
-            fontSize: '12px', 
-            color: '#9CA3AF',
-            marginTop: '2px'
-          }}>
-            {new Date(intervention.entryDate).toLocaleDateString('fr-FR')}
-          </div>
-        </div>
-      )
-    },
-    {
-      key: 'client',
-      label: 'Client & Véhicule',
-      sortable: true,
-      render: (intervention: Intervention) => (
-        <div>
-          <div style={{ 
-            fontSize: '14px', 
-            fontWeight: 500, 
-            color: '#111827',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            marginBottom: '4px'
-          }}>
-            <User size={14} />
-            {intervention.clientName}
-          </div>
-          <div style={{ 
-            fontSize: '12px', 
-            color: '#6B7280',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px'
-          }}>
-            <Car size={12} />
-            {intervention.vehicleInfo}
-          </div>
-        </div>
-      )
-    },
-    {
-      key: 'status',
-      label: 'Statut',
-      sortable: true,
-      render: (intervention: Intervention) => (
-        <Badge 
-          variant={getStatusBadgeVariant(intervention.status)}
-        >
-          {getStatusLabel(intervention.status)}
-        </Badge>
-      )
-    },
-    {
-      key: 'description',
-      label: 'Description',
-      sortable: false,
-      render: (intervention: Intervention) => (
-        <div style={{
-          fontSize: '13px',
-          color: '#6B7280',
-          maxWidth: '300px',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap'
-        }}>
-          {intervention.description}
-        </div>
-      )
-    },
-    {
-      key: 'amount',
-      label: 'Montant',
-      sortable: true,
-      render: (intervention: Intervention) => (
-        <div style={{
-          fontSize: '14px',
-          fontWeight: 600,
-          color: intervention.amount ? '#111827' : '#9CA3AF'
-        }}>
-          {formatCurrency(intervention.amount)}
-        </div>
-      )
-    },
-    {
-      key: 'signatures',
-      label: 'Signatures',
-      sortable: false,
-      render: (intervention: Intervention) => (
-        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-          <Badge 
-            variant={intervention.isClientSigned ? 'success' : 'neutral'}
-            size="sm"
-          >
-            {intervention.isClientSigned ? '✓' : '○'} Client
-          </Badge>
-          <Badge 
-            variant={intervention.isGarageSigned ? 'success' : 'neutral'}
-            size="sm"
-          >
-            {intervention.isGarageSigned ? '✓' : '○'} Atelier
-          </Badge>
-        </div>
-      )
-    },
-    {
-      key: 'actions',
-      label: 'Actions',
-      sortable: false,
-      render: (intervention: Intervention) => (
-        <DropdownMenu
-          trigger={
-            <button
-              style={{
-                padding: '6px',
-                backgroundColor: 'transparent',
-                border: 'none',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                color: '#6B7280',
-                transition: 'all 0.15s ease'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = '#F9FAFB'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'transparent'
-              }}
-            >
-              <MoreVertical size={16} />
-            </button>
-          }
-          items={[
-            {
-              id: 'view',
-              label: 'Voir détails',
-              icon: <Eye size={16} />,
-              onClick: () => router.push(`/interventions/${intervention.id}`)
-            },
-            {
-              id: 'edit',
-              label: 'Modifier',
-              icon: <Edit size={16} />,
-              onClick: () => handleEdit(intervention),
-              disabled: intervention.status === 'TERMINE' || intervention.status === 'ANNULE'
-            },
-            {
-              id: 'status',
-              label: 'Changer statut',
-              icon: getStatusIcon(intervention.status),
-              onClick: () => handleStatusChangeClick(intervention),
-              disabled: intervention.status === 'TERMINE' || intervention.status === 'ANNULE'
-            },
-            { id: 'separator', separator: true },
-            {
-              id: 'signature',
-              label: 'Signatures',
-              icon: <FileSignature size={16} />,
-              onClick: () => router.push(`/interventions/${intervention.id}/signatures`)
-            },
-            { id: 'separator2', separator: true },
-            {
-              id: 'delete',
-              label: 'Supprimer',
-              icon: <Trash2 size={16} />,
-              danger: true,
-              onClick: () => handleDeleteClick(intervention)
-            }
-          ]}
-        />
-      )
-    }
-  ]
-  
+  };
+
+  const formatDate = (date: Date) => {
+    return new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "short", year: "numeric" }).format(date);
+  };
+
+  const formatCurrency = (amount?: number) => {
+    if (!amount) return "-";
+    return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(amount);
+  };
+
+  // Styles
+  const cardStyle: React.CSSProperties = {
+    background: "#fff",
+    borderRadius: "16px",
+    border: "1px solid #E5E7EB",
+    overflow: "hidden",
+  };
+
+  const inputStyle: React.CSSProperties = {
+    width: "100%",
+    padding: "10px 14px",
+    paddingLeft: "40px",
+    borderRadius: "10px",
+    border: "1px solid #E5E7EB",
+    fontSize: "14px",
+    outline: "none",
+    transition: "all 0.2s",
+  };
+
+  const selectStyle: React.CSSProperties = {
+    padding: "10px 14px",
+    paddingRight: "36px",
+    borderRadius: "10px",
+    border: "1px solid #E5E7EB",
+    fontSize: "14px",
+    background: "#fff",
+    cursor: "pointer",
+    outline: "none",
+    appearance: "none",
+    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236B7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
+    backgroundRepeat: "no-repeat",
+    backgroundPosition: "right 10px center",
+  };
+
   return (
-    <div style={{ padding: '24px', maxWidth: '1600px', margin: '0 auto' }}>
+    <div style={{ padding: "32px", maxWidth: "1600px", margin: "0 auto" }}>
       {/* Header */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '24px'
-      }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "32px" }}>
         <div>
-          <h1 style={{
-            fontSize: '32px',
-            fontWeight: 700,
-            color: '#111827',
-            margin: 0,
-            marginBottom: '4px'
-          }}>
-            Interventions
-          </h1>
-          <p style={{
-            fontSize: '14px',
-            color: '#6B7280',
-            margin: 0
-          }}>
-            Gérez toutes vos interventions et dossiers techniques
+          <h1 style={{ fontSize: "32px", fontWeight: "700", color: "#111827", margin: 0 }}>Interventions</h1>
+          <p style={{ fontSize: "15px", color: "#6B7280", marginTop: "4px" }}>
+            Gérez vos dossiers d'intervention et signatures
           </p>
         </div>
-        
-        <Button
-          variant="primary"
-          size="lg"
-          leftIcon={<Plus size={20} />}
-          onClick={handleCreate}
-        >
-          Nouvelle intervention
-        </Button>
+
+        <Link href="/interventions/nouveau" style={{ textDecoration: "none" }}>
+          <button
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "12px 20px",
+              borderRadius: "12px",
+              border: "none",
+              background: "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)",
+              fontSize: "14px",
+              fontWeight: "600",
+              color: "#fff",
+              cursor: "pointer",
+              boxShadow: "0 4px 12px rgba(99, 102, 241, 0.3)",
+            }}
+          >
+            <Plus size={18} />
+            Nouvelle intervention
+          </button>
+        </Link>
       </div>
-      
+
+      {/* Stats Cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "16px", marginBottom: "24px" }}>
+        {[
+          { label: "Total", value: stats.total, color: "#6366F1", icon: Wrench },
+          { label: "En attente", value: stats.enAttente, color: "#F59E0B", icon: Clock },
+          { label: "En cours", value: stats.enCours, color: "#3B82F6", icon: PlayCircle },
+          { label: "Terminées", value: stats.terminees, color: "#10B981", icon: CheckCircle },
+          { label: "À signer", value: stats.aSigner, color: "#EC4899", icon: FileSignature },
+        ].map((stat, i) => {
+          const Icon = stat.icon;
+          return (
+            <div
+              key={i}
+              style={{
+                ...cardStyle,
+                padding: "20px",
+                display: "flex",
+                alignItems: "center",
+                gap: "16px",
+              }}
+            >
+              <div
+                style={{
+                  width: "48px",
+                  height: "48px",
+                  borderRadius: "12px",
+                  background: `${stat.color}15`,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Icon size={24} color={stat.color} />
+              </div>
+              <div>
+                <p style={{ fontSize: "28px", fontWeight: "700", color: "#111827", margin: 0 }}>{stat.value}</p>
+                <p style={{ fontSize: "13px", color: "#6B7280", margin: 0 }}>{stat.label}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
       {/* Filters */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-        gap: '12px',
-        marginBottom: '20px'
-      }}>
-        <div style={{ gridColumn: 'span 2' }}>
-          <SearchInput
-            placeholder="Rechercher (numéro, client, véhicule)..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onClear={() => setSearchQuery('')}
-          />
+      <div style={{ ...cardStyle, padding: "16px", marginBottom: "24px" }}>
+        <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
+          <div style={{ position: "relative", flex: "1", minWidth: "250px" }}>
+            <Search size={18} color="#9CA3AF" style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)" }} />
+            <input
+              type="text"
+              placeholder="Rechercher par numéro, client, véhicule..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={inputStyle}
+            />
+          </div>
+
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={selectStyle}>
+            <option value="all">Tous les statuts</option>
+            <option value="EN_ATTENTE">En attente</option>
+            <option value="EN_COURS">En cours</option>
+            <option value="TERMINE">Terminées</option>
+            <option value="ANNULE">Annulées</option>
+          </select>
+
+          <select value={clientFilter} onChange={(e) => setClientFilter(e.target.value)} style={selectStyle}>
+            <option value="all">Tous les clients</option>
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+
+          <button
+            onClick={() => loadData()}
+            style={{
+              padding: "10px",
+              borderRadius: "10px",
+              border: "1px solid #E5E7EB",
+              background: "#fff",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <RefreshCw size={18} color="#6B7280" />
+          </button>
         </div>
-        
-        <Select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          options={[
-            { value: 'all', label: 'Tous les statuts' },
-            { value: 'EN_ATTENTE', label: 'En attente' },
-            { value: 'EN_COURS', label: 'En cours' },
-            { value: 'TERMINE', label: 'Terminées' },
-            { value: 'ANNULE', label: 'Annulées' }
-          ]}
-        />
-        
-        <Select
-          value={clientFilter}
-          onChange={(e) => setClientFilter(e.target.value)}
-          options={[
-            { value: 'all', label: 'Tous les clients' },
-            ...clients.map(c => ({ value: c.id, label: c.name }))
-          ]}
-        />
       </div>
-      
+
       {/* Table */}
-      <DataTableInline
-        data={interventions}
-        columns={columns}
-        loading={isLoading}
-        emptyState={
-          <div style={{ textAlign: 'center', padding: '48px 24px' }}>
-            <div style={{ fontSize: '16px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>
+      <div style={cardStyle}>
+        {isLoading ? (
+          <div style={{ padding: "64px", textAlign: "center" }}>
+            <RefreshCw size={32} color="#6366F1" style={{ animation: "spin 1s linear infinite" }} />
+            <p style={{ marginTop: "16px", color: "#6B7280" }}>Chargement...</p>
+          </div>
+        ) : interventions.length === 0 ? (
+          <div style={{ padding: "64px", textAlign: "center" }}>
+            <div
+              style={{
+                width: "80px",
+                height: "80px",
+                margin: "0 auto",
+                borderRadius: "50%",
+                background: "linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Wrench size={40} color="#6366F1" />
+            </div>
+            <h3 style={{ fontSize: "18px", fontWeight: "600", color: "#111827", marginTop: "24px" }}>
               Aucune intervention
-            </div>
-            <div style={{ fontSize: '14px', color: '#6B7280', marginBottom: '16px' }}>
-              {searchQuery 
-                ? 'Aucune intervention ne correspond à votre recherche'
-                : 'Commencez par créer votre première intervention'}
-            </div>
+            </h3>
+            <p style={{ fontSize: "14px", color: "#6B7280", marginBottom: "24px" }}>
+              {searchQuery ? "Aucun résultat pour cette recherche" : "Créez votre première intervention"}
+            </p>
             {!searchQuery && (
-              <Button variant="primary" onClick={handleCreate}>
-                Nouvelle intervention
-              </Button>
+              <Link href="/interventions/nouveau" style={{ textDecoration: "none" }}>
+                <button
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    padding: "12px 24px",
+                    borderRadius: "12px",
+                    border: "none",
+                    background: "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)",
+                    fontSize: "14px",
+                    fontWeight: "600",
+                    color: "#fff",
+                    cursor: "pointer",
+                  }}
+                >
+                  <Plus size={18} />
+                  Nouvelle intervention
+                </button>
+              </Link>
             )}
           </div>
-        }
-      />
-      
-      {/* Modal création/édition */}
-      <Modal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title={editingIntervention ? 'Modifier l\'intervention' : 'Nouvelle intervention'}
-        size="lg"
-      >
-        <div style={{ padding: '24px' }}>
-          <Select
-            label="Client"
-            value={formData.clientId}
-            onChange={(e) => setFormData({ ...formData, clientId: e.target.value, vehicleId: '' })}
-            options={[
-              { value: '', label: 'Sélectionner un client' },
-              ...clients.map(c => ({ value: c.id, label: c.name }))
-            ]}
-            error={formErrors.clientId}
-            required
-          />
-          
-          <Select
-            label="Véhicule"
-            value={formData.vehicleId}
-            onChange={(e) => setFormData({ ...formData, vehicleId: e.target.value })}
-            options={[
-              { value: '', label: 'Sélectionner un véhicule' },
-              ...clientVehicles.map(v => ({ value: v.id, label: v.info }))
-            ]}
-            error={formErrors.vehicleId}
-            disabled={!formData.clientId}
-            helperText={!formData.clientId ? 'Sélectionnez d\'abord un client' : undefined}
-            required
-          />
-          
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: '16px'
-          }}>
-            <FormField
-              label="Date d'entrée"
-              type="date"
-              name="entryDate"
-              value={formData.entryDate}
-              onChange={(e) => setFormData({ ...formData, entryDate: e.target.value })}
-              error={formErrors.entryDate}
-              required
-            />
-            
-            <FormField
-              label="Kilométrage"
-              type="number"
-              name="mileage"
-              placeholder="50000"
-              value={formData.mileage}
-              onChange={(e) => setFormData({ ...formData, mileage: e.target.value })}
-              error={formErrors.mileage}
-              required
-            />
-          </div>
-          
-          <Textarea
-            label="Description des travaux"
-            name="description"
-            placeholder="Détaillez les interventions à réaliser..."
-            value={formData.description}
-            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-            errorText={formErrors.description}
-            rows={5}
-            required
-          />
-          
-          <div style={{
-            display: 'flex',
-            gap: '12px',
-            justifyContent: 'flex-end',
-            marginTop: '24px',
-            paddingTop: '20px',
-            borderTop: '1px solid #E5E7EB'
-          }}>
-            <Button
-              variant="secondary"
-              onClick={() => setIsModalOpen(false)}
-              disabled={isSaving}
-            >
-              Annuler
-            </Button>
-            <Button
-              variant="primary"
-              onClick={handleSave}
-              loading={isSaving}
-              disabled={isSaving}
-            >
-              {editingIntervention ? 'Enregistrer' : 'Créer'}
-            </Button>
-          </div>
-        </div>
-      </Modal>
-      
-      {/* Modal changement statut */}
-      <Modal
-        isOpen={isStatusModalOpen}
-        onClose={() => setIsStatusModalOpen(false)}
-        title="Changer le statut"
-        size="md"
-      >
-        <div style={{ padding: '24px' }}>
-          <p style={{
-            fontSize: '15px',
-            color: '#6B7280',
-            lineHeight: 1.6,
-            marginBottom: '20px'
-          }}>
-            Intervention : <strong>{statusChangeIntervention?.number}</strong>
-          </p>
-          
-          <Select
-            label="Nouveau statut"
-            value={newStatus}
-            onChange={(e) => setNewStatus(e.target.value as InterventionStatus)}
-            options={
-              statusChangeIntervention
-                ? getAvailableStatuses(statusChangeIntervention.status).map(s => ({
-                    value: s,
-                    label: getStatusLabel(s)
-                  }))
-                : []
-            }
-          />
-          
-          <Textarea
-            label="Commentaire (optionnel)"
-            name="statusComment"
-            placeholder="Raison du changement de statut..."
-            value={statusComment}
-            onChange={(e) => setStatusComment(e.target.value)}
-            rows={3}
-          />
-          
-          <div style={{
-            display: 'flex',
-            gap: '12px',
-            justifyContent: 'flex-end',
-            marginTop: '24px'
-          }}>
-            <Button
-              variant="secondary"
-              onClick={() => setIsStatusModalOpen(false)}
-              disabled={isChangingStatus}
-            >
-              Annuler
-            </Button>
-            <Button
-              variant="primary"
-              onClick={handleStatusChange}
-              loading={isChangingStatus}
-              disabled={isChangingStatus}
-            >
-              Changer
-            </Button>
-          </div>
-        </div>
-      </Modal>
-      
-      {/* Modal suppression */}
-      <Modal
-        isOpen={deleteModalOpen}
-        onClose={() => setDeleteModalOpen(false)}
-        title="Supprimer l'intervention"
-        size="md"
-      >
-        <div style={{ padding: '24px' }}>
-          <p style={{
-            fontSize: '15px',
-            color: '#6B7280',
-            lineHeight: 1.6,
-            margin: 0,
-            marginBottom: '20px'
-          }}>
-            Êtes-vous sûr de vouloir supprimer l'intervention{' '}
-            <strong style={{ color: '#111827' }}>
-              {interventionToDelete?.number}
-            </strong> ?
-          </p>
-          
-          <div style={{
-            display: 'flex',
-            gap: '12px',
-            justifyContent: 'flex-end'
-          }}>
-            <Button
-              variant="secondary"
-              onClick={() => setDeleteModalOpen(false)}
-              disabled={isDeleting}
-            >
-              Annuler
-            </Button>
-            <Button
-              variant="primary"
-              onClick={handleDeleteConfirm}
-              loading={isDeleting}
-              disabled={isDeleting}
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ borderBottom: "1px solid #E5E7EB" }}>
+                {["Numéro", "Client & Véhicule", "Type", "Statut", "Montant", "Signatures", ""].map((header) => (
+                  <th
+                    key={header}
+                    style={{
+                      padding: "14px 16px",
+                      textAlign: "left",
+                      fontSize: "12px",
+                      fontWeight: "600",
+                      color: "#6B7280",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.05em",
+                    }}
+                  >
+                    {header}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {interventions.map((intervention) => {
+                const statusConfig = STATUS_CONFIG[intervention.status];
+                const StatusIcon = statusConfig.icon;
+
+                return (
+                  <tr
+                    key={intervention.id}
+                    style={{ borderBottom: "1px solid #F3F4F6", cursor: "pointer" }}
+                    onClick={() => router.push(`/interventions/${intervention.id}`)}
+                    onMouseEnter={(e) => (e.currentTarget.style.background = "#F9FAFB")}
+                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                  >
+                    <td style={{ padding: "16px" }}>
+                      <div style={{ fontFamily: "monospace", fontSize: "14px", fontWeight: "600", color: "#111827" }}>
+                        {intervention.number}
+                      </div>
+                      <div style={{ fontSize: "12px", color: "#9CA3AF", marginTop: "2px", display: "flex", alignItems: "center", gap: "4px" }}>
+                        <Calendar size={12} />
+                        {formatDate(intervention.entryDate)}
+                      </div>
+                    </td>
+
+                    <td style={{ padding: "16px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "14px", fontWeight: "500", color: "#111827", marginBottom: "4px" }}>
+                        <User size={14} color="#6B7280" />
+                        {intervention.clientName}
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", color: "#6B7280" }}>
+                        <Car size={13} color="#9CA3AF" />
+                        {intervention.vehicleInfo}
+                      </div>
+                    </td>
+
+                    <td style={{ padding: "16px" }}>
+                      <div style={{ fontSize: "14px", color: "#374151" }}>{intervention.type}</div>
+                      {intervention.description && (
+                        <div
+                          style={{
+                            fontSize: "12px",
+                            color: "#9CA3AF",
+                            marginTop: "2px",
+                            maxWidth: "200px",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {intervention.description}
+                        </div>
+                      )}
+                    </td>
+
+                    <td style={{ padding: "16px" }}>
+                      <div
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "6px",
+                          padding: "6px 12px",
+                          borderRadius: "100px",
+                          background: statusConfig.bgColor,
+                          fontSize: "13px",
+                          fontWeight: "500",
+                          color: statusConfig.color,
+                        }}
+                      >
+                        <StatusIcon size={14} />
+                        {statusConfig.label}
+                      </div>
+                      {intervention.hasIncident && (
+                        <div style={{ display: "flex", alignItems: "center", gap: "4px", marginTop: "6px", fontSize: "12px", color: "#EF4444" }}>
+                          <AlertTriangle size={12} />
+                          Incident
+                        </div>
+                      )}
+                    </td>
+
+                    <td style={{ padding: "16px" }}>
+                      <div style={{ fontSize: "14px", fontWeight: "600", color: intervention.amount ? "#111827" : "#9CA3AF" }}>
+                        {formatCurrency(intervention.amount)}
+                      </div>
+                    </td>
+
+                    <td style={{ padding: "16px" }}>
+                      <div style={{ display: "flex", gap: "8px" }}>
+                        <div
+                          style={{
+                            padding: "4px 10px",
+                            borderRadius: "6px",
+                            background: intervention.isClientSigned ? "rgba(16, 185, 129, 0.1)" : "rgba(156, 163, 175, 0.1)",
+                            fontSize: "12px",
+                            fontWeight: "500",
+                            color: intervention.isClientSigned ? "#10B981" : "#9CA3AF",
+                          }}
+                        >
+                          {intervention.isClientSigned ? "✓" : "○"} Client
+                        </div>
+                        <div
+                          style={{
+                            padding: "4px 10px",
+                            borderRadius: "6px",
+                            background: intervention.isGarageSigned ? "rgba(16, 185, 129, 0.1)" : "rgba(156, 163, 175, 0.1)",
+                            fontSize: "12px",
+                            fontWeight: "500",
+                            color: intervention.isGarageSigned ? "#10B981" : "#9CA3AF",
+                          }}
+                        >
+                          {intervention.isGarageSigned ? "✓" : "○"} Atelier
+                        </div>
+                      </div>
+                    </td>
+
+                    <td style={{ padding: "16px" }} onClick={(e) => e.stopPropagation()}>
+                      <div style={{ position: "relative" }}>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenDropdown(openDropdown === intervention.id ? null : intervention.id);
+                          }}
+                          style={{
+                            padding: "8px",
+                            borderRadius: "8px",
+                            border: "none",
+                            background: openDropdown === intervention.id ? "#F3F4F6" : "transparent",
+                            cursor: "pointer",
+                          }}
+                        >
+                          <MoreVertical size={18} color="#6B7280" />
+                        </button>
+
+                        {openDropdown === intervention.id && (
+                          <div
+                            style={{
+                              position: "absolute",
+                              right: 0,
+                              top: "100%",
+                              marginTop: "4px",
+                              width: "200px",
+                              background: "#fff",
+                              borderRadius: "12px",
+                              border: "1px solid #E5E7EB",
+                              boxShadow: "0 10px 40px rgba(0,0,0,0.1)",
+                              zIndex: 50,
+                              overflow: "hidden",
+                            }}
+                          >
+                            <button
+                              onClick={() => router.push(`/interventions/${intervention.id}`)}
+                              style={{
+                                width: "100%",
+                                padding: "12px 16px",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "10px",
+                                border: "none",
+                                background: "transparent",
+                                fontSize: "14px",
+                                color: "#374151",
+                                cursor: "pointer",
+                                textAlign: "left",
+                              }}
+                              onMouseEnter={(e) => (e.currentTarget.style.background = "#F9FAFB")}
+                              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                            >
+                              <Eye size={16} />
+                              Voir détails
+                            </button>
+                            <button
+                              onClick={() => router.push(`/interventions/${intervention.id}/tech`)}
+                              style={{
+                                width: "100%",
+                                padding: "12px 16px",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "10px",
+                                border: "none",
+                                background: "transparent",
+                                fontSize: "14px",
+                                color: "#374151",
+                                cursor: "pointer",
+                                textAlign: "left",
+                              }}
+                              onMouseEnter={(e) => (e.currentTarget.style.background = "#F9FAFB")}
+                              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                            >
+                              <Wrench size={16} />
+                              Fiche technique
+                            </button>
+                            <button
+                              onClick={() => router.push(`/interventions/${intervention.id}/reception`)}
+                              style={{
+                                width: "100%",
+                                padding: "12px 16px",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "10px",
+                                border: "none",
+                                background: "transparent",
+                                fontSize: "14px",
+                                color: "#374151",
+                                cursor: "pointer",
+                                textAlign: "left",
+                              }}
+                              onMouseEnter={(e) => (e.currentTarget.style.background = "#F9FAFB")}
+                              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                            >
+                              <FileSignature size={16} />
+                              PV Réception
+                            </button>
+                            <div style={{ height: "1px", background: "#E5E7EB" }} />
+                            <button
+                              onClick={() => {
+                                setInterventionToDelete(intervention);
+                                setDeleteModalOpen(true);
+                                setOpenDropdown(null);
+                              }}
+                              style={{
+                                width: "100%",
+                                padding: "12px 16px",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "10px",
+                                border: "none",
+                                background: "transparent",
+                                fontSize: "14px",
+                                color: "#EF4444",
+                                cursor: "pointer",
+                                textAlign: "left",
+                              }}
+                              onMouseEnter={(e) => (e.currentTarget.style.background = "#FEF2F2")}
+                              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                            >
+                              <Trash2 size={16} />
+                              Supprimer
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {/* Delete Modal */}
+      {deleteModalOpen && interventionToDelete && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 100,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(0,0,0,0.5)",
+          }}
+          onClick={() => setDeleteModalOpen(false)}
+        >
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: "20px",
+              padding: "32px",
+              maxWidth: "440px",
+              width: "100%",
+              margin: "16px",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
               style={{
-                backgroundColor: '#DC2626'
+                width: "56px",
+                height: "56px",
+                margin: "0 auto 20px",
+                borderRadius: "50%",
+                background: "rgba(239, 68, 68, 0.1)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
               }}
             >
-              Supprimer
-            </Button>
+              <AlertTriangle size={28} color="#EF4444" />
+            </div>
+
+            <h3 style={{ fontSize: "20px", fontWeight: "600", color: "#111827", textAlign: "center", margin: "0 0 8px" }}>
+              Supprimer l'intervention ?
+            </h3>
+            <p style={{ fontSize: "14px", color: "#6B7280", textAlign: "center", margin: "0 0 24px" }}>
+              L'intervention <strong>{interventionToDelete.number}</strong> sera supprimée définitivement. Cette action est irréversible.
+            </p>
+
+            <div style={{ display: "flex", gap: "12px" }}>
+              <button
+                onClick={() => setDeleteModalOpen(false)}
+                style={{
+                  flex: 1,
+                  padding: "12px",
+                  borderRadius: "10px",
+                  border: "1px solid #E5E7EB",
+                  background: "#fff",
+                  fontSize: "14px",
+                  fontWeight: "500",
+                  color: "#374151",
+                  cursor: "pointer",
+                }}
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={isDeleting}
+                style={{
+                  flex: 1,
+                  padding: "12px",
+                  borderRadius: "10px",
+                  border: "none",
+                  background: "#EF4444",
+                  fontSize: "14px",
+                  fontWeight: "600",
+                  color: "#fff",
+                  cursor: isDeleting ? "not-allowed" : "pointer",
+                  opacity: isDeleting ? 0.7 : 1,
+                }}
+              >
+                {isDeleting ? "Suppression..." : "Supprimer"}
+              </button>
+            </div>
           </div>
         </div>
-      </Modal>
+      )}
+
+      <style jsx>{`
+        @keyframes spin {
+          from {
+            transform: rotate(0deg);
+          }
+          to {
+            transform: rotate(360deg);
+          }
+        }
+      `}</style>
     </div>
-  )
+  );
 }

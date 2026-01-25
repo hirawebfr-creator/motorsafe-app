@@ -3,11 +3,24 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Car, Wrench, Plus, Loader2, RefreshCw } from "lucide-react";
+import {
+  ArrowLeft,
+  Search,
+  Car,
+  Wrench,
+  Plus,
+  RefreshCw,
+  User,
+  Check,
+  AlertCircle,
+  Loader2,
+  Info,
+} from "lucide-react";
 
-// ============================
-// Types
-// ============================
+// ============================================================================
+// NOUVELLE INTERVENTION - SafeMotor Design System
+// Création d'une nouvelle intervention
+// ============================================================================
 
 type ClientLite = {
   id: number;
@@ -37,16 +50,7 @@ type VehiclePrefill = {
   photoUrl?: string;
 };
 
-type InterventionCreate = {
-  vehicleId: string;
-  type: string;
-  notes?: string;
-};
-
-// ============================
 // Helpers
-// ============================
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
@@ -69,24 +73,20 @@ function normalizePlate(plate: string): string {
 }
 
 const TYPE_OPTIONS = [
-  { value: "E85", label: "E85" },
-  { value: "Reprog", label: "Reprogrammation" },
+  { value: "E85", label: "Conversion E85" },
+  { value: "Reprog", label: "Reprogrammation moteur" },
   { value: "Diag", label: "Diagnostic" },
+  { value: "Entretien", label: "Entretien" },
   { value: "Autre", label: "Autre" },
 ];
-
-// ============================
-// Component
-// ============================
 
 export default function NouvelleInterventionPage() {
   const router = useRouter();
 
-  // Form state
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Mode: "existing" (select existing vehicle) or "new" (create new vehicle)
+  // Mode: "existing" ou "new"
   const [mode, setMode] = useState<"existing" | "new">("existing");
 
   // === Existing vehicle mode ===
@@ -105,18 +105,17 @@ export default function NouvelleInterventionPage() {
   const [plate, setPlate] = useState("");
   const [lookupLoading, setLookupLoading] = useState(false);
   const [lookupError, setLookupError] = useState<string | null>(null);
-  const [lookupErrorCode, setLookupErrorCode] = useState<string | null>(null);
   const [lookupSuccess, setLookupSuccess] = useState(false);
   const [lookupSource, setLookupSource] = useState<"cache" | "api" | null>(null);
 
-  // Vehicle form fields (préremplis par lookup)
+  // Vehicle form fields
   const [brand, setBrand] = useState("");
   const [model, setModel] = useState("");
   const [vin, setVin] = useState("");
   const [fuel, setFuel] = useState("");
   const [year, setYear] = useState("");
   const [engine, setEngine] = useState("");
-  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [_logoUrl, setLogoUrl] = useState<string | null>(null);
 
   // Existing vehicle with same plate?
   const [existingVehicle, setExistingVehicle] = useState<VehicleLite | null>(null);
@@ -124,13 +123,12 @@ export default function NouvelleInterventionPage() {
   // === Intervention fields ===
   const [type, setType] = useState("E85");
   const [notes, setNotes] = useState("");
+  const [mileage, setMileage] = useState("");
 
   const debounceRef = useRef<number | null>(null);
   const clientDebounceRef = useRef<number | null>(null);
 
-  // ============================
   // Load existing vehicles
-  // ============================
   async function loadVehicles(q: string) {
     try {
       setVehicleLoading(true);
@@ -165,9 +163,7 @@ export default function NouvelleInterventionPage() {
     };
   }, [vehicleQuery, mode]);
 
-  // ============================
-  // Load clients (for new vehicle mode)
-  // ============================
+  // Load clients
   async function loadClients(q: string) {
     try {
       setClientLoading(true);
@@ -202,9 +198,7 @@ export default function NouvelleInterventionPage() {
     };
   }, [clientQuery, mode]);
 
-  // ============================
   // Plate Lookup
-  // ============================
   async function lookupPlate(forceRefresh = false) {
     if (!plate.trim()) {
       setLookupError("Entrez une plaque d'immatriculation.");
@@ -216,26 +210,21 @@ export default function NouvelleInterventionPage() {
     try {
       setLookupLoading(true);
       setLookupError(null);
-      setLookupErrorCode(null);
       setLookupSuccess(false);
       setLookupSource(null);
       setExistingVehicle(null);
 
-      // First check if vehicle already exists in garage
+      // Check if vehicle already exists
       const checkRes = await fetch(`/api/vehicules?q=${encodeURIComponent(normalizedPlate)}&pageSize=5`);
       const checkJson = await checkRes.json().catch(() => null);
       const existingVehicles = pickArray(checkJson) as VehicleLite[];
-      const matchingVehicle = existingVehicles.find(
-        (v) => normalizePlate(v.plate) === normalizedPlate
-      );
+      const matchingVehicle = existingVehicles.find((v) => normalizePlate(v.plate) === normalizedPlate);
 
       if (matchingVehicle) {
         setExistingVehicle(matchingVehicle);
-        // Pre-fill from existing vehicle
         setBrand(matchingVehicle.brand);
         setModel(matchingVehicle.model);
         setLookupSuccess(true);
-        setLookupSource(null); // Not from API
         return;
       }
 
@@ -247,27 +236,19 @@ export default function NouvelleInterventionPage() {
       });
 
       const json = await res.json().catch(() => null);
-
-      if (json?.data?.source) {
-        setLookupSource(json.data.source as "cache" | "api");
-      }
+      if (json?.data?.source) setLookupSource(json.data.source as "cache" | "api");
 
       if (!res.ok || !json?.ok) {
-        const errorCode = json?.error?.code || "UNKNOWN";
-        const errorMsg = json?.error?.message || "Erreur lors de la recherche.";
-        setLookupError(errorMsg);
-        setLookupErrorCode(errorCode);
+        setLookupError(json?.error?.message || "Erreur lors de la recherche.");
         return;
       }
 
       const prefill = json.data?.data as VehiclePrefill | undefined;
       if (!prefill) {
         setLookupError("Aucune donnée trouvée. Saisissez manuellement.");
-        setLookupErrorCode("NO_DATA");
         return;
       }
 
-      // Auto-fill form fields
       if (prefill.brand) setBrand(prefill.brand);
       if (prefill.model) setModel(prefill.model);
       if (prefill.vin) setVin(prefill.vin);
@@ -278,32 +259,26 @@ export default function NouvelleInterventionPage() {
 
       setLookupSuccess(true);
     } catch {
-      setLookupError("Erreur de connexion. Saisissez manuellement.");
-      setLookupErrorCode("CONNECTION_ERROR");
+      setLookupError("Erreur de connexion.");
     } finally {
       setLookupLoading(false);
     }
   }
 
-  // ============================
   // Labels
-  // ============================
   const selectedVehicleLabel = useMemo(() => {
-    if (!selectedVehicle) return "Aucun véhicule sélectionné";
+    if (!selectedVehicle) return null;
     const v = selectedVehicle;
     const clientName = v.client ? `${v.client.firstName} ${v.client.lastName}`.trim() : "";
-    return `${v.plate} — ${v.brand} ${v.model}${clientName ? ` (${clientName})` : ""}`;
+    return { plate: v.plate, info: `${v.brand} ${v.model}`, client: clientName };
   }, [selectedVehicle]);
 
   const selectedClientLabel = useMemo(() => {
-    if (!selectedClient) return "Aucun client sélectionné";
-    const name = `${selectedClient.firstName} ${selectedClient.lastName}`.trim();
-    return [name, selectedClient.email].filter(Boolean).join(" • ");
+    if (!selectedClient) return null;
+    return `${selectedClient.firstName} ${selectedClient.lastName}`.trim();
   }, [selectedClient]);
 
-  // ============================
   // Submit
-  // ============================
   async function onSubmit() {
     try {
       setSaving(true);
@@ -312,22 +287,14 @@ export default function NouvelleInterventionPage() {
       let vehicleId: string;
 
       if (mode === "existing") {
-        // Use existing vehicle
-        if (!selectedVehicle?.id) {
-          throw new Error("Sélectionnez un véhicule.");
-        }
+        if (!selectedVehicle?.id) throw new Error("Sélectionnez un véhicule.");
         vehicleId = selectedVehicle.id;
       } else {
-        // New vehicle mode
-        if (!selectedClient?.id) {
-          throw new Error("Sélectionnez un client.");
-        }
+        if (!selectedClient?.id) throw new Error("Sélectionnez un client.");
 
-        // If existing vehicle found with same plate, use it
         if (existingVehicle) {
           vehicleId = existingVehicle.id;
         } else {
-          // Create new vehicle
           if (!brand.trim()) throw new Error("La marque est obligatoire.");
           if (!model.trim()) throw new Error("Le modèle est obligatoire.");
           if (!plate.trim()) throw new Error("La plaque est obligatoire.");
@@ -350,27 +317,22 @@ export default function NouvelleInterventionPage() {
           });
 
           const vehicleJson = await vehicleRes.json().catch(() => null);
-          if (!vehicleRes.ok) {
-            const msg = vehicleJson?.error?.message || "Erreur création véhicule";
-            throw new Error(msg);
-          }
+          if (!vehicleRes.ok) throw new Error(vehicleJson?.error?.message || "Erreur création véhicule");
 
           const vehicleData = unwrapOk(vehicleJson);
-          if (!isRecord(vehicleData) || typeof vehicleData.id !== "string") {
-            throw new Error("Réponse véhicule invalide");
-          }
+          if (!isRecord(vehicleData) || typeof vehicleData.id !== "string") throw new Error("Réponse véhicule invalide");
           vehicleId = vehicleData.id;
         }
       }
 
-      // Create intervention
       if (!type.trim()) throw new Error("Le type est obligatoire.");
 
-      const interventionPayload: InterventionCreate = {
+      const interventionPayload: Record<string, unknown> = {
         vehicleId,
         type: type.trim(),
       };
       if (notes.trim()) interventionPayload.notes = notes.trim();
+      if (mileage.trim()) interventionPayload.odometerKm = Number(mileage);
 
       const intRes = await fetch("/api/interventions", {
         method: "POST",
@@ -379,10 +341,7 @@ export default function NouvelleInterventionPage() {
       });
 
       const intJson = await intRes.json().catch(() => null);
-      if (!intRes.ok) {
-        const msg = intJson?.error?.message || "Erreur création intervention";
-        throw new Error(msg);
-      }
+      if (!intRes.ok) throw new Error(intJson?.error?.message || "Erreur création intervention");
 
       const intData = unwrapOk(intJson);
       const createdId = isRecord(intData) && typeof intData.id === "string" ? intData.id : undefined;
@@ -394,120 +353,240 @@ export default function NouvelleInterventionPage() {
     }
   }
 
-  // ============================
-  // Render
-  // ============================
+  // Styles
+  const cardStyle: React.CSSProperties = {
+    background: "#fff",
+    borderRadius: "16px",
+    border: "1px solid #E5E7EB",
+    padding: "24px",
+    marginBottom: "20px",
+  };
+
+  const inputStyle: React.CSSProperties = {
+    width: "100%",
+    padding: "12px 14px",
+    borderRadius: "10px",
+    border: "1px solid #E5E7EB",
+    fontSize: "14px",
+    outline: "none",
+    transition: "all 0.2s",
+  };
+
+  const labelStyle: React.CSSProperties = {
+    display: "block",
+    fontSize: "13px",
+    fontWeight: "500",
+    color: "#374151",
+    marginBottom: "6px",
+  };
+
+  const selectStyle: React.CSSProperties = {
+    ...inputStyle,
+    cursor: "pointer",
+    appearance: "none",
+    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236B7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
+    backgroundRepeat: "no-repeat",
+    backgroundPosition: "right 12px center",
+    paddingRight: "36px",
+  };
+
   return (
-    <div className="ms-animate-slide-up">
-      {/* Page Header */}
-      <div className="ms-page-header">
-        <div>
-          <h1 className="ms-page-title">Nouvelle intervention</h1>
-          <p className="ms-page-subtitle">Créer un nouveau dossier d&apos;intervention</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Link href="/interventions" className="ms-btn ms-btn-secondary">
-            Annuler
-          </Link>
+    <div style={{ padding: "32px", maxWidth: "800px", margin: "0 auto" }}>
+      {/* Header */}
+      <div style={{ marginBottom: "32px" }}>
+        <Link
+          href="/interventions"
+          style={{ display: "inline-flex", alignItems: "center", gap: "8px", fontSize: "14px", color: "#6B7280", textDecoration: "none", marginBottom: "16px" }}
+        >
+          <ArrowLeft size={16} />
+          Retour aux interventions
+        </Link>
+
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div>
+            <h1 style={{ fontSize: "28px", fontWeight: "700", color: "#111827", margin: 0 }}>Nouvelle intervention</h1>
+            <p style={{ fontSize: "14px", color: "#6B7280", marginTop: "4px" }}>Créez un nouveau dossier d'intervention</p>
+          </div>
+
           <button
-            type="button"
             onClick={onSubmit}
             disabled={saving}
-            className="ms-btn ms-btn-primary"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "12px 24px",
+              borderRadius: "12px",
+              border: "none",
+              background: "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)",
+              fontSize: "14px",
+              fontWeight: "600",
+              color: "#fff",
+              cursor: saving ? "not-allowed" : "pointer",
+              opacity: saving ? 0.7 : 1,
+              boxShadow: "0 4px 12px rgba(99, 102, 241, 0.3)",
+            }}
           >
-            {saving ? "Création…" : "Créer"}
+            {saving ? (
+              <>
+                <Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} />
+                Création...
+              </>
+            ) : (
+              <>
+                <Check size={16} />
+                Créer l'intervention
+              </>
+            )}
           </button>
         </div>
       </div>
 
       {/* Error */}
       {error && (
-        <div className="ms-alert ms-alert-error mb-6">
-          <span>{error}</span>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+            padding: "16px",
+            borderRadius: "12px",
+            background: "rgba(239, 68, 68, 0.1)",
+            border: "1px solid rgba(239, 68, 68, 0.2)",
+            marginBottom: "20px",
+          }}
+        >
+          <AlertCircle size={20} color="#EF4444" />
+          <span style={{ fontSize: "14px", color: "#DC2626" }}>{error}</span>
         </div>
       )}
 
       {/* Mode Selection */}
-      <div className="ms-card p-4 mb-6">
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setMode("existing")}
-            className={`flex-1 py-3 px-4 rounded-xl text-sm font-medium transition-all ${
-              mode === "existing"
-                ? "bg-[var(--ms-primary)] text-white"
-                : "bg-[var(--ms-bg-subtle)] text-[var(--ms-text-secondary)] hover:bg-[var(--ms-bg-hover)]"
-            }`}
-          >
-            <Car size={18} className="inline mr-2" />
-            Véhicule existant
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode("new")}
-            className={`flex-1 py-3 px-4 rounded-xl text-sm font-medium transition-all ${
-              mode === "new"
-                ? "bg-[var(--ms-primary)] text-white"
-                : "bg-[var(--ms-bg-subtle)] text-[var(--ms-text-secondary)] hover:bg-[var(--ms-bg-hover)]"
-            }`}
-          >
-            <Plus size={18} className="inline mr-2" />
-            Nouveau véhicule
-          </button>
+      <div style={cardStyle}>
+        <h3 style={{ fontSize: "16px", fontWeight: "600", color: "#111827", marginBottom: "16px" }}>Type de véhicule</h3>
+        <div style={{ display: "flex", gap: "12px" }}>
+          {[
+            { value: "existing", label: "Véhicule existant", icon: Car },
+            { value: "new", label: "Nouveau véhicule", icon: Plus },
+          ].map(({ value, label, icon: Icon }) => (
+            <button
+              key={value}
+              onClick={() => setMode(value as "existing" | "new")}
+              style={{
+                flex: 1,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "10px",
+                padding: "14px 20px",
+                borderRadius: "12px",
+                border: mode === value ? "2px solid #6366F1" : "1px solid #E5E7EB",
+                background: mode === value ? "rgba(99, 102, 241, 0.05)" : "#fff",
+                fontSize: "14px",
+                fontWeight: "500",
+                color: mode === value ? "#6366F1" : "#374151",
+                cursor: "pointer",
+                transition: "all 0.2s",
+              }}
+            >
+              <Icon size={18} />
+              {label}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* ============================
-          Mode: Existing Vehicle
-          ============================ */}
+      {/* Mode: Existing Vehicle */}
       {mode === "existing" && (
-        <div className="ms-card p-6 mb-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--ms-primary-light)]">
-              <Car size={20} className="text-[var(--ms-primary)]" />
+        <div style={cardStyle}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "20px" }}>
+            <div
+              style={{
+                width: "44px",
+                height: "44px",
+                borderRadius: "12px",
+                background: "rgba(99, 102, 241, 0.1)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Car size={22} color="#6366F1" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold">Véhicule</h3>
-              <p className="text-xs text-muted2">Sélectionnez le véhicule concerné</p>
+              <h3 style={{ fontSize: "16px", fontWeight: "600", color: "#111827", margin: 0 }}>Sélectionner un véhicule</h3>
+              <p style={{ fontSize: "13px", color: "#6B7280", margin: 0 }}>Recherchez parmi les véhicules existants</p>
             </div>
           </div>
 
-          <div className="ms-search mb-3">
-            <Search size={18} className="ms-search-icon" />
+          <div style={{ position: "relative", marginBottom: "16px" }}>
+            <Search size={18} color="#9CA3AF" style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)" }} />
             <input
               value={vehicleQuery}
               onChange={(e) => setVehicleQuery(e.target.value)}
-              placeholder="Rechercher un véhicule (plaque, marque…)"
-              className="ms-search-input"
+              placeholder="Rechercher par plaque, marque, modèle..."
+              style={{ ...inputStyle, paddingLeft: "42px" }}
             />
           </div>
 
-          <p className="text-sm text-muted2 mb-3">
-            {vehicleLoading ? "Chargement…" : selectedVehicleLabel}
-          </p>
-
-          <div className="max-h-[200px] overflow-y-auto rounded-xl border border-[var(--ms-border)]">
-            {vehicleOptions.length === 0 ? (
-              <div className="px-4 py-3 text-sm text-muted2">
-                {vehicleLoading ? "Chargement…" : "Aucun véhicule trouvé."}
+          {selectedVehicleLabel && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "12px",
+                padding: "12px 16px",
+                borderRadius: "10px",
+                background: "rgba(16, 185, 129, 0.1)",
+                border: "1px solid rgba(16, 185, 129, 0.2)",
+                marginBottom: "16px",
+              }}
+            >
+              <Check size={18} color="#10B981" />
+              <div>
+                <div style={{ fontSize: "14px", fontWeight: "600", color: "#111827" }}>{selectedVehicleLabel.plate}</div>
+                <div style={{ fontSize: "13px", color: "#6B7280" }}>
+                  {selectedVehicleLabel.info} {selectedVehicleLabel.client && `• ${selectedVehicleLabel.client}`}
+                </div>
               </div>
+            </div>
+          )}
+
+          <div style={{ maxHeight: "240px", overflowY: "auto", borderRadius: "10px", border: "1px solid #E5E7EB" }}>
+            {vehicleLoading ? (
+              <div style={{ padding: "20px", textAlign: "center", color: "#6B7280" }}>Chargement...</div>
+            ) : vehicleOptions.length === 0 ? (
+              <div style={{ padding: "20px", textAlign: "center", color: "#6B7280" }}>Aucun véhicule trouvé</div>
             ) : (
               vehicleOptions.map((v) => {
                 const clientName = v.client ? `${v.client.firstName} ${v.client.lastName}`.trim() : "";
-                const active = selectedVehicle?.id === v.id;
+                const isSelected = selectedVehicle?.id === v.id;
                 return (
                   <button
                     key={v.id}
-                    type="button"
                     onClick={() => setSelectedVehicle(v)}
-                    className={`w-full px-4 py-3 text-left hover:bg-[var(--ms-bg-subtle)] border-b border-[var(--ms-border)] last:border-b-0 ${
-                      active ? "bg-[var(--ms-primary-light)]" : ""
-                    }`}
+                    style={{
+                      width: "100%",
+                      padding: "14px 16px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      border: "none",
+                      borderBottom: "1px solid #F3F4F6",
+                      background: isSelected ? "rgba(99, 102, 241, 0.05)" : "transparent",
+                      cursor: "pointer",
+                      textAlign: "left",
+                    }}
+                    onMouseEnter={(e) => !isSelected && (e.currentTarget.style.background = "#F9FAFB")}
+                    onMouseLeave={(e) => !isSelected && (e.currentTarget.style.background = "transparent")}
                   >
-                    <div className="font-semibold">{v.plate}</div>
-                    <div className="text-sm text-muted2">
-                      {v.brand} {v.model} {clientName && `• ${clientName}`}
+                    <div>
+                      <div style={{ fontSize: "14px", fontWeight: "600", color: "#111827", fontFamily: "monospace" }}>{v.plate}</div>
+                      <div style={{ fontSize: "13px", color: "#6B7280" }}>
+                        {v.brand} {v.model} {clientName && `• ${clientName}`}
+                      </div>
                     </div>
+                    {isSelected && <Check size={18} color="#6366F1" />}
                   </button>
                 );
               })
@@ -516,57 +595,92 @@ export default function NouvelleInterventionPage() {
         </div>
       )}
 
-      {/* ============================
-          Mode: New Vehicle
-          ============================ */}
+      {/* Mode: New Vehicle */}
       {mode === "new" && (
         <>
           {/* Client Selection */}
-          <div className="ms-card p-6 mb-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--ms-warning-light)]">
-                <Search size={20} className="text-[var(--ms-warning)]" />
+          <div style={cardStyle}>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "20px" }}>
+              <div
+                style={{
+                  width: "44px",
+                  height: "44px",
+                  borderRadius: "12px",
+                  background: "rgba(245, 158, 11, 0.1)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <User size={22} color="#F59E0B" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold">Client</h3>
-                <p className="text-xs text-muted2">Sélectionnez le propriétaire du véhicule</p>
+                <h3 style={{ fontSize: "16px", fontWeight: "600", color: "#111827", margin: 0 }}>Sélectionner un client</h3>
+                <p style={{ fontSize: "13px", color: "#6B7280", margin: 0 }}>Propriétaire du véhicule</p>
               </div>
             </div>
 
-            <div className="ms-search mb-3">
-              <Search size={18} className="ms-search-icon" />
+            <div style={{ position: "relative", marginBottom: "16px" }}>
+              <Search size={18} color="#9CA3AF" style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)" }} />
               <input
                 value={clientQuery}
                 onChange={(e) => setClientQuery(e.target.value)}
-                placeholder="Rechercher un client (nom, email…)"
-                className="ms-search-input"
+                placeholder="Rechercher par nom, email..."
+                style={{ ...inputStyle, paddingLeft: "42px" }}
               />
             </div>
 
-            <p className="text-sm text-muted2 mb-3">
-              {clientLoading ? "Chargement…" : selectedClientLabel}
-            </p>
+            {selectedClientLabel && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "12px",
+                  padding: "12px 16px",
+                  borderRadius: "10px",
+                  background: "rgba(16, 185, 129, 0.1)",
+                  border: "1px solid rgba(16, 185, 129, 0.2)",
+                  marginBottom: "16px",
+                }}
+              >
+                <Check size={18} color="#10B981" />
+                <span style={{ fontSize: "14px", fontWeight: "500", color: "#111827" }}>{selectedClientLabel}</span>
+              </div>
+            )}
 
-            <div className="max-h-[160px] overflow-y-auto rounded-xl border border-[var(--ms-border)]">
-              {clientOptions.length === 0 ? (
-                <div className="px-4 py-3 text-sm text-muted2">
-                  {clientLoading ? "Chargement…" : "Aucun client trouvé."}
-                </div>
+            <div style={{ maxHeight: "180px", overflowY: "auto", borderRadius: "10px", border: "1px solid #E5E7EB" }}>
+              {clientLoading ? (
+                <div style={{ padding: "20px", textAlign: "center", color: "#6B7280" }}>Chargement...</div>
+              ) : clientOptions.length === 0 ? (
+                <div style={{ padding: "20px", textAlign: "center", color: "#6B7280" }}>Aucun client trouvé</div>
               ) : (
                 clientOptions.map((c) => {
                   const name = `${c.firstName} ${c.lastName}`.trim();
-                  const active = selectedClient?.id === c.id;
+                  const isSelected = selectedClient?.id === c.id;
                   return (
                     <button
                       key={c.id}
-                      type="button"
                       onClick={() => setSelectedClient(c)}
-                      className={`w-full px-4 py-3 text-left hover:bg-[var(--ms-bg-subtle)] border-b border-[var(--ms-border)] last:border-b-0 ${
-                        active ? "bg-[var(--ms-primary-light)]" : ""
-                      }`}
+                      style={{
+                        width: "100%",
+                        padding: "14px 16px",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        border: "none",
+                        borderBottom: "1px solid #F3F4F6",
+                        background: isSelected ? "rgba(99, 102, 241, 0.05)" : "transparent",
+                        cursor: "pointer",
+                        textAlign: "left",
+                      }}
+                      onMouseEnter={(e) => !isSelected && (e.currentTarget.style.background = "#F9FAFB")}
+                      onMouseLeave={(e) => !isSelected && (e.currentTarget.style.background = "transparent")}
                     >
-                      <div className="font-semibold">{name || `Client #${c.id}`}</div>
-                      {c.email && <div className="text-sm text-muted2">{c.email}</div>}
+                      <div>
+                        <div style={{ fontSize: "14px", fontWeight: "500", color: "#111827" }}>{name || `Client #${c.id}`}</div>
+                        {c.email && <div style={{ fontSize: "13px", color: "#6B7280" }}>{c.email}</div>}
+                      </div>
+                      {isSelected && <Check size={18} color="#6366F1" />}
                     </button>
                   );
                 })
@@ -575,21 +689,31 @@ export default function NouvelleInterventionPage() {
           </div>
 
           {/* Vehicle - Plate Lookup */}
-          <div className="ms-card p-6 mb-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--ms-primary-light)]">
-                <Car size={20} className="text-[var(--ms-primary)]" />
+          <div style={cardStyle}>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "20px" }}>
+              <div
+                style={{
+                  width: "44px",
+                  height: "44px",
+                  borderRadius: "12px",
+                  background: "rgba(99, 102, 241, 0.1)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Car size={22} color="#6366F1" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold">Véhicule</h3>
-                <p className="text-xs text-muted2">Recherchez par plaque ou saisissez manuellement</p>
+                <h3 style={{ fontSize: "16px", fontWeight: "600", color: "#111827", margin: 0 }}>Informations véhicule</h3>
+                <p style={{ fontSize: "13px", color: "#6B7280", margin: 0 }}>Recherchez par plaque ou saisissez manuellement</p>
               </div>
             </div>
 
-            {/* Plate lookup row */}
-            <div className="flex items-end gap-3 mb-4">
-              <div className="flex-1">
-                <label className="block text-sm font-medium mb-2">Plaque d&apos;immatriculation</label>
+            {/* Plate lookup */}
+            <div style={{ display: "flex", gap: "12px", marginBottom: "16px" }}>
+              <div style={{ flex: 1 }}>
+                <label style={labelStyle}>Plaque d'immatriculation *</label>
                 <input
                   value={plate}
                   onChange={(e) => {
@@ -599,137 +723,132 @@ export default function NouvelleInterventionPage() {
                     setExistingVehicle(null);
                   }}
                   placeholder="Ex: AB-123-CD"
-                  className="ms-input w-full"
+                  style={inputStyle}
                 />
               </div>
-              <button
-                type="button"
-                onClick={() => lookupPlate(false)}
-                disabled={lookupLoading || !plate.trim()}
-                className="ms-btn ms-btn-primary h-[42px]"
-              >
-                {lookupLoading ? (
-                  <Loader2 size={16} className="animate-spin" />
-                ) : (
-                  <Search size={16} />
-                )}
-                <span className="ml-2">Rechercher</span>
-              </button>
-              {lookupSuccess && lookupSource === "cache" && (
+              <div style={{ display: "flex", alignItems: "flex-end", gap: "8px" }}>
                 <button
-                  type="button"
-                  onClick={() => lookupPlate(true)}
-                  disabled={lookupLoading}
-                  className="ms-btn ms-btn-secondary h-[42px]"
-                  title="Forcer une nouvelle recherche"
+                  onClick={() => lookupPlate(false)}
+                  disabled={lookupLoading || !plate.trim()}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    padding: "12px 16px",
+                    borderRadius: "10px",
+                    border: "none",
+                    background: "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)",
+                    color: "#fff",
+                    fontSize: "14px",
+                    fontWeight: "500",
+                    cursor: lookupLoading || !plate.trim() ? "not-allowed" : "pointer",
+                    opacity: lookupLoading || !plate.trim() ? 0.5 : 1,
+                  }}
                 >
-                  <RefreshCw size={16} />
+                  {lookupLoading ? <Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> : <Search size={16} />}
+                  Rechercher
                 </button>
-              )}
-              {logoUrl && (
-                <img
-                  src={logoUrl}
-                  alt="Logo"
-                  className="h-[42px] w-auto object-contain"
-                  onError={() => setLogoUrl(null)}
-                />
-              )}
+                {lookupSuccess && lookupSource === "cache" && (
+                  <button
+                    onClick={() => lookupPlate(true)}
+                    disabled={lookupLoading}
+                    style={{
+                      padding: "12px",
+                      borderRadius: "10px",
+                      border: "1px solid #E5E7EB",
+                      background: "#fff",
+                      cursor: "pointer",
+                    }}
+                    title="Actualiser depuis l'API"
+                  >
+                    <RefreshCw size={16} color="#6B7280" />
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Lookup messages */}
             {lookupError && (
-              <div className="ms-alert ms-alert-error mb-4">
-                <span>{lookupError}</span>
-                {(lookupErrorCode === "QUOTA_EXCEEDED" || lookupErrorCode === "PROVIDER_NO_CREDITS") && (
-                  <p className="text-xs mt-1 opacity-80">
-                    💡 Saisissez les informations manuellement ci-dessous.
-                  </p>
-                )}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  padding: "12px 16px",
+                  borderRadius: "10px",
+                  background: "rgba(239, 68, 68, 0.1)",
+                  marginBottom: "16px",
+                }}
+              >
+                <AlertCircle size={16} color="#EF4444" />
+                <span style={{ fontSize: "13px", color: "#DC2626" }}>{lookupError}</span>
               </div>
             )}
 
             {existingVehicle && (
-              <div className="ms-alert ms-alert-info mb-4">
-                <span>
-                  ✓ Véhicule existant trouvé : <strong>{existingVehicle.plate}</strong> — {existingVehicle.brand} {existingVehicle.model}
-                  <br />
-                  <span className="text-xs opacity-80">
-                    Ce véhicule sera utilisé pour l&apos;intervention.
-                  </span>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  padding: "12px 16px",
+                  borderRadius: "10px",
+                  background: "rgba(59, 130, 246, 0.1)",
+                  marginBottom: "16px",
+                }}
+              >
+                <Info size={16} color="#3B82F6" />
+                <span style={{ fontSize: "13px", color: "#1D4ED8" }}>
+                  Véhicule existant trouvé : <strong>{existingVehicle.plate}</strong> — {existingVehicle.brand} {existingVehicle.model}
                 </span>
               </div>
             )}
 
             {lookupSuccess && !existingVehicle && (
-              <div className="ms-alert ms-alert-success mb-4">
-                <span>
-                  ✓ Données récupérées
-                  {lookupSource && (
-                    <span className="ml-2 text-xs opacity-80">
-                      ({lookupSource === "cache" ? "📦 cache" : "🌐 api"})
-                    </span>
-                  )}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  padding: "12px 16px",
+                  borderRadius: "10px",
+                  background: "rgba(16, 185, 129, 0.1)",
+                  marginBottom: "16px",
+                }}
+              >
+                <Check size={16} color="#10B981" />
+                <span style={{ fontSize: "13px", color: "#059669" }}>
+                  Données récupérées {lookupSource && `(${lookupSource === "cache" ? "cache" : "API"})`}
                 </span>
               </div>
             )}
 
-            {/* Vehicle fields (editable) */}
+            {/* Vehicle fields */}
             {!existingVehicle && (
-              <div className="grid gap-4 md:grid-cols-2">
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
                 <div>
-                  <label className="block text-sm font-medium mb-2">Marque *</label>
-                  <input
-                    value={brand}
-                    onChange={(e) => setBrand(e.target.value)}
-                    placeholder="Ex: Renault"
-                    className="ms-input w-full"
-                  />
+                  <label style={labelStyle}>Marque *</label>
+                  <input value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="Ex: Renault" style={inputStyle} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-2">Modèle *</label>
-                  <input
-                    value={model}
-                    onChange={(e) => setModel(e.target.value)}
-                    placeholder="Ex: Clio"
-                    className="ms-input w-full"
-                  />
+                  <label style={labelStyle}>Modèle *</label>
+                  <input value={model} onChange={(e) => setModel(e.target.value)} placeholder="Ex: Clio" style={inputStyle} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-2">VIN</label>
-                  <input
-                    value={vin}
-                    onChange={(e) => setVin(e.target.value)}
-                    placeholder="17 caractères"
-                    className="ms-input w-full"
-                  />
+                  <label style={labelStyle}>VIN</label>
+                  <input value={vin} onChange={(e) => setVin(e.target.value)} placeholder="17 caractères" style={inputStyle} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-2">Carburant</label>
-                  <input
-                    value={fuel}
-                    onChange={(e) => setFuel(e.target.value)}
-                    placeholder="Ex: Diesel"
-                    className="ms-input w-full"
-                  />
+                  <label style={labelStyle}>Carburant</label>
+                  <input value={fuel} onChange={(e) => setFuel(e.target.value)} placeholder="Ex: Diesel" style={inputStyle} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-2">Année</label>
-                  <input
-                    value={year}
-                    onChange={(e) => setYear(e.target.value)}
-                    placeholder="Ex: 2020"
-                    inputMode="numeric"
-                    className="ms-input w-full"
-                  />
+                  <label style={labelStyle}>Année</label>
+                  <input value={year} onChange={(e) => setYear(e.target.value)} placeholder="Ex: 2020" style={inputStyle} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-2">Moteur</label>
-                  <input
-                    value={engine}
-                    onChange={(e) => setEngine(e.target.value)}
-                    placeholder="Ex: 1.5 dCi"
-                    className="ms-input w-full"
-                  />
+                  <label style={labelStyle}>Moteur</label>
+                  <input value={engine} onChange={(e) => setEngine(e.target.value)} placeholder="Ex: 1.5 dCi" style={inputStyle} />
                 </div>
               </div>
             )}
@@ -738,25 +857,31 @@ export default function NouvelleInterventionPage() {
       )}
 
       {/* Intervention Details */}
-      <div className="ms-card p-6">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--ms-success-light)]">
-            <Wrench size={20} className="text-[var(--ms-success)]" />
+      <div style={cardStyle}>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "20px" }}>
+          <div
+            style={{
+              width: "44px",
+              height: "44px",
+              borderRadius: "12px",
+              background: "rgba(16, 185, 129, 0.1)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Wrench size={22} color="#10B981" />
           </div>
           <div>
-            <h3 className="text-lg font-semibold">Détails</h3>
-            <p className="text-xs text-muted2">Type d&apos;intervention et notes</p>
+            <h3 style={{ fontSize: "16px", fontWeight: "600", color: "#111827", margin: 0 }}>Détails de l'intervention</h3>
+            <p style={{ fontSize: "13px", color: "#6B7280", margin: 0 }}>Type et informations complémentaires</p>
           </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-2">
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
           <div>
-            <label className="block text-sm font-medium mb-2">Type d&apos;intervention</label>
-            <select
-              value={type}
-              onChange={(e) => setType(e.target.value)}
-              className="ms-input w-full"
-            >
+            <label style={labelStyle}>Type d'intervention *</label>
+            <select value={type} onChange={(e) => setType(e.target.value)} style={selectStyle}>
               {TYPE_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
                   {opt.label}
@@ -764,18 +889,34 @@ export default function NouvelleInterventionPage() {
               ))}
             </select>
           </div>
-
           <div>
-            <label className="block text-sm font-medium mb-2">Notes (optionnel)</label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              className="ms-input w-full min-h-[80px]"
-              placeholder="Notes sur l'intervention…"
-            />
+            <label style={labelStyle}>Kilométrage</label>
+            <input value={mileage} onChange={(e) => setMileage(e.target.value)} placeholder="Ex: 45000" style={inputStyle} />
           </div>
         </div>
+
+        <div style={{ marginTop: "16px" }}>
+          <label style={labelStyle}>Notes</label>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Observations, travaux demandés..."
+            rows={3}
+            style={{ ...inputStyle, resize: "vertical", minHeight: "80px" }}
+          />
+        </div>
       </div>
+
+      <style jsx>{`
+        @keyframes spin {
+          from {
+            transform: rotate(0deg);
+          }
+          to {
+            transform: rotate(360deg);
+          }
+        }
+      `}</style>
     </div>
   );
 }
