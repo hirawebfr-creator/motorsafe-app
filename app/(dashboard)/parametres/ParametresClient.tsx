@@ -28,6 +28,10 @@ import {
 import { ComplianceToggles } from "@/components/parametres/ComplianceToggles";
 import { BrandingSettings } from "@/components/parametres/BrandingSettings";
 
+// ============================================================================
+// PARAMÈTRES PAGE - SafeMotor Design System
+// ============================================================================
+
 type GarageInfo = {
   id?: number | null;
   name: string;
@@ -71,124 +75,261 @@ export function ParametresClient({
   const roleLabel = role === "ADMIN" ? "Administrateur" : "Garage";
 
   const statusConfig = useMemo(() => {
-    if (role === "ADMIN") return { label: "Administration", bg: "var(--ms-primary-light)", text: "var(--ms-primary)" };
-    if (garage?.status === "ACTIVE") return { label: "Actif", bg: "var(--ms-success-light)", text: "var(--ms-success)" };
-    if (garage?.status === "REJECTED") return { label: "Refusé", bg: "var(--ms-error-light)", text: "var(--ms-error)" };
-    if (garage?.status === "PENDING") return { label: "En attente", bg: "var(--ms-warning-light)", text: "#B45309" };
-    return { label: "—", bg: "var(--ms-bg-subtle)", text: "var(--ms-text-secondary)" };
+    if (role === "ADMIN") return { label: "Administration", bg: "#EEF2FF", text: "#6366F1" };
+    if (garage?.status === "ACTIVE") return { label: "Actif", bg: "#ECFDF5", text: "#10B981" };
+    if (garage?.status === "REJECTED") return { label: "Refusé", bg: "#FEF2F2", text: "#EF4444" };
+    if (garage?.status === "PENDING") return { label: "En attente", bg: "#FFFBEB", text: "#B45309" };
+    return { label: "—", bg: "#F3F4F6", text: "#6B7280" };
   }, [garage?.status, role]);
 
   return (
-    <div className="ms-animate-slide-up">
+    <div style={{ padding: "32px", maxWidth: "1200px", margin: "0 auto" }}>
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="ms-page-title">Paramètres</h1>
-        <p className="ms-page-subtitle">
+      <div style={{ marginBottom: "32px" }}>
+        <h1 style={{
+          fontSize: "28px",
+          fontWeight: 700,
+          color: "#111827",
+          margin: 0,
+          marginBottom: "4px",
+        }}>
+          Paramètres
+        </h1>
+        <p style={{
+          fontSize: "15px",
+          color: "#6B7280",
+          margin: 0,
+        }}>
           Gérez les informations de votre garage et vos préférences
         </p>
       </div>
 
       {/* Tabs */}
-      <div className="mb-6">
-        <div className="ms-tabs">
-          {TABS.map(({ key, label, icon: Icon }) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setTab(key)}
-              className={`ms-tab ${tab === key ? "ms-tab-active" : ""}`}
-            >
-              <Icon size={16} />
-              {label}
-            </button>
-          ))}
-        </div>
+      <div style={{
+        display: "flex",
+        gap: "4px",
+        padding: "4px",
+        backgroundColor: "#F3F4F6",
+        borderRadius: "12px",
+        marginBottom: "32px",
+        width: "fit-content",
+      }}>
+        {TABS.map(({ key, label, icon: Icon }) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => setTab(key)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "10px 16px",
+              fontSize: "14px",
+              fontWeight: 500,
+              color: tab === key ? "#FFFFFF" : "#6B7280",
+              background: tab === key ? "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)" : "transparent",
+              border: "none",
+              borderRadius: "8px",
+              cursor: "pointer",
+              transition: "all 0.15s ease",
+              boxShadow: tab === key ? "0 2px 8px rgba(99, 102, 241, 0.3)" : "none",
+            }}
+          >
+            <Icon size={16} />
+            {label}
+          </button>
+        ))}
       </div>
 
       {/* Garage Tab */}
       {tab === "garage" && (
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(2, 1fr)",
+          gap: "24px",
+        }}>
           {/* Profile Card */}
-          <div className="ms-card">
-            <div className="p-6">
-              <div className="flex items-start gap-4 mb-6">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[var(--ms-primary)] to-[#8B5CF6]">
-                  <Building2 size={28} className="text-white" />
+          <div style={{
+            background: "#fff",
+            borderRadius: "16px",
+            border: "1px solid #E5E7EB",
+            padding: "24px",
+          }}>
+            <div style={{
+              display: "flex",
+              alignItems: "flex-start",
+              gap: "16px",
+              marginBottom: "24px",
+            }}>
+              <div style={{
+                width: "56px",
+                height: "56px",
+                borderRadius: "16px",
+                background: "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}>
+                <Building2 size={28} color="#fff" />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "8px" }}>
+                  <h2 style={{
+                    fontSize: "20px",
+                    fontWeight: 600,
+                    color: "#111827",
+                    margin: 0,
+                  }}>
+                    {role === "ADMIN" ? "Administration" : garage?.name ?? "Garage"}
+                  </h2>
+                  <span style={{
+                    padding: "4px 10px",
+                    borderRadius: "6px",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    background: "#EEF2FF",
+                    color: "#6366F1",
+                  }}>
+                    {roleLabel}
+                  </span>
                 </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-3">
-                    <h2 className="text-xl font-semibold text-[var(--ms-text)]">
-                      {role === "ADMIN" ? "Administration" : garage?.name ?? "Garage"}
-                    </h2>
-                    <span
-                      className="ms-badge"
-                      style={{ background: "var(--ms-primary-light)", color: "var(--ms-primary)" }}
-                    >
-                      {roleLabel}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 mt-2">
-                    <span
-                      className="ms-badge"
-                      style={{ background: statusConfig.bg, color: statusConfig.text }}
-                    >
-                      <CheckCircle size={12} />
-                      {statusConfig.label}
-                    </span>
-                  </div>
-                </div>
+                <span style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "4px",
+                  padding: "4px 10px",
+                  borderRadius: "6px",
+                  fontSize: "12px",
+                  fontWeight: 500,
+                  background: statusConfig.bg,
+                  color: statusConfig.text,
+                }}>
+                  <CheckCircle size={12} />
+                  {statusConfig.label}
+                </span>
               </div>
+            </div>
 
-              <div className="space-y-4">
-                <InfoRow icon={Mail} label="Email" value={garage?.email ?? userEmail} />
-                <InfoRow icon={Phone} label="Téléphone" value={garage?.phone || "Non renseigné"} />
-                <InfoRow icon={MapPin} label="Adresse" value={garage?.address || "Non renseignée"} />
-                <InfoRow icon={Settings} label="SIRET" value={garage?.siret || "Non renseigné"} mono />
-              </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+              <InfoRow icon={Mail} label="Email" value={garage?.email ?? userEmail} />
+              <InfoRow icon={Phone} label="Téléphone" value={garage?.phone || "Non renseigné"} />
+              <InfoRow icon={MapPin} label="Adresse" value={garage?.address || "Non renseignée"} />
+              <InfoRow icon={Settings} label="SIRET" value={garage?.siret || "Non renseigné"} mono />
+            </div>
 
-              <div className="mt-6 pt-6 border-t border-[var(--ms-border-light)]">
-                <button type="button" className="ms-btn ms-btn-secondary">
-                  Modifier les informations
-                </button>
-              </div>
+            <div style={{
+              marginTop: "24px",
+              paddingTop: "24px",
+              borderTop: "1px solid #E5E7EB",
+            }}>
+              <button type="button" style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                padding: "10px 16px",
+                fontSize: "14px",
+                fontWeight: 500,
+                color: "#374151",
+                background: "#fff",
+                border: "1px solid #E5E7EB",
+                borderRadius: "10px",
+                cursor: "pointer",
+              }}>
+                Modifier les informations
+              </button>
             </div>
           </div>
 
           {/* Compliance Summary */}
-          <div className="ms-card">
-            <div className="p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--ms-success-light)]">
-                  <Shield size={22} className="text-[var(--ms-success)]" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-[var(--ms-text)]">Conformité</h3>
-                  <p className="text-sm text-[var(--ms-text-secondary)]">
-                    État de vos paramètres de sécurité
-                  </p>
-                </div>
+          <div style={{
+            background: "#fff",
+            borderRadius: "16px",
+            border: "1px solid #E5E7EB",
+            padding: "24px",
+          }}>
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+              marginBottom: "16px",
+            }}>
+              <div style={{
+                width: "44px",
+                height: "44px",
+                borderRadius: "12px",
+                background: "#ECFDF5",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}>
+                <Shield size={22} color="#10B981" />
               </div>
-
-              <div className="p-4 rounded-xl bg-[var(--ms-success-light)] mb-4">
-                <div className="flex items-center gap-2 text-[var(--ms-success)]">
-                  <CheckCircle size={18} />
-                  <span className="font-medium">Conformité active</span>
-                </div>
-                <p className="text-sm text-[var(--ms-text-secondary)] mt-2">
-                  Vos paramètres de sécurité sont correctement configurés pour la
-                  traçabilité et la génération de preuves.
+              <div>
+                <h3 style={{
+                  fontSize: "16px",
+                  fontWeight: 600,
+                  color: "#111827",
+                  margin: 0,
+                }}>
+                  Conformité
+                </h3>
+                <p style={{
+                  fontSize: "13px",
+                  color: "#6B7280",
+                  margin: 0,
+                }}>
+                  État de vos paramètres de sécurité
                 </p>
               </div>
-
-              <button
-                type="button"
-                onClick={() => setTab("security")}
-                className="ms-btn ms-btn-ghost w-full"
-              >
-                <Lock size={18} />
-                Voir les paramètres de sécurité
-              </button>
             </div>
+
+            <div style={{
+              padding: "16px",
+              borderRadius: "12px",
+              background: "#ECFDF5",
+              marginBottom: "16px",
+            }}>
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                color: "#10B981",
+              }}>
+                <CheckCircle size={18} />
+                <span style={{ fontWeight: 500 }}>Conformité active</span>
+              </div>
+              <p style={{
+                fontSize: "13px",
+                color: "#6B7280",
+                margin: "8px 0 0",
+              }}>
+                Vos paramètres de sécurité sont correctement configurés pour la
+                traçabilité et la génération de preuves.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setTab("security")}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "8px",
+                width: "100%",
+                padding: "10px 16px",
+                fontSize: "14px",
+                fontWeight: 500,
+                color: "#6B7280",
+                background: "transparent",
+                border: "none",
+                borderRadius: "10px",
+                cursor: "pointer",
+              }}
+            >
+              <Lock size={18} />
+              Voir les paramètres de sécurité
+            </button>
           </div>
 
           {/* Branding Card - WHITE-LABEL-PARTNERS-01 */}
@@ -203,72 +344,171 @@ export function ParametresClient({
 
       {/* Users Tab */}
       {tab === "users" && (
-        <div className="ms-card">
-          <div className="ms-empty py-12">
-            <div className="ms-empty-icon">
-              <Users size={28} />
-            </div>
-            <div className="ms-empty-title">Gestion des utilisateurs</div>
-            <div className="ms-empty-text">
-              Invitez des membres de votre équipe et gérez leurs accès.
-              <br />
-              Fonctionnalité disponible avec le plan Pro.
-            </div>
-            <button type="button" className="ms-btn ms-btn-primary mt-4">
-              Passer à Pro
-            </button>
+        <div style={{
+          background: "#fff",
+          borderRadius: "16px",
+          border: "1px solid #E5E7EB",
+          padding: "48px",
+          textAlign: "center",
+        }}>
+          <div style={{
+            width: "64px",
+            height: "64px",
+            margin: "0 auto 16px",
+            borderRadius: "16px",
+            background: "#F3F4F6",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}>
+            <Users size={28} color="#9CA3AF" />
           </div>
+          <h3 style={{
+            fontSize: "18px",
+            fontWeight: 600,
+            color: "#111827",
+            margin: "0 0 8px",
+          }}>
+            Gestion des utilisateurs
+          </h3>
+          <p style={{
+            fontSize: "14px",
+            color: "#6B7280",
+            margin: "0 0 24px",
+            maxWidth: "400px",
+            marginLeft: "auto",
+            marginRight: "auto",
+          }}>
+            Invitez des membres de votre équipe et gérez leurs accès.
+            <br />
+            Fonctionnalité disponible avec le plan Pro.
+          </p>
+          <button type="button" style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "8px",
+            padding: "12px 24px",
+            fontSize: "14px",
+            fontWeight: 600,
+            color: "#fff",
+            background: "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)",
+            border: "none",
+            borderRadius: "12px",
+            cursor: "pointer",
+            boxShadow: "0 4px 14px rgba(99, 102, 241, 0.4)",
+          }}>
+            Passer à Pro
+          </button>
         </div>
       )}
 
       {/* Security Tab */}
       {tab === "security" && (
-        <div className="grid gap-6 lg:grid-cols-2">
-          <div className="ms-card">
-            <div className="p-6">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--ms-primary-light)]">
-                  <Shield size={22} className="text-[var(--ms-primary)]" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-[var(--ms-text)]">
-                    Assurance & Traçabilité
-                  </h3>
-                  <p className="text-sm text-[var(--ms-text-secondary)]">
-                    Paramètres de conformité
-                  </p>
-                </div>
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(2, 1fr)",
+          gap: "24px",
+        }}>
+          <div style={{
+            background: "#fff",
+            borderRadius: "16px",
+            border: "1px solid #E5E7EB",
+            padding: "24px",
+          }}>
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+              marginBottom: "24px",
+            }}>
+              <div style={{
+                width: "44px",
+                height: "44px",
+                borderRadius: "12px",
+                background: "#EEF2FF",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}>
+                <Shield size={22} color="#6366F1" />
               </div>
+              <div>
+                <h3 style={{
+                  fontSize: "16px",
+                  fontWeight: 600,
+                  color: "#111827",
+                  margin: 0,
+                }}>
+                  Assurance & Traçabilité
+                </h3>
+                <p style={{
+                  fontSize: "13px",
+                  color: "#6B7280",
+                  margin: 0,
+                }}>
+                  Paramètres de conformité
+                </p>
+              </div>
+            </div>
 
-              <ComplianceToggles />
+            <ComplianceToggles />
 
-              <div className="mt-6 p-4 rounded-xl bg-[var(--ms-success-light)]">
-                <div className="flex items-center gap-2 text-[var(--ms-success)]">
-                  <CheckCircle size={16} />
-                  <span className="text-sm font-medium">Conformité active</span>
-                </div>
+            <div style={{
+              marginTop: "24px",
+              padding: "16px",
+              borderRadius: "12px",
+              background: "#ECFDF5",
+            }}>
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                color: "#10B981",
+              }}>
+                <CheckCircle size={16} />
+                <span style={{ fontSize: "14px", fontWeight: 500 }}>Conformité active</span>
               </div>
             </div>
           </div>
 
-          <div className="ms-card">
-            <div className="p-6">
-              <h3 className="font-semibold text-[var(--ms-text)] mb-4">
-                Bonnes pratiques
-              </h3>
-              <div className="space-y-3">
-                {[
-                  "Conservez les preuves et révisions pour chaque dossier.",
-                  "Générez un PDF après validation du client.",
-                  "Activez les alertes pour les dossiers critiques.",
-                  "Effectuez des sauvegardes régulières.",
-                ].map((tip, i) => (
-                  <div key={i} className="flex items-start gap-3 text-sm">
-                    <div className="mt-1.5 h-1.5 w-1.5 rounded-full bg-[var(--ms-primary)] shrink-0" />
-                    <span className="text-[var(--ms-text-secondary)]">{tip}</span>
-                  </div>
-                ))}
-              </div>
+          <div style={{
+            background: "#fff",
+            borderRadius: "16px",
+            border: "1px solid #E5E7EB",
+            padding: "24px",
+          }}>
+            <h3 style={{
+              fontSize: "16px",
+              fontWeight: 600,
+              color: "#111827",
+              margin: "0 0 16px",
+            }}>
+              Bonnes pratiques
+            </h3>
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              {[
+                "Conservez les preuves et révisions pour chaque dossier.",
+                "Générez un PDF après validation du client.",
+                "Activez les alertes pour les dossiers critiques.",
+                "Effectuez des sauvegardes régulières.",
+              ].map((tip, i) => (
+                <div key={i} style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: "12px",
+                  fontSize: "14px",
+                }}>
+                  <div style={{
+                    marginTop: "6px",
+                    width: "6px",
+                    height: "6px",
+                    borderRadius: "50%",
+                    background: "#6366F1",
+                    flexShrink: 0,
+                  }} />
+                  <span style={{ color: "#6B7280" }}>{tip}</span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -289,19 +529,31 @@ function InfoRow({
   value,
   mono = false,
 }: {
-  icon: React.ComponentType<{ size?: number; className?: string }>;
+  icon: React.ComponentType<{ size?: number; color?: string }>;
   label: string;
   value: string;
   mono?: boolean;
 }) {
   return (
-    <div className="flex items-center gap-4">
-      <Icon size={18} className="text-[var(--ms-text-muted)] shrink-0" />
-      <div className="flex-1 flex items-center justify-between gap-4">
-        <span className="text-sm text-[var(--ms-text-secondary)]">{label}</span>
-        <span
-          className={`text-sm text-[var(--ms-text)] ${mono ? "font-mono" : ""}`}
-        >
+    <div style={{
+      display: "flex",
+      alignItems: "center",
+      gap: "16px",
+    }}>
+      <Icon size={18} color="#9CA3AF" />
+      <div style={{
+        flex: 1,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: "16px",
+      }}>
+        <span style={{ fontSize: "14px", color: "#6B7280" }}>{label}</span>
+        <span style={{
+          fontSize: "14px",
+          color: "#111827",
+          fontFamily: mono ? "monospace" : "inherit",
+        }}>
           {value}
         </span>
       </div>
@@ -322,7 +574,6 @@ function NotificationsPanel() {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
-  // Fetch settings on mount
   useEffect(() => {
     async function fetchSettings() {
       try {
@@ -376,89 +627,154 @@ function NotificationsPanel() {
 
   if (loading) {
     return (
-      <div className="ms-card max-w-lg">
-        <div className="p-6 flex items-center justify-center">
-          <Loader2 className="animate-spin text-[var(--ms-primary)]" size={24} />
-        </div>
+      <div style={{
+        background: "#fff",
+        borderRadius: "16px",
+        border: "1px solid #E5E7EB",
+        padding: "48px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        maxWidth: "500px",
+      }}>
+        <Loader2 size={24} color="#6366F1" style={{ animation: "spin 1s linear infinite" }} />
       </div>
     );
   }
 
   return (
-    <div className="ms-card max-w-lg">
-      <div className="p-6">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--ms-primary-light)]">
-            <Bell size={22} className="text-[var(--ms-primary)]" />
-          </div>
-          <div>
-            <h3 className="font-semibold text-[var(--ms-text)]">
-              Relances automatiques
-            </h3>
-            <p className="text-sm text-[var(--ms-text-secondary)]">
-              Gérez les emails de relance envoyés automatiquement
-            </p>
-          </div>
+    <div style={{
+      background: "#fff",
+      borderRadius: "16px",
+      border: "1px solid #E5E7EB",
+      padding: "24px",
+      maxWidth: "500px",
+    }}>
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "12px",
+        marginBottom: "24px",
+      }}>
+        <div style={{
+          width: "44px",
+          height: "44px",
+          borderRadius: "12px",
+          background: "#EEF2FF",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}>
+          <Bell size={22} color="#6366F1" />
         </div>
-
-        <div className="space-y-4">
-          <ToggleRow
-            checked={settings.signatureReminders}
-            onChange={(v) => updateSetting("signatureReminders", v)}
-            label="Relances signature"
-            description="Rappel automatique J+1 et J+3 si signature en attente"
-          />
-          <ToggleRow
-            checked={settings.quoteReminders}
-            onChange={(v) => updateSetting("quoteReminders", v)}
-            label="Relances devis"
-            description="Rappel automatique J+2 et J+7 si devis non accepté"
-          />
-          <ToggleRow
-            checked={settings.invoiceReminders}
-            onChange={(v) => updateSetting("invoiceReminders", v)}
-            label="Relances factures"
-            description="Rappel automatique J+7 et J+14 si facture impayée"
-          />
-          <ToggleRow
-            checked={settings.appointmentsReminders}
-            onChange={(v) => updateSetting("appointmentsReminders", v)}
-            label="Rappels RDV"
-            description="Rappel automatique J-1 et H-2 avant un rendez-vous"
-          />
-          <div className="border-t border-[var(--ms-border-light)] pt-4 mt-4">
-            <ToggleRow
-              checked={settings.quotaAlerts}
-              onChange={(v) => updateSetting("quotaAlerts", v)}
-              label="Alertes quotas"
-              description="Notification quand vous atteignez 80% de vos quotas"
-            />
-          </div>
+        <div>
+          <h3 style={{
+            fontSize: "16px",
+            fontWeight: 600,
+            color: "#111827",
+            margin: 0,
+          }}>
+            Relances automatiques
+          </h3>
+          <p style={{
+            fontSize: "13px",
+            color: "#6B7280",
+            margin: 0,
+          }}>
+            Gérez les emails de relance envoyés automatiquement
+          </p>
         </div>
-
-        <div className="mt-6 flex items-center gap-2">
-          {saving && (
-            <span className="text-xs text-[var(--ms-text-muted)] flex items-center gap-1">
-              <Loader2 className="animate-spin" size={12} /> Enregistrement...
-            </span>
-          )}
-          {saved && (
-            <span className="text-xs text-[var(--ms-success)] flex items-center gap-1">
-              <CheckCircle size={12} /> Enregistré
-            </span>
-          )}
-          {error && (
-            <span className="text-xs text-[var(--ms-error)] flex items-center gap-1">
-              <AlertTriangle size={12} /> {error}
-            </span>
-          )}
-        </div>
-
-        <p className="mt-4 text-xs text-[var(--ms-text-muted)]">
-          Les relances sont envoyées uniquement si le client a une adresse email valide.
-          Max 50 emails automatiques par jour.
-        </p>
       </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+        <ToggleRow
+          checked={settings.signatureReminders}
+          onChange={(v) => updateSetting("signatureReminders", v)}
+          label="Relances signature"
+          description="Rappel automatique J+1 et J+3 si signature en attente"
+        />
+        <ToggleRow
+          checked={settings.quoteReminders}
+          onChange={(v) => updateSetting("quoteReminders", v)}
+          label="Relances devis"
+          description="Rappel automatique J+2 et J+7 si devis non accepté"
+        />
+        <ToggleRow
+          checked={settings.invoiceReminders}
+          onChange={(v) => updateSetting("invoiceReminders", v)}
+          label="Relances factures"
+          description="Rappel automatique J+7 et J+14 si facture impayée"
+        />
+        <ToggleRow
+          checked={settings.appointmentsReminders}
+          onChange={(v) => updateSetting("appointmentsReminders", v)}
+          label="Rappels RDV"
+          description="Rappel automatique J-1 et H-2 avant un rendez-vous"
+        />
+        
+        <div style={{
+          borderTop: "1px solid #E5E7EB",
+          paddingTop: "12px",
+          marginTop: "8px",
+        }}>
+          <ToggleRow
+            checked={settings.quotaAlerts}
+            onChange={(v) => updateSetting("quotaAlerts", v)}
+            label="Alertes quotas"
+            description="Notification quand vous atteignez 80% de vos quotas"
+          />
+        </div>
+      </div>
+
+      <div style={{
+        marginTop: "24px",
+        display: "flex",
+        alignItems: "center",
+        gap: "8px",
+      }}>
+        {saving && (
+          <span style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "4px",
+            fontSize: "12px",
+            color: "#9CA3AF",
+          }}>
+            <Loader2 size={12} style={{ animation: "spin 1s linear infinite" }} /> Enregistrement...
+          </span>
+        )}
+        {saved && (
+          <span style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "4px",
+            fontSize: "12px",
+            color: "#10B981",
+          }}>
+            <CheckCircle size={12} /> Enregistré
+          </span>
+        )}
+        {error && (
+          <span style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "4px",
+            fontSize: "12px",
+            color: "#EF4444",
+          }}>
+            <AlertTriangle size={12} /> {error}
+          </span>
+        )}
+      </div>
+
+      <p style={{
+        marginTop: "16px",
+        fontSize: "12px",
+        color: "#9CA3AF",
+      }}>
+        Les relances sont envoyées uniquement si le client a une adresse email valide.
+        Max 50 emails automatiques par jour.
+      </p>
     </div>
   );
 }
@@ -475,11 +791,25 @@ function ToggleRow({
   description?: string;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 p-3 rounded-lg hover:bg-[var(--ms-surface-hover)] transition-colors">
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: "16px",
+        padding: "12px",
+        borderRadius: "10px",
+        cursor: "pointer",
+        transition: "background 0.15s ease",
+      }}
+      onClick={() => onChange(!checked)}
+      onMouseEnter={(e) => e.currentTarget.style.background = "#F9FAFB"}
+      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+    >
       <div>
-        <div className="text-sm font-medium text-[var(--ms-text)]">{label}</div>
+        <div style={{ fontSize: "14px", fontWeight: 500, color: "#111827" }}>{label}</div>
         {description && (
-          <div className="text-xs text-[var(--ms-text-muted)] mt-0.5">
+          <div style={{ fontSize: "12px", color: "#9CA3AF", marginTop: "2px" }}>
             {description}
           </div>
         )}
@@ -488,10 +818,33 @@ function ToggleRow({
         type="button"
         role="switch"
         aria-checked={checked}
-        onClick={() => onChange(!checked)}
-        className={`ms-toggle ${checked ? "ms-toggle-active" : ""}`}
+        onClick={(e) => {
+          e.stopPropagation();
+          onChange(!checked);
+        }}
+        style={{
+          position: "relative",
+          width: "44px",
+          height: "24px",
+          borderRadius: "12px",
+          border: "none",
+          background: checked ? "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)" : "#E5E7EB",
+          cursor: "pointer",
+          transition: "background 0.2s ease",
+          flexShrink: 0,
+        }}
       >
-        <span className="ms-toggle-knob" />
+        <span style={{
+          position: "absolute",
+          top: "2px",
+          left: checked ? "22px" : "2px",
+          width: "20px",
+          height: "20px",
+          borderRadius: "50%",
+          background: "#fff",
+          boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+          transition: "left 0.2s ease",
+        }} />
       </button>
     </div>
   );
@@ -512,13 +865,13 @@ type BillingStatus = {
 type BillingPeriod = "monthly" | "yearly";
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  ACTIVE: { label: "Actif", color: "text-[var(--ms-success)]" },
-  TRIALING: { label: "Période d'essai", color: "text-blue-600" },
-  PAST_DUE: { label: "Paiement en retard", color: "text-orange-600" },
-  CANCELED: { label: "Annulé", color: "text-[var(--ms-error)]" },
-  UNPAID: { label: "Impayé", color: "text-[var(--ms-error)]" },
-  INCOMPLETE: { label: "Incomplet", color: "text-[var(--ms-text-muted)]" },
-  INCOMPLETE_EXPIRED: { label: "Expiré", color: "text-[var(--ms-text-muted)]" },
+  ACTIVE: { label: "Actif", color: "#10B981" },
+  TRIALING: { label: "Période d'essai", color: "#3B82F6" },
+  PAST_DUE: { label: "Paiement en retard", color: "#F59E0B" },
+  CANCELED: { label: "Annulé", color: "#EF4444" },
+  UNPAID: { label: "Impayé", color: "#EF4444" },
+  INCOMPLETE: { label: "Incomplet", color: "#9CA3AF" },
+  INCOMPLETE_EXPIRED: { label: "Expiré", color: "#9CA3AF" },
 };
 
 function formatDate(iso: string | null) {
@@ -548,8 +901,7 @@ function AbonnementPanel({ role }: { role: string }) {
       } else {
         setError(json.error?.message || "Erreur lors du chargement");
       }
-    } catch (e) {
-      console.error("Failed to load billing status:", e);
+    } catch {
       setError("Erreur de connexion");
     } finally {
       setLoading(false);
@@ -603,16 +955,41 @@ function AbonnementPanel({ role }: { role: string }) {
   // Admin users
   if (role === "ADMIN") {
     return (
-      <div className="ms-card max-w-lg">
-        <div className="p-6 text-center">
-          <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-[var(--ms-primary)] to-[#8B5CF6]">
-            <Shield size={28} className="text-white" />
-          </div>
-          <h2 className="text-xl font-semibold text-[var(--ms-text)]">Compte Administrateur</h2>
-          <p className="mt-2 text-[var(--ms-text-secondary)]">
-            Les comptes administrateurs ont un accès complet sans abonnement.
-          </p>
+      <div style={{
+        background: "#fff",
+        borderRadius: "16px",
+        border: "1px solid #E5E7EB",
+        padding: "48px",
+        textAlign: "center",
+        maxWidth: "500px",
+      }}>
+        <div style={{
+          width: "56px",
+          height: "56px",
+          margin: "0 auto 16px",
+          borderRadius: "16px",
+          background: "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}>
+          <Shield size={28} color="#fff" />
         </div>
+        <h2 style={{
+          fontSize: "20px",
+          fontWeight: 600,
+          color: "#111827",
+          margin: "0 0 8px",
+        }}>
+          Compte Administrateur
+        </h2>
+        <p style={{
+          fontSize: "14px",
+          color: "#6B7280",
+          margin: 0,
+        }}>
+          Les comptes administrateurs ont un accès complet sans abonnement.
+        </p>
       </div>
     );
   }
@@ -620,8 +997,13 @@ function AbonnementPanel({ role }: { role: string }) {
   // Loading state
   if (loading) {
     return (
-      <div className="flex min-h-[40vh] items-center justify-center">
-        <Loader2 size={40} className="animate-spin text-[var(--ms-primary)]" />
+      <div style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        minHeight: "300px",
+      }}>
+        <Loader2 size={40} color="#6366F1" style={{ animation: "spin 1s linear infinite" }} />
       </div>
     );
   }
@@ -630,19 +1012,34 @@ function AbonnementPanel({ role }: { role: string }) {
   const isPro = status?.plan === "PRO";
   const isStarter = status?.plan === "STARTER";
   const isPaid = isPro || isStarter;
-  const statusInfo = STATUS_LABELS[status?.status ?? ""] || { label: status?.status || "Inconnu", color: "text-[var(--ms-text-muted)]" };
+  const statusInfo = STATUS_LABELS[status?.status ?? ""] || { label: status?.status || "Inconnu", color: "#9CA3AF" };
   const planName = status?.plan === "PRO" ? "Pro" : status?.plan === "STARTER" ? "Starter" : "Gratuit";
 
   return (
-    <div className="space-y-6">
+    <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
       {/* Error Banner */}
       {error && (
-        <div className="flex items-center gap-3 rounded-xl border border-[var(--ms-error-light)] bg-[var(--ms-error-light)] p-4 text-[var(--ms-error)]">
+        <div style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "12px",
+          padding: "16px",
+          borderRadius: "12px",
+          background: "#FEF2F2",
+          border: "1px solid #FECACA",
+          color: "#EF4444",
+        }}>
           <AlertTriangle size={20} />
           <span>{error}</span>
           <button
             onClick={() => setError(null)}
-            className="ml-auto hover:opacity-70"
+            style={{
+              marginLeft: "auto",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: "#EF4444",
+            }}
           >
             ✕
           </button>
@@ -651,78 +1048,147 @@ function AbonnementPanel({ role }: { role: string }) {
 
       {/* Current Status Card */}
       {status && (
-        <div className="ms-card">
-          <div className="p-6">
-            <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-              <div className="flex items-center gap-4">
-                <div className={`flex h-14 w-14 items-center justify-center rounded-2xl ${isPaid ? (isPro ? "bg-gradient-to-br from-[var(--ms-primary)] to-[#8B5CF6]" : "bg-gradient-to-br from-blue-400 to-blue-600") : "bg-[var(--ms-bg-subtle)]"}`}>
-                  {isPro ? (
-                    <Crown size={28} className="text-white" />
-                  ) : isStarter ? (
-                    <Sparkles size={28} className="text-white" />
-                  ) : (
-                    <Rocket size={28} className="text-[var(--ms-text-muted)]" />
-                  )}
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-xl font-bold text-[var(--ms-text)]">
-                      Plan {planName}
-                    </h2>
-                    {status.hasSubscription && (
-                      <span className={`text-sm font-medium ${statusInfo.color}`}>
-                        • {statusInfo.label}
-                        {status.trialDaysLeft !== null && status.trialDaysLeft > 0 && (
-                          <> ({status.trialDaysLeft} jour{status.trialDaysLeft > 1 ? "s" : ""} restant{status.trialDaysLeft > 1 ? "s" : ""})</>
-                        )}
-                      </span>
-                    )}
-                  </div>
-                  {status.status === "TRIALING" && status.trialEnd && (
-                    <p className="mt-1 flex items-center gap-2 text-sm text-blue-600">
-                      <Gift size={14} />
-                      Essai gratuit jusqu'au {formatDate(status.trialEnd)}
-                    </p>
-                  )}
-                  {status.currentPeriodEnd && isActive && status.status !== "TRIALING" && (
-                    <p className="mt-1 flex items-center gap-2 text-sm text-[var(--ms-text-secondary)]">
-                      <Calendar size={14} />
-                      Renouvellement le {formatDate(status.currentPeriodEnd)}
-                    </p>
-                  )}
-                  {!status.hasSubscription && (
-                    <p className="mt-1 text-sm text-[var(--ms-text-secondary)]">
-                      Passez à un plan payant pour débloquer toutes les fonctionnalités
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-3">
-                {status.canManageBilling && (
-                  <button
-                    type="button"
-                    onClick={handlePortal}
-                    disabled={!!actionLoading}
-                    className="ms-btn ms-btn-secondary"
-                  >
-                    {actionLoading === "portal" ? (
-                      <Loader2 size={16} className="animate-spin" />
-                    ) : (
-                      <CreditCard size={16} />
-                    )}
-                    Gérer l'abonnement
-                  </button>
+        <div style={{
+          background: "#fff",
+          borderRadius: "16px",
+          border: "1px solid #E5E7EB",
+          padding: "24px",
+        }}>
+          <div style={{
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "24px",
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+              <div style={{
+                width: "56px",
+                height: "56px",
+                borderRadius: "16px",
+                background: isPaid
+                  ? (isPro ? "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)" : "linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)")
+                  : "#F3F4F6",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}>
+                {isPro ? (
+                  <Crown size={28} color="#fff" />
+                ) : isStarter ? (
+                  <Sparkles size={28} color="#fff" />
+                ) : (
+                  <Rocket size={28} color="#9CA3AF" />
                 )}
+              </div>
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <h2 style={{
+                    fontSize: "20px",
+                    fontWeight: 700,
+                    color: "#111827",
+                    margin: 0,
+                  }}>
+                    Plan {planName}
+                  </h2>
+                  {status.hasSubscription && (
+                    <span style={{
+                      fontSize: "14px",
+                      fontWeight: 500,
+                      color: statusInfo.color,
+                    }}>
+                      • {statusInfo.label}
+                      {status.trialDaysLeft !== null && status.trialDaysLeft > 0 && (
+                        <> ({status.trialDaysLeft} jour{status.trialDaysLeft > 1 ? "s" : ""} restant{status.trialDaysLeft > 1 ? "s" : ""})</>
+                      )}
+                    </span>
+                  )}
+                </div>
+                {status.status === "TRIALING" && status.trialEnd && (
+                  <p style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    fontSize: "14px",
+                    color: "#3B82F6",
+                    margin: "4px 0 0",
+                  }}>
+                    <Gift size={14} />
+                    Essai gratuit jusqu'au {formatDate(status.trialEnd)}
+                  </p>
+                )}
+                {status.currentPeriodEnd && isActive && status.status !== "TRIALING" && (
+                  <p style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    fontSize: "14px",
+                    color: "#6B7280",
+                    margin: "4px 0 0",
+                  }}>
+                    <Calendar size={14} />
+                    Renouvellement le {formatDate(status.currentPeriodEnd)}
+                  </p>
+                )}
+                {!status.hasSubscription && (
+                  <p style={{
+                    fontSize: "14px",
+                    color: "#6B7280",
+                    margin: "4px 0 0",
+                  }}>
+                    Passez à un plan payant pour débloquer toutes les fonctionnalités
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "12px" }}>
+              {status.canManageBilling && (
                 <button
                   type="button"
-                  onClick={() => void loadStatus()}
-                  disabled={loading}
-                  className="ms-btn ms-btn-ghost"
+                  onClick={handlePortal}
+                  disabled={!!actionLoading}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    padding: "10px 16px",
+                    fontSize: "14px",
+                    fontWeight: 500,
+                    color: "#374151",
+                    background: "#fff",
+                    border: "1px solid #E5E7EB",
+                    borderRadius: "10px",
+                    cursor: actionLoading ? "not-allowed" : "pointer",
+                    opacity: actionLoading ? 0.5 : 1,
+                  }}
                 >
-                  <RefreshCw size={16} />
+                  {actionLoading === "portal" ? (
+                    <Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} />
+                  ) : (
+                    <CreditCard size={16} />
+                  )}
+                  Gérer l'abonnement
                 </button>
-              </div>
+              )}
+              <button
+                type="button"
+                onClick={() => void loadStatus()}
+                disabled={loading}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: "40px",
+                  height: "40px",
+                  borderRadius: "10px",
+                  border: "1px solid #E5E7EB",
+                  background: "#fff",
+                  cursor: loading ? "not-allowed" : "pointer",
+                }}
+              >
+                <RefreshCw size={16} color="#6B7280" />
+              </button>
             </div>
           </div>
         </div>
@@ -731,210 +1197,319 @@ function AbonnementPanel({ role }: { role: string }) {
       {/* Pricing Section */}
       {(!isPaid || !isActive) && (
         <>
-          <h2 className="text-center text-xl font-bold text-[var(--ms-text)]">Choisissez votre formule</h2>
-          
+          <h2 style={{
+            textAlign: "center",
+            fontSize: "20px",
+            fontWeight: 700,
+            color: "#111827",
+            margin: 0,
+          }}>
+            Choisissez votre formule
+          </h2>
+
           {/* Billing Period Toggle */}
-          <div className="flex items-center justify-center gap-4">
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "16px",
+          }}>
             <button
               onClick={() => setBillingPeriod("monthly")}
-              className={`rounded-xl px-4 py-2 text-sm font-medium transition-colors ${
-                billingPeriod === "monthly"
-                  ? "bg-[var(--ms-primary)] text-white"
-                  : "bg-[var(--ms-bg-subtle)] text-[var(--ms-text-secondary)] hover:bg-[var(--ms-surface-hover)]"
-              }`}
+              style={{
+                padding: "10px 16px",
+                borderRadius: "12px",
+                fontSize: "14px",
+                fontWeight: 500,
+                border: "none",
+                cursor: "pointer",
+                background: billingPeriod === "monthly" ? "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)" : "#F3F4F6",
+                color: billingPeriod === "monthly" ? "#fff" : "#6B7280",
+              }}
             >
               Mensuel
             </button>
             <button
               onClick={() => setBillingPeriod("yearly")}
-              className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-colors ${
-                billingPeriod === "yearly"
-                  ? "bg-[var(--ms-primary)] text-white"
-                  : "bg-[var(--ms-bg-subtle)] text-[var(--ms-text-secondary)] hover:bg-[var(--ms-surface-hover)]"
-              }`}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                padding: "10px 16px",
+                borderRadius: "12px",
+                fontSize: "14px",
+                fontWeight: 500,
+                border: "none",
+                cursor: "pointer",
+                background: billingPeriod === "yearly" ? "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)" : "#F3F4F6",
+                color: billingPeriod === "yearly" ? "#fff" : "#6B7280",
+              }}
             >
               Annuel
-              <span className="rounded bg-[var(--ms-success)] px-2 py-0.5 text-xs text-white">
+              <span style={{
+                padding: "2px 8px",
+                borderRadius: "6px",
+                fontSize: "11px",
+                fontWeight: 600,
+                background: "#10B981",
+                color: "#fff",
+              }}>
                 -17%
               </span>
             </button>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-3">
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(3, 1fr)",
+            gap: "24px",
+          }}>
             {/* FREE CARD */}
-            <div className="ms-card flex flex-col">
-              <div className="p-6 flex-1">
-                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--ms-bg-subtle)]">
-                  <Rocket size={24} className="text-[var(--ms-text-muted)]" />
-                </div>
-                <h3 className="text-xl font-bold text-[var(--ms-text)]">Gratuit</h3>
-                <p className="mt-1 text-sm text-[var(--ms-text-secondary)]">Pour démarrer</p>
-                <div className="my-4">
-                  <span className="text-3xl font-bold text-[var(--ms-text)]">0€</span>
-                  <span className="text-[var(--ms-text-secondary)]">/mois</span>
-                </div>
-                <ul className="mb-6 space-y-2 text-sm">
-                  <li className="flex items-center gap-2 text-[var(--ms-text-secondary)]">
-                    <CheckCircle size={16} className="text-[var(--ms-success)]" />5 véhicules max
-                  </li>
-                  <li className="flex items-center gap-2 text-[var(--ms-text-secondary)]">
-                    <CheckCircle size={16} className="text-[var(--ms-success)]" />10 interventions/mois
-                  </li>
-                  <li className="flex items-center gap-2 text-[var(--ms-text-secondary)]">
-                    <CheckCircle size={16} className="text-[var(--ms-success)]" />Export PDF basique
-                  </li>
-                  <li className="flex items-center gap-2 text-[var(--ms-text-secondary)]">
-                    <CheckCircle size={16} className="text-[var(--ms-success)]" />Support email
-                  </li>
-                </ul>
+            <div style={{
+              background: "#fff",
+              borderRadius: "16px",
+              border: "1px solid #E5E7EB",
+              padding: "24px",
+              display: "flex",
+              flexDirection: "column",
+            }}>
+              <div style={{
+                width: "48px",
+                height: "48px",
+                borderRadius: "12px",
+                background: "#F3F4F6",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                marginBottom: "16px",
+              }}>
+                <Rocket size={24} color="#9CA3AF" />
               </div>
-              <div className="p-6 pt-0">
-                <button type="button" className="ms-btn ms-btn-secondary w-full" disabled>
-                  {status?.plan === "FREE" ? "Plan actuel" : "Plan de base"}
-                </button>
+              <h3 style={{ fontSize: "20px", fontWeight: 700, color: "#111827", margin: "0 0 4px" }}>Gratuit</h3>
+              <p style={{ fontSize: "14px", color: "#6B7280", margin: "0 0 16px" }}>Pour démarrer</p>
+              <div style={{ marginBottom: "16px" }}>
+                <span style={{ fontSize: "32px", fontWeight: 700, color: "#111827" }}>0€</span>
+                <span style={{ fontSize: "14px", color: "#6B7280" }}>/mois</span>
               </div>
+              <ul style={{ margin: "0 0 24px", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: "8px", flex: 1 }}>
+                <FeatureItem text="5 véhicules max" />
+                <FeatureItem text="10 interventions/mois" />
+                <FeatureItem text="Export PDF basique" />
+                <FeatureItem text="Support email" />
+              </ul>
+              <button type="button" disabled style={{
+                padding: "12px 24px",
+                fontSize: "14px",
+                fontWeight: 600,
+                color: "#6B7280",
+                background: "#F3F4F6",
+                border: "none",
+                borderRadius: "12px",
+                cursor: "not-allowed",
+              }}>
+                {status?.plan === "FREE" ? "Plan actuel" : "Plan de base"}
+              </button>
             </div>
 
             {/* STARTER CARD */}
-            <div className="ms-card flex flex-col">
-              <div className="p-6 flex-1">
-                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-400 to-blue-600">
-                  <Sparkles size={24} className="text-white" />
-                </div>
-                <h3 className="text-xl font-bold text-[var(--ms-text)]">Starter</h3>
-                <p className="mt-1 text-sm text-[var(--ms-text-secondary)]">Pour les indépendants</p>
-                <div className="my-4">
-                  {billingPeriod === "monthly" ? (
-                    <>
-                      <span className="text-3xl font-bold text-[var(--ms-text)]">49€</span>
-                      <span className="text-[var(--ms-text-secondary)]">/mois</span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="text-3xl font-bold text-[var(--ms-text)]">490€</span>
-                      <span className="text-[var(--ms-text-secondary)]">/an</span>
-                      <p className="text-sm text-[var(--ms-success)]">Soit 40€/mois</p>
-                    </>
-                  )}
-                </div>
-                <ul className="mb-6 space-y-2 text-sm">
-                  <li className="flex items-center gap-2 text-[var(--ms-text-secondary)]">
-                    <CheckCircle size={16} className="text-blue-600" />50 véhicules
-                  </li>
-                  <li className="flex items-center gap-2 text-[var(--ms-text-secondary)]">
-                    <CheckCircle size={16} className="text-blue-600" />Interventions illimitées
-                  </li>
-                  <li className="flex items-center gap-2 text-[var(--ms-text-secondary)]">
-                    <Zap size={16} className="text-blue-600" />Statistiques de base
-                  </li>
-                  <li className="flex items-center gap-2 text-[var(--ms-text-secondary)]">
-                    <Gift size={16} className="text-blue-600" />14 jours d'essai
-                  </li>
-                </ul>
+            <div style={{
+              background: "#fff",
+              borderRadius: "16px",
+              border: "1px solid #E5E7EB",
+              padding: "24px",
+              display: "flex",
+              flexDirection: "column",
+            }}>
+              <div style={{
+                width: "48px",
+                height: "48px",
+                borderRadius: "12px",
+                background: "linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                marginBottom: "16px",
+              }}>
+                <Sparkles size={24} color="#fff" />
               </div>
-              <div className="p-6 pt-0">
-                <button
-                  type="button"
-                  onClick={() => handleCheckout(billingPeriod === "monthly" ? "STARTER_MONTHLY" : "STARTER_YEARLY")}
-                  disabled={!!actionLoading}
-                  className="ms-btn ms-btn-secondary w-full"
-                >
-                  {actionLoading === "STARTER_MONTHLY" || actionLoading === "STARTER_YEARLY" ? (
-                    <Loader2 size={16} className="animate-spin" />
-                  ) : (
-                    "S'abonner"
-                  )}
-                </button>
+              <h3 style={{ fontSize: "20px", fontWeight: 700, color: "#111827", margin: "0 0 4px" }}>Starter</h3>
+              <p style={{ fontSize: "14px", color: "#6B7280", margin: "0 0 16px" }}>Pour les indépendants</p>
+              <div style={{ marginBottom: "16px" }}>
+                {billingPeriod === "monthly" ? (
+                  <>
+                    <span style={{ fontSize: "32px", fontWeight: 700, color: "#111827" }}>49€</span>
+                    <span style={{ fontSize: "14px", color: "#6B7280" }}>/mois</span>
+                  </>
+                ) : (
+                  <>
+                    <span style={{ fontSize: "32px", fontWeight: 700, color: "#111827" }}>490€</span>
+                    <span style={{ fontSize: "14px", color: "#6B7280" }}>/an</span>
+                    <p style={{ fontSize: "14px", color: "#10B981", margin: "4px 0 0" }}>Soit 40€/mois</p>
+                  </>
+                )}
               </div>
+              <ul style={{ margin: "0 0 24px", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: "8px", flex: 1 }}>
+                <FeatureItem text="50 véhicules" color="#3B82F6" />
+                <FeatureItem text="Interventions illimitées" color="#3B82F6" />
+                <FeatureItem text="Statistiques de base" icon={Zap} color="#3B82F6" />
+                <FeatureItem text="14 jours d'essai" icon={Gift} color="#3B82F6" />
+              </ul>
+              <button
+                type="button"
+                onClick={() => handleCheckout(billingPeriod === "monthly" ? "STARTER_MONTHLY" : "STARTER_YEARLY")}
+                disabled={!!actionLoading}
+                style={{
+                  padding: "12px 24px",
+                  fontSize: "14px",
+                  fontWeight: 600,
+                  color: "#374151",
+                  background: "#fff",
+                  border: "1px solid #E5E7EB",
+                  borderRadius: "12px",
+                  cursor: actionLoading ? "not-allowed" : "pointer",
+                  opacity: actionLoading === "STARTER_MONTHLY" || actionLoading === "STARTER_YEARLY" ? 0.5 : 1,
+                }}
+              >
+                {actionLoading === "STARTER_MONTHLY" || actionLoading === "STARTER_YEARLY" ? (
+                  <Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} />
+                ) : (
+                  "S'abonner"
+                )}
+              </button>
             </div>
 
             {/* PRO CARD */}
-            <div className="ms-card relative flex flex-col border-2 border-[var(--ms-primary)]" style={{ background: "linear-gradient(to bottom right, var(--ms-primary-light), rgba(139, 92, 246, 0.1))" }}>
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                <span className="flex items-center gap-1 rounded-full bg-[var(--ms-primary)] px-3 py-1 text-xs font-bold text-white">
+            <div style={{
+              position: "relative",
+              background: "linear-gradient(to bottom right, #EEF2FF, rgba(139, 92, 246, 0.1))",
+              borderRadius: "16px",
+              border: "2px solid #6366F1",
+              padding: "24px",
+              display: "flex",
+              flexDirection: "column",
+            }}>
+              <div style={{
+                position: "absolute",
+                top: "-12px",
+                left: "50%",
+                transform: "translateX(-50%)",
+              }}>
+                <span style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "4px",
+                  padding: "4px 12px",
+                  borderRadius: "12px",
+                  fontSize: "12px",
+                  fontWeight: 700,
+                  background: "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)",
+                  color: "#fff",
+                }}>
                   <Star size={12} />
                   Recommandé
                 </span>
               </div>
-              <div className="p-6 flex-1">
-                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-[var(--ms-primary)] to-[#8B5CF6]">
-                  <Crown size={24} className="text-white" />
-                </div>
-                <h3 className="text-xl font-bold text-[var(--ms-text)]">Pro</h3>
-                <p className="mt-1 text-sm text-[var(--ms-text-secondary)]">Pour les professionnels</p>
-                <div className="my-4">
-                  {billingPeriod === "monthly" ? (
-                    <>
-                      <span className="text-3xl font-bold text-[var(--ms-text)]">129€</span>
-                      <span className="text-[var(--ms-text-secondary)]">/mois</span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="text-3xl font-bold text-[var(--ms-text)]">1290€</span>
-                      <span className="text-[var(--ms-text-secondary)]">/an</span>
-                      <p className="text-sm text-[var(--ms-success)]">Soit 107€/mois</p>
-                    </>
-                  )}
-                </div>
-                <ul className="mb-6 space-y-2 text-sm">
-                  <li className="flex items-center gap-2 text-[var(--ms-text-secondary)]">
-                    <CheckCircle size={16} className="text-[var(--ms-primary)]" />Véhicules illimités
-                  </li>
-                  <li className="flex items-center gap-2 text-[var(--ms-text-secondary)]">
-                    <CheckCircle size={16} className="text-[var(--ms-primary)]" />Interventions illimitées
-                  </li>
-                  <li className="flex items-center gap-2 text-[var(--ms-text-secondary)]">
-                    <Zap size={16} className="text-[var(--ms-primary)]" />Statistiques avancées
-                  </li>
-                  <li className="flex items-center gap-2 text-[var(--ms-text-secondary)]">
-                    <Users size={16} className="text-[var(--ms-primary)]" />Multi-utilisateurs
-                  </li>
-                  <li className="flex items-center gap-2 text-[var(--ms-text-secondary)]">
-                    <Gift size={16} className="text-[var(--ms-primary)]" />14 jours d'essai
-                  </li>
-                </ul>
+              <div style={{
+                width: "48px",
+                height: "48px",
+                borderRadius: "12px",
+                background: "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                marginBottom: "16px",
+              }}>
+                <Crown size={24} color="#fff" />
               </div>
-              <div className="p-6 pt-0">
-                <button
-                  type="button"
-                  onClick={() => handleCheckout(billingPeriod === "monthly" ? "PRO_MONTHLY" : "PRO_YEARLY")}
-                  disabled={!!actionLoading || (status?.plan === "PRO" && isActive)}
-                  className="ms-btn ms-btn-primary w-full"
-                >
-                  {actionLoading === "PRO_MONTHLY" || actionLoading === "PRO_YEARLY" ? (
-                    <Loader2 size={16} className="animate-spin" />
-                  ) : status?.plan === "PRO" && isActive ? (
-                    "Plan actuel"
-                  ) : (
-                    "S'abonner"
-                  )}
-                </button>
+              <h3 style={{ fontSize: "20px", fontWeight: 700, color: "#111827", margin: "0 0 4px" }}>Pro</h3>
+              <p style={{ fontSize: "14px", color: "#6B7280", margin: "0 0 16px" }}>Pour les professionnels</p>
+              <div style={{ marginBottom: "16px" }}>
+                {billingPeriod === "monthly" ? (
+                  <>
+                    <span style={{ fontSize: "32px", fontWeight: 700, color: "#111827" }}>129€</span>
+                    <span style={{ fontSize: "14px", color: "#6B7280" }}>/mois</span>
+                  </>
+                ) : (
+                  <>
+                    <span style={{ fontSize: "32px", fontWeight: 700, color: "#111827" }}>1290€</span>
+                    <span style={{ fontSize: "14px", color: "#6B7280" }}>/an</span>
+                    <p style={{ fontSize: "14px", color: "#10B981", margin: "4px 0 0" }}>Soit 107€/mois</p>
+                  </>
+                )}
               </div>
+              <ul style={{ margin: "0 0 24px", padding: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: "8px", flex: 1 }}>
+                <FeatureItem text="Véhicules illimités" color="#6366F1" />
+                <FeatureItem text="Interventions illimitées" color="#6366F1" />
+                <FeatureItem text="Statistiques avancées" icon={Zap} color="#6366F1" />
+                <FeatureItem text="Multi-utilisateurs" icon={Users} color="#6366F1" />
+                <FeatureItem text="14 jours d'essai" icon={Gift} color="#6366F1" />
+              </ul>
+              <button
+                type="button"
+                onClick={() => handleCheckout(billingPeriod === "monthly" ? "PRO_MONTHLY" : "PRO_YEARLY")}
+                disabled={!!actionLoading || (status?.plan === "PRO" && isActive)}
+                style={{
+                  padding: "12px 24px",
+                  fontSize: "14px",
+                  fontWeight: 600,
+                  color: "#fff",
+                  background: "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)",
+                  border: "none",
+                  borderRadius: "12px",
+                  cursor: (actionLoading || (status?.plan === "PRO" && isActive)) ? "not-allowed" : "pointer",
+                  opacity: actionLoading === "PRO_MONTHLY" || actionLoading === "PRO_YEARLY" ? 0.5 : 1,
+                  boxShadow: "0 4px 14px rgba(99, 102, 241, 0.4)",
+                }}
+              >
+                {actionLoading === "PRO_MONTHLY" || actionLoading === "PRO_YEARLY" ? (
+                  <Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} />
+                ) : status?.plan === "PRO" && isActive ? (
+                  "Plan actuel"
+                ) : (
+                  "S'abonner"
+                )}
+              </button>
             </div>
           </div>
         </>
       )}
 
       {/* Trust Badges */}
-      <div className="flex flex-wrap items-center justify-center gap-6 text-sm text-[var(--ms-text-secondary)]">
-        <span className="flex items-center gap-2">
-          <Shield size={18} className="text-[var(--ms-success)]" />
+      <div style={{
+        display: "flex",
+        flexWrap: "wrap",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: "24px",
+        fontSize: "14px",
+        color: "#6B7280",
+      }}>
+        <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <Shield size={18} color="#10B981" />
           Paiement sécurisé Stripe
         </span>
-        <span className="flex items-center gap-2">
-          <Zap size={18} className="text-yellow-500" />
+        <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <Zap size={18} color="#F59E0B" />
           Activation instantanée
         </span>
-        <span className="flex items-center gap-2">
-          <CheckCircle size={18} className="text-[var(--ms-success)]" />
+        <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <CheckCircle size={18} color="#10B981" />
           Annulation en 1 clic
         </span>
       </div>
 
       {/* FAQ */}
-      <div className="mx-auto max-w-3xl">
-        <h2 className="mb-4 text-center text-lg font-bold text-[var(--ms-text)]">Questions fréquentes</h2>
-        <div className="space-y-3">
+      <div style={{ maxWidth: "800px", margin: "0 auto" }}>
+        <h2 style={{
+          textAlign: "center",
+          fontSize: "18px",
+          fontWeight: 700,
+          color: "#111827",
+          margin: "0 0 16px",
+        }}>
+          Questions fréquentes
+        </h2>
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
           {[
             {
               q: "Puis-je annuler à tout moment ?",
@@ -949,15 +1524,61 @@ function AbonnementPanel({ role }: { role: string }) {
               a: "Starter est limité à 50 véhicules et offre des statistiques de base. Pro offre un accès illimité, les statistiques avancées, le multi-utilisateurs et un support prioritaire.",
             },
           ].map((item, i) => (
-            <div key={i} className="ms-card">
-              <div className="p-4">
-                <h3 className="font-semibold text-[var(--ms-text)]">{item.q}</h3>
-                <p className="mt-2 text-sm text-[var(--ms-text-secondary)]">{item.a}</p>
-              </div>
+            <div key={i} style={{
+              background: "#fff",
+              borderRadius: "12px",
+              border: "1px solid #E5E7EB",
+              padding: "16px",
+            }}>
+              <h3 style={{
+                fontSize: "15px",
+                fontWeight: 600,
+                color: "#111827",
+                margin: 0,
+              }}>
+                {item.q}
+              </h3>
+              <p style={{
+                fontSize: "14px",
+                color: "#6B7280",
+                margin: "8px 0 0",
+              }}>
+                {item.a}
+              </p>
             </div>
           ))}
         </div>
       </div>
+
+      {/* CSS Animation */}
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}} />
     </div>
+  );
+}
+
+function FeatureItem({
+  text,
+  icon: Icon = CheckCircle,
+  color = "#10B981",
+}: {
+  text: string;
+  icon?: React.ComponentType<{ size?: number; color?: string }>;
+  color?: string;
+}) {
+  return (
+    <li style={{
+      display: "flex",
+      alignItems: "center",
+      gap: "8px",
+      fontSize: "14px",
+      color: "#6B7280",
+    }}>
+      <Icon size={16} color={color} />
+      {text}
+    </li>
   );
 }
