@@ -6,7 +6,6 @@ import {
   ArrowLeft,
   User,
   Mail,
-  Phone,
   MapPin,
   Building2,
   X,

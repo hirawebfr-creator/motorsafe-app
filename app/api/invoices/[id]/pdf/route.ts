@@ -85,7 +85,7 @@ export async function GET(req: Request, ctx: Ctx) {
       invoiceNumber: invoice.invoiceNumber,
       status: invoice.status,
       createdAt: invoice.createdAt,
-      dueDate: invoice.dueDate,
+      dueDate: invoice.dueAt,
       paidAt: invoice.paidAt,
       
       client: {
@@ -94,8 +94,8 @@ export async function GET(req: Request, ctx: Ctx) {
         email: client.email,
         phone: client.phone,
         address: client.address,
-        city: client.city,
-        postalCode: client.postalCode,
+        city: null,
+        postalCode: null,
       },
       
       vehicle: invoice.vehicle ? {
@@ -103,7 +103,7 @@ export async function GET(req: Request, ctx: Ctx) {
         model: invoice.vehicle.model,
         plate: invoice.vehicle.plate,
         vin: invoice.vehicle.vin,
-        mileage: invoice.vehicle.mileage,
+        mileage: null,
       } : null,
       
       lines: invoice.lines.map(l => ({
@@ -126,14 +126,14 @@ export async function GET(req: Request, ctx: Ctx) {
         name: invoice.organisation.name,
         displayName: invoice.organisation.displayName,
         address: invoice.organisation.address,
-        city: invoice.organisation.city,
-        postalCode: invoice.organisation.postalCode,
+        city: null,
+        postalCode: null,
         phone: invoice.organisation.phone,
         email: invoice.organisation.email,
         siret: invoice.organisation.siret,
         vatNumber: invoice.organisation.vatNumber,
-        iban: invoice.organisation.iban,
-        bic: invoice.organisation.bic,
+        iban: null,
+        bic: null,
       },
     };
 

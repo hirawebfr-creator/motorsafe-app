@@ -12,8 +12,6 @@ import {
   RefreshCw,
   X,
   Hash,
-  Calendar,
-  Gauge,
   User,
   CheckCircle,
   AlertCircle,

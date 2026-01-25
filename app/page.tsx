@@ -674,7 +674,7 @@ export default function LandingPage() {
                 </tr>
               </thead>
               <tbody>
-                {[
+                {([
                   { label: 'Devis / Factures', sm: true, classic: true, constructor: true, tools: true },
                   { label: 'Signature client juridique', sm: true, classic: false, constructor: false, tools: 'partial' },
                   { label: 'Dossier litige pret', sm: true, classic: false, constructor: false, tools: false, highlight: true },
@@ -683,20 +683,20 @@ export default function LandingPage() {
                   { label: 'Archivage preuves', sm: true, classic: 'partial', constructor: 'partial', tools: false },
                   { label: 'Pense pour independants', sm: true, classic: 'partial', constructor: false, tools: false },
                   { label: 'Prix moyen / mois', sm: '89-249€', classic: '60-120€', constructor: '150-400€', tools: '40-80€ cumules' },
-                ].map((row, i) => (
+                ] as { label: string; sm: boolean | string; classic: boolean | string; constructor: boolean | string; tools: boolean | string; highlight?: boolean }[]).map((row, i) => (
                   <tr key={i} style={{ background: row.highlight ? 'rgba(99, 102, 241, 0.05)' : 'transparent' }}>
                     <td style={{ padding: '14px 20px', color: row.highlight ? '#fff' : 'rgba(255,255,255,0.7)', fontWeight: row.highlight ? 600 : 400, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{row.label}</td>
                     <td style={{ padding: '14px 20px', textAlign: 'center', background: 'rgba(99, 102, 241, 0.1)', borderLeft: '1px solid rgba(99, 102, 241, 0.3)', borderRight: '1px solid rgba(99, 102, 241, 0.3)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                       {typeof row.sm === 'string' ? <span style={{ color: '#6366F1', fontWeight: 600 }}>{row.sm}</span> : row.sm ? <Check size={18} color="#10B981" /> : <X size={18} color="#EF4444" />}
                     </td>
                     <td style={{ padding: '14px 20px', textAlign: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                      {typeof row.classic === 'string' ? <span style={{ color: 'rgba(255,255,255,0.5)' }}>{row.classic}</span> : row.classic === 'partial' ? <span style={{ color: '#F59E0B' }}>⚠️</span> : row.classic ? <Check size={18} color="#10B981" /> : <X size={18} color="#EF4444" />}
+                      {typeof row.classic === 'string' ? (row.classic === 'partial' ? <span style={{ color: '#F59E0B' }}>⚠️</span> : <span style={{ color: 'rgba(255,255,255,0.5)' }}>{row.classic}</span>) : row.classic ? <Check size={18} color="#10B981" /> : <X size={18} color="#EF4444" />}
                     </td>
                     <td style={{ padding: '14px 20px', textAlign: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                      {typeof row.constructor === 'string' ? <span style={{ color: 'rgba(255,255,255,0.5)' }}>{row.constructor}</span> : row.constructor === 'partial' ? <span style={{ color: '#F59E0B' }}>⚠️</span> : row.constructor ? <Check size={18} color="#10B981" /> : <X size={18} color="#EF4444" />}
+                      {typeof row.constructor === 'string' ? (row.constructor === 'partial' ? <span style={{ color: '#F59E0B' }}>⚠️</span> : <span style={{ color: 'rgba(255,255,255,0.5)' }}>{row.constructor}</span>) : row.constructor ? <Check size={18} color="#10B981" /> : <X size={18} color="#EF4444" />}
                     </td>
                     <td style={{ padding: '14px 20px', textAlign: 'center', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                      {typeof row.tools === 'string' ? <span style={{ color: 'rgba(255,255,255,0.5)' }}>{row.tools}</span> : row.tools === 'partial' ? <span style={{ color: '#F59E0B' }}>⚠️</span> : row.tools ? <Check size={18} color="#10B981" /> : <X size={18} color="#EF4444" />}
+                      {typeof row.tools === 'string' ? (row.tools === 'partial' ? <span style={{ color: '#F59E0B' }}>⚠️</span> : <span style={{ color: 'rgba(255,255,255,0.5)' }}>{row.tools}</span>) : row.tools ? <Check size={18} color="#10B981" /> : <X size={18} color="#EF4444" />}
                     </td>
                   </tr>
                 ))}

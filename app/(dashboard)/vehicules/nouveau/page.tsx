@@ -9,12 +9,9 @@ import {
   CheckCircle,
   AlertCircle,
   Car,
-  Fuel,
-  Calendar,
   Settings,
   User,
-  Hash,
-  Image as ImageIcon
+  Hash
 } from 'lucide-react'
 
 // ============================================================================
@@ -124,7 +121,7 @@ export default function NouveauVehiculePage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
-  const [createdId, setCreatedId] = useState<string | null>(null)
+  const [, setCreatedId] = useState<string | null>(null)
 
   const loadClients = async (q: string) => {
     try {

@@ -6,17 +6,14 @@ import {
   Search, 
   Plus, 
   Users, 
-  User,
   Mail,
   Phone,
   ChevronRight,
   RefreshCw,
-  X,
   MapPin,
   Car,
   Euro,
-  Trash2,
-  Building2
+  Trash2
 } from 'lucide-react'
 
 // ============================================================================
