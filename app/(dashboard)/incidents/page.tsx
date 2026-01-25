@@ -18,8 +18,31 @@ import {
 import { fetcher } from "@/lib/fetcher";
 
 // ============================================================================
-// INCIDENTS PAGE - SafeMotor Design System
+// INCIDENTS PAGE - SafeMotor Design System (Responsive)
 // ============================================================================
+
+// Responsive hook
+function useResponsive() {
+  const [screen, setScreen] = useState<"mobile" | "tablet" | "desktop">("desktop");
+
+  useEffect(() => {
+    const check = () => {
+      const w = window.innerWidth;
+      if (w < 640) setScreen("mobile");
+      else if (w < 1024) setScreen("tablet");
+      else setScreen("desktop");
+    };
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
+  return {
+    isMobile: screen === "mobile",
+    isTablet: screen === "tablet",
+    screen,
+  };
+}
 
 type ServiceStatus = "OK" | "DELAYED" | "DOWN" | "UNKNOWN";
 
@@ -107,32 +130,37 @@ export default function IncidentsPage() {
     }
   };
 
+  // Responsive
+  const { isMobile, isTablet } = useResponsive();
+  const padding = isMobile ? "16px" : isTablet ? "24px" : "32px";
+  const gridCols = isMobile ? "1fr" : "repeat(2, 1fr)";
+
   return (
-    <div style={{ padding: "32px", maxWidth: "1000px", margin: "0 auto" }}>
+    <div style={{ padding, maxWidth: "1000px", margin: "0 auto" }}>
       {/* Header */}
       <div style={{
         display: "flex",
+        flexDirection: isMobile ? "column" : "row",
         justifyContent: "space-between",
-        alignItems: "flex-start",
-        marginBottom: "32px",
-        flexWrap: "wrap",
+        alignItems: isMobile ? "stretch" : "flex-start",
+        marginBottom: isMobile ? "24px" : "32px",
         gap: "16px",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <div style={{
-            width: "48px",
-            height: "48px",
+            width: isMobile ? "40px" : "48px",
+            height: isMobile ? "40px" : "48px",
             borderRadius: "12px",
             background: "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
           }}>
-            <Activity size={24} color="#fff" />
+            <Activity size={isMobile ? 20 : 24} color="#fff" />
           </div>
           <div>
             <h1 style={{
-              fontSize: "28px",
+              fontSize: isMobile ? "20px" : "28px",
               fontWeight: 700,
               color: "#111827",
               margin: 0,
@@ -140,7 +168,7 @@ export default function IncidentsPage() {
               État des services
             </h1>
             <p style={{
-              fontSize: "15px",
+              fontSize: isMobile ? "13px" : "15px",
               color: "#6B7280",
               margin: "4px 0 0",
             }}>
@@ -156,6 +184,7 @@ export default function IncidentsPage() {
           style={{
             display: "flex",
             alignItems: "center",
+            justifyContent: "center",
             gap: "8px",
             padding: "10px 16px",
             borderRadius: "10px",
@@ -282,9 +311,9 @@ export default function IncidentsPage() {
           {/* Services Grid */}
           <div style={{
             display: "grid",
-            gridTemplateColumns: "repeat(2, 1fr)",
+            gridTemplateColumns: gridCols,
             gap: "16px",
-            marginBottom: "32px",
+            marginBottom: isMobile ? "24px" : "32px",
           }}>
             {(Object.entries(status.services) as [keyof typeof SERVICE_INFO, ServiceInfo][]).map(([key, service]) => {
               const info = SERVICE_INFO[key];

@@ -29,8 +29,32 @@ import { ComplianceToggles } from "@/components/parametres/ComplianceToggles";
 import { BrandingSettings } from "@/components/parametres/BrandingSettings";
 
 // ============================================================================
-// PARAMÈTRES PAGE - SafeMotor Design System
+// PARAMÈTRES PAGE - SafeMotor Design System (Responsive)
 // ============================================================================
+
+// Responsive hook
+function useResponsive() {
+  const [screen, setScreen] = useState<"mobile" | "tablet" | "desktop">("desktop");
+
+  useEffect(() => {
+    const check = () => {
+      const w = window.innerWidth;
+      if (w < 640) setScreen("mobile");
+      else if (w < 1024) setScreen("tablet");
+      else setScreen("desktop");
+    };
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
+  return {
+    isMobile: screen === "mobile",
+    isTablet: screen === "tablet",
+    isDesktop: screen === "desktop",
+    screen,
+  };
+}
 
 type GarageInfo = {
   id?: number | null;
@@ -67,6 +91,7 @@ export function ParametresClient({
   planName?: string;
 }) {
   const searchParams = useSearchParams();
+  const { isMobile, isTablet } = useResponsive();
   const tabFromUrl = searchParams.get("tab") as TabKey | null;
   const [tab, setTab] = useState<TabKey>(
     tabFromUrl && TABS.some((t) => t.key === tabFromUrl) ? tabFromUrl : "garage"
@@ -82,12 +107,16 @@ export function ParametresClient({
     return { label: "—", bg: "#F3F4F6", text: "#6B7280" };
   }, [garage?.status, role]);
 
+  // Responsive values
+  const padding = isMobile ? "16px" : isTablet ? "24px" : "32px";
+  const gridCols = isMobile ? "1fr" : isTablet ? "1fr" : "repeat(2, 1fr)";
+
   return (
-    <div style={{ padding: "32px", maxWidth: "1200px", margin: "0 auto" }}>
+    <div style={{ padding, maxWidth: "1200px", margin: "0 auto" }}>
       {/* Header */}
-      <div style={{ marginBottom: "32px" }}>
+      <div style={{ marginBottom: isMobile ? "24px" : "32px" }}>
         <h1 style={{
-          fontSize: "28px",
+          fontSize: isMobile ? "22px" : "28px",
           fontWeight: 700,
           color: "#111827",
           margin: 0,
@@ -96,7 +125,7 @@ export function ParametresClient({
           Paramètres
         </h1>
         <p style={{
-          fontSize: "15px",
+          fontSize: isMobile ? "13px" : "15px",
           color: "#6B7280",
           margin: 0,
         }}>
@@ -111,8 +140,9 @@ export function ParametresClient({
         padding: "4px",
         backgroundColor: "#F3F4F6",
         borderRadius: "12px",
-        marginBottom: "32px",
-        width: "fit-content",
+        marginBottom: isMobile ? "24px" : "32px",
+        overflowX: "auto",
+        WebkitOverflowScrolling: "touch",
       }}>
         {TABS.map(({ key, label, icon: Icon }) => (
           <button
@@ -122,9 +152,9 @@ export function ParametresClient({
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "8px",
-              padding: "10px 16px",
-              fontSize: "14px",
+              gap: isMobile ? "4px" : "8px",
+              padding: isMobile ? "8px 12px" : "10px 16px",
+              fontSize: isMobile ? "12px" : "14px",
               fontWeight: 500,
               color: tab === key ? "#FFFFFF" : "#6B7280",
               background: tab === key ? "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)" : "transparent",
@@ -133,10 +163,11 @@ export function ParametresClient({
               cursor: "pointer",
               transition: "all 0.15s ease",
               boxShadow: tab === key ? "0 2px 8px rgba(99, 102, 241, 0.3)" : "none",
+              whiteSpace: "nowrap",
             }}
           >
-            <Icon size={16} />
-            {label}
+            <Icon size={isMobile ? 14 : 16} />
+            {isMobile ? null : label}
           </button>
         ))}
       </div>
@@ -145,19 +176,21 @@ export function ParametresClient({
       {tab === "garage" && (
         <div style={{
           display: "grid",
-          gridTemplateColumns: "repeat(2, 1fr)",
-          gap: "24px",
+          gridTemplateColumns: gridCols,
+          gap: isMobile ? "16px" : "24px",
         }}>
           {/* Profile Card */}
           <div style={{
             background: "#fff",
             borderRadius: "16px",
             border: "1px solid #E5E7EB",
-            padding: "24px",
+            padding: isMobile ? "16px" : "24px",
           }}>
             <div style={{
               display: "flex",
-              alignItems: "flex-start",
+              flexDirection: isMobile ? "column" : "row",
+              alignItems: isMobile ? "center" : "flex-start",
+              textAlign: isMobile ? "center" : "left",
               gap: "16px",
               marginBottom: "24px",
             }}>

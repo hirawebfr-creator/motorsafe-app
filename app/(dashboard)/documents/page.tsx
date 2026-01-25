@@ -1,1226 +1,1402 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import { Tabs } from '@/components/shared/tabs'
-import { DataTableInline } from '@/components/shared/data-table-inline'
-import { Button } from '@/components/shared/button'
-import { Modal } from '@/components/shared/modal'
-import { Badge } from '@/components/shared/badge'
-import { SearchInput } from '@/components/shared/search-input'
-import { Select } from '@/components/shared/select'
-import { DropdownMenu } from '@/components/shared/dropdown-menu'
-import { useToast } from '@/components/shared/use-toast'
-import { 
+import { useState, useEffect, useCallback } from "react";
+import {
   FileText,
   Plus,
   Download,
   Mail,
   MoreVertical,
   Trash2,
-  Package
-} from 'lucide-react'
+  Package,
+  Search,
+  X,
+  ChevronDown,
+  Loader2,
+  AlertTriangle,
+} from "lucide-react";
+import { useToast } from "@/components/shared/use-toast";
 
-type DocumentType = 'DEVIS' | 'FACTURE' | 'EXPORT'
-type DevisStatus = 'BROUILLON' | 'ENVOYE' | 'ACCEPTE' | 'REFUSE'
-type FactureStatus = 'BROUILLON' | 'ENVOYEE' | 'PAYEE' | 'IMPAYEE'
-type ExportType = 'ASSURANCE' | 'EXPERT' | 'COMPLET'
+// ============================================================================
+// DOCUMENTS PAGE - SafeMotor Design System (Fully Responsive)
+// ============================================================================
+
+type DocumentType = "DEVIS" | "FACTURE" | "EXPORT";
+type DevisStatus = "BROUILLON" | "ENVOYE" | "ACCEPTE" | "REFUSE";
+type FactureStatus = "BROUILLON" | "ENVOYEE" | "PAYEE" | "IMPAYEE";
+type ExportType = "ASSURANCE" | "EXPERT" | "COMPLET";
 
 interface Devis {
-  id: string
-  number: string
-  interventionId: string
-  interventionNumber: string
-  clientName: string
-  vehicleInfo: string
-  amount: number
-  status: DevisStatus
-  validUntil: Date
-  createdAt: Date
-  pdfUrl?: string
+  id: string;
+  number: string;
+  interventionId: string;
+  interventionNumber: string;
+  clientName: string;
+  vehicleInfo: string;
+  amount: number;
+  status: DevisStatus;
+  validUntil: Date;
+  createdAt: Date;
+  pdfUrl?: string;
 }
 
 interface Facture {
-  id: string
-  number: string
-  interventionId: string
-  interventionNumber: string
-  clientName: string
-  vehicleInfo: string
-  amount: number
-  status: FactureStatus
-  paidAt?: Date
-  dueDate: Date
-  createdAt: Date
-  pdfUrl?: string
+  id: string;
+  number: string;
+  interventionId: string;
+  interventionNumber: string;
+  clientName: string;
+  vehicleInfo: string;
+  amount: number;
+  status: FactureStatus;
+  paidAt?: Date;
+  dueDate: Date;
+  createdAt: Date;
+  pdfUrl?: string;
 }
 
 interface Export {
-  id: string
-  number: string
-  type: ExportType
-  interventionId: string
-  interventionNumber: string
-  clientName: string
-  vehicleInfo: string
-  requestedBy: string
-  createdAt: Date
-  zipUrl?: string
+  id: string;
+  number: string;
+  type: ExportType;
+  interventionId: string;
+  interventionNumber: string;
+  clientName: string;
+  vehicleInfo: string;
+  requestedBy: string;
+  createdAt: Date;
+  zipUrl?: string;
 }
 
 interface Intervention {
-  id: string
-  number: string
-  clientName: string
-  vehicleInfo: string
+  id: string;
+  number: string;
+  clientName: string;
+  vehicleInfo: string;
 }
 
+// Responsive hook
+function useResponsive() {
+  const [screen, setScreen] = useState<"mobile" | "tablet" | "desktop">("desktop");
+
+  useEffect(() => {
+    const check = () => {
+      const w = window.innerWidth;
+      if (w < 640) setScreen("mobile");
+      else if (w < 1024) setScreen("tablet");
+      else setScreen("desktop");
+    };
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
+  return {
+    isMobile: screen === "mobile",
+    isTablet: screen === "tablet",
+    isDesktop: screen === "desktop",
+    screen,
+  };
+}
+
+// Status configs
+const DEVIS_STATUS: Record<DevisStatus, { color: string; bg: string; label: string }> = {
+  BROUILLON: { color: "#6B7280", bg: "#F3F4F6", label: "Brouillon" },
+  ENVOYE: { color: "#3B82F6", bg: "#DBEAFE", label: "Envoyé" },
+  ACCEPTE: { color: "#10B981", bg: "#ECFDF5", label: "Accepté" },
+  REFUSE: { color: "#EF4444", bg: "#FEF2F2", label: "Refusé" },
+};
+
+const FACTURE_STATUS: Record<FactureStatus, { color: string; bg: string; label: string }> = {
+  BROUILLON: { color: "#6B7280", bg: "#F3F4F6", label: "Brouillon" },
+  ENVOYEE: { color: "#3B82F6", bg: "#DBEAFE", label: "Envoyée" },
+  PAYEE: { color: "#10B981", bg: "#ECFDF5", label: "Payée" },
+  IMPAYEE: { color: "#EF4444", bg: "#FEF2F2", label: "Impayée" },
+};
+
+const EXPORT_TYPE: Record<ExportType, { color: string; bg: string; label: string }> = {
+  ASSURANCE: { color: "#3B82F6", bg: "#DBEAFE", label: "Assurance" },
+  EXPERT: { color: "#F59E0B", bg: "#FFFBEB", label: "Expert" },
+  COMPLET: { color: "#10B981", bg: "#ECFDF5", label: "Complet" },
+};
+
 export default function DocumentsPage() {
-  const toast = useToast()
-  
-  const [activeTab, setActiveTab] = useState<DocumentType>('DEVIS')
-  
-  const [devis, setDevis] = useState<Devis[]>([])
-  const [factures, setFactures] = useState<Facture[]>([])
-  const [exports, setExports] = useState<Export[]>([])
-  const [interventions, setInterventions] = useState<Intervention[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  
-  const [searchQuery, setSearchQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState<string>('all')
-  
-  const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false)
-  const [generateType, setGenerateType] = useState<DocumentType>('DEVIS')
-  const [selectedInterventionId, setSelectedInterventionId] = useState('')
-  const [exportType, setExportType] = useState<ExportType>('ASSURANCE')
-  const [sendEmail, setSendEmail] = useState(false)
-  const [isGenerating, setIsGenerating] = useState(false)
-  
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
-  const [documentToDelete, setDocumentToDelete] = useState<any>(null)
-  const [isDeleting, setIsDeleting] = useState(false)
-  
-  useEffect(() => {
-    loadInterventions()
-  }, [])
-  
-  useEffect(() => {
-    if (activeTab === 'DEVIS') loadDevis()
-    else if (activeTab === 'FACTURE') loadFactures()
-    else loadExports()
-  }, [activeTab, searchQuery, statusFilter])
-  
-  const loadInterventions = async () => {
+  const toast = useToast();
+  const { isMobile, isTablet } = useResponsive();
+
+  const [activeTab, setActiveTab] = useState<DocumentType>("DEVIS");
+  const [devis, setDevis] = useState<Devis[]>([]);
+  const [factures, setFactures] = useState<Facture[]>([]);
+  const [exports, setExports] = useState<Export[]>([]);
+  const [interventions, setInterventions] = useState<Intervention[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+
+  const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
+  const [generateType, setGenerateType] = useState<DocumentType>("DEVIS");
+  const [selectedInterventionId, setSelectedInterventionId] = useState("");
+  const [exportType, setExportType] = useState<ExportType>("ASSURANCE");
+  const [sendEmail, setSendEmail] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
+
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [documentToDelete, setDocumentToDelete] = useState<Devis | Facture | Export | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const [dropdownOpen, setDropdownOpen] = useState<string | null>(null);
+  const [generateDropdownOpen, setGenerateDropdownOpen] = useState(false);
+
+  // Load interventions
+  const loadInterventions = useCallback(async () => {
     try {
-      const response = await fetch('/api/interventions?status=TERMINE')
-      const data = await response.json()
-      
-      if (data.ok && data.data && Array.isArray(data.data.items)) {
-        setInterventions(data.data.items.map((i: any) => ({
-          id: i.id,
-          number: i.number,
-          clientName: i.clientName,
-          vehicleInfo: i.vehicleInfo
-        })))
-      } else {
-        console.error('Error loading interventions:', data.error || 'Invalid response')
+      const response = await fetch("/api/interventions?status=TERMINE");
+      const data = await response.json();
+      if (data.ok && data.data?.items) {
+        setInterventions(
+          data.data.items.map((i: Intervention) => ({
+            id: i.id,
+            number: i.number,
+            clientName: i.clientName,
+            vehicleInfo: i.vehicleInfo,
+          }))
+        );
       }
-    } catch (error) {
-      console.error('Error loading interventions:', error)
-      // Fallback
+    } catch {
       setInterventions([
-        { id: '1', number: 'INT-2024-001', clientName: 'Jean Dupont', vehicleInfo: 'Peugeot 208 - AB-123-CD' },
-        { id: '2', number: 'INT-2024-002', clientName: 'Marie Martin', vehicleInfo: 'Citroën C3 - IJ-789-KL' }
-      ])
+        { id: "1", number: "INT-2024-001", clientName: "Jean Dupont", vehicleInfo: "Peugeot 208 - AB-123-CD" },
+        { id: "2", number: "INT-2024-002", clientName: "Marie Martin", vehicleInfo: "Citroën C3 - IJ-789-KL" },
+      ]);
     }
-  }
-  
-  const loadDevis = async () => {
-    setIsLoading(true)
-    
+  }, []);
+
+  // Load devis
+  const loadDevis = useCallback(async () => {
+    setIsLoading(true);
     try {
       const params = new URLSearchParams({
         search: searchQuery,
-        status: statusFilter === 'all' ? '' : statusFilter,
-        page: '1',
-        limit: '100'
-      })
-      
-      const response = await fetch(`/api/documents/devis?${params}`)
-      const data = await response.json()
-      
-      if (data.ok && data.data && Array.isArray(data.data.items)) {
-        setDevis(data.data.items)
-      } else {
-        console.error('Error loading devis:', data.error || 'Invalid response format')
-        toast.error('Erreur', 'Impossible de charger les devis')
+        status: statusFilter === "all" ? "" : statusFilter,
+        page: "1",
+        limit: "100",
+      });
+      const response = await fetch(`/api/documents/devis?${params}`);
+      const data = await response.json();
+      if (data.ok && data.data?.items) {
+        setDevis(data.data.items);
       }
-      
-    } catch (error) {
-      console.error('Error loading devis:', error)
-      toast.error('Erreur', 'Impossible de se connecter au serveur')
-      
-      // Fallback sur données simulées
-      const mockDevis: Devis[] = [
-        {
-          id: '1',
-          number: 'DEV-2024-001',
-          interventionId: '1',
-          interventionNumber: 'INT-2024-001',
-          clientName: 'Jean Dupont',
-          vehicleInfo: 'Peugeot 208 - AB-123-CD',
-          amount: 450.00,
-          status: 'ACCEPTE',
-          validUntil: new Date('2024-02-15'),
-          createdAt: new Date('2024-01-15'),
-          pdfUrl: '/documents/dev-2024-001.pdf'
-        },
-        {
-          id: '2',
-          number: 'DEV-2024-002',
-          interventionId: '2',
-          interventionNumber: 'INT-2024-002',
-          clientName: 'Marie Martin',
-          vehicleInfo: 'Citroën C3 - IJ-789-KL',
-          amount: 320.00,
-          status: 'ENVOYE',
-          validUntil: new Date('2024-02-20'),
-          createdAt: new Date('2024-01-20')
-        }
-      ]
-      
-      let filtered = mockDevis
-      
-      if (searchQuery) {
-        const query = searchQuery.toLowerCase()
-        filtered = filtered.filter(d => 
-          d.number.toLowerCase().includes(query) ||
-          d.clientName.toLowerCase().includes(query)
-        )
-      }
-      
-      if (statusFilter !== 'all') {
-        filtered = filtered.filter(d => d.status === statusFilter)
-      }
-      
-      setDevis(filtered)
-      
+    } catch {
+      toast.error("Erreur", "Impossible de charger les devis");
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
-  
-  const loadFactures = async () => {
-    setIsLoading(true)
-    
+  }, [searchQuery, statusFilter, toast]);
+
+  // Load factures
+  const loadFactures = useCallback(async () => {
+    setIsLoading(true);
     try {
       const params = new URLSearchParams({
         search: searchQuery,
-        status: statusFilter === 'all' ? '' : statusFilter,
-        page: '1',
-        limit: '100'
-      })
-      
-      const response = await fetch(`/api/documents/factures?${params}`)
-      const data = await response.json()
-      
-      if (data.ok && data.data && Array.isArray(data.data.items)) {
-        setFactures(data.data.items)
-      } else {
-        console.error('Error loading factures:', data.error || 'Invalid response format')
-        toast.error('Erreur', 'Impossible de charger les factures')
+        status: statusFilter === "all" ? "" : statusFilter,
+        page: "1",
+        limit: "100",
+      });
+      const response = await fetch(`/api/documents/factures?${params}`);
+      const data = await response.json();
+      if (data.ok && data.data?.items) {
+        setFactures(data.data.items);
       }
-      
-    } catch (error) {
-      console.error('Error loading factures:', error)
-      toast.error('Erreur', 'Impossible de se connecter au serveur')
-      
-      // Fallback
-      const mockFactures: Facture[] = [
-        {
-          id: '1',
-          number: 'FAC-2024-001',
-          interventionId: '1',
-          interventionNumber: 'INT-2024-001',
-          clientName: 'Jean Dupont',
-          vehicleInfo: 'Peugeot 208 - AB-123-CD',
-          amount: 450.00,
-          status: 'PAYEE',
-          paidAt: new Date('2024-01-18'),
-          dueDate: new Date('2024-02-15'),
-          createdAt: new Date('2024-01-16'),
-          pdfUrl: '/documents/fac-2024-001.pdf'
-        },
-        {
-          id: '2',
-          number: 'FAC-2024-002',
-          interventionId: '2',
-          interventionNumber: 'INT-2024-002',
-          clientName: 'Marie Martin',
-          vehicleInfo: 'Citroën C3 - IJ-789-KL',
-          amount: 320.00,
-          status: 'ENVOYEE',
-          dueDate: new Date('2024-02-22'),
-          createdAt: new Date('2024-01-22')
-        }
-      ]
-      
-      let filtered = mockFactures
-      
-      if (searchQuery) {
-        const query = searchQuery.toLowerCase()
-        filtered = filtered.filter(f => 
-          f.number.toLowerCase().includes(query) ||
-          f.clientName.toLowerCase().includes(query)
-        )
-      }
-      
-      if (statusFilter !== 'all') {
-        filtered = filtered.filter(f => f.status === statusFilter)
-      }
-      
-      setFactures(filtered)
-      
+    } catch {
+      toast.error("Erreur", "Impossible de charger les factures");
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
-  
-  const loadExports = async () => {
-    setIsLoading(true)
-    
+  }, [searchQuery, statusFilter, toast]);
+
+  // Load exports
+  const loadExports = useCallback(async () => {
+    setIsLoading(true);
     try {
       const params = new URLSearchParams({
         search: searchQuery,
-        page: '1',
-        limit: '100'
-      })
-      
-      const response = await fetch(`/api/documents/exports?${params}`)
-      const data = await response.json()
-      
-      if (data.ok && data.data && Array.isArray(data.data.items)) {
-        setExports(data.data.items)
-      } else {
-        console.error('Error loading exports:', data.error || 'Invalid response format')
-        toast.error('Erreur', 'Impossible de charger les exports')
+        page: "1",
+        limit: "100",
+      });
+      const response = await fetch(`/api/documents/exports?${params}`);
+      const data = await response.json();
+      if (data.ok && data.data?.items) {
+        setExports(data.data.items);
       }
-      
-    } catch (error) {
-      console.error('Error loading exports:', error)
-      toast.error('Erreur', 'Impossible de se connecter au serveur')
-      
-      // Fallback
-      const mockExports: Export[] = [
-        {
-          id: '1',
-          number: 'EXP-2024-001',
-          type: 'ASSURANCE',
-          interventionId: '1',
-          interventionNumber: 'INT-2024-001',
-          clientName: 'Jean Dupont',
-          vehicleInfo: 'Peugeot 208 - AB-123-CD',
-          requestedBy: 'Sophie Blanc',
-          createdAt: new Date('2024-01-17'),
-          zipUrl: '/exports/exp-2024-001.zip'
-        }
-      ]
-      
-      let filtered = mockExports
-      
-      if (searchQuery) {
-        const query = searchQuery.toLowerCase()
-        filtered = filtered.filter(e => 
-          e.number.toLowerCase().includes(query) ||
-          e.clientName.toLowerCase().includes(query)
-        )
-      }
-      
-      setExports(filtered)
-      
+    } catch {
+      toast.error("Erreur", "Impossible de charger les exports");
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
-  
+  }, [searchQuery, toast]);
+
+  useEffect(() => {
+    void loadInterventions();
+  }, [loadInterventions]);
+
+  useEffect(() => {
+    if (activeTab === "DEVIS") loadDevis();
+    else if (activeTab === "FACTURE") loadFactures();
+    else loadExports();
+  }, [activeTab, loadDevis, loadFactures, loadExports]);
+
   const handleOpenGenerateModal = (type: DocumentType) => {
-    setGenerateType(type)
-    setSelectedInterventionId('')
-    setExportType('ASSURANCE')
-    setSendEmail(false)
-    setIsGenerateModalOpen(true)
-  }
-  
+    setGenerateType(type);
+    setSelectedInterventionId("");
+    setExportType("ASSURANCE");
+    setSendEmail(false);
+    setIsGenerateModalOpen(true);
+    setGenerateDropdownOpen(false);
+  };
+
   const handleGenerate = async () => {
     if (!selectedInterventionId) {
-      toast.error('Erreur', 'Sélectionnez une intervention')
-      return
+      toast.error("Erreur", "Sélectionnez une intervention");
+      return;
     }
-    
-    setIsGenerating(true)
-    
+
+    setIsGenerating(true);
+
     try {
-      let url = ''
-      let payload: any = { interventionId: selectedInterventionId }
-      
-      if (generateType === 'DEVIS') {
-        url = '/api/documents/devis/generate'
-        payload.sendEmail = sendEmail
-      } else if (generateType === 'FACTURE') {
-        url = '/api/documents/factures/generate'
-        payload.sendEmail = sendEmail
+      let url = "";
+      const payload: Record<string, unknown> = { interventionId: selectedInterventionId };
+
+      if (generateType === "DEVIS") {
+        url = "/api/documents/devis/generate";
+        payload.sendEmail = sendEmail;
+      } else if (generateType === "FACTURE") {
+        url = "/api/documents/factures/generate";
+        payload.sendEmail = sendEmail;
       } else {
-        url = '/api/documents/exports/generate'
-        payload.type = exportType
+        url = "/api/documents/exports/generate";
+        payload.type = exportType;
       }
-      
+
       const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      })
-      
-      const data = await response.json()
-      
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+
       if (data.ok) {
-        toast.success(
-          'Document généré',
-          sendEmail 
-            ? 'Le document a été généré et envoyé par email'
-            : 'Le document a été généré avec succès'
-        )
-        setIsGenerateModalOpen(false)
-        
-        if (generateType === 'DEVIS') loadDevis()
-        else if (generateType === 'FACTURE') loadFactures()
-        else loadExports()
+        toast.success("Document généré", sendEmail ? "Document généré et envoyé par email" : "Document généré avec succès");
+        setIsGenerateModalOpen(false);
+        if (generateType === "DEVIS") loadDevis();
+        else if (generateType === "FACTURE") loadFactures();
+        else loadExports();
       } else {
-        toast.error('Erreur', data.error || 'Impossible de générer le document')
+        toast.error("Erreur", data.error || "Impossible de générer le document");
       }
-      
-    } catch (error) {
-      console.error('Error generating document:', error)
-      toast.error('Erreur', 'Impossible de se connecter au serveur')
+    } catch {
+      toast.error("Erreur", "Impossible de se connecter au serveur");
     } finally {
-      setIsGenerating(false)
+      setIsGenerating(false);
     }
-  }
-  
-  const handleDownload = (url: string, _filename: string) => {
+  };
+
+  const handleDownload = (url: string) => {
     if (url) {
-      window.open(url, '_blank')
+      window.open(url, "_blank");
     } else {
-      toast.info('Génération en cours', 'Le fichier sera disponible dans quelques secondes')
+      toast.info("Génération en cours", "Le fichier sera disponible dans quelques secondes");
     }
-  }
-  
-  const handleDeleteClick = (document: any) => {
-    setDocumentToDelete(document)
-    setDeleteModalOpen(true)
-  }
-  
+  };
+
+  const handleDeleteClick = (document: Devis | Facture | Export) => {
+    setDocumentToDelete(document);
+    setDeleteModalOpen(true);
+    setDropdownOpen(null);
+  };
+
   const handleDeleteConfirm = async () => {
-    if (!documentToDelete) return
-    
-    setIsDeleting(true)
-    
+    if (!documentToDelete) return;
+
+    setIsDeleting(true);
+
     try {
-      let url = ''
-      
-      if (activeTab === 'DEVIS') {
-        url = `/api/documents/devis/${documentToDelete.id}`
-      } else if (activeTab === 'FACTURE') {
-        url = `/api/documents/factures/${documentToDelete.id}`
-      } else {
-        url = `/api/documents/exports/${documentToDelete.id}`
-      }
-      
-      const response = await fetch(url, { method: 'DELETE' })
-      const data = await response.json()
-      
+      let url = "";
+      if (activeTab === "DEVIS") url = `/api/documents/devis/${documentToDelete.id}`;
+      else if (activeTab === "FACTURE") url = `/api/documents/factures/${documentToDelete.id}`;
+      else url = `/api/documents/exports/${documentToDelete.id}`;
+
+      const response = await fetch(url, { method: "DELETE" });
+      const data = await response.json();
+
       if (data.ok) {
-        toast.success('Document supprimé', 'Le document a été supprimé avec succès')
-        setDeleteModalOpen(false)
-        setDocumentToDelete(null)
-        
-        if (activeTab === 'DEVIS') loadDevis()
-        else if (activeTab === 'FACTURE') loadFactures()
-        else loadExports()
+        toast.success("Document supprimé", "Le document a été supprimé avec succès");
+        setDeleteModalOpen(false);
+        setDocumentToDelete(null);
+        if (activeTab === "DEVIS") loadDevis();
+        else if (activeTab === "FACTURE") loadFactures();
+        else loadExports();
       } else {
-        toast.error('Erreur', data.error || 'Impossible de supprimer le document')
+        toast.error("Erreur", data.error || "Impossible de supprimer le document");
       }
-      
-    } catch (error) {
-      console.error('Error deleting document:', error)
-      toast.error('Erreur', 'Impossible de se connecter au serveur')
+    } catch {
+      toast.error("Erreur", "Impossible de se connecter au serveur");
     } finally {
-      setIsDeleting(false)
+      setIsDeleting(false);
     }
-  }
-  
+  };
+
   const formatCurrency = (amount: number): string => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'EUR'
-    }).format(amount)
-  }
-  
-  const getDevisStatusBadge = (status: DevisStatus) => {
-    const variants = {
-      BROUILLON: 'neutral',
-      ENVOYE: 'info',
-      ACCEPTE: 'success',
-      REFUSE: 'error'
-    }
-    
-    const labels = {
-      BROUILLON: 'Brouillon',
-      ENVOYE: 'Envoyé',
-      ACCEPTE: 'Accepté',
-      REFUSE: 'Refusé'
-    }
-    
-    return <Badge variant={variants[status] as any}>{labels[status]}</Badge>
-  }
-  
-  const getFactureStatusBadge = (status: FactureStatus) => {
-    const variants = {
-      BROUILLON: 'neutral',
-      ENVOYEE: 'info',
-      PAYEE: 'success',
-      IMPAYEE: 'error'
-    }
-    
-    const labels = {
-      BROUILLON: 'Brouillon',
-      ENVOYEE: 'Envoyée',
-      PAYEE: 'Payée',
-      IMPAYEE: 'Impayée'
-    }
-    
-    return <Badge variant={variants[status] as any}>{labels[status]}</Badge>
-  }
-  
-  const getExportTypeBadge = (type: ExportType) => {
-    const variants = {
-      ASSURANCE: 'info',
-      EXPERT: 'warning',
-      COMPLET: 'success'
-    }
-    
-    const labels = {
-      ASSURANCE: 'Assurance',
-      EXPERT: 'Expert',
-      COMPLET: 'Complet'
-    }
-    
-    return <Badge variant={variants[type] as any}>{labels[type]}</Badge>
-  }
-  
-  const devisColumns = [
-    {
-      key: 'number',
-      label: 'Numéro',
-      sortable: true,
-      render: (devis: Devis) => (
-        <div>
-          <div style={{
-            fontFamily: 'monospace',
-            fontSize: '14px',
-            fontWeight: 600,
-            color: '#111827'
-          }}>
-            {devis.number}
-          </div>
-          <div style={{ fontSize: '12px', color: '#9CA3AF', marginTop: '2px' }}>
-            {new Date(devis.createdAt).toLocaleDateString('fr-FR')}
-          </div>
-        </div>
-      )
-    },
-    {
-      key: 'intervention',
-      label: 'Intervention',
-      sortable: false,
-      render: (devis: Devis) => (
-        <div>
-          <div style={{ fontSize: '13px', color: '#111827', fontWeight: 500 }}>
-            {devis.interventionNumber}
-          </div>
-          <div style={{ fontSize: '12px', color: '#6B7280' }}>
-            {devis.clientName}
-          </div>
-          <div style={{ fontSize: '11px', color: '#9CA3AF' }}>
-            {devis.vehicleInfo}
-          </div>
-        </div>
-      )
-    },
-    {
-      key: 'amount',
-      label: 'Montant',
-      sortable: true,
-      render: (devis: Devis) => (
-        <div style={{ fontSize: '14px', fontWeight: 600, color: '#111827' }}>
-          {formatCurrency(devis.amount)}
-        </div>
-      )
-    },
-    {
-      key: 'status',
-      label: 'Statut',
-      sortable: true,
-      render: (devis: Devis) => getDevisStatusBadge(devis.status)
-    },
-    {
-      key: 'validUntil',
-      label: 'Validité',
-      sortable: true,
-      render: (devis: Devis) => (
-        <div style={{ fontSize: '13px', color: '#6B7280' }}>
-          {new Date(devis.validUntil).toLocaleDateString('fr-FR')}
-        </div>
-      )
-    },
-    {
-      key: 'actions',
-      label: 'Actions',
-      sortable: false,
-      render: (devis: Devis) => (
-        <DropdownMenu
-          trigger={
-            <button
-              style={{
-                padding: '6px',
-                backgroundColor: 'transparent',
-                border: 'none',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                color: '#6B7280',
-                transition: 'all 0.15s ease'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = '#F9FAFB'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'transparent'
-              }}
-            >
-              <MoreVertical size={16} />
-            </button>
-          }
-          items={[
-            {
-              id: 'download',
-              label: 'Télécharger PDF',
-              icon: <Download size={16} />,
-              onClick: () => handleDownload(devis.pdfUrl || '', devis.number + '.pdf')
-            },
-            {
-              id: 'email',
-              label: 'Envoyer par email',
-              icon: <Mail size={16} />,
-              onClick: () => toast.info('Email', 'Fonctionnalité en développement')
-            },
-            { id: 'separator', separator: true },
-            {
-              id: 'delete',
-              label: 'Supprimer',
-              icon: <Trash2 size={16} />,
-              danger: true,
-              onClick: () => handleDeleteClick(devis)
-            }
-          ]}
-        />
-      )
-    }
-  ]
-  
-  const facturesColumns = [
-    {
-      key: 'number',
-      label: 'Numéro',
-      sortable: true,
-      render: (facture: Facture) => (
-        <div>
-          <div style={{
-            fontFamily: 'monospace',
-            fontSize: '14px',
-            fontWeight: 600,
-            color: '#111827'
-          }}>
-            {facture.number}
-          </div>
-          <div style={{ fontSize: '12px', color: '#9CA3AF', marginTop: '2px' }}>
-            {new Date(facture.createdAt).toLocaleDateString('fr-FR')}
-          </div>
-        </div>
-      )
-    },
-    {
-      key: 'intervention',
-      label: 'Intervention',
-      sortable: false,
-      render: (facture: Facture) => (
-        <div>
-          <div style={{ fontSize: '13px', color: '#111827', fontWeight: 500 }}>
-            {facture.interventionNumber}
-          </div>
-          <div style={{ fontSize: '12px', color: '#6B7280' }}>
-            {facture.clientName}
-          </div>
-          <div style={{ fontSize: '11px', color: '#9CA3AF' }}>
-            {facture.vehicleInfo}
-          </div>
-        </div>
-      )
-    },
-    {
-      key: 'amount',
-      label: 'Montant',
-      sortable: true,
-      render: (facture: Facture) => (
-        <div style={{ fontSize: '14px', fontWeight: 600, color: '#111827' }}>
-          {formatCurrency(facture.amount)}
-        </div>
-      )
-    },
-    {
-      key: 'status',
-      label: 'Statut',
-      sortable: true,
-      render: (facture: Facture) => getFactureStatusBadge(facture.status)
-    },
-    {
-      key: 'dueDate',
-      label: 'Échéance',
-      sortable: true,
-      render: (facture: Facture) => (
-        <div style={{ fontSize: '13px', color: '#6B7280' }}>
-          {new Date(facture.dueDate).toLocaleDateString('fr-FR')}
-        </div>
-      )
-    },
-    {
-      key: 'actions',
-      label: 'Actions',
-      sortable: false,
-      render: (facture: Facture) => (
-        <DropdownMenu
-          trigger={
-            <button
-              style={{
-                padding: '6px',
-                backgroundColor: 'transparent',
-                border: 'none',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                color: '#6B7280',
-                transition: 'all 0.15s ease'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = '#F9FAFB'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'transparent'
-              }}
-            >
-              <MoreVertical size={16} />
-            </button>
-          }
-          items={[
-            {
-              id: 'download',
-              label: 'Télécharger PDF',
-              icon: <Download size={16} />,
-              onClick: () => handleDownload(facture.pdfUrl || '', facture.number + '.pdf')
-            },
-            {
-              id: 'email',
-              label: 'Envoyer par email',
-              icon: <Mail size={16} />,
-              onClick: () => toast.info('Email', 'Fonctionnalité en développement')
-            },
-            { id: 'separator', separator: true },
-            {
-              id: 'delete',
-              label: 'Supprimer',
-              icon: <Trash2 size={16} />,
-              danger: true,
-              onClick: () => handleDeleteClick(facture)
-            }
-          ]}
-        />
-      )
-    }
-  ]
-  
-  const exportsColumns = [
-    {
-      key: 'number',
-      label: 'Numéro',
-      sortable: true,
-      render: (exp: Export) => (
-        <div>
-          <div style={{
-            fontFamily: 'monospace',
-            fontSize: '14px',
-            fontWeight: 600,
-            color: '#111827'
-          }}>
-            {exp.number}
-          </div>
-          <div style={{ fontSize: '12px', color: '#9CA3AF', marginTop: '2px' }}>
-            {new Date(exp.createdAt).toLocaleDateString('fr-FR')}
-          </div>
-        </div>
-      )
-    },
-    {
-      key: 'type',
-      label: 'Type',
-      sortable: true,
-      render: (exp: Export) => getExportTypeBadge(exp.type)
-    },
-    {
-      key: 'intervention',
-      label: 'Intervention',
-      sortable: false,
-      render: (exp: Export) => (
-        <div>
-          <div style={{ fontSize: '13px', color: '#111827', fontWeight: 500 }}>
-            {exp.interventionNumber}
-          </div>
-          <div style={{ fontSize: '12px', color: '#6B7280' }}>
-            {exp.clientName}
-          </div>
-          <div style={{ fontSize: '11px', color: '#9CA3AF' }}>
-            {exp.vehicleInfo}
-          </div>
-        </div>
-      )
-    },
-    {
-      key: 'requestedBy',
-      label: 'Demandeur',
-      sortable: true,
-      render: (exp: Export) => (
-        <div style={{ fontSize: '13px', color: '#6B7280' }}>
-          {exp.requestedBy}
-        </div>
-      )
-    },
-    {
-      key: 'actions',
-      label: 'Actions',
-      sortable: false,
-      render: (exp: Export) => (
-        <DropdownMenu
-          trigger={
-            <button
-              style={{
-                padding: '6px',
-                backgroundColor: 'transparent',
-                border: 'none',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                color: '#6B7280',
-                transition: 'all 0.15s ease'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = '#F9FAFB'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'transparent'
-              }}
-            >
-              <MoreVertical size={16} />
-            </button>
-          }
-          items={[
-            {
-              id: 'download',
-              label: 'Télécharger ZIP',
-              icon: <Package size={16} />,
-              onClick: () => handleDownload(exp.zipUrl || '', exp.number + '.zip')
-            },
-            { id: 'separator', separator: true },
-            {
-              id: 'delete',
-              label: 'Supprimer',
-              icon: <Trash2 size={16} />,
-              danger: true,
-              onClick: () => handleDeleteClick(exp)
-            }
-          ]}
-        />
-      )
-    }
-  ]
-  
-  const tabs = [
-    {
-      id: 'DEVIS',
-      label: 'Devis',
-      icon: <FileText size={16} />,
-      badge: devis.length,
-      content: (
-        <div>
-          <div style={{
-            display: 'flex',
-            gap: '12px',
-            marginBottom: '20px'
-          }}>
-            <div style={{ flex: 1 }}>
-              <SearchInput
-                placeholder="Rechercher un devis..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onClear={() => setSearchQuery('')}
-              />
-            </div>
-            
-            <Select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              options={[
-                { value: 'all', label: 'Tous les statuts' },
-                { value: 'BROUILLON', label: 'Brouillons' },
-                { value: 'ENVOYE', label: 'Envoyés' },
-                { value: 'ACCEPTE', label: 'Acceptés' },
-                { value: 'REFUSE', label: 'Refusés' }
-              ]}
-            />
-          </div>
-          
-          <DataTableInline
-            data={devis}
-            columns={devisColumns}
-            loading={isLoading}
-            emptyState={
-              <div style={{ textAlign: 'center', padding: '48px 24px' }}>
-                <div style={{ fontSize: '16px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>
-                  Aucun devis
-                </div>
-                <div style={{ fontSize: '14px', color: '#6B7280', marginBottom: '16px' }}>
-                  Commencez par générer votre premier devis
-                </div>
-                <Button variant="primary" onClick={() => handleOpenGenerateModal('DEVIS')}>
-                  Générer un devis
-                </Button>
-              </div>
-            }
-          />
-        </div>
-      )
-    },
-    {
-      id: 'FACTURE',
-      label: 'Factures',
-      icon: <FileText size={16} />,
-      badge: factures.length,
-      content: (
-        <div>
-          <div style={{
-            display: 'flex',
-            gap: '12px',
-            marginBottom: '20px'
-          }}>
-            <div style={{ flex: 1 }}>
-              <SearchInput
-                placeholder="Rechercher une facture..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onClear={() => setSearchQuery('')}
-              />
-            </div>
-            
-            <Select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              options={[
-                { value: 'all', label: 'Tous les statuts' },
-                { value: 'BROUILLON', label: 'Brouillons' },
-                { value: 'ENVOYEE', label: 'Envoyées' },
-                { value: 'PAYEE', label: 'Payées' },
-                { value: 'IMPAYEE', label: 'Impayées' }
-              ]}
-            />
-          </div>
-          
-          <DataTableInline
-            data={factures}
-            columns={facturesColumns}
-            loading={isLoading}
-            emptyState={
-              <div style={{ textAlign: 'center', padding: '48px 24px' }}>
-                <div style={{ fontSize: '16px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>
-                  Aucune facture
-                </div>
-                <div style={{ fontSize: '14px', color: '#6B7280', marginBottom: '16px' }}>
-                  Commencez par générer votre première facture
-                </div>
-                <Button variant="primary" onClick={() => handleOpenGenerateModal('FACTURE')}>
-                  Générer une facture
-                </Button>
-              </div>
-            }
-          />
-        </div>
-      )
-    },
-    {
-      id: 'EXPORT',
-      label: 'Exports assurance',
-      icon: <Package size={16} />,
-      badge: exports.length,
-      content: (
-        <div>
-          <div style={{ marginBottom: '20px' }}>
-            <SearchInput
-              placeholder="Rechercher un export..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onClear={() => setSearchQuery('')}
-            />
-          </div>
-          
-          <DataTableInline
-            data={exports}
-            columns={exportsColumns}
-            loading={isLoading}
-            emptyState={
-              <div style={{ textAlign: 'center', padding: '48px 24px' }}>
-                <div style={{ fontSize: '16px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>
-                  Aucun export
-                </div>
-                <div style={{ fontSize: '14px', color: '#6B7280', marginBottom: '16px' }}>
-                  Commencez par générer votre premier export assurance
-                </div>
-                <Button variant="primary" onClick={() => handleOpenGenerateModal('EXPORT')}>
-                  Générer un export
-                </Button>
-              </div>
-            }
-          />
-        </div>
-      )
-    }
-  ]
-  
+    return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(amount);
+  };
+
+  const formatDate = (date: Date | string): string => {
+    return new Date(date).toLocaleDateString("fr-FR");
+  };
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => {
+      setDropdownOpen(null);
+      setGenerateDropdownOpen(false);
+    };
+    document.addEventListener("click", handleClickOutside);
+    return () => document.removeEventListener("click", handleClickOutside);
+  }, []);
+
+  // Responsive styles
+  const padding = isMobile ? "16px" : isTablet ? "24px" : "32px";
+  const headerFlex = isMobile ? "column" : "row";
+  const headerAlign = isMobile ? "stretch" : "center";
+  const headerGap = isMobile ? "16px" : "0";
+
+  const tabsList = [
+    { id: "DEVIS", label: "Devis", count: devis.length },
+    { id: "FACTURE", label: "Factures", count: factures.length },
+    { id: "EXPORT", label: "Exports", count: exports.length },
+  ];
+
   return (
-    <div style={{ padding: '24px', maxWidth: '1600px', margin: '0 auto' }}>
+    <div style={{ padding, maxWidth: "1400px", margin: "0 auto" }}>
       {/* Header */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '32px'
-      }}>
-        <div>
-          <h1 style={{
-            fontSize: '32px',
-            fontWeight: 700,
-            color: '#111827',
-            margin: 0,
-            marginBottom: '4px'
-          }}>
-            Documents
-          </h1>
-          <p style={{
-            fontSize: '14px',
-            color: '#6B7280',
-            margin: 0
-          }}>
-            Gérez vos devis, factures et exports assurance
-          </p>
-        </div>
-        
-        <DropdownMenu
-          trigger={
-            <Button
-              variant="primary"
-              size="lg"
-              leftIcon={<Plus size={20} />}
-            >
-              Générer un document
-            </Button>
-          }
-          items={[
-            {
-              id: 'devis',
-              label: 'Nouveau devis',
-              icon: <FileText size={16} />,
-              onClick: () => handleOpenGenerateModal('DEVIS')
-            },
-            {
-              id: 'facture',
-              label: 'Nouvelle facture',
-              icon: <FileText size={16} />,
-              onClick: () => handleOpenGenerateModal('FACTURE')
-            },
-            { id: 'separator', separator: true },
-            {
-              id: 'export',
-              label: 'Export assurance',
-              icon: <Package size={16} />,
-              onClick: () => handleOpenGenerateModal('EXPORT')
-            }
-          ]}
-        />
-      </div>
-      
-      {/* Tabs */}
-      <Tabs
-        tabs={tabs}
-        value={activeTab}
-        onChange={(tabId) => {
-          setActiveTab(tabId as DocumentType)
-          setSearchQuery('')
-          setStatusFilter('all')
+      <div
+        style={{
+          display: "flex",
+          flexDirection: headerFlex as "column" | "row",
+          justifyContent: "space-between",
+          alignItems: headerAlign as "stretch" | "center",
+          gap: headerGap,
+          marginBottom: "24px",
         }}
-      />
-      
-      {/* Modal génération */}
-      <Modal
-        isOpen={isGenerateModalOpen}
-        onClose={() => setIsGenerateModalOpen(false)}
-        title={`Générer ${
-          generateType === 'DEVIS' ? 'un devis' : 
-          generateType === 'FACTURE' ? 'une facture' : 
-          'un export'
-        }`}
-        size="md"
       >
-        <div style={{ padding: '24px' }}>
-          <Select
-            label="Intervention"
-            value={selectedInterventionId}
-            onChange={(e) => setSelectedInterventionId(e.target.value)}
-            options={[
-              { value: '', label: 'Sélectionner une intervention' },
-              ...interventions.map(i => ({
-                value: i.id,
-                label: `${i.number} - ${i.clientName} (${i.vehicleInfo})`
-              }))
-            ]}
-            required
-          />
-          
-          {generateType === 'EXPORT' && (
-            <Select
-              label="Type d'export"
-              value={exportType}
-              onChange={(e) => setExportType(e.target.value as ExportType)}
-              options={[
-                { value: 'ASSURANCE', label: 'Assurance (Photos + Factures + Signatures)' },
-                { value: 'EXPERT', label: 'Expert (Complet + Chaîne de preuves)' },
-                { value: 'COMPLET', label: 'Complet (Archive complète)' }
-              ]}
-            />
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div
+            style={{
+              width: isMobile ? "40px" : "48px",
+              height: isMobile ? "40px" : "48px",
+              borderRadius: "12px",
+              background: "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <FileText size={isMobile ? 20 : 24} color="#fff" />
+          </div>
+          <div>
+            <h1 style={{ fontSize: isMobile ? "22px" : "28px", fontWeight: 700, color: "#111827", margin: 0 }}>
+              Documents
+            </h1>
+            <p style={{ fontSize: isMobile ? "13px" : "15px", color: "#6B7280", margin: "4px 0 0" }}>
+              Gérez vos devis, factures et exports
+            </p>
+          </div>
+        </div>
+
+        {/* Generate dropdown */}
+        <div style={{ position: "relative" }}>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setGenerateDropdownOpen(!generateDropdownOpen);
+            }}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: isMobile ? "10px 16px" : "12px 20px",
+              borderRadius: "12px",
+              border: "none",
+              background: "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)",
+              fontSize: "14px",
+              fontWeight: 600,
+              color: "#fff",
+              cursor: "pointer",
+              boxShadow: "0 4px 14px rgba(99, 102, 241, 0.4)",
+              width: isMobile ? "100%" : "auto",
+              justifyContent: isMobile ? "center" : "flex-start",
+            }}
+          >
+            <Plus size={18} />
+            Générer un document
+            <ChevronDown size={16} />
+          </button>
+
+          {generateDropdownOpen && (
+            <div
+              style={{
+                position: "absolute",
+                top: "calc(100% + 8px)",
+                right: isMobile ? "0" : "0",
+                left: isMobile ? "0" : "auto",
+                background: "#fff",
+                borderRadius: "12px",
+                border: "1px solid #E5E7EB",
+                boxShadow: "0 10px 40px rgba(0,0,0,0.12)",
+                zIndex: 50,
+                minWidth: "200px",
+                overflow: "hidden",
+              }}
+            >
+              {[
+                { id: "DEVIS" as const, label: "Nouveau devis", icon: FileText },
+                { id: "FACTURE" as const, label: "Nouvelle facture", icon: FileText },
+                { id: "EXPORT" as const, label: "Export assurance", icon: Package },
+              ].map((item, i) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => handleOpenGenerateModal(item.id)}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    width: "100%",
+                    padding: "12px 16px",
+                    border: "none",
+                    background: "transparent",
+                    fontSize: "14px",
+                    color: "#374151",
+                    cursor: "pointer",
+                    textAlign: "left",
+                    borderTop: i > 0 ? "1px solid #F3F4F6" : "none",
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "#F9FAFB")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                >
+                  <item.icon size={16} color="#6B7280" />
+                  {item.label}
+                </button>
+              ))}
+            </div>
           )}
-          
-          {(generateType === 'DEVIS' || generateType === 'FACTURE') && (
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-              padding: '12px',
-              backgroundColor: '#F9FAFB',
-              borderRadius: '8px',
-              marginTop: '16px'
-            }}>
-              <input
-                type="checkbox"
-                id="sendEmail"
-                checked={sendEmail}
-                onChange={(e) => setSendEmail(e.target.checked)}
-                style={{ cursor: 'pointer' }}
-              />
-              <label
-                htmlFor="sendEmail"
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div
+        style={{
+          display: "flex",
+          gap: isMobile ? "4px" : "8px",
+          marginBottom: "24px",
+          overflowX: "auto",
+          WebkitOverflowScrolling: "touch",
+        }}
+      >
+        {tabsList.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => {
+              setActiveTab(tab.id as DocumentType);
+              setSearchQuery("");
+              setStatusFilter("all");
+            }}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: isMobile ? "10px 14px" : "12px 20px",
+              borderRadius: "10px",
+              border: "none",
+              background: activeTab === tab.id ? "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)" : "#F3F4F6",
+              fontSize: isMobile ? "13px" : "14px",
+              fontWeight: 600,
+              color: activeTab === tab.id ? "#fff" : "#6B7280",
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+              transition: "all 0.2s",
+            }}
+          >
+            {tab.label}
+            <span
+              style={{
+                padding: "2px 8px",
+                borderRadius: "10px",
+                background: activeTab === tab.id ? "rgba(255,255,255,0.2)" : "#E5E7EB",
+                fontSize: "12px",
+              }}
+            >
+              {tab.count}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* Search & Filter */}
+      <div
+        style={{
+          display: "flex",
+          flexDirection: isMobile ? "column" : "row",
+          gap: "12px",
+          marginBottom: "20px",
+        }}
+      >
+        {/* Search */}
+        <div style={{ flex: 1, position: "relative" }}>
+          <Search
+            size={18}
+            color="#9CA3AF"
+            style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)" }}
+          />
+          <input
+            type="text"
+            placeholder={
+              activeTab === "DEVIS"
+                ? "Rechercher un devis..."
+                : activeTab === "FACTURE"
+                ? "Rechercher une facture..."
+                : "Rechercher un export..."
+            }
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{
+              width: "100%",
+              padding: "12px 40px 12px 44px",
+              borderRadius: "10px",
+              border: "1px solid #E5E7EB",
+              fontSize: "14px",
+              outline: "none",
+              background: "#fff",
+            }}
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery("")}
+              style={{
+                position: "absolute",
+                right: "12px",
+                top: "50%",
+                transform: "translateY(-50%)",
+                background: "transparent",
+                border: "none",
+                cursor: "pointer",
+                padding: "4px",
+              }}
+            >
+              <X size={16} color="#9CA3AF" />
+            </button>
+          )}
+        </div>
+
+        {/* Status filter (not for exports) */}
+        {activeTab !== "EXPORT" && (
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            style={{
+              padding: "12px 16px",
+              borderRadius: "10px",
+              border: "1px solid #E5E7EB",
+              fontSize: "14px",
+              background: "#fff",
+              cursor: "pointer",
+              minWidth: isMobile ? "100%" : "180px",
+            }}
+          >
+            <option value="all">Tous les statuts</option>
+            {activeTab === "DEVIS" ? (
+              <>
+                <option value="BROUILLON">Brouillons</option>
+                <option value="ENVOYE">Envoyés</option>
+                <option value="ACCEPTE">Acceptés</option>
+                <option value="REFUSE">Refusés</option>
+              </>
+            ) : (
+              <>
+                <option value="BROUILLON">Brouillons</option>
+                <option value="ENVOYEE">Envoyées</option>
+                <option value="PAYEE">Payées</option>
+                <option value="IMPAYEE">Impayées</option>
+              </>
+            )}
+          </select>
+        )}
+      </div>
+
+      {/* Content */}
+      <div
+        style={{
+          background: "#fff",
+          borderRadius: "16px",
+          border: "1px solid #E5E7EB",
+          overflow: "hidden",
+        }}
+      >
+        {isLoading ? (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "64px" }}>
+            <Loader2 size={32} color="#6366F1" style={{ animation: "spin 1s linear infinite" }} />
+          </div>
+        ) : activeTab === "DEVIS" && devis.length === 0 ? (
+          <EmptyState type="DEVIS" onGenerate={() => handleOpenGenerateModal("DEVIS")} isMobile={isMobile} />
+        ) : activeTab === "FACTURE" && factures.length === 0 ? (
+          <EmptyState type="FACTURE" onGenerate={() => handleOpenGenerateModal("FACTURE")} isMobile={isMobile} />
+        ) : activeTab === "EXPORT" && exports.length === 0 ? (
+          <EmptyState type="EXPORT" onGenerate={() => handleOpenGenerateModal("EXPORT")} isMobile={isMobile} />
+        ) : isMobile ? (
+          // Mobile card view
+          <div style={{ padding: "12px" }}>
+            {activeTab === "DEVIS" &&
+              devis.map((d) => (
+                <MobileCard
+                  key={d.id}
+                  title={d.number}
+                  subtitle={`${d.clientName} • ${d.vehicleInfo}`}
+                  badge={{ ...DEVIS_STATUS[d.status] }}
+                  info={[
+                    { label: "Montant", value: formatCurrency(d.amount) },
+                    { label: "Validité", value: formatDate(d.validUntil) },
+                  ]}
+                  onDownload={() => handleDownload(d.pdfUrl || "")}
+                  onDelete={() => handleDeleteClick(d)}
+                />
+              ))}
+            {activeTab === "FACTURE" &&
+              factures.map((f) => (
+                <MobileCard
+                  key={f.id}
+                  title={f.number}
+                  subtitle={`${f.clientName} • ${f.vehicleInfo}`}
+                  badge={{ ...FACTURE_STATUS[f.status] }}
+                  info={[
+                    { label: "Montant", value: formatCurrency(f.amount) },
+                    { label: "Échéance", value: formatDate(f.dueDate) },
+                  ]}
+                  onDownload={() => handleDownload(f.pdfUrl || "")}
+                  onDelete={() => handleDeleteClick(f)}
+                />
+              ))}
+            {activeTab === "EXPORT" &&
+              exports.map((e) => (
+                <MobileCard
+                  key={e.id}
+                  title={e.number}
+                  subtitle={`${e.clientName} • ${e.vehicleInfo}`}
+                  badge={{ ...EXPORT_TYPE[e.type] }}
+                  info={[
+                    { label: "Demandeur", value: e.requestedBy },
+                    { label: "Date", value: formatDate(e.createdAt) },
+                  ]}
+                  onDownload={() => handleDownload(e.zipUrl || "")}
+                  onDelete={() => handleDeleteClick(e)}
+                  isZip
+                />
+              ))}
+          </div>
+        ) : (
+          // Desktop/Tablet table view
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ background: "#F9FAFB", borderBottom: "1px solid #E5E7EB" }}>
+                  <th style={{ ...thStyle, width: isTablet ? "25%" : "18%" }}>Numéro</th>
+                  <th style={{ ...thStyle, width: isTablet ? "30%" : "25%" }}>Intervention</th>
+                  {activeTab === "EXPORT" ? (
+                    <th style={thStyle}>Type</th>
+                  ) : (
+                    <th style={thStyle}>Montant</th>
+                  )}
+                  <th style={thStyle}>{activeTab === "EXPORT" ? "Demandeur" : "Statut"}</th>
+                  <th style={thStyle}>{activeTab === "DEVIS" ? "Validité" : activeTab === "FACTURE" ? "Échéance" : "Date"}</th>
+                  <th style={{ ...thStyle, width: "80px", textAlign: "center" }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {activeTab === "DEVIS" &&
+                  devis.map((d) => (
+                    <tr key={d.id} style={{ borderBottom: "1px solid #F3F4F6" }}>
+                      <td style={tdStyle}>
+                        <div style={{ fontFamily: "monospace", fontWeight: 600, color: "#111827" }}>{d.number}</div>
+                        <div style={{ fontSize: "12px", color: "#9CA3AF" }}>{formatDate(d.createdAt)}</div>
+                      </td>
+                      <td style={tdStyle}>
+                        <div style={{ fontWeight: 500, color: "#111827" }}>{d.interventionNumber}</div>
+                        <div style={{ fontSize: "12px", color: "#6B7280" }}>{d.clientName}</div>
+                        <div style={{ fontSize: "11px", color: "#9CA3AF" }}>{d.vehicleInfo}</div>
+                      </td>
+                      <td style={tdStyle}>
+                        <span style={{ fontWeight: 600, color: "#111827" }}>{formatCurrency(d.amount)}</span>
+                      </td>
+                      <td style={tdStyle}>
+                        <StatusBadge config={DEVIS_STATUS[d.status]} />
+                      </td>
+                      <td style={tdStyle}>
+                        <span style={{ fontSize: "13px", color: "#6B7280" }}>{formatDate(d.validUntil)}</span>
+                      </td>
+                      <td style={{ ...tdStyle, textAlign: "center" }}>
+                        <ActionMenu
+                          isOpen={dropdownOpen === d.id}
+                          onToggle={(e) => {
+                            e.stopPropagation();
+                            setDropdownOpen(dropdownOpen === d.id ? null : d.id);
+                          }}
+                          onDownload={() => handleDownload(d.pdfUrl || "")}
+                          onDelete={() => handleDeleteClick(d)}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                {activeTab === "FACTURE" &&
+                  factures.map((f) => (
+                    <tr key={f.id} style={{ borderBottom: "1px solid #F3F4F6" }}>
+                      <td style={tdStyle}>
+                        <div style={{ fontFamily: "monospace", fontWeight: 600, color: "#111827" }}>{f.number}</div>
+                        <div style={{ fontSize: "12px", color: "#9CA3AF" }}>{formatDate(f.createdAt)}</div>
+                      </td>
+                      <td style={tdStyle}>
+                        <div style={{ fontWeight: 500, color: "#111827" }}>{f.interventionNumber}</div>
+                        <div style={{ fontSize: "12px", color: "#6B7280" }}>{f.clientName}</div>
+                        <div style={{ fontSize: "11px", color: "#9CA3AF" }}>{f.vehicleInfo}</div>
+                      </td>
+                      <td style={tdStyle}>
+                        <span style={{ fontWeight: 600, color: "#111827" }}>{formatCurrency(f.amount)}</span>
+                      </td>
+                      <td style={tdStyle}>
+                        <StatusBadge config={FACTURE_STATUS[f.status]} />
+                      </td>
+                      <td style={tdStyle}>
+                        <span style={{ fontSize: "13px", color: "#6B7280" }}>{formatDate(f.dueDate)}</span>
+                      </td>
+                      <td style={{ ...tdStyle, textAlign: "center" }}>
+                        <ActionMenu
+                          isOpen={dropdownOpen === f.id}
+                          onToggle={(e) => {
+                            e.stopPropagation();
+                            setDropdownOpen(dropdownOpen === f.id ? null : f.id);
+                          }}
+                          onDownload={() => handleDownload(f.pdfUrl || "")}
+                          onDelete={() => handleDeleteClick(f)}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                {activeTab === "EXPORT" &&
+                  exports.map((e) => (
+                    <tr key={e.id} style={{ borderBottom: "1px solid #F3F4F6" }}>
+                      <td style={tdStyle}>
+                        <div style={{ fontFamily: "monospace", fontWeight: 600, color: "#111827" }}>{e.number}</div>
+                        <div style={{ fontSize: "12px", color: "#9CA3AF" }}>{formatDate(e.createdAt)}</div>
+                      </td>
+                      <td style={tdStyle}>
+                        <div style={{ fontWeight: 500, color: "#111827" }}>{e.interventionNumber}</div>
+                        <div style={{ fontSize: "12px", color: "#6B7280" }}>{e.clientName}</div>
+                        <div style={{ fontSize: "11px", color: "#9CA3AF" }}>{e.vehicleInfo}</div>
+                      </td>
+                      <td style={tdStyle}>
+                        <StatusBadge config={EXPORT_TYPE[e.type]} />
+                      </td>
+                      <td style={tdStyle}>
+                        <span style={{ fontSize: "13px", color: "#6B7280" }}>{e.requestedBy}</span>
+                      </td>
+                      <td style={tdStyle}>
+                        <span style={{ fontSize: "13px", color: "#6B7280" }}>{formatDate(e.createdAt)}</span>
+                      </td>
+                      <td style={{ ...tdStyle, textAlign: "center" }}>
+                        <ActionMenu
+                          isOpen={dropdownOpen === e.id}
+                          onToggle={(ev) => {
+                            ev.stopPropagation();
+                            setDropdownOpen(dropdownOpen === e.id ? null : e.id);
+                          }}
+                          onDownload={() => handleDownload(e.zipUrl || "")}
+                          onDelete={() => handleDeleteClick(e)}
+                          isZip
+                        />
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Generate Modal */}
+      {isGenerateModalOpen && (
+        <ModalOverlay onClose={() => setIsGenerateModalOpen(false)}>
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: isMobile ? "16px 16px 0 0" : "16px",
+              width: isMobile ? "100%" : "480px",
+              maxWidth: "100%",
+              maxHeight: isMobile ? "85vh" : "90vh",
+              overflow: "auto",
+              position: isMobile ? "fixed" : "relative",
+              bottom: isMobile ? 0 : "auto",
+              left: isMobile ? 0 : "auto",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ padding: "20px 24px", borderBottom: "1px solid #E5E7EB" }}>
+              <h2 style={{ fontSize: "18px", fontWeight: 700, color: "#111827", margin: 0 }}>
+                Générer {generateType === "DEVIS" ? "un devis" : generateType === "FACTURE" ? "une facture" : "un export"}
+              </h2>
+            </div>
+
+            <div style={{ padding: "24px" }}>
+              <div style={{ marginBottom: "20px" }}>
+                <label style={{ display: "block", fontSize: "14px", fontWeight: 500, color: "#374151", marginBottom: "8px" }}>
+                  Intervention *
+                </label>
+                <select
+                  value={selectedInterventionId}
+                  onChange={(e) => setSelectedInterventionId(e.target.value)}
+                  style={{
+                    width: "100%",
+                    padding: "12px 16px",
+                    borderRadius: "10px",
+                    border: "1px solid #E5E7EB",
+                    fontSize: "14px",
+                    background: "#fff",
+                  }}
+                >
+                  <option value="">Sélectionner une intervention</option>
+                  {interventions.map((i) => (
+                    <option key={i.id} value={i.id}>
+                      {i.number} - {i.clientName} ({i.vehicleInfo})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {generateType === "EXPORT" && (
+                <div style={{ marginBottom: "20px" }}>
+                  <label style={{ display: "block", fontSize: "14px", fontWeight: 500, color: "#374151", marginBottom: "8px" }}>
+                    Type d'export
+                  </label>
+                  <select
+                    value={exportType}
+                    onChange={(e) => setExportType(e.target.value as ExportType)}
+                    style={{
+                      width: "100%",
+                      padding: "12px 16px",
+                      borderRadius: "10px",
+                      border: "1px solid #E5E7EB",
+                      fontSize: "14px",
+                      background: "#fff",
+                    }}
+                  >
+                    <option value="ASSURANCE">Assurance (Photos + Factures + Signatures)</option>
+                    <option value="EXPERT">Expert (Complet + Chaîne de preuves)</option>
+                    <option value="COMPLET">Complet (Archive complète)</option>
+                  </select>
+                </div>
+              )}
+
+              {(generateType === "DEVIS" || generateType === "FACTURE") && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "12px",
+                    padding: "14px 16px",
+                    background: "#F9FAFB",
+                    borderRadius: "10px",
+                    marginBottom: "20px",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    id="sendEmail"
+                    checked={sendEmail}
+                    onChange={(e) => setSendEmail(e.target.checked)}
+                    style={{ width: "18px", height: "18px", cursor: "pointer" }}
+                  />
+                  <label htmlFor="sendEmail" style={{ fontSize: "14px", color: "#374151", cursor: "pointer" }}>
+                    Envoyer par email au client
+                  </label>
+                </div>
+              )}
+
+              <div style={{ display: "flex", gap: "12px", justifyContent: "flex-end" }}>
+                <button
+                  type="button"
+                  onClick={() => setIsGenerateModalOpen(false)}
+                  disabled={isGenerating}
+                  style={{
+                    padding: "12px 20px",
+                    borderRadius: "10px",
+                    border: "1px solid #E5E7EB",
+                    background: "#fff",
+                    fontSize: "14px",
+                    fontWeight: 500,
+                    color: "#374151",
+                    cursor: isGenerating ? "not-allowed" : "pointer",
+                  }}
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  onClick={handleGenerate}
+                  disabled={isGenerating || !selectedInterventionId}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    padding: "12px 24px",
+                    borderRadius: "10px",
+                    border: "none",
+                    background:
+                      isGenerating || !selectedInterventionId
+                        ? "#D1D5DB"
+                        : "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)",
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    color: "#fff",
+                    cursor: isGenerating || !selectedInterventionId ? "not-allowed" : "pointer",
+                    boxShadow: isGenerating || !selectedInterventionId ? "none" : "0 4px 14px rgba(99, 102, 241, 0.4)",
+                  }}
+                >
+                  {isGenerating && <Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} />}
+                  Générer
+                </button>
+              </div>
+            </div>
+          </div>
+        </ModalOverlay>
+      )}
+
+      {/* Delete Modal */}
+      {deleteModalOpen && documentToDelete && (
+        <ModalOverlay onClose={() => setDeleteModalOpen(false)}>
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: isMobile ? "16px 16px 0 0" : "16px",
+              width: isMobile ? "100%" : "420px",
+              maxWidth: "100%",
+              position: isMobile ? "fixed" : "relative",
+              bottom: isMobile ? 0 : "auto",
+              left: isMobile ? 0 : "auto",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ padding: "24px", textAlign: "center" }}>
+              <div
                 style={{
-                  fontSize: '14px',
-                  color: '#111827',
-                  cursor: 'pointer'
+                  width: "56px",
+                  height: "56px",
+                  borderRadius: "50%",
+                  background: "#FEF2F2",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  margin: "0 auto 16px",
                 }}
               >
-                Envoyer par email au client
-              </label>
+                <AlertTriangle size={28} color="#EF4444" />
+              </div>
+              <h3 style={{ fontSize: "18px", fontWeight: 700, color: "#111827", margin: "0 0 8px" }}>Supprimer le document</h3>
+              <p style={{ fontSize: "14px", color: "#6B7280", margin: "0 0 24px" }}>
+                Êtes-vous sûr de vouloir supprimer <strong style={{ color: "#111827" }}>{documentToDelete.number}</strong> ?
+              </p>
+
+              <div style={{ display: "flex", gap: "12px" }}>
+                <button
+                  type="button"
+                  onClick={() => setDeleteModalOpen(false)}
+                  disabled={isDeleting}
+                  style={{
+                    flex: 1,
+                    padding: "12px",
+                    borderRadius: "10px",
+                    border: "1px solid #E5E7EB",
+                    background: "#fff",
+                    fontSize: "14px",
+                    fontWeight: 500,
+                    color: "#374151",
+                    cursor: isDeleting ? "not-allowed" : "pointer",
+                  }}
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeleteConfirm}
+                  disabled={isDeleting}
+                  style={{
+                    flex: 1,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "8px",
+                    padding: "12px",
+                    borderRadius: "10px",
+                    border: "none",
+                    background: "#EF4444",
+                    fontSize: "14px",
+                    fontWeight: 600,
+                    color: "#fff",
+                    cursor: isDeleting ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {isDeleting && <Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} />}
+                  Supprimer
+                </button>
+              </div>
             </div>
-          )}
-          
-          <div style={{
-            display: 'flex',
-            gap: '12px',
-            justifyContent: 'flex-end',
-            marginTop: '24px'
-          }}>
-            <Button
-              variant="secondary"
-              onClick={() => setIsGenerateModalOpen(false)}
-              disabled={isGenerating}
-            >
-              Annuler
-            </Button>
-            <Button
-              variant="primary"
-              onClick={handleGenerate}
-              loading={isGenerating}
-              disabled={isGenerating || !selectedInterventionId}
-            >
-              Générer
-            </Button>
           </div>
-        </div>
-      </Modal>
-      
-      {/* Modal suppression */}
-      <Modal
-        isOpen={deleteModalOpen}
-        onClose={() => setDeleteModalOpen(false)}
-        title="Supprimer le document"
-        size="md"
-      >
-        <div style={{ padding: '24px' }}>
-          <p style={{
-            fontSize: '15px',
-            color: '#6B7280',
-            lineHeight: 1.6,
-            margin: 0,
-            marginBottom: '20px'
-          }}>
-            Êtes-vous sûr de vouloir supprimer le document{' '}
-            <strong style={{ color: '#111827' }}>
-              {documentToDelete?.number}
-            </strong> ?
-          </p>
-          
-          <div style={{
-            display: 'flex',
-            gap: '12px',
-            justifyContent: 'flex-end'
-          }}>
-            <Button
-              variant="secondary"
-              onClick={() => setDeleteModalOpen(false)}
-              disabled={isDeleting}
-            >
-              Annuler
-            </Button>
-            <Button
-              variant="primary"
-              onClick={handleDeleteConfirm}
-              loading={isDeleting}
-              disabled={isDeleting}
-              style={{
-                backgroundColor: '#DC2626'
-              }}
-            >
-              Supprimer
-            </Button>
-          </div>
-        </div>
-      </Modal>
+        </ModalOverlay>
+      )}
+
+      {/* CSS Animation */}
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `,
+        }}
+      />
     </div>
-  )
+  );
+}
+
+// Helper components
+const thStyle: React.CSSProperties = {
+  padding: "14px 16px",
+  fontSize: "12px",
+  fontWeight: 600,
+  color: "#6B7280",
+  textAlign: "left",
+  textTransform: "uppercase",
+  letterSpacing: "0.05em",
+};
+
+const tdStyle: React.CSSProperties = {
+  padding: "16px",
+  fontSize: "14px",
+  verticalAlign: "top",
+};
+
+function StatusBadge({ config }: { config: { color: string; bg: string; label: string } }) {
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        padding: "4px 12px",
+        borderRadius: "20px",
+        fontSize: "12px",
+        fontWeight: 600,
+        background: config.bg,
+        color: config.color,
+      }}
+    >
+      {config.label}
+    </span>
+  );
+}
+
+function ActionMenu({
+  isOpen,
+  onToggle,
+  onDownload,
+  onDelete,
+  isZip = false,
+}: {
+  isOpen: boolean;
+  onToggle: (e: React.MouseEvent) => void;
+  onDownload: () => void;
+  onDelete: () => void;
+  isZip?: boolean;
+}) {
+  return (
+    <div style={{ position: "relative" }}>
+      <button
+        type="button"
+        onClick={onToggle}
+        style={{
+          padding: "8px",
+          border: "none",
+          background: isOpen ? "#F3F4F6" : "transparent",
+          borderRadius: "8px",
+          cursor: "pointer",
+          color: "#6B7280",
+        }}
+      >
+        <MoreVertical size={18} />
+      </button>
+
+      {isOpen && (
+        <div
+          style={{
+            position: "absolute",
+            top: "calc(100% + 4px)",
+            right: 0,
+            background: "#fff",
+            borderRadius: "10px",
+            border: "1px solid #E5E7EB",
+            boxShadow: "0 10px 40px rgba(0,0,0,0.12)",
+            zIndex: 50,
+            minWidth: "160px",
+            overflow: "hidden",
+          }}
+        >
+          <button
+            type="button"
+            onClick={onDownload}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              width: "100%",
+              padding: "12px 16px",
+              border: "none",
+              background: "transparent",
+              fontSize: "14px",
+              color: "#374151",
+              cursor: "pointer",
+              textAlign: "left",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "#F9FAFB")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+          >
+            {isZip ? <Package size={16} /> : <Download size={16} />}
+            Télécharger {isZip ? "ZIP" : "PDF"}
+          </button>
+          {!isZip && (
+            <button
+              type="button"
+              onClick={() => {}}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                width: "100%",
+                padding: "12px 16px",
+                border: "none",
+                background: "transparent",
+                fontSize: "14px",
+                color: "#374151",
+                cursor: "pointer",
+                textAlign: "left",
+                borderTop: "1px solid #F3F4F6",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "#F9FAFB")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+            >
+              <Mail size={16} />
+              Envoyer par email
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onDelete}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              width: "100%",
+              padding: "12px 16px",
+              border: "none",
+              background: "transparent",
+              fontSize: "14px",
+              color: "#EF4444",
+              cursor: "pointer",
+              textAlign: "left",
+              borderTop: "1px solid #F3F4F6",
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "#FEF2F2")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+          >
+            <Trash2 size={16} />
+            Supprimer
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MobileCard({
+  title,
+  subtitle,
+  badge,
+  info,
+  onDownload,
+  onDelete,
+  isZip = false,
+}: {
+  title: string;
+  subtitle: string;
+  badge: { color: string; bg: string; label: string };
+  info: { label: string; value: string }[];
+  onDownload: () => void;
+  onDelete: () => void;
+  isZip?: boolean;
+}) {
+  return (
+    <div
+      style={{
+        background: "#fff",
+        borderRadius: "12px",
+        border: "1px solid #E5E7EB",
+        padding: "16px",
+        marginBottom: "12px",
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
+        <div>
+          <div style={{ fontFamily: "monospace", fontSize: "14px", fontWeight: 600, color: "#111827" }}>{title}</div>
+          <div style={{ fontSize: "12px", color: "#6B7280", marginTop: "4px" }}>{subtitle}</div>
+        </div>
+        <StatusBadge config={badge} />
+      </div>
+
+      <div style={{ display: "flex", gap: "16px", marginBottom: "16px" }}>
+        {info.map((item, i) => (
+          <div key={i}>
+            <div style={{ fontSize: "11px", color: "#9CA3AF", marginBottom: "2px" }}>{item.label}</div>
+            <div style={{ fontSize: "13px", fontWeight: 500, color: "#111827" }}>{item.value}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: "flex", gap: "8px" }}>
+        <button
+          type="button"
+          onClick={onDownload}
+          style={{
+            flex: 1,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "6px",
+            padding: "10px",
+            borderRadius: "8px",
+            border: "1px solid #E5E7EB",
+            background: "#fff",
+            fontSize: "13px",
+            fontWeight: 500,
+            color: "#374151",
+            cursor: "pointer",
+          }}
+        >
+          {isZip ? <Package size={14} /> : <Download size={14} />}
+          {isZip ? "ZIP" : "PDF"}
+        </button>
+        <button
+          type="button"
+          onClick={onDelete}
+          style={{
+            padding: "10px 14px",
+            borderRadius: "8px",
+            border: "1px solid #FECACA",
+            background: "#FEF2F2",
+            color: "#EF4444",
+            cursor: "pointer",
+          }}
+        >
+          <Trash2 size={14} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function EmptyState({
+  type,
+  onGenerate,
+  isMobile,
+}: {
+  type: DocumentType;
+  onGenerate: () => void;
+  isMobile: boolean;
+}) {
+  const config = {
+    DEVIS: { title: "Aucun devis", desc: "Commencez par générer votre premier devis", btn: "Générer un devis" },
+    FACTURE: { title: "Aucune facture", desc: "Commencez par générer votre première facture", btn: "Générer une facture" },
+    EXPORT: { title: "Aucun export", desc: "Commencez par générer votre premier export", btn: "Générer un export" },
+  };
+
+  const c = config[type];
+
+  return (
+    <div style={{ textAlign: "center", padding: isMobile ? "48px 24px" : "64px 24px" }}>
+      <div
+        style={{
+          width: "64px",
+          height: "64px",
+          borderRadius: "16px",
+          background: "#F3F4F6",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          margin: "0 auto 16px",
+        }}
+      >
+        <FileText size={28} color="#9CA3AF" />
+      </div>
+      <h3 style={{ fontSize: "18px", fontWeight: 600, color: "#111827", margin: "0 0 8px" }}>{c.title}</h3>
+      <p style={{ fontSize: "14px", color: "#6B7280", margin: "0 0 24px" }}>{c.desc}</p>
+      <button
+        type="button"
+        onClick={onGenerate}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "8px",
+          padding: "12px 24px",
+          borderRadius: "12px",
+          border: "none",
+          background: "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)",
+          fontSize: "14px",
+          fontWeight: 600,
+          color: "#fff",
+          cursor: "pointer",
+          boxShadow: "0 4px 14px rgba(99, 102, 241, 0.4)",
+        }}
+      >
+        <Plus size={18} />
+        {c.btn}
+      </button>
+    </div>
+  );
+}
+
+function ModalOverlay({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0, 0, 0, 0.5)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 100,
+        padding: "16px",
+      }}
+      onClick={onClose}
+    >
+      {children}
+    </div>
+  );
 }

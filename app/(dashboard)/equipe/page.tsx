@@ -2,7 +2,7 @@
 
 /**
  * MULTI-USER-ROLES-01: Team Management Page
- * SafeMotor Design System - Inline Styles
+ * SafeMotor Design System - Inline Styles (Responsive)
  */
 
 import { useEffect, useState, useCallback } from "react";
@@ -26,8 +26,32 @@ import {
 } from "lucide-react";
 
 // ============================================================================
-// ÉQUIPE PAGE - SafeMotor Design System
+// ÉQUIPE PAGE - SafeMotor Design System (Responsive)
 // ============================================================================
+
+// Responsive hook
+function useResponsive() {
+  const [screen, setScreen] = useState<"mobile" | "tablet" | "desktop">("desktop");
+
+  useEffect(() => {
+    const check = () => {
+      const w = window.innerWidth;
+      if (w < 640) setScreen("mobile");
+      else if (w < 1024) setScreen("tablet");
+      else setScreen("desktop");
+    };
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
+  return {
+    isMobile: screen === "mobile",
+    isTablet: screen === "tablet",
+    isDesktop: screen === "desktop",
+    screen,
+  };
+}
 
 type MemberStatus = "INVITED" | "ACTIVE" | "DISABLED";
 type GarageRole = "OWNER" | "MANAGER" | "STAFF" | "RECEPTION" | "READONLY";
@@ -193,11 +217,15 @@ export default function TeamPage() {
   // Check if current user can manage team
   const currentMember = members.find((m) => m.userId === user?.id);
   const canManage = user?.role === "ADMIN" || currentMember?.role === "OWNER" || currentMember?.role === "MANAGER";
+  
+  // Responsive
+  const { isMobile, isTablet } = useResponsive();
+  const padding = isMobile ? "16px" : isTablet ? "24px" : "32px";
 
   // Loading state
   if (loading) {
     return (
-      <div style={{ padding: "32px", maxWidth: "1200px", margin: "0 auto" }}>
+      <div style={{ padding, maxWidth: "1200px", margin: "0 auto" }}>
         <div style={{ display: "flex", justifyContent: "center", padding: "64px 0" }}>
           <Loader2 size={32} color="#6366F1" style={{ animation: "spin 1s linear infinite" }} />
         </div>
@@ -209,22 +237,24 @@ export default function TeamPage() {
   // Error state
   if (error) {
     return (
-      <div style={{ padding: "32px", maxWidth: "1200px", margin: "0 auto" }}>
+      <div style={{ padding, maxWidth: "1200px", margin: "0 auto" }}>
         <div style={{
           display: "flex",
-          alignItems: "center",
+          flexDirection: isMobile ? "column" : "row",
+          alignItems: isMobile ? "stretch" : "center",
           gap: "12px",
           padding: "16px 20px",
           borderRadius: "12px",
           background: "#FEF2F2",
           border: "1px solid #FECACA",
         }}>
-          <AlertTriangle size={20} color="#EF4444" />
-          <span style={{ fontSize: "14px", color: "#DC2626" }}>{error}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", flex: 1 }}>
+            <AlertTriangle size={20} color="#EF4444" />
+            <span style={{ fontSize: "14px", color: "#DC2626" }}>{error}</span>
+          </div>
           <button
             onClick={fetchTeam}
             style={{
-              marginLeft: "auto",
               padding: "8px 16px",
               borderRadius: "8px",
               border: "none",
@@ -243,19 +273,19 @@ export default function TeamPage() {
   }
 
   return (
-    <div style={{ padding: "32px", maxWidth: "1200px", margin: "0 auto" }}>
+    <div style={{ padding, maxWidth: "1200px", margin: "0 auto" }}>
       {/* Header */}
       <div style={{
         display: "flex",
+        flexDirection: isMobile ? "column" : "row",
         justifyContent: "space-between",
-        alignItems: "flex-start",
-        marginBottom: "32px",
-        flexWrap: "wrap",
+        alignItems: isMobile ? "stretch" : "flex-start",
+        marginBottom: isMobile ? "24px" : "32px",
         gap: "16px",
       }}>
         <div>
           <h1 style={{
-            fontSize: "28px",
+            fontSize: isMobile ? "22px" : "28px",
             fontWeight: 700,
             color: "#111827",
             margin: 0,
@@ -264,7 +294,7 @@ export default function TeamPage() {
             Équipe
           </h1>
           <p style={{
-            fontSize: "15px",
+            fontSize: isMobile ? "13px" : "15px",
             color: "#6B7280",
             margin: 0,
           }}>
@@ -272,7 +302,7 @@ export default function TeamPage() {
           </p>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
           {quota && (
             <span style={{
               fontSize: "14px",
