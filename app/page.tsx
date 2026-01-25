@@ -82,13 +82,13 @@ const FEATURES_DATA = [
   {
     icon: Zap,
     title: 'IA Copilot',
-    description: 'Assistant intelligent pour rediger vos devis et interventions en quelques secondes.',
+    description: 'Assistant intelligent pour rédiger vos devis et interventions en quelques secondes.',
     color: '#EC4899',
   },
   {
     icon: Lock,
     title: 'RGPD natif',
-    description: 'Donnees hebergees en France, chiffrement AES-256, conformite totale.',
+    description: 'Données hébergées en France, chiffrement AES-256, conformité totale.',
     color: '#3B82F6',
   },
 ]
@@ -96,17 +96,17 @@ const FEATURES_DATA = [
 const STEPS = [
   {
     step: '01',
-    title: 'Creez votre garage',
+    title: 'Créez votre garage',
     description: 'Inscription en 2 minutes, pas de carte bancaire requise. Importez vos clients existants.',
   },
   {
     step: '02',
     title: 'Documentez vos interventions',
-    description: 'Creez des devis, ordres de reparation et factures avec signature electronique.',
+    description: 'Créez des devis, ordres de réparation et factures avec signature électronique.',
   },
   {
     step: '03',
-    title: 'Protegez votre activite',
+    title: 'Protégez votre activité',
     description: 'En cas de litige, exportez toutes les preuves en 1 clic pour les assurances.',
   },
 ]
@@ -114,22 +114,22 @@ const STEPS = [
 const TESTIMONIALS = [
   {
     name: 'Jean-Pierre Martin',
-    role: 'Gerant, Garage Martin & Fils',
-    content: 'Depuis que j utilise SafeMotor, je dors tranquille. Un client a voulu contester une reparation, j ai sorti le dossier en 2 clics avec toutes les preuves signees.',
+    role: 'Gérant, Garage Martin & Fils',
+    content: 'Depuis que j\'utilise SafeMotor, je dors tranquille. Un client a voulu contester une réparation, j\'ai sorti le dossier en 2 clics avec toutes les preuves signées.',
     avatar: 'JP',
     rating: 5,
   },
   {
     name: 'Sophie Durand',
     role: 'Directrice, Auto Service Pro',
-    content: 'L interface est super intuitive. Mes mecaniciens ont pris en main l outil en une journee. Les signatures sur tablette, c est un vrai gain de temps.',
+    content: 'L\'interface est super intuitive. Mes mécaniciens ont pris en main l\'outil en une journée. Les signatures sur tablette, c\'est un vrai gain de temps.',
     avatar: 'SD',
     rating: 5,
   },
   {
     name: 'Marc Lefebvre',
-    role: 'Proprietaire, Garage du Centre',
-    content: 'Le retour sur investissement est immediat. Plus de litiges perdus, plus de paperasse. Je recommande a tous les garagistes.',
+    role: 'Propriétaire, Garage du Centre',
+    content: 'Le retour sur investissement est immédiat. Plus de litiges perdus, plus de paperasse. Je recommande à tous les garagistes.',
     avatar: 'ML',
     rating: 5,
   },
@@ -140,8 +140,8 @@ const PLANS_DATA = [
     name: 'Gratuit',
     price: 0,
     period: '',
-    description: 'Decouverte',
-    features: ['1 utilisateur', '10 clients / vehicules', '10 interventions', '1 Go stockage', 'Signature basique'],
+    description: 'Découverte',
+features: ['1 utilisateur', '10 clients / véhicules', '10 interventions', '1 Go stockage', 'Signature basique'],
     notIncluded: ['SIV', 'SafeMotor Copilot'],
     cta: 'Tester gratuitement',
     popular: false,
@@ -151,8 +151,8 @@ const PLANS_DATA = [
     name: 'PRO',
     price: 89,
     period: '/mois',
-    description: 'Garage independant',
-    features: ['3 utilisateurs', 'Clients illimites', 'Devis + factures illimites', 'Signature + preuves', '50 SIV/mois inclus', '10 Go stockage', 'Copilot passif'],
+    description: 'Garage indépendant',
+    features: ['3 utilisateurs', 'Clients illimités', 'Devis + factures illimités', 'Signature + preuves', '50 SIV/mois inclus', '10 Go stockage', 'Copilot passif'],
     notIncluded: [],
     cta: 'Commencer',
     popular: true,
@@ -163,7 +163,7 @@ const PLANS_DATA = [
     price: 149,
     period: '/mois',
     description: 'Protection maximale',
-    features: ['5 utilisateurs', 'Tout PRO inclus', 'Exports assurance/litige', 'Checklists conformite', '150 SIV/mois inclus', '50 Go stockage', 'Copilot juridique'],
+    features: ['5 utilisateurs', 'Tout PRO inclus', 'Exports assurance/litige', 'Checklists conformité', '150 SIV/mois inclus', '50 Go stockage', 'Copilot juridique'],
     notIncluded: [],
     cta: 'Choisir Expert',
     popular: false,
@@ -174,7 +174,7 @@ const PLANS_DATA = [
     price: 249,
     period: '/mois',
     description: 'Gros volume',
-    features: ['10 utilisateurs', 'Tout EXPERT inclus', 'Multi-sites possible', 'Audit complet', '300 SIV/mois inclus', '200 Go stockage', 'Copilot avance'],
+    features: ['10 utilisateurs', 'Tout EXPERT inclus', 'Multi-sites possible', 'Audit complet', '300 SIV/mois inclus', '200 Go stockage', 'Copilot avancé'],
     notIncluded: [],
     cta: 'Contacter',
     popular: false,
@@ -183,19 +183,19 @@ const PLANS_DATA = [
 ]
 
 const FAQ_DATA = [
-  { question: 'Quelle est la valeur juridique des signatures ?', answer: 'Les signatures electroniques SafeMotor respectent le reglement eIDAS et ont une valeur juridique equivalente a une signature manuscrite. Elles sont horodatees et liees de maniere unique au signataire.' },
-  { question: 'Combien de temps les donnees sont conservees ?', answer: '10 ans minimum pour les documents juridiques, conformement au Code du commerce. Vous pouvez exporter vos donnees a tout moment en format PDF ou JSON.' },
-  { question: 'Puis-je exporter mes donnees ?', answer: 'Oui, export complet en JSON, PDF ou ZIP a tout moment. Vos donnees vous appartiennent et sont portables vers tout autre systeme.' },
-  { question: 'Le SIV est-il inclus ?', answer: '50 recherches/mois en PRO, 150 en EXPERT, 300 en PREMIUM. Vous pouvez aussi acheter des packs SIV supplementaires (50 pour 15E, 100 pour 29E, 500 pour 129E).' },
-  { question: 'Y a-t-il un engagement ?', answer: 'Aucun engagement, resiliation a tout moment. Economisez 2 mois en choisissant le paiement annuel.' },
-  { question: 'Comment fonctionne SafeMotor Copilot ?', answer: 'L IA est assistive : elle suggere, alerte et verifie vos dossiers. Niveau passif en PRO (rappels), juridique en EXPERT (alertes litiges), avance en PREMIUM (analyse proactive).' },
+  { question: 'Quelle est la valeur juridique des signatures ?', answer: 'Les signatures électroniques SafeMotor respectent le règlement eIDAS et ont une valeur juridique équivalente à une signature manuscrite. Elles sont horodatées et liées de manière unique au signataire.' },
+  { question: 'Combien de temps les données sont conservées ?', answer: '10 ans minimum pour les documents juridiques, conformément au Code du commerce. Vous pouvez exporter vos données à tout moment en format PDF ou JSON.' },
+  { question: 'Puis-je exporter mes données ?', answer: 'Oui, export complet en JSON, PDF ou ZIP à tout moment. Vos données vous appartiennent et sont portables vers tout autre système.' },
+  { question: 'Le SIV est-il inclus ?', answer: '50 recherches/mois en PRO, 150 en EXPERT, 300 en PREMIUM. Vous pouvez aussi acheter des packs SIV supplémentaires (50 pour 15€, 100 pour 29€, 500 pour 129€).' },
+  { question: 'Y a-t-il un engagement ?', answer: 'Aucun engagement, résiliation à tout moment. Économisez 2 mois en choisissant le paiement annuel.' },
+  { question: 'Comment fonctionne SafeMotor Copilot ?', answer: 'L\'IA est assistive : elle suggère, alerte et vérifie vos dossiers. Niveau passif en PRO (rappels), juridique en EXPERT (alertes litiges), avancé en PREMIUM (analyse proactive).' },
 ]
 
 const LEGAL_LINKS = [
   { label: 'CGU', href: '/cgu' },
   { label: 'CGV', href: '/cgv' },
-  { label: 'Confidentialite', href: '/politique-confidentialite' },
-  { label: 'Mentions legales', href: '/mentions-legales' },
+  { label: 'Confidentialité', href: '/politique-confidentialite' },
+  { label: 'Mentions légales', href: '/mentions-legales' },
 ]
 
 // ============================================================================
@@ -351,7 +351,7 @@ export default function LandingPage() {
             </h1>
 
             <p style={{ fontSize: '18px', lineHeight: 1.7, color: 'rgba(255,255,255,0.7)', marginBottom: '40px', maxWidth: '500px' }}>
-              Securisez vos interventions avec des signatures electroniques et une tracabilite complete. Protegez votre activite en cas de litige.
+              Sécurisez vos interventions avec des signatures électroniques et une traçabilité complète. Protégez votre activité en cas de litige.
             </p>
 
             <div className="hero-buttons" style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
@@ -370,7 +370,7 @@ export default function LandingPage() {
                   onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)' }}
                 >
                   <Play size={18} />
-                  Voir la demo
+                  Voir la démo
                 </button>
               </Link>
             </div>
@@ -437,9 +437,9 @@ export default function LandingPage() {
       <section id="fonctionnalites" ref={featuresAnim.ref} style={{ padding: '120px 24px', background: 'linear-gradient(to bottom, #0D0D12 0%, #0A0A0F 100%)' }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: '80px', opacity: featuresAnim.isVisible ? 1 : 0, transform: featuresAnim.isVisible ? 'translateY(0)' : 'translateY(30px)', transition: 'all 0.8s ease' }}>
-            <p style={{ fontSize: '14px', fontWeight: 600, color: '#6366F1', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '12px' }}>Fonctionnalites</p>
+            <p style={{ fontSize: '14px', fontWeight: 600, color: '#6366F1', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '12px' }}>Fonctionnalités</p>
             <h2 style={{ fontSize: '42px', fontWeight: 800, color: '#fff', marginBottom: '16px' }}>Tout ce dont vous avez besoin</h2>
-            <p style={{ fontSize: '18px', color: 'rgba(255,255,255,0.6)', maxWidth: '600px', margin: '0 auto' }}>Une solution complete pour proteger votre garage et vos clients en toute conformite legale.</p>
+            <p style={{ fontSize: '18px', color: 'rgba(255,255,255,0.6)', maxWidth: '600px', margin: '0 auto' }}>Une solution complète pour protéger votre garage et vos clients en toute conformité légale.</p>
           </div>
 
           <div className="features-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px' }}>
@@ -471,8 +471,8 @@ export default function LandingPage() {
         <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: '80px', opacity: stepsAnim.isVisible ? 1 : 0, transform: stepsAnim.isVisible ? 'translateY(0)' : 'translateY(30px)', transition: 'all 0.8s ease' }}>
             <p style={{ fontSize: '14px', fontWeight: 600, color: '#10B981', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '12px' }}>Simple</p>
-            <h2 style={{ fontSize: '42px', fontWeight: 800, color: '#fff', marginBottom: '16px' }}>Comment ca marche ?</h2>
-            <p style={{ fontSize: '18px', color: 'rgba(255,255,255,0.6)', maxWidth: '500px', margin: '0 auto' }}>Demarrez en 3 etapes simples</p>
+            <h2 style={{ fontSize: '42px', fontWeight: 800, color: '#fff', marginBottom: '16px' }}>Comment ça marche ?</h2>
+            <p style={{ fontSize: '18px', color: 'rgba(255,255,255,0.6)', maxWidth: '500px', margin: '0 auto' }}>Démarrez en 3 étapes simples</p>
           </div>
 
           <div className="steps-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '48px' }}>
@@ -527,8 +527,8 @@ export default function LandingPage() {
         <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: '80px', opacity: pricingAnim.isVisible ? 1 : 0, transform: pricingAnim.isVisible ? 'translateY(0)' : 'translateY(30px)', transition: 'all 0.8s ease' }}>
             <p style={{ fontSize: '14px', fontWeight: 600, color: '#8B5CF6', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '12px' }}>Tarifs</p>
-            <h2 style={{ fontSize: '42px', fontWeight: 800, color: '#fff', marginBottom: '16px' }}>Plans adaptes a votre activite</h2>
-            <p style={{ fontSize: '18px', color: 'rgba(255,255,255,0.6)' }}>De la decouverte au gros volume, choisissez votre formule</p>
+            <h2 style={{ fontSize: '42px', fontWeight: 800, color: '#fff', marginBottom: '16px' }}>Plans adaptés à votre activité</h2>
+            <p style={{ fontSize: '18px', color: 'rgba(255,255,255,0.6)' }}>De la découverte au gros volume, choisissez votre formule</p>
           </div>
 
           <div className="pricing-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px', alignItems: 'stretch' }}>
@@ -670,19 +670,19 @@ export default function LandingPage() {
                   </th>
                   <th style={{ padding: '16px 20px', textAlign: 'center', color: 'rgba(255,255,255,0.5)', fontWeight: 600, borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Logiciel garage classique</th>
                   <th style={{ padding: '16px 20px', textAlign: 'center', color: 'rgba(255,255,255,0.5)', fontWeight: 600, borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Solution constructeur</th>
-                  <th style={{ padding: '16px 20px', textAlign: 'center', color: 'rgba(255,255,255,0.5)', fontWeight: 600, borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Outils separes</th>
+                  <th style={{ padding: '16px 20px', textAlign: 'center', color: 'rgba(255,255,255,0.5)', fontWeight: 600, borderBottom: '1px solid rgba(255,255,255,0.1)' }}>Outils séparés</th>
                 </tr>
               </thead>
               <tbody>
                 {([
                   { label: 'Devis / Factures', sm: true, classic: true, constructor: true, tools: true },
                   { label: 'Signature client juridique', sm: true, classic: false, constructor: false, tools: 'partial' },
-                  { label: 'Dossier litige pret', sm: true, classic: false, constructor: false, tools: false, highlight: true },
+                  { label: 'Dossier litige prêt', sm: true, classic: false, constructor: false, tools: false, highlight: true },
                   { label: 'IA aide juridique', sm: true, classic: false, constructor: false, tools: false, highlight: true },
-                  { label: 'SIV integre', sm: true, classic: 'partial', constructor: 'partial', tools: false },
+                  { label: 'SIV intégré', sm: true, classic: 'partial', constructor: 'partial', tools: false },
                   { label: 'Archivage preuves', sm: true, classic: 'partial', constructor: 'partial', tools: false },
-                  { label: 'Pense pour independants', sm: true, classic: 'partial', constructor: false, tools: false },
-                  { label: 'Prix moyen / mois', sm: '89-249€', classic: '60-120€', constructor: '150-400€', tools: '40-80€ cumules' },
+                  { label: 'Pensé pour indépendants', sm: true, classic: 'partial', constructor: false, tools: false },
+                  { label: 'Prix moyen / mois', sm: '89-249€', classic: '60-120€', constructor: '150-400€', tools: '40-80€ cumulés' },
                 ] as { label: string; sm: boolean | string; classic: boolean | string; constructor: boolean | string; tools: boolean | string; highlight?: boolean }[]).map((row, i) => (
                   <tr key={i} style={{ background: row.highlight ? 'rgba(99, 102, 241, 0.05)' : 'transparent' }}>
                     <td style={{ padding: '14px 20px', color: row.highlight ? '#fff' : 'rgba(255,255,255,0.7)', fontWeight: row.highlight ? 600 : 400, borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{row.label}</td>
@@ -714,8 +714,8 @@ export default function LandingPage() {
               </div>
               <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.5)', marginBottom: '16px' }}>MecaPlanning, Winysoft, AutoGest, Vulcain...</p>
               <p style={{ fontSize: '15px', color: 'rgba(255,255,255,0.7)', lineHeight: 1.6, marginBottom: '16px' }}>
-                Ils gerent l'atelier : planning, ordres de reparation, facturation. 
-                <strong style={{ color: '#EAB308' }}> Mais ils ne protegent pas le garage.</strong>
+                Ils gèrent l'atelier : planning, ordres de réparation, facturation. 
+                <strong style={{ color: '#EAB308' }}> Mais ils ne protègent pas le garage.</strong>
               </p>
               <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>
                 <li style={{ marginBottom: '6px' }}>❌ Pas de signature juridique</li>
@@ -730,13 +730,13 @@ export default function LandingPage() {
                 <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#EF4444' }}></div>
                 <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#fff', margin: 0 }}>Solutions constructeurs</h3>
               </div>
-              <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.5)', marginBottom: '16px' }}>150€ a 400€/mois • Imposes par la marque</p>
+              <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.5)', marginBottom: '16px' }}>150€ à 400€/mois • Imposés par la marque</p>
               <p style={{ fontSize: '15px', color: 'rgba(255,255,255,0.7)', lineHeight: 1.6, marginBottom: '16px' }}>
-                Integration reseau, donnees centralisees. 
-                <strong style={{ color: '#EF4444' }}> Outils de reseau, pas de protection.</strong>
+                Intégration réseau, données centralisées. 
+                <strong style={{ color: '#EF4444' }}> Outils de réseau, pas de protection.</strong>
               </p>
               <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>
-                <li style={{ marginBottom: '6px' }}>❌ Pas pense pour independants</li>
+                <li style={{ marginBottom: '6px' }}>❌ Pas pensé pour indépendants</li>
                 <li style={{ marginBottom: '6px' }}>❌ Peu personnalisable</li>
                 <li>❌ IA inexistante ou gadget</li>
               </ul>
@@ -746,15 +746,15 @@ export default function LandingPage() {
             <div style={{ padding: '28px', borderRadius: '16px', background: 'rgba(34, 197, 94, 0.08)', border: '1px solid rgba(34, 197, 94, 0.2)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
                 <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: '#22C55E' }}></div>
-                <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#fff', margin: 0 }}>Outils separes</h3>
+                <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#fff', margin: 0 }}>Outils séparés</h3>
               </div>
-              <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.5)', marginBottom: '16px' }}>Signature + Devis + Stockage = 40-80€ cumules</p>
+              <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.5)', marginBottom: '16px' }}>Signature + Devis + Stockage = 40-80€ cumulés</p>
               <p style={{ fontSize: '15px', color: 'rgba(255,255,255,0.7)', lineHeight: 1.6, marginBottom: '16px' }}>
                 Moins cher individuellement. 
-                <strong style={{ color: '#22C55E' }}> Mais inutilisable en cas de probleme reel.</strong>
+                <strong style={{ color: '#22C55E' }}> Mais inutilisable en cas de problème réel.</strong>
               </p>
               <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>
-                <li style={{ marginBottom: '6px' }}>❌ Donnees eclatees</li>
+                <li style={{ marginBottom: '6px' }}>❌ Données éclatées</li>
                 <li style={{ marginBottom: '6px' }}>❌ Aucune vision garage</li>
                 <li>❌ Pas de logique assurance/litige</li>
               </ul>
@@ -764,7 +764,7 @@ export default function LandingPage() {
           {/* Argument massue */}
           <div style={{ marginTop: '60px', padding: '32px 40px', borderRadius: '16px', background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(139, 92, 246, 0.1) 100%)', border: '1px solid rgba(99, 102, 241, 0.3)', textAlign: 'center' }}>
             <p style={{ fontSize: '20px', color: '#fff', fontWeight: 600, margin: 0, lineHeight: 1.6 }}>
-              💡 <span style={{ color: '#A5B4FC' }}>Un litige evite = des milliers d'euros.</span><br/>
+              💡 <span style={{ color: '#A5B4FC' }}>Un litige évité = des milliers d'euros.</span><br/>
               <span style={{ fontSize: '16px', color: 'rgba(255,255,255,0.6)', fontWeight: 400 }}>Un dossier propre = une assurance qui suit. Une signature claire = moins de conflits clients.</span>
             </p>
           </div>
@@ -776,7 +776,7 @@ export default function LandingPage() {
         <div style={{ maxWidth: '800px', margin: '0 auto' }}>
           <div style={{ textAlign: 'center', marginBottom: '60px' }}>
             <p style={{ fontSize: '14px', fontWeight: 600, color: '#3B82F6', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '12px' }}>FAQ</p>
-            <h2 style={{ fontSize: '42px', fontWeight: 800, color: '#fff' }}>Questions frequentes</h2>
+            <h2 style={{ fontSize: '42px', fontWeight: 800, color: '#fff' }}>Questions fréquentes</h2>
           </div>
           <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)' }}>
             {FAQ_DATA.map((item, i) => (
@@ -789,12 +789,12 @@ export default function LandingPage() {
       {/* CTA */}
       <section style={{ padding: '120px 24px', background: 'radial-gradient(ellipse 80% 50% at 50% 120%, rgba(99, 102, 241, 0.3) 0%, transparent 50%), #0A0A0F' }}>
         <div style={{ maxWidth: '800px', margin: '0 auto', textAlign: 'center' }}>
-          <h2 style={{ fontSize: '42px', fontWeight: 800, color: '#fff', marginBottom: '16px' }}>Pret a proteger votre garage ?</h2>
-          <p style={{ fontSize: '18px', color: 'rgba(255,255,255,0.6)', marginBottom: '40px' }}>Rejoignez des centaines de garages qui securisent leurs interventions avec SafeMotor.</p>
+          <h2 style={{ fontSize: '42px', fontWeight: 800, color: '#fff', marginBottom: '16px' }}>Prêt à protéger votre garage ?</h2>
+          <p style={{ fontSize: '18px', color: 'rgba(255,255,255,0.6)', marginBottom: '40px' }}>Rejoignez des centaines de garages qui sécurisent leurs interventions avec SafeMotor.</p>
           <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', flexWrap: 'wrap' }}>
             <Link href="/pro/inscription">
               <button style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '18px 32px', borderRadius: '14px', border: 'none', background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)', fontSize: '17px', fontWeight: 600, color: '#fff', cursor: 'pointer', boxShadow: '0 8px 30px rgba(99, 102, 241, 0.4)' }}>
-                Demarrer l essai gratuit
+                Démarrer l'essai gratuit
                 <ArrowRight size={20} />
               </button>
             </Link>
@@ -816,12 +816,12 @@ export default function LandingPage() {
                 </div>
                 <span style={{ fontSize: '22px', fontWeight: 700, color: '#fff' }}>SafeMotor</span>
               </div>
-              <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.7, maxWidth: '280px' }}>La protection juridique pour votre garage automobile. Tracabilite, signatures electroniques et conformite.</p>
+              <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.5)', lineHeight: 1.7, maxWidth: '280px' }}>La protection juridique pour votre garage automobile. Traçabilité, signatures électroniques et conformité.</p>
             </div>
             <div>
               <h4 style={{ fontSize: '13px', fontWeight: 600, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '20px' }}>Produit</h4>
               <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                {[{ label: 'Fonctionnalites', href: '#fonctionnalites' }, { label: 'Tarifs', href: '#tarifs' }, { label: 'Demo', href: '/demo' }].map((l, i) => (
+                {[{ label: 'Fonctionnalités', href: '#fonctionnalites' }, { label: 'Tarifs', href: '#tarifs' }, { label: 'Démo', href: '/demo' }].map((l, i) => (
                   <li key={i} style={{ marginBottom: '12px' }}><Link href={l.href} style={{ color: 'rgba(255,255,255,0.6)', textDecoration: 'none', fontSize: '14px', transition: 'color 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.color = '#fff'} onMouseLeave={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.6)'}>{l.label}</Link></li>
                 ))}
               </ul>

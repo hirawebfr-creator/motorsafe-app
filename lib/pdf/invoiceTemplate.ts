@@ -275,7 +275,7 @@ function renderHeader(
   
   // Due date if present
   if (data.dueDate) {
-    page.drawText(`Echeance: ${formatDate(data.dueDate)}`, {
+    page.drawText(`Échéance: ${formatDate(data.dueDate)}`, {
       x: boxX + 18,
       y: boxY + boxHeight - 82,
       size: 9,
@@ -536,7 +536,7 @@ function renderTotalsSection(
   page.drawText(totalText, { x: valueX - totalWidth, y: y - 84, size: 16, font: fonts.bold, color: PRIMARY_COLOR });
   
   // Amount paid
-  page.drawText("Deja paye", { x: labelX, y: y - 105, size: 9, font: fonts.regular, color: MUTED_COLOR });
+  page.drawText("Déjà payé", { x: labelX, y: y - 105, size: 9, font: fonts.regular, color: MUTED_COLOR });
   const paidText = formatCurrency(data.amountPaid, data.currency);
   const paidWidth = fonts.regular.widthOfTextAtSize(paidText, 9);
   page.drawText(paidText, { x: valueX - paidWidth, y: y - 105, size: 9, font: fonts.regular, color: SUCCESS_COLOR });
@@ -675,7 +675,7 @@ function renderLegalSection(
   }
   
   // Conditions
-  page.drawText("En cas de retard de paiement, une penalite de 3 fois le taux d'interet legal sera appliquee.", {
+  page.drawText("En cas de retard de paiement, une pénalité de 3 fois le taux d'intérêt légal sera appliquée.", {
     x: MARGIN_LEFT,
     y: legalLine,
     size: 7,
@@ -693,7 +693,7 @@ function renderFooter(page: PDFPage, fonts: { regular: PDFFont }): void {
   drawLine(page, MARGIN_LEFT, footerY + 18, PAGE_WIDTH - MARGIN_RIGHT, footerY + 18, BORDER_COLOR);
   
   // Footer text
-  const footerText = "Genere avec SafeMotor — motorsafe.fr";
+  const footerText = "Généré avec SafeMotor — motorsafe.fr";
   const textWidth = fonts.regular.widthOfTextAtSize(footerText, 8);
   page.drawText(footerText, {
     x: (PAGE_WIDTH - textWidth) / 2,

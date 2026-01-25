@@ -116,7 +116,7 @@ export default function NouvelleFacturePage() {
       {/* Header */}
       <div style={{ marginBottom: "32px" }}>
         <h1 style={{ fontSize: "28px", fontWeight: "700", color: "#111827", margin: 0 }}>Nouvelle facture</h1>
-        <p style={{ fontSize: "14px", color: "#6B7280", marginTop: "4px" }}>Selectionnez un client pour creer un brouillon</p>
+        <p style={{ fontSize: "14px", color: "#6B7280", marginTop: "4px" }}>Sélectionnez un client pour créer un brouillon</p>
       </div>
 
       {/* Error */}
@@ -133,11 +133,11 @@ export default function NouvelleFacturePage() {
             <User size={40} color="#6366F1" />
           </div>
           <h3 style={{ fontSize: "20px", fontWeight: "600", color: "#111827", margin: "24px 0 8px" }}>Aucun client</h3>
-          <p style={{ fontSize: "14px", color: "#6B7280", margin: "0 0 24px" }}>Creez un client avant de pouvoir faire une facture</p>
+          <p style={{ fontSize: "14px", color: "#6B7280", margin: "0 0 24px" }}>Créez un client avant de pouvoir faire une facture</p>
           <Link href="/clients" style={{ textDecoration: "none" }}>
             <button style={{ display: "inline-flex", alignItems: "center", gap: "8px", padding: "12px 24px", borderRadius: "12px", border: "none", background: "linear-gradient(135deg, #4F46E5 0%, #6366F1 100%)", fontSize: "14px", fontWeight: "600", color: "#fff", cursor: "pointer" }}>
               <Plus size={18} />
-              Creer un client
+              Créer un client
             </button>
           </Link>
         </div>
@@ -231,7 +231,7 @@ export default function NouvelleFacturePage() {
               ) : (
                 <>
                   <Receipt size={18} />
-                  Creer le brouillon
+                  Créer le brouillon
                 </>
               )}
             </button>

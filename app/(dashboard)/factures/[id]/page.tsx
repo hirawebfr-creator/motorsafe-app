@@ -598,7 +598,7 @@ export default function FactureDetailPage() {
       {showPaymentModal && (
         <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.5)" }}>
           <div style={{ ...cardStyle, width: "100%", maxWidth: "480px", padding: "24px", margin: "16px" }}>
-            <h3 style={{ fontSize: "18px", fontWeight: "600", color: "#111827", marginBottom: "20px" }}>Creer un lien de paiement</h3>
+            <h3 style={{ fontSize: "18px", fontWeight: "600", color: "#111827", marginBottom: "20px" }}>Créer un lien de paiement</h3>
             
             {!generatedPayUrl ? (
               <div>

@@ -71,11 +71,11 @@ function fmtEur(amount: number) {
 
 const STATUS_CONFIG: Record<string, { bg: string; text: string; border: string; label: string; icon: typeof Clock }> = {
   DRAFT: { bg: "#F3F4F6", text: "#4B5563", border: "#9CA3AF", label: "Brouillon", icon: Clock },
-  ISSUED: { bg: "#DBEAFE", text: "#1D4ED8", border: "#60A5FA", label: "Emise", icon: Receipt },
+  ISSUED: { bg: "#DBEAFE", text: "#1D4ED8", border: "#60A5FA", label: "Émise", icon: Receipt },
   PARTIALLY_PAID: { bg: "#FEF3C7", text: "#D97706", border: "#FBBF24", label: "Partielle", icon: CreditCard },
-  PAID: { bg: "#D1FAE5", text: "#047857", border: "#34D399", label: "Payee", icon: CheckCircle },
+  PAID: { bg: "#D1FAE5", text: "#047857", border: "#34D399", label: "Payée", icon: CheckCircle },
   OVERDUE: { bg: "#FEE2E2", text: "#B91C1C", border: "#F87171", label: "En retard", icon: AlertCircle },
-  CANCELLED: { bg: "#F3F4F6", text: "#6B7280", border: "#9CA3AF", label: "Annulee", icon: XCircle },
+  CANCELLED: { bg: "#F3F4F6", text: "#6B7280", border: "#9CA3AF", label: "Annulée", icon: XCircle },
 };
 
 export default function FacturesPage() {
@@ -129,7 +129,7 @@ export default function FacturesPage() {
       a.download = `facture-${invoiceNumber || id.slice(0, 8)}.pdf`;
       a.click();
       window.URL.revokeObjectURL(url);
-      toast.success("PDF telecharge");
+      toast.success("PDF téléchargé");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erreur PDF");
     }
@@ -150,7 +150,7 @@ export default function FacturesPage() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "32px" }}>
         <div>
           <h1 style={{ fontSize: "28px", fontWeight: "700", color: "#111827", margin: 0 }}>Factures</h1>
-          <p style={{ fontSize: "14px", color: "#6B7280", marginTop: "4px" }}>Gerez vos factures clients</p>
+          <p style={{ fontSize: "14px", color: "#6B7280", marginTop: "4px" }}>Gérez vos factures clients</p>
         </div>
         <div style={{ display: "flex", gap: "12px" }}>
           <button
@@ -208,7 +208,7 @@ export default function FacturesPage() {
         <div style={{ padding: "20px", borderRadius: "16px", background: "#fff", border: "1px solid #E5E7EB", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
-              <p style={{ fontSize: "13px", fontWeight: "500", color: "#6B7280", margin: 0 }}>Payees</p>
+              <p style={{ fontSize: "13px", fontWeight: "500", color: "#6B7280", margin: 0 }}>Payées</p>
               <p style={{ fontSize: "28px", fontWeight: "700", color: "#111827", margin: "4px 0 0" }}>{stats.paid}</p>
             </div>
             <div style={{ width: "48px", height: "48px", borderRadius: "12px", background: "linear-gradient(135deg, #10B981 0%, #059669 100%)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 12px rgba(16, 185, 129, 0.3)" }}>
@@ -219,7 +219,7 @@ export default function FacturesPage() {
         <div style={{ padding: "20px", borderRadius: "16px", background: "#fff", border: "1px solid #E5E7EB", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
-              <p style={{ fontSize: "13px", fontWeight: "500", color: "#6B7280", margin: 0 }}>CA encaisse</p>
+              <p style={{ fontSize: "13px", fontWeight: "500", color: "#6B7280", margin: 0 }}>CA encaissé</p>
               <p style={{ fontSize: "24px", fontWeight: "700", color: "#111827", margin: "4px 0 0" }}>{fmtEur(stats.paidAmount)}</p>
             </div>
             <div style={{ width: "48px", height: "48px", borderRadius: "12px", background: "linear-gradient(135deg, #F59E0B 0%, #D97706 100%)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 12px rgba(245, 158, 11, 0.3)" }}>
@@ -237,7 +237,7 @@ export default function FacturesPage() {
             type="text"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Rechercher par numero, client, vehicule..."
+            placeholder="Rechercher par numéro, client, véhicule..."
             style={{
               width: "100%", padding: "14px 16px 14px 48px",
               borderRadius: "12px", border: "1px solid #E5E7EB",
@@ -279,7 +279,7 @@ export default function FacturesPage() {
             <Receipt size={40} color="#6366F1" />
           </div>
           <h3 style={{ fontSize: "20px", fontWeight: "600", color: "#111827", margin: "24px 0 8px" }}>Aucune facture</h3>
-          <p style={{ fontSize: "14px", color: "#6B7280", margin: 0 }}>Creez votre premiere facture pour commencer</p>
+          <p style={{ fontSize: "14px", color: "#6B7280", margin: 0 }}>Créez votre première facture pour commencer</p>
           <Link href="/factures/nouveau" style={{ textDecoration: "none" }}>
             <button style={{
               display: "inline-flex", alignItems: "center", gap: "8px",
