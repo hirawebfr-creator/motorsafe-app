@@ -2,12 +2,6 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
-import { Button } from "@/components/shared/button";
-import { Modal } from "@/components/shared/modal";
-import { Select } from "@/components/shared/select";
-import { Input } from "@/components/shared/input";
-import { Textarea } from "@/components/shared/textarea";
-import { Badge } from "@/components/shared/badge";
 import { useToast } from "@/components/shared/use-toast";
 import {
   Calendar,
@@ -22,12 +16,37 @@ import {
   Clock,
   Bell,
   CalendarDays,
+  X,
 } from "lucide-react";
 
-// ============================================
-// Types
-// ============================================
+// ============================================================================
+// PLANNING PAGE - SafeMotor Design System (Fully Responsive)
+// ============================================================================
 
+// Responsive hook
+function useResponsive() {
+  const [screen, setScreen] = useState<"mobile" | "tablet" | "desktop">("desktop");
+
+  useEffect(() => {
+    const check = () => {
+      const w = window.innerWidth;
+      if (w < 640) setScreen("mobile");
+      else if (w < 1024) setScreen("tablet");
+      else setScreen("desktop");
+    };
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
+  return {
+    isMobile: screen === "mobile",
+    isTablet: screen === "tablet",
+    screen,
+  };
+}
+
+// Types
 type AppointmentStatus = "SCHEDULED" | "DONE" | "CANCELLED" | "NO_SHOW";
 
 type Appointment = {
@@ -43,28 +62,17 @@ type Appointment = {
   intervention?: { id: string; status: string; typeIntervention: string } | null;
 };
 
-type Client = {
-  id: number;
-  firstName: string;
-  lastName: string;
-  email?: string | null;
-};
-
-type Vehicle = {
-  id: string;
-  plate: string;
-  brand: string;
-  model: string;
-};
-
+type Client = { id: number; firstName: string; lastName: string; email?: string | null };
+type Vehicle = { id: string; plate: string; brand: string; model: string };
 type ViewMode = "day" | "week";
 
-// ============================================
 // Helpers
-// ============================================
-
 function formatDate(date: Date): string {
   return date.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+}
+
+function formatDateShort(date: Date): string {
+  return date.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
 }
 
 function formatTime(isoString: string): string {
@@ -86,7 +94,7 @@ function endOfDay(date: Date): Date {
 function startOfWeek(date: Date): Date {
   const d = new Date(date);
   const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday start
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
   d.setDate(diff);
   d.setHours(0, 0, 0, 0);
   return d;
@@ -109,33 +117,39 @@ function getWeekDays(date: Date): Date[] {
   });
 }
 
-const STATUS_CONFIG: Record<AppointmentStatus, { label: string; variant: 'info' | 'success' | 'neutral' | 'warning' }> = {
-  SCHEDULED: { label: "Planifié", variant: "info" },
-  DONE: { label: "Terminé", variant: "success" },
-  CANCELLED: { label: "Annulé", variant: "neutral" },
-  NO_SHOW: { label: "Absent", variant: "warning" },
+function toLocalDateTimeString(date: Date): string {
+  const offset = date.getTimezoneOffset();
+  const local = new Date(date.getTime() - offset * 60 * 1000);
+  return local.toISOString().slice(0, 16);
+}
+
+const STATUS_CONFIG: Record<AppointmentStatus, { label: string; color: string; bg: string }> = {
+  SCHEDULED: { label: "Planifié", color: "#3B82F6", bg: "#DBEAFE" },
+  DONE: { label: "Terminé", color: "#10B981", bg: "#ECFDF5" },
+  CANCELLED: { label: "Annulé", color: "#6B7280", bg: "#F3F4F6" },
+  NO_SHOW: { label: "Absent", color: "#F59E0B", bg: "#FFFBEB" },
 };
 
-const HOURS = Array.from({ length: 12 }, (_, i) => i + 8); // 8:00 to 19:00
+const HOURS = Array.from({ length: 12 }, (_, i) => i + 8);
 
-// ============================================
+// ============================================================================
 // Main Component
-// ============================================
+// ============================================================================
 
 export default function PlanningPage() {
   const searchParams = useSearchParams();
   const toast = useToast();
+  const { isMobile, isTablet } = useResponsive();
+
   const [view, setView] = useState<ViewMode>("day");
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
-  
-  // Modal state
+
   const [showModal, setShowModal] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  // Form state
   const [clients, setClients] = useState<Client[]>([]);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [formData, setFormData] = useState({
@@ -149,7 +163,7 @@ export default function PlanningPage() {
     reminderPolicy: "NONE" as "NONE" | "STANDARD",
   });
 
-  // Handle query params from intervention page
+  // Handle query params
   useEffect(() => {
     const clientId = searchParams.get("clientId");
     const vehicleId = searchParams.get("vehicleId");
@@ -177,29 +191,20 @@ export default function PlanningPage() {
     }
   }, [searchParams]);
 
-  // ============================================
-  // Data Loading
-  // ============================================
-
+  // Data loading
   const loadAppointments = useCallback(async () => {
     try {
       setLoading(true);
-
       const from = view === "day" ? startOfDay(currentDate) : startOfWeek(currentDate);
       const to = view === "day" ? endOfDay(currentDate) : endOfWeek(currentDate);
 
-      const res = await fetch(
-        `/api/appointments?from=${from.toISOString()}&to=${to.toISOString()}`
-      );
+      const res = await fetch(`/api/appointments?from=${from.toISOString()}&to=${to.toISOString()}`);
       const json = await res.json();
 
-      if (!res.ok || !json.ok) {
-        throw new Error(json.error?.message || "Erreur chargement");
-      }
-
+      if (!res.ok || !json.ok) throw new Error(json.error?.message || "Erreur");
       setAppointments(json.data);
     } catch {
-      // Silently fail - toast would cause re-render loop
+      // Silent fail
     } finally {
       setLoading(false);
     }
@@ -210,18 +215,11 @@ export default function PlanningPage() {
       const res = await fetch("/api/clients?pageSize=100");
       const json = await res.json();
       if (json.ok) {
-        // L'API retourne { items, page, pageSize, total }
-        const clientsData = json.data?.items || json.data || [];
-        const mappedClients = clientsData.map((c: { id: number; firstName: string; lastName: string; email?: string | null }) => ({
-          id: c.id,
-          firstName: c.firstName,
-          lastName: c.lastName,
-          email: c.email,
-        }));
-        setClients(mappedClients);
+        const data = json.data?.items || json.data || [];
+        setClients(data);
       }
-    } catch (err) {
-      console.error("[DEBUG] loadClients error:", err);
+    } catch {
+      // Ignore
     }
   }, []);
 
@@ -230,9 +228,8 @@ export default function PlanningPage() {
       const res = await fetch(`/api/vehicules?clientId=${clientId}&pageSize=50`);
       const json = await res.json();
       if (json.ok) {
-        // L'API retourne { items, page, pageSize, total }
-        const vehiclesData = json.data?.items || json.data || [];
-        setVehicles(vehiclesData);
+        const data = json.data?.items || json.data || [];
+        setVehicles(data);
       }
     } catch {
       // Ignore
@@ -255,36 +252,20 @@ export default function PlanningPage() {
     }
   }, [formData.clientId, loadVehicles]);
 
-  // ============================================
   // Navigation
-  // ============================================
-
   const goToday = () => setCurrentDate(new Date());
-
   const goPrev = () => {
     const d = new Date(currentDate);
-    if (view === "day") {
-      d.setDate(d.getDate() - 1);
-    } else {
-      d.setDate(d.getDate() - 7);
-    }
+    d.setDate(d.getDate() - (view === "day" ? 1 : 7));
     setCurrentDate(d);
   };
-
   const goNext = () => {
     const d = new Date(currentDate);
-    if (view === "day") {
-      d.setDate(d.getDate() + 1);
-    } else {
-      d.setDate(d.getDate() + 7);
-    }
+    d.setDate(d.getDate() + (view === "day" ? 1 : 7));
     setCurrentDate(d);
   };
 
-  // ============================================
   // Actions
-  // ============================================
-
   const openNewModal = () => {
     setSelectedAppointment(null);
     const now = new Date();
@@ -336,9 +317,7 @@ export default function PlanningPage() {
         reminderPolicy: formData.reminderPolicy,
       };
 
-      const url = selectedAppointment
-        ? `/api/appointments/${selectedAppointment.id}`
-        : "/api/appointments";
+      const url = selectedAppointment ? `/api/appointments/${selectedAppointment.id}` : "/api/appointments";
       const method = selectedAppointment ? "PATCH" : "POST";
 
       const res = await fetch(url, {
@@ -349,12 +328,11 @@ export default function PlanningPage() {
       const json = await res.json();
 
       if (!res.ok || !json.ok) {
-        // Check for conflict
         if (json.error?.code === "APPOINTMENT_CONFLICT") {
           const conflicts = json.error.details?.conflicts || [];
-          const conflictMsg = conflicts.map((c: { title: string; startAt: string; endAt: string }) => 
-            `${c.title} (${formatTime(c.startAt)} - ${formatTime(c.endAt)})`
-          ).join(", ");
+          const conflictMsg = conflicts
+            .map((c: { title: string; startAt: string; endAt: string }) => `${c.title} (${formatTime(c.startAt)} - ${formatTime(c.endAt)})`)
+            .join(", ");
           throw new Error(`Conflit avec: ${conflictMsg}`);
         }
         throw new Error(json.error?.message || "Erreur");
@@ -378,10 +356,7 @@ export default function PlanningPage() {
       const res = await fetch(`/api/appointments/${id}/cancel`, { method: "POST" });
       const json = await res.json();
 
-      if (!res.ok || !json.ok) {
-        throw new Error(json.error?.message || "Erreur");
-      }
-
+      if (!res.ok || !json.ok) throw new Error(json.error?.message || "Erreur");
       toast.success("RDV annulé");
       await loadAppointments();
     } catch (e) {
@@ -397,11 +372,8 @@ export default function PlanningPage() {
       const res = await fetch(`/api/appointments/${id}/mark-done`, { method: "POST" });
       const json = await res.json();
 
-      if (!res.ok || !json.ok) {
-        throw new Error(json.error?.message || "Erreur");
-      }
-
-      toast.success("RDV marqué comme terminé");
+      if (!res.ok || !json.ok) throw new Error(json.error?.message || "Erreur");
+      toast.success("RDV terminé");
       await loadAppointments();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erreur");
@@ -410,111 +382,215 @@ export default function PlanningPage() {
     }
   };
 
-  // ============================================
-  // Render
-  // ============================================
-
   const weekDays = getWeekDays(currentDate);
+  const padding = isMobile ? "16px" : isTablet ? "24px" : "32px";
 
   return (
-    <div className="space-y-6">
+    <div style={{ padding, maxWidth: "1400px", margin: "0 auto" }}>
       {/* Header */}
-      <div style={{ 
-        display: 'flex', 
-        flexWrap: 'wrap',
-        alignItems: 'center', 
-        justifyContent: 'space-between', 
-        gap: '16px',
-        marginBottom: '8px',
-      }}>
-        <div>
-          <h1 style={{ fontSize: '24px', fontWeight: '600', color: '#111827', margin: 0 }}>Planning</h1>
-          <p style={{ fontSize: '14px', color: '#6B7280', marginTop: '4px' }}>Gérez vos rendez-vous</p>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: isMobile ? "column" : "row",
+          justifyContent: "space-between",
+          alignItems: isMobile ? "stretch" : "center",
+          gap: "16px",
+          marginBottom: "24px",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div
+            style={{
+              width: isMobile ? "40px" : "48px",
+              height: isMobile ? "40px" : "48px",
+              borderRadius: "12px",
+              background: "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Calendar size={isMobile ? 20 : 24} color="#fff" />
+          </div>
+          <div>
+            <h1 style={{ fontSize: isMobile ? "22px" : "28px", fontWeight: 700, color: "#111827", margin: 0 }}>
+              Planning
+            </h1>
+            <p style={{ fontSize: isMobile ? "13px" : "15px", color: "#6B7280", margin: "4px 0 0" }}>
+              Gérez vos rendez-vous
+            </p>
+          </div>
         </div>
-        <Button leftIcon={<Plus size={16} />} onClick={openNewModal}>
+
+        <button
+          type="button"
+          onClick={openNewModal}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "8px",
+            padding: isMobile ? "10px 16px" : "12px 20px",
+            borderRadius: "12px",
+            border: "none",
+            background: "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)",
+            fontSize: "14px",
+            fontWeight: 600,
+            color: "#fff",
+            cursor: "pointer",
+            boxShadow: "0 4px 14px rgba(99, 102, 241, 0.4)",
+          }}
+        >
+          <Plus size={18} />
           Nouveau RDV
-        </Button>
+        </button>
       </div>
 
       {/* Navigation Card */}
-      <div style={{
-        background: '#FFFFFF',
-        borderRadius: '12px',
-        border: '1px solid #E5E7EB',
-        padding: '16px 20px',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-      }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '16px' }}>
-          {/* Navigation Arrows */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Button variant="ghost" size="sm" onClick={goPrev}>
+      <div
+        style={{
+          background: "#fff",
+          borderRadius: "16px",
+          border: "1px solid #E5E7EB",
+          padding: isMobile ? "12px" : "16px 20px",
+          marginBottom: "20px",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            flexDirection: isMobile ? "column" : "row",
+            alignItems: isMobile ? "stretch" : "center",
+            justifyContent: "space-between",
+            gap: "16px",
+          }}
+        >
+          {/* Navigation */}
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", justifyContent: isMobile ? "center" : "flex-start" }}>
+            <button type="button" onClick={goPrev} style={navBtnStyle}>
               <ChevronLeft size={18} />
-            </Button>
-            <Button variant="secondary" size="sm" onClick={goToday}>
+            </button>
+            <button
+              type="button"
+              onClick={goToday}
+              style={{
+                padding: "8px 14px",
+                borderRadius: "8px",
+                border: "1px solid #E5E7EB",
+                background: "#fff",
+                fontSize: "13px",
+                fontWeight: 500,
+                color: "#374151",
+                cursor: "pointer",
+              }}
+            >
               Aujourd&apos;hui
-            </Button>
-            <Button variant="ghost" size="sm" onClick={goNext}>
+            </button>
+            <button type="button" onClick={goNext} style={navBtnStyle}>
               <ChevronRight size={18} />
-            </Button>
+            </button>
           </div>
 
-          {/* Current Date Display */}
-          <h2 style={{ fontSize: '16px', fontWeight: '600', color: '#111827' }}>
-            {view === "day"
-              ? formatDate(currentDate)
-              : `${formatDate(weekDays[0])} — ${formatDate(weekDays[6])}`}
+          {/* Date Display */}
+          <h2
+            style={{
+              fontSize: isMobile ? "14px" : "16px",
+              fontWeight: 600,
+              color: "#111827",
+              textAlign: "center",
+              margin: 0,
+            }}
+          >
+            {view === "day" ? formatDate(currentDate) : `${formatDateShort(weekDays[0])} — ${formatDateShort(weekDays[6])}`}
           </h2>
 
           {/* View Toggle */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Button
-              variant={view === "day" ? "primary" : "secondary"}
-              size="sm"
-              leftIcon={<CalendarDays size={16} />}
+          <div style={{ display: "flex", gap: "8px", justifyContent: isMobile ? "center" : "flex-end" }}>
+            <button
+              type="button"
               onClick={() => setView("day")}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "8px 14px",
+                borderRadius: "8px",
+                border: "none",
+                background: view === "day" ? "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)" : "#F3F4F6",
+                fontSize: "13px",
+                fontWeight: 500,
+                color: view === "day" ? "#fff" : "#6B7280",
+                cursor: "pointer",
+              }}
             >
+              <CalendarDays size={14} />
               Jour
-            </Button>
-            <Button
-              variant={view === "week" ? "primary" : "secondary"}
-              size="sm"
-              leftIcon={<Calendar size={16} />}
+            </button>
+            <button
+              type="button"
               onClick={() => setView("week")}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                padding: "8px 14px",
+                borderRadius: "8px",
+                border: "none",
+                background: view === "week" ? "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)" : "#F3F4F6",
+                fontSize: "13px",
+                fontWeight: 500,
+                color: view === "week" ? "#fff" : "#6B7280",
+                cursor: "pointer",
+              }}
             >
+              <Calendar size={14} />
               Semaine
-            </Button>
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Calendar View */}
+      {/* Calendar Content */}
       {loading ? (
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '80px 0',
-        }}>
-          <Loader2 size={32} className="animate-spin" style={{ color: '#6B7280' }} />
+        <div style={{ display: "flex", justifyContent: "center", padding: "80px 0" }}>
+          <Loader2 size={32} color="#6366F1" style={{ animation: "spin 1s linear infinite" }} />
         </div>
       ) : appointments.length === 0 ? (
-        <div style={{
-          background: '#FFFFFF',
-          borderRadius: '12px',
-          border: '1px solid #E5E7EB',
-          padding: '60px 20px',
-          textAlign: 'center',
-        }}>
-          <Calendar size={48} style={{ color: '#9CA3AF', margin: '0 auto 16px' }} />
-          <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>
+        <div
+          style={{
+            background: "#fff",
+            borderRadius: "16px",
+            border: "1px solid #E5E7EB",
+            padding: isMobile ? "48px 24px" : "64px 24px",
+            textAlign: "center",
+          }}
+        >
+          <Calendar size={48} color="#9CA3AF" style={{ marginBottom: "16px" }} />
+          <h3 style={{ fontSize: "18px", fontWeight: 600, color: "#111827", marginBottom: "8px" }}>
             Aucun rendez-vous
           </h3>
-          <p style={{ color: '#6B7280', marginBottom: '20px' }}>
-            Créez votre premier rendez-vous pour commencer
-          </p>
-          <Button leftIcon={<Plus size={16} />} onClick={openNewModal}>
+          <p style={{ color: "#6B7280", marginBottom: "24px" }}>Créez votre premier rendez-vous pour commencer</p>
+          <button
+            type="button"
+            onClick={openNewModal}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "8px",
+              padding: "12px 24px",
+              borderRadius: "12px",
+              border: "none",
+              background: "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)",
+              fontSize: "14px",
+              fontWeight: 600,
+              color: "#fff",
+              cursor: "pointer",
+              boxShadow: "0 4px 14px rgba(99, 102, 241, 0.4)",
+            }}
+          >
+            <Plus size={18} />
             Nouveau RDV
-          </Button>
+          </button>
         </div>
       ) : view === "day" ? (
         <DayView
@@ -523,34 +599,48 @@ export default function PlanningPage() {
           onCancel={handleCancel}
           onMarkDone={handleMarkDone}
           actionLoading={actionLoading}
+          isMobile={isMobile}
         />
       ) : (
-        <WeekView
-          weekDays={weekDays}
-          appointments={appointments}
-          onEdit={openEditModal}
-        />
+        <WeekView weekDays={weekDays} appointments={appointments} onEdit={openEditModal} isMobile={isMobile} />
       )}
 
       {/* Modal */}
-      <AppointmentModal
-        isOpen={showModal}
-        isEdit={!!selectedAppointment}
-        formData={formData}
-        setFormData={setFormData}
-        clients={clients}
-        vehicles={vehicles}
-        loading={actionLoading === "save"}
-        onClose={() => setShowModal(false)}
-        onSubmit={handleSubmit}
-      />
+      {showModal && (
+        <AppointmentModal
+          isEdit={!!selectedAppointment}
+          formData={formData}
+          setFormData={setFormData}
+          clients={clients}
+          vehicles={vehicles}
+          loading={actionLoading === "save"}
+          onClose={() => setShowModal(false)}
+          onSubmit={handleSubmit}
+          isMobile={isMobile}
+        />
+      )}
+
+      {/* CSS Animation */}
+      <style dangerouslySetInnerHTML={{ __html: `@keyframes spin { to { transform: rotate(360deg); } }` }} />
     </div>
   );
 }
 
-// ============================================
-// Day View Component
-// ============================================
+const navBtnStyle: React.CSSProperties = {
+  padding: "8px",
+  borderRadius: "8px",
+  border: "1px solid #E5E7EB",
+  background: "#fff",
+  cursor: "pointer",
+  color: "#374151",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+};
+
+// ============================================================================
+// Day View
+// ============================================================================
 
 function DayView({
   appointments,
@@ -558,59 +648,56 @@ function DayView({
   onCancel,
   onMarkDone,
   actionLoading,
+  isMobile,
 }: {
   appointments: Appointment[];
   onEdit: (a: Appointment) => void;
   onCancel: (id: string) => void;
   onMarkDone: (id: string) => void;
   actionLoading: string | null;
+  isMobile: boolean;
 }) {
   return (
-    <div style={{
-      background: '#FFFFFF',
-      borderRadius: '12px',
-      border: '1px solid #E5E7EB',
-      overflow: 'hidden',
-    }}>
-      {HOURS.map((hour, index) => {
-        const hourAppts = appointments.filter((a) => {
-          const h = new Date(a.startAt).getHours();
-          return h === hour;
-        });
+    <div style={{ background: "#fff", borderRadius: "16px", border: "1px solid #E5E7EB", overflow: "hidden" }}>
+      {HOURS.map((hour, idx) => {
+        const hourAppts = appointments.filter((a) => new Date(a.startAt).getHours() === hour);
 
         return (
-          <div 
-            key={hour} 
+          <div
+            key={hour}
             style={{
-              display: 'flex',
-              borderBottom: index < HOURS.length - 1 ? '1px solid #F3F4F6' : 'none',
-              minHeight: '70px',
+              display: "flex",
+              flexDirection: isMobile ? "column" : "row",
+              borderBottom: idx < HOURS.length - 1 ? "1px solid #F3F4F6" : "none",
+              minHeight: isMobile ? "auto" : "70px",
             }}
           >
-            <div style={{
-              width: '70px',
-              padding: '12px',
-              background: '#F9FAFB',
-              borderRight: '1px solid #E5E7EB',
-              display: 'flex',
-              alignItems: 'flex-start',
-              justifyContent: 'center',
-            }}>
-              <span style={{ fontSize: '14px', fontWeight: '500', color: '#6B7280' }}>
-                {hour}:00
-              </span>
+            <div
+              style={{
+                width: isMobile ? "100%" : "70px",
+                padding: isMobile ? "8px 12px" : "12px",
+                background: "#F9FAFB",
+                borderRight: isMobile ? "none" : "1px solid #E5E7EB",
+                borderBottom: isMobile ? "1px solid #E5E7EB" : "none",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: isMobile ? "flex-start" : "center",
+              }}
+            >
+              <span style={{ fontSize: "14px", fontWeight: 500, color: "#6B7280" }}>{hour}:00</span>
             </div>
-            <div style={{ flex: 1, padding: '8px 12px' }}>
+            <div style={{ flex: 1, padding: "8px 12px" }}>
               {hourAppts.length === 0 ? (
-                <div style={{
-                  height: '100%',
-                  minHeight: '50px',
-                  borderRadius: '8px',
-                  border: '1px dashed #E5E7EB',
-                  background: '#FAFAFA',
-                }} />
+                <div
+                  style={{
+                    height: isMobile ? "40px" : "50px",
+                    borderRadius: "8px",
+                    border: "1px dashed #E5E7EB",
+                    background: "#FAFAFA",
+                  }}
+                />
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                   {hourAppts.map((appt) => (
                     <AppointmentCard
                       key={appt.id}
@@ -619,6 +706,7 @@ function DayView({
                       onCancel={() => onCancel(appt.id)}
                       onMarkDone={() => onMarkDone(appt.id)}
                       actionLoading={actionLoading}
+                      isMobile={isMobile}
                     />
                   ))}
                 </div>
@@ -631,88 +719,89 @@ function DayView({
   );
 }
 
-// ============================================
-// Week View Component
-// ============================================
+// ============================================================================
+// Week View
+// ============================================================================
 
 function WeekView({
   weekDays,
   appointments,
   onEdit,
+  isMobile,
 }: {
   weekDays: Date[];
   appointments: Appointment[];
   onEdit: (a: Appointment) => void;
+  isMobile: boolean;
 }) {
   return (
-    <div style={{ overflowX: 'auto' }}>
-      <div style={{ 
-        display: 'grid', 
-        gridTemplateColumns: 'repeat(7, minmax(140px, 1fr))',
-        gap: '8px',
-        minWidth: '1000px',
-      }}>
+    <div style={{ overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: isMobile ? "repeat(7, 100px)" : "repeat(7, 1fr)",
+          gap: "8px",
+          minWidth: isMobile ? "750px" : "auto",
+        }}
+      >
         {weekDays.map((day) => {
-          const dayAppts = appointments.filter((a) => {
-            const apptDate = new Date(a.startAt).toDateString();
-            return apptDate === day.toDateString();
-          });
-
+          const dayAppts = appointments.filter((a) => new Date(a.startAt).toDateString() === day.toDateString());
           const isToday = day.toDateString() === new Date().toDateString();
 
           return (
-            <div key={day.toISOString()} style={{
-              background: '#FFFFFF',
-              borderRadius: '12px',
-              border: `1px solid ${isToday ? '#3B82F6' : '#E5E7EB'}`,
-              overflow: 'hidden',
-            }}>
-              <div style={{
-                padding: '12px',
-                background: isToday ? '#EFF6FF' : '#F9FAFB',
-                borderBottom: '1px solid #E5E7EB',
-                textAlign: 'center',
-              }}>
-                <div style={{ 
-                  fontSize: '12px', 
-                  color: isToday ? '#3B82F6' : '#6B7280',
-                  textTransform: 'uppercase',
-                  fontWeight: '500',
-                }}>
+            <div
+              key={day.toISOString()}
+              style={{
+                background: "#fff",
+                borderRadius: "12px",
+                border: `1px solid ${isToday ? "#6366F1" : "#E5E7EB"}`,
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  padding: "10px",
+                  background: isToday ? "#EEF2FF" : "#F9FAFB",
+                  borderBottom: "1px solid #E5E7EB",
+                  textAlign: "center",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "11px",
+                    color: isToday ? "#6366F1" : "#6B7280",
+                    textTransform: "uppercase",
+                    fontWeight: 500,
+                  }}
+                >
                   {day.toLocaleDateString("fr-FR", { weekday: "short" })}
                 </div>
-                <div style={{ 
-                  fontSize: '20px', 
-                  fontWeight: '600',
-                  color: isToday ? '#3B82F6' : '#111827',
-                }}>
+                <div style={{ fontSize: "18px", fontWeight: 600, color: isToday ? "#6366F1" : "#111827" }}>
                   {day.getDate()}
                 </div>
               </div>
 
-              <div style={{ padding: '8px', minHeight: '180px' }}>
+              <div style={{ padding: "8px", minHeight: "150px" }}>
                 {dayAppts.length === 0 ? (
-                  <div style={{
-                    height: '100%',
-                    minHeight: '160px',
-                    borderRadius: '8px',
-                    border: '1px dashed #E5E7EB',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#9CA3AF',
-                    fontSize: '12px',
-                  }}>
+                  <div
+                    style={{
+                      height: "100%",
+                      minHeight: "130px",
+                      borderRadius: "8px",
+                      border: "1px dashed #E5E7EB",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "#9CA3AF",
+                      fontSize: "11px",
+                    }}
+                  >
                     Aucun RDV
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                     {dayAppts.map((appt) => (
-                      <AppointmentCardCompact
-                        key={appt.id}
-                        appointment={appt}
-                        onClick={() => onEdit(appt)}
-                      />
+                      <AppointmentCardCompact key={appt.id} appointment={appt} onClick={() => onEdit(appt)} />
                     ))}
                   </div>
                 )}
@@ -725,9 +814,9 @@ function WeekView({
   );
 }
 
-// ============================================
+// ============================================================================
 // Appointment Card (Day View)
-// ============================================
+// ============================================================================
 
 function AppointmentCard({
   appointment,
@@ -735,62 +824,75 @@ function AppointmentCard({
   onCancel,
   onMarkDone,
   actionLoading,
+  isMobile,
 }: {
   appointment: Appointment;
   onEdit: () => void;
   onCancel: () => void;
   onMarkDone: () => void;
   actionLoading: string | null;
+  isMobile: boolean;
 }) {
   const cfg = STATUS_CONFIG[appointment.status];
 
   return (
-    <div 
-      style={{
-        background: '#FFFFFF',
-        borderRadius: '10px',
-        border: '1px solid #E5E7EB',
-        padding: '14px 16px',
-        cursor: 'pointer',
-        transition: 'all 0.2s ease',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-      }}
+    <div
       onClick={onEdit}
-      onMouseEnter={(e) => {
-        (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)';
-        (e.currentTarget as HTMLElement).style.transform = 'translateY(-1px)';
-      }}
-      onMouseLeave={(e) => {
-        (e.currentTarget as HTMLElement).style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)';
-        (e.currentTarget as HTMLElement).style.transform = 'none';
+      style={{
+        background: "#fff",
+        borderRadius: "10px",
+        border: "1px solid #E5E7EB",
+        padding: isMobile ? "12px" : "14px 16px",
+        cursor: "pointer",
+        transition: "box-shadow 0.2s",
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px" }}>
         <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-            <Badge variant={cfg.variant} size="sm">{cfg.label}</Badge>
-            <span style={{ fontSize: '13px', color: '#6B7280', display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "6px", flexWrap: "wrap" }}>
+            <span
+              style={{
+                padding: "3px 10px",
+                borderRadius: "12px",
+                fontSize: "11px",
+                fontWeight: 600,
+                background: cfg.bg,
+                color: cfg.color,
+              }}
+            >
+              {cfg.label}
+            </span>
+            <span style={{ fontSize: "12px", color: "#6B7280", display: "flex", alignItems: "center", gap: "4px" }}>
               <Clock size={12} />
               {formatTime(appointment.startAt)} - {formatTime(appointment.endAt)}
             </span>
           </div>
-          <h4 style={{ fontSize: '15px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>
+          <h4 style={{ fontSize: isMobile ? "14px" : "15px", fontWeight: 600, color: "#111827", marginBottom: "8px" }}>
             {appointment.title}
           </h4>
-          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px', fontSize: '13px', color: '#6B7280' }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <User size={14} />
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "center",
+              gap: isMobile ? "8px" : "12px",
+              fontSize: "12px",
+              color: "#6B7280",
+            }}
+          >
+            <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+              <User size={12} />
               {appointment.client.firstName} {appointment.client.lastName}
             </span>
             {appointment.vehicle && (
-              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <Car size={14} />
+              <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                <Car size={12} />
                 {appointment.vehicle.plate}
               </span>
             )}
             {appointment.intervention && (
-              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <Wrench size={14} />
+              <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                <Wrench size={12} />
                 Intervention liée
               </span>
             )}
@@ -798,25 +900,22 @@ function AppointmentCard({
         </div>
 
         {appointment.status === "SCHEDULED" && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }} onClick={(e) => e.stopPropagation()}>
+          <div style={{ display: "flex", alignItems: "center", gap: "4px" }} onClick={(e) => e.stopPropagation()}>
             <button
               onClick={onMarkDone}
               disabled={!!actionLoading}
               style={{
-                padding: '6px',
-                borderRadius: '6px',
-                border: 'none',
-                background: actionLoading === `done-${appointment.id}` ? '#D1FAE5' : 'transparent',
-                color: '#16A34A',
-                cursor: actionLoading ? 'not-allowed' : 'pointer',
-                transition: 'background 0.2s',
+                padding: "6px",
+                borderRadius: "6px",
+                border: "none",
+                background: actionLoading === `done-${appointment.id}` ? "#D1FAE5" : "transparent",
+                color: "#16A34A",
+                cursor: actionLoading ? "not-allowed" : "pointer",
               }}
-              onMouseEnter={(e) => { if (!actionLoading) (e.currentTarget as HTMLElement).style.background = '#D1FAE5'; }}
-              onMouseLeave={(e) => { if (!actionLoading) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
               title="Marquer terminé"
             >
               {actionLoading === `done-${appointment.id}` ? (
-                <Loader2 size={16} className="animate-spin" />
+                <Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} />
               ) : (
                 <Check size={16} />
               )}
@@ -825,22 +924,19 @@ function AppointmentCard({
               onClick={onCancel}
               disabled={!!actionLoading}
               style={{
-                padding: '6px',
-                borderRadius: '6px',
-                border: 'none',
-                background: actionLoading === `cancel-${appointment.id}` ? '#FEE2E2' : 'transparent',
-                color: '#DC2626',
-                cursor: actionLoading ? 'not-allowed' : 'pointer',
-                transition: 'background 0.2s',
+                padding: "6px",
+                borderRadius: "6px",
+                border: "none",
+                background: actionLoading === `cancel-${appointment.id}` ? "#FEE2E2" : "transparent",
+                color: "#DC2626",
+                cursor: actionLoading ? "not-allowed" : "pointer",
               }}
-              onMouseEnter={(e) => { if (!actionLoading) (e.currentTarget as HTMLElement).style.background = '#FEE2E2'; }}
-              onMouseLeave={(e) => { if (!actionLoading) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
               title="Annuler"
             >
               {actionLoading === `cancel-${appointment.id}` ? (
-                <Loader2 size={16} className="animate-spin" />
+                <Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} />
               ) : (
-                <span style={{ fontWeight: '600', fontSize: '16px' }}>✕</span>
+                <X size={16} />
               )}
             </button>
           </div>
@@ -850,79 +946,57 @@ function AppointmentCard({
   );
 }
 
-// ============================================
+// ============================================================================
 // Appointment Card Compact (Week View)
-// ============================================
+// ============================================================================
 
-function AppointmentCardCompact({
-  appointment,
-  onClick,
-}: {
-  appointment: Appointment;
-  onClick: () => void;
-}) {
+function AppointmentCardCompact({ appointment, onClick }: { appointment: Appointment; onClick: () => void }) {
   const cfg = STATUS_CONFIG[appointment.status];
-  
-  const bgColors = {
-    info: '#EFF6FF',
-    success: '#DCFCE7',
-    neutral: '#F3F4F6',
-    warning: '#FEF3C7',
-  };
-  
-  const borderColors = {
-    info: '#3B82F6',
-    success: '#16A34A',
-    neutral: '#9CA3AF',
-    warning: '#F59E0B',
-  };
 
   return (
     <div
       onClick={onClick}
       style={{
-        padding: '8px 10px',
-        borderRadius: '8px',
-        background: bgColors[cfg.variant],
-        borderLeft: `3px solid ${borderColors[cfg.variant]}`,
-        cursor: 'pointer',
-        transition: 'opacity 0.2s',
+        padding: "8px 10px",
+        borderRadius: "8px",
+        background: cfg.bg,
+        borderLeft: `3px solid ${cfg.color}`,
+        cursor: "pointer",
       }}
-      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = '0.8'; }}
-      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = '1'; }}
     >
-      <div style={{ fontSize: '11px', color: '#6B7280', marginBottom: '2px' }}>
-        {formatTime(appointment.startAt)}
-      </div>
-      <div style={{ 
-        fontSize: '13px', 
-        fontWeight: '600', 
-        color: '#111827',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        whiteSpace: 'nowrap',
-      }}>
+      <div style={{ fontSize: "10px", color: "#6B7280", marginBottom: "2px" }}>{formatTime(appointment.startAt)}</div>
+      <div
+        style={{
+          fontSize: "12px",
+          fontWeight: 600,
+          color: "#111827",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+      >
         {appointment.title}
       </div>
-      <div style={{ 
-        fontSize: '12px', 
-        color: '#6B7280',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
-        whiteSpace: 'nowrap',
-      }}>
+      <div
+        style={{
+          fontSize: "11px",
+          color: "#6B7280",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+      >
         {appointment.client.firstName} {appointment.client.lastName}
       </div>
     </div>
   );
 }
 
-// ============================================
-// Modal Component
-// ============================================
+// ============================================================================
+// Modal
+// ============================================================================
 
 function AppointmentModal({
-  isOpen,
   isEdit,
   formData,
   setFormData,
@@ -931,8 +1005,8 @@ function AppointmentModal({
   loading,
   onClose,
   onSubmit,
+  isMobile,
 }: {
-  isOpen: boolean;
   isEdit: boolean;
   formData: {
     clientId: string;
@@ -950,153 +1024,246 @@ function AppointmentModal({
   loading: boolean;
   onClose: () => void;
   onSubmit: () => void;
+  isMobile: boolean;
 }) {
   const isValid = formData.clientId && formData.title && formData.startAt && formData.endAt;
 
-  const clientOptions = clients.map((c) => ({
-    value: String(c.id),
-    label: `${c.firstName} ${c.lastName}`,
-  }));
-
-  const vehicleOptions = [
-    { value: "", label: "Aucun véhicule" },
-    ...vehicles.map((v) => ({
-      value: v.id,
-      label: `${v.plate} - ${v.brand} ${v.model}`,
-    })),
-  ];
-
-  const reminderOptions = [
-    { value: "NONE", label: "Aucun rappel" },
-    { value: "STANDARD", label: "Standard (J-1 + H-2)" },
-  ];
-
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={isEdit ? "Modifier le rendez-vous" : "Nouveau rendez-vous"}
-      size="lg"
-      footer={
-        <div style={{ display: 'flex', gap: '12px', width: '100%' }}>
-          <Button variant="secondary" onClick={onClose} fullWidth>
-            Annuler
-          </Button>
-          <Button onClick={onSubmit} disabled={!isValid || loading} loading={loading} fullWidth>
-            {isEdit ? "Modifier" : "Créer le RDV"}
-          </Button>
-        </div>
-      }
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.5)",
+        display: "flex",
+        alignItems: isMobile ? "flex-end" : "center",
+        justifyContent: "center",
+        zIndex: 100,
+        padding: isMobile ? 0 : "16px",
+      }}
+      onClick={onClose}
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-        {/* Client */}
-        <Select
-          label="Client"
-          required
-          placeholder="Choisir un client..."
-          options={clientOptions}
-          value={formData.clientId}
-          onValueChange={(val) => setFormData({ ...formData, clientId: val, vehicleId: "" })}
-          searchable
-          emptyText="Aucun client trouvé"
-        />
-
-        {/* Vehicle */}
-        {vehicles.length > 0 && (
-          <Select
-            label="Véhicule"
-            placeholder="Sélectionner un véhicule"
-            options={vehicleOptions}
-            value={formData.vehicleId}
-            onValueChange={(val) => setFormData({ ...formData, vehicleId: val })}
-          />
-        )}
-
-        {/* Title */}
-        <Input
-          label="Type de RDV"
-          required
-          placeholder="Ex: Diagnostic, E85, Reprog..."
-          value={formData.title}
-          onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-        />
-
-        {/* Dates */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-          <Input
-            label="Début"
-            required
-            type="datetime-local"
-            value={formData.startAt}
-            onChange={(e) => setFormData({ ...formData, startAt: e.target.value })}
-          />
-          <Input
-            label="Fin"
-            required
-            type="datetime-local"
-            value={formData.endAt}
-            onChange={(e) => setFormData({ ...formData, endAt: e.target.value })}
-          />
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "#fff",
+          borderRadius: isMobile ? "16px 16px 0 0" : "16px",
+          width: isMobile ? "100%" : "520px",
+          maxWidth: "100%",
+          maxHeight: isMobile ? "90vh" : "85vh",
+          overflow: "auto",
+        }}
+      >
+        <div style={{ padding: "20px 24px", borderBottom: "1px solid #E5E7EB", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h2 style={{ fontSize: "18px", fontWeight: 700, color: "#111827", margin: 0 }}>
+            {isEdit ? "Modifier le RDV" : "Nouveau RDV"}
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{ padding: "4px", background: "transparent", border: "none", cursor: "pointer", color: "#6B7280" }}
+          >
+            <X size={20} />
+          </button>
         </div>
 
-        {/* Notes */}
-        <Textarea
-          label="Notes"
-          placeholder="Notes optionnelles..."
-          value={formData.notes}
-          onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-          minRows={2}
-        />
-
-        {/* Reminder Policy */}
-        <div>
-          <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', color: '#111827', marginBottom: '8px' }}>
-            <Bell size={14} style={{ display: 'inline', marginRight: '6px', verticalAlign: 'middle' }} />
-            Rappels automatiques
-          </label>
-          <div style={{ display: 'flex', gap: '16px' }}>
-            {reminderOptions.map((opt) => (
-              <label 
-                key={opt.value} 
-                style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  gap: '8px',
-                  cursor: 'pointer',
-                  padding: '10px 16px',
-                  borderRadius: '8px',
-                  border: `2px solid ${formData.reminderPolicy === opt.value ? '#0A1628' : '#E5E7EB'}`,
-                  background: formData.reminderPolicy === opt.value ? '#F9FAFB' : '#FFFFFF',
-                  transition: 'all 0.2s',
-                }}
-              >
-                <input
-                  type="radio"
-                  name="reminderPolicy"
-                  value={opt.value}
-                  checked={formData.reminderPolicy === opt.value}
-                  onChange={() => setFormData({ ...formData, reminderPolicy: opt.value as "NONE" | "STANDARD" })}
-                  style={{ width: '16px', height: '16px', accentColor: '#0A1628' }}
-                />
-                <span style={{ fontSize: '14px', color: '#111827' }}>{opt.label}</span>
-              </label>
-            ))}
+        <div style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "20px" }}>
+          {/* Client */}
+          <div>
+            <label style={labelStyle}>Client *</label>
+            <select
+              value={formData.clientId}
+              onChange={(e) => setFormData({ ...formData, clientId: e.target.value, vehicleId: "" })}
+              style={selectStyle}
+            >
+              <option value="">Choisir un client...</option>
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.firstName} {c.lastName}
+                </option>
+              ))}
+            </select>
           </div>
-          <p style={{ fontSize: '12px', color: '#6B7280', marginTop: '8px' }}>
-            Rappels envoyés par email au client 24h et 2h avant le RDV
-          </p>
+
+          {/* Vehicle */}
+          {vehicles.length > 0 && (
+            <div>
+              <label style={labelStyle}>Véhicule</label>
+              <select
+                value={formData.vehicleId}
+                onChange={(e) => setFormData({ ...formData, vehicleId: e.target.value })}
+                style={selectStyle}
+              >
+                <option value="">Aucun véhicule</option>
+                {vehicles.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.plate} - {v.brand} {v.model}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Title */}
+          <div>
+            <label style={labelStyle}>Type de RDV *</label>
+            <input
+              type="text"
+              placeholder="Ex: Diagnostic, E85, Reprog..."
+              value={formData.title}
+              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+              style={inputStyle}
+            />
+          </div>
+
+          {/* Dates */}
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "16px" }}>
+            <div>
+              <label style={labelStyle}>Début *</label>
+              <input
+                type="datetime-local"
+                value={formData.startAt}
+                onChange={(e) => setFormData({ ...formData, startAt: e.target.value })}
+                style={inputStyle}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Fin *</label>
+              <input
+                type="datetime-local"
+                value={formData.endAt}
+                onChange={(e) => setFormData({ ...formData, endAt: e.target.value })}
+                style={inputStyle}
+              />
+            </div>
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label style={labelStyle}>Notes</label>
+            <textarea
+              placeholder="Notes optionnelles..."
+              value={formData.notes}
+              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              rows={2}
+              style={{ ...inputStyle, resize: "vertical", minHeight: "60px" }}
+            />
+          </div>
+
+          {/* Reminder */}
+          <div>
+            <label style={{ ...labelStyle, display: "flex", alignItems: "center", gap: "6px" }}>
+              <Bell size={14} />
+              Rappels automatiques
+            </label>
+            <div style={{ display: "flex", gap: "12px", marginTop: "8px" }}>
+              {[
+                { value: "NONE", label: "Aucun rappel" },
+                { value: "STANDARD", label: "Standard (J-1 + H-2)" },
+              ].map((opt) => (
+                <label
+                  key={opt.value}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    cursor: "pointer",
+                    padding: "10px 14px",
+                    borderRadius: "8px",
+                    border: `2px solid ${formData.reminderPolicy === opt.value ? "#6366F1" : "#E5E7EB"}`,
+                    background: formData.reminderPolicy === opt.value ? "#EEF2FF" : "#fff",
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="reminder"
+                    value={opt.value}
+                    checked={formData.reminderPolicy === opt.value}
+                    onChange={() => setFormData({ ...formData, reminderPolicy: opt.value as "NONE" | "STANDARD" })}
+                    style={{ width: "16px", height: "16px", accentColor: "#6366F1" }}
+                  />
+                  <span style={{ fontSize: "13px", color: "#111827" }}>{opt.label}</span>
+                </label>
+              ))}
+            </div>
+            <p style={{ fontSize: "12px", color: "#6B7280", marginTop: "8px" }}>
+              Rappels envoyés par email 24h et 2h avant le RDV
+            </p>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding: "16px 24px", borderTop: "1px solid #E5E7EB", display: "flex", gap: "12px" }}>
+          <button
+            type="button"
+            onClick={onClose}
+            style={{
+              flex: 1,
+              padding: "12px",
+              borderRadius: "10px",
+              border: "1px solid #E5E7EB",
+              background: "#fff",
+              fontSize: "14px",
+              fontWeight: 500,
+              color: "#374151",
+              cursor: "pointer",
+            }}
+          >
+            Annuler
+          </button>
+          <button
+            type="button"
+            onClick={onSubmit}
+            disabled={!isValid || loading}
+            style={{
+              flex: 1,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "8px",
+              padding: "12px",
+              borderRadius: "10px",
+              border: "none",
+              background: !isValid || loading ? "#D1D5DB" : "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)",
+              fontSize: "14px",
+              fontWeight: 600,
+              color: "#fff",
+              cursor: !isValid || loading ? "not-allowed" : "pointer",
+              boxShadow: !isValid || loading ? "none" : "0 4px 14px rgba(99, 102, 241, 0.4)",
+            }}
+          >
+            {loading && <Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} />}
+            {isEdit ? "Modifier" : "Créer le RDV"}
+          </button>
         </div>
       </div>
-    </Modal>
+    </div>
   );
 }
 
-// ============================================
-// Helper: Convert Date to datetime-local string
-// ============================================
+const labelStyle: React.CSSProperties = {
+  display: "block",
+  fontSize: "14px",
+  fontWeight: 500,
+  color: "#374151",
+  marginBottom: "8px",
+};
 
-function toLocalDateTimeString(date: Date): string {
-  const offset = date.getTimezoneOffset();
-  const local = new Date(date.getTime() - offset * 60 * 1000);
-  return local.toISOString().slice(0, 16);
-}
+const inputStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "12px 16px",
+  borderRadius: "10px",
+  border: "1px solid #E5E7EB",
+  fontSize: "14px",
+  outline: "none",
+  background: "#fff",
+};
+
+const selectStyle: React.CSSProperties = {
+  width: "100%",
+  padding: "12px 16px",
+  borderRadius: "10px",
+  border: "1px solid #E5E7EB",
+  fontSize: "14px",
+  background: "#fff",
+  cursor: "pointer",
+};
