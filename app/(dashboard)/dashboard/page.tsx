@@ -22,6 +22,23 @@ import {
   LucideIcon
 } from 'lucide-react'
 
+// Responsive hook
+function useResponsive() {
+  const [screen, setScreen] = useState<"mobile" | "tablet" | "desktop">("desktop");
+  useEffect(() => {
+    const check = () => {
+      const w = window.innerWidth;
+      if (w < 640) setScreen("mobile");
+      else if (w < 1024) setScreen("tablet");
+      else setScreen("desktop");
+    };
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+  return { isMobile: screen === "mobile", isTablet: screen === "tablet", screen };
+}
+
 // ============================================================================
 // DASHBOARD PAGE - SafeMotor
 // Données réelles uniquement - pas de mock data
@@ -87,6 +104,7 @@ const getStatusStyle = (status: string): { bg: string; color: string } => {
 }
 
 export default function DashboardPage() {
+  const { isMobile, isTablet } = useResponsive()
   const [period, setPeriod] = useState<'month' | '30days' | 'year'>('month')
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -132,19 +150,19 @@ export default function DashboardPage() {
   }, [period])
   
   return (
-    <div style={{ padding: '32px', maxWidth: '1200px', margin: '0 auto' }}>
+    <div style={{ padding: isMobile ? '16px' : isTablet ? '24px' : '32px', maxWidth: '1200px', margin: '0 auto' }}>
       {/* Header */}
       <div style={{
         display: 'flex',
+        flexDirection: isMobile ? 'column' : 'row',
         justifyContent: 'space-between',
-        alignItems: 'flex-start',
-        marginBottom: '32px',
-        flexWrap: 'wrap',
+        alignItems: isMobile ? 'stretch' : 'flex-start',
+        marginBottom: isMobile ? '24px' : '32px',
         gap: '16px',
       }}>
         <div>
           <h1 style={{
-            fontSize: '28px',
+            fontSize: isMobile ? '22px' : '28px',
             fontWeight: 700,
             color: '#111827',
             margin: 0,
@@ -153,7 +171,7 @@ export default function DashboardPage() {
             Tableau de bord
           </h1>
           <p style={{
-            fontSize: '15px',
+            fontSize: isMobile ? '13px' : '15px',
             color: '#6B7280',
             margin: 0
           }}>
@@ -161,7 +179,7 @@ export default function DashboardPage() {
           </p>
         </div>
         
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
           {/* Refresh button */}
           <button
             onClick={loadDashboardData}
@@ -197,18 +215,19 @@ export default function DashboardPage() {
             backgroundColor: '#F3F4F6',
             padding: '4px',
             borderRadius: '10px',
+            overflowX: isMobile ? 'auto' : 'visible',
           }}>
             {[
               { value: 'month', label: 'Ce mois' },
-              { value: '30days', label: '30 jours' },
-              { value: 'year', label: 'Cette année' }
+              { value: '30days', label: '30 j' },
+              { value: 'year', label: 'Année' }
             ].map((option) => (
               <button
                 key={option.value}
                 onClick={() => setPeriod(option.value as typeof period)}
                 style={{
-                  padding: '10px 18px',
-                  fontSize: '14px',
+                  padding: isMobile ? '8px 12px' : '10px 18px',
+                  fontSize: isMobile ? '13px' : '14px',
                   fontWeight: 500,
                   color: period === option.value ? '#FFFFFF' : '#6B7280',
                   background: period === option.value ? 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)' : 'transparent',
@@ -217,6 +236,7 @@ export default function DashboardPage() {
                   cursor: 'pointer',
                   transition: 'all 0.15s ease',
                   boxShadow: period === option.value ? '0 2px 8px rgba(99, 102, 241, 0.3)' : 'none',
+                  whiteSpace: 'nowrap',
                 }}
               >
                 {option.label}
@@ -264,9 +284,9 @@ export default function DashboardPage() {
       {/* KPI Cards Grid */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(4, 1fr)',
-        gap: '20px',
-        marginBottom: '32px',
+        gridTemplateColumns: isMobile ? '1fr' : isTablet ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
+        gap: isMobile ? '12px' : '20px',
+        marginBottom: isMobile ? '24px' : '32px',
       }}>
         {/* Interventions */}
         <KpiCard
@@ -313,9 +333,9 @@ export default function DashboardPage() {
       {/* Main Grid */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        gap: '24px',
-        marginBottom: '32px',
+        gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr',
+        gap: isMobile ? '16px' : '24px',
+        marginBottom: isMobile ? '100px' : '32px',
       }}>
         {/* Interventions par statut */}
         <div
@@ -536,12 +556,13 @@ export default function DashboardPage() {
       {/* Quick Actions - Floating */}
       <div style={{
         position: 'fixed',
-        bottom: '32px',
-        right: '32px',
+        bottom: isMobile ? '16px' : '32px',
+        right: isMobile ? '16px' : '32px',
+        left: isMobile ? '16px' : 'auto',
         display: 'flex',
         flexDirection: 'column',
         gap: '12px',
-        alignItems: 'flex-end',
+        alignItems: isMobile ? 'stretch' : 'flex-end',
         zIndex: 40
       }}>
         <Link
@@ -549,12 +570,13 @@ export default function DashboardPage() {
           style={{
             display: 'flex',
             alignItems: 'center',
+            justifyContent: 'center',
             gap: '10px',
-            padding: '14px 24px',
+            padding: isMobile ? '12px 20px' : '14px 24px',
             borderRadius: '14px',
             background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)',
             color: '#fff',
-            fontSize: '15px',
+            fontSize: isMobile ? '14px' : '15px',
             fontWeight: 600,
             textDecoration: 'none',
             boxShadow: '0 10px 25px -5px rgba(99, 102, 241, 0.4)',
@@ -567,67 +589,69 @@ export default function DashboardPage() {
           Nouvelle intervention
         </Link>
         
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <Link
-            href="/clients/new"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '12px 18px',
-              borderRadius: '12px',
-              background: '#fff',
-              border: '1px solid #E5E7EB',
-              color: '#374151',
-              fontSize: '14px',
-              fontWeight: 600,
-              textDecoration: 'none',
-              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
-              transition: 'all 0.15s ease',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = '#D1D5DB'
-              e.currentTarget.style.background = '#F9FAFB'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = '#E5E7EB'
-              e.currentTarget.style.background = '#fff'
-            }}
-          >
-            <UserPlus size={18} />
-            Nouveau client
-          </Link>
-          
-          <Link
-            href="/vehicules/search"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              padding: '12px 18px',
-              borderRadius: '12px',
-              background: '#fff',
-              border: '1px solid #E5E7EB',
-              color: '#374151',
-              fontSize: '14px',
-              fontWeight: 600,
-              textDecoration: 'none',
-              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
-              transition: 'all 0.15s ease',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = '#D1D5DB'
-              e.currentTarget.style.background = '#F9FAFB'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = '#E5E7EB'
-              e.currentTarget.style.background = '#fff'
-            }}
-          >
-            <Search size={18} />
-            Recherche SIV
-          </Link>
-        </div>
+        {!isMobile && (
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <Link
+              href="/clients/new"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '12px 18px',
+                borderRadius: '12px',
+                background: '#fff',
+                border: '1px solid #E5E7EB',
+                color: '#374151',
+                fontSize: '14px',
+                fontWeight: 600,
+                textDecoration: 'none',
+                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
+                transition: 'all 0.15s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = '#D1D5DB'
+                e.currentTarget.style.background = '#F9FAFB'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = '#E5E7EB'
+                e.currentTarget.style.background = '#fff'
+              }}
+            >
+              <UserPlus size={18} />
+              Nouveau client
+            </Link>
+            
+            <Link
+              href="/vehicules/search"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '12px 18px',
+                borderRadius: '12px',
+                background: '#fff',
+                border: '1px solid #E5E7EB',
+                color: '#374151',
+                fontSize: '14px',
+                fontWeight: 600,
+                textDecoration: 'none',
+                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
+                transition: 'all 0.15s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = '#D1D5DB'
+                e.currentTarget.style.background = '#F9FAFB'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = '#E5E7EB'
+                e.currentTarget.style.background = '#fff'
+              }}
+            >
+              <Search size={18} />
+              Recherche SIV
+            </Link>
+          </div>
+        )}
       </div>
 
       {/* CSS Animation */}

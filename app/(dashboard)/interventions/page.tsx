@@ -22,6 +22,23 @@ import {
   RefreshCw,
 } from "lucide-react";
 
+// Responsive hook
+function useResponsive() {
+  const [screen, setScreen] = useState<"mobile" | "tablet" | "desktop">("desktop");
+  useEffect(() => {
+    const check = () => {
+      const w = window.innerWidth;
+      if (w < 640) setScreen("mobile");
+      else if (w < 1024) setScreen("tablet");
+      else setScreen("desktop");
+    };
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+  return { isMobile: screen === "mobile", isTablet: screen === "tablet", screen };
+}
+
 // ============================================================================
 // INTERVENTIONS PAGE - SafeMotor Design System
 // Liste des interventions avec filtres et actions
@@ -64,6 +81,7 @@ const STATUS_CONFIG: Record<InterventionStatus, { label: string; color: string; 
 
 export default function InterventionsPage() {
   const router = useRouter();
+  const { isMobile, isTablet } = useResponsive();
 
   const [interventions, setInterventions] = useState<Intervention[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -227,13 +245,13 @@ export default function InterventionsPage() {
   };
 
   return (
-    <div style={{ padding: "32px", maxWidth: "1600px", margin: "0 auto" }}>
+    <div style={{ padding: isMobile ? "16px" : isTablet ? "24px" : "32px", maxWidth: "1600px", margin: "0 auto" }}>
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "32px" }}>
+      <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", alignItems: isMobile ? "stretch" : "flex-start", marginBottom: isMobile ? "24px" : "32px", gap: "16px" }}>
         <div>
-          <h1 style={{ fontSize: "32px", fontWeight: "700", color: "#111827", margin: 0 }}>Interventions</h1>
-          <p style={{ fontSize: "15px", color: "#6B7280", marginTop: "4px" }}>
-            Gérez vos dossiers d'intervention et signatures
+          <h1 style={{ fontSize: isMobile ? "24px" : "32px", fontWeight: "700", color: "#111827", margin: 0 }}>Interventions</h1>
+          <p style={{ fontSize: isMobile ? "13px" : "15px", color: "#6B7280", marginTop: "4px" }}>
+            Gérez vos dossiers d'intervention
           </p>
         </div>
 
@@ -242,8 +260,9 @@ export default function InterventionsPage() {
             style={{
               display: "flex",
               alignItems: "center",
+              justifyContent: "center",
               gap: "8px",
-              padding: "12px 20px",
+              padding: isMobile ? "12px 16px" : "12px 20px",
               borderRadius: "12px",
               border: "none",
               background: "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)",
@@ -252,6 +271,7 @@ export default function InterventionsPage() {
               color: "#fff",
               cursor: "pointer",
               boxShadow: "0 4px 12px rgba(99, 102, 241, 0.3)",
+              width: isMobile ? "100%" : "auto",
             }}
           >
             <Plus size={18} />
@@ -261,7 +281,7 @@ export default function InterventionsPage() {
       </div>
 
       {/* Stats Cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "16px", marginBottom: "24px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : isTablet ? "repeat(3, 1fr)" : "repeat(5, 1fr)", gap: isMobile ? "10px" : "16px", marginBottom: "24px" }}>
         {[
           { label: "Total", value: stats.total, color: "#6366F1", icon: Wrench },
           { label: "En attente", value: stats.enAttente, color: "#F59E0B", icon: Clock },
@@ -275,28 +295,29 @@ export default function InterventionsPage() {
               key={i}
               style={{
                 ...cardStyle,
-                padding: "20px",
+                padding: isMobile ? "14px" : "20px",
                 display: "flex",
                 alignItems: "center",
-                gap: "16px",
+                gap: isMobile ? "10px" : "16px",
               }}
             >
               <div
                 style={{
-                  width: "48px",
-                  height: "48px",
+                  width: isMobile ? "36px" : "48px",
+                  height: isMobile ? "36px" : "48px",
                   borderRadius: "12px",
                   background: `${stat.color}15`,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
+                  flexShrink: 0,
                 }}
               >
-                <Icon size={24} color={stat.color} />
+                <Icon size={isMobile ? 18 : 24} color={stat.color} />
               </div>
               <div>
-                <p style={{ fontSize: "28px", fontWeight: "700", color: "#111827", margin: 0 }}>{stat.value}</p>
-                <p style={{ fontSize: "13px", color: "#6B7280", margin: 0 }}>{stat.label}</p>
+                <p style={{ fontSize: isMobile ? "20px" : "28px", fontWeight: "700", color: "#111827", margin: 0 }}>{stat.value}</p>
+                <p style={{ fontSize: isMobile ? "11px" : "13px", color: "#6B7280", margin: 0 }}>{stat.label}</p>
               </div>
             </div>
           );
@@ -304,51 +325,55 @@ export default function InterventionsPage() {
       </div>
 
       {/* Filters */}
-      <div style={{ ...cardStyle, padding: "16px", marginBottom: "24px" }}>
-        <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap" }}>
-          <div style={{ position: "relative", flex: "1", minWidth: "250px" }}>
+      <div style={{ ...cardStyle, padding: isMobile ? "12px" : "16px", marginBottom: "24px" }}>
+        <div style={{ display: "flex", gap: "12px", alignItems: isMobile ? "stretch" : "center", flexWrap: "wrap", flexDirection: isMobile ? "column" : "row" }}>
+          <div style={{ position: "relative", flex: isMobile ? "none" : "1", minWidth: isMobile ? "auto" : "250px" }}>
             <Search size={18} color="#9CA3AF" style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)" }} />
             <input
               type="text"
-              placeholder="Rechercher par numéro, client, véhicule..."
+              placeholder="Rechercher..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              style={inputStyle}
+              style={{ ...inputStyle, boxSizing: "border-box" }}
             />
           </div>
 
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={selectStyle}>
-            <option value="all">Tous les statuts</option>
-            <option value="EN_ATTENTE">En attente</option>
-            <option value="EN_COURS">En cours</option>
-            <option value="TERMINE">Terminées</option>
-            <option value="ANNULE">Annulées</option>
-          </select>
+          <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ ...selectStyle, flex: isMobile ? "1" : "none", minWidth: isMobile ? "0" : "auto" }}>
+              <option value="all">Tous statuts</option>
+              <option value="EN_ATTENTE">En attente</option>
+              <option value="EN_COURS">En cours</option>
+              <option value="TERMINE">Terminées</option>
+              <option value="ANNULE">Annulées</option>
+            </select>
 
-          <select value={clientFilter} onChange={(e) => setClientFilter(e.target.value)} style={selectStyle}>
-            <option value="all">Tous les clients</option>
-            {clients.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+            {!isMobile && (
+              <select value={clientFilter} onChange={(e) => setClientFilter(e.target.value)} style={selectStyle}>
+                <option value="all">Tous les clients</option>
+                {clients.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            )}
 
-          <button
-            onClick={() => loadData()}
-            style={{
-              padding: "10px",
-              borderRadius: "10px",
-              border: "1px solid #E5E7EB",
-              background: "#fff",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <RefreshCw size={18} color="#6B7280" />
-          </button>
+            <button
+              onClick={() => loadData()}
+              style={{
+                padding: "10px",
+                borderRadius: "10px",
+                border: "1px solid #E5E7EB",
+                background: "#fff",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <RefreshCw size={18} color="#6B7280" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -404,11 +429,63 @@ export default function InterventionsPage() {
               </Link>
             )}
           </div>
+        ) : isMobile ? (
+          /* Mobile: Card view */
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            {interventions.map((intervention, index) => {
+              const statusConfig = STATUS_CONFIG[intervention.status];
+              const StatusIcon = statusConfig.icon;
+              return (
+                <div
+                  key={intervention.id}
+                  onClick={() => router.push(`/interventions/${intervention.id}`)}
+                  style={{
+                    padding: "16px",
+                    borderBottom: index < interventions.length - 1 ? "1px solid #F3F4F6" : "none",
+                    cursor: "pointer",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
+                    <div>
+                      <div style={{ fontFamily: "monospace", fontSize: "14px", fontWeight: "600", color: "#111827" }}>{intervention.number}</div>
+                      <div style={{ fontSize: "12px", color: "#9CA3AF", marginTop: "2px" }}>{formatDate(intervention.entryDate)}</div>
+                    </div>
+                    <div
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "4px",
+                        padding: "4px 10px",
+                        borderRadius: "100px",
+                        background: statusConfig.bgColor,
+                        fontSize: "12px",
+                        fontWeight: "500",
+                        color: statusConfig.color,
+                      }}
+                    >
+                      <StatusIcon size={12} />
+                      {statusConfig.label}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: "14px", fontWeight: "500", color: "#111827", marginBottom: "4px" }}>{intervention.clientName}</div>
+                  <div style={{ fontSize: "13px", color: "#6B7280", marginBottom: "8px" }}>{intervention.vehicleInfo}</div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <div style={{ display: "flex", gap: "8px" }}>
+                      <span style={{ fontSize: "11px", padding: "2px 6px", borderRadius: "4px", background: intervention.isClientSigned ? "#D1FAE5" : "#F3F4F6", color: intervention.isClientSigned ? "#10B981" : "#9CA3AF" }}>Client {intervention.isClientSigned ? "✓" : "○"}</span>
+                      <span style={{ fontSize: "11px", padding: "2px 6px", borderRadius: "4px", background: intervention.isGarageSigned ? "#D1FAE5" : "#F3F4F6", color: intervention.isGarageSigned ? "#10B981" : "#9CA3AF" }}>Atelier {intervention.isGarageSigned ? "✓" : "○"}</span>
+                    </div>
+                    <div style={{ fontSize: "14px", fontWeight: "600", color: "#111827" }}>{formatCurrency(intervention.amount)}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         ) : (
+          /* Desktop/Tablet: Table view */
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ borderBottom: "1px solid #E5E7EB" }}>
-                {["Numéro", "Client & Véhicule", "Type", "Statut", "Montant", "Signatures", ""].map((header) => (
+                {(isTablet ? ["Numéro", "Client", "Statut", "Montant", ""] : ["Numéro", "Client & Véhicule", "Type", "Statut", "Montant", "Signatures", ""]).map((header) => (
                   <th
                     key={header}
                     style={{
@@ -454,30 +531,34 @@ export default function InterventionsPage() {
                         <User size={14} color="#6B7280" />
                         {intervention.clientName}
                       </div>
-                      <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", color: "#6B7280" }}>
-                        <Car size={13} color="#9CA3AF" />
-                        {intervention.vehicleInfo}
-                      </div>
-                    </td>
-
-                    <td style={{ padding: "16px" }}>
-                      <div style={{ fontSize: "14px", color: "#374151" }}>{intervention.type}</div>
-                      {intervention.description && (
-                        <div
-                          style={{
-                            fontSize: "12px",
-                            color: "#9CA3AF",
-                            marginTop: "2px",
-                            maxWidth: "200px",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          {intervention.description}
+                      {!isTablet && (
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", color: "#6B7280" }}>
+                          <Car size={13} color="#9CA3AF" />
+                          {intervention.vehicleInfo}
                         </div>
                       )}
                     </td>
+
+                    {!isTablet && (
+                      <td style={{ padding: "16px" }}>
+                        <div style={{ fontSize: "14px", color: "#374151" }}>{intervention.type}</div>
+                        {intervention.description && (
+                          <div
+                            style={{
+                              fontSize: "12px",
+                              color: "#9CA3AF",
+                              marginTop: "2px",
+                              maxWidth: "200px",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {intervention.description}
+                          </div>
+                        )}
+                      </td>
+                    )}
 
                     <td style={{ padding: "16px" }}>
                       <div
@@ -510,34 +591,36 @@ export default function InterventionsPage() {
                       </div>
                     </td>
 
-                    <td style={{ padding: "16px" }}>
-                      <div style={{ display: "flex", gap: "8px" }}>
-                        <div
-                          style={{
-                            padding: "4px 10px",
-                            borderRadius: "6px",
-                            background: intervention.isClientSigned ? "rgba(16, 185, 129, 0.1)" : "rgba(156, 163, 175, 0.1)",
-                            fontSize: "12px",
-                            fontWeight: "500",
-                            color: intervention.isClientSigned ? "#10B981" : "#9CA3AF",
-                          }}
-                        >
-                          {intervention.isClientSigned ? "✓" : "○"} Client
+                    {!isTablet && (
+                      <td style={{ padding: "16px" }}>
+                        <div style={{ display: "flex", gap: "8px" }}>
+                          <div
+                            style={{
+                              padding: "4px 10px",
+                              borderRadius: "6px",
+                              background: intervention.isClientSigned ? "rgba(16, 185, 129, 0.1)" : "rgba(156, 163, 175, 0.1)",
+                              fontSize: "12px",
+                              fontWeight: "500",
+                              color: intervention.isClientSigned ? "#10B981" : "#9CA3AF",
+                            }}
+                          >
+                            {intervention.isClientSigned ? "✓" : "○"} Client
+                          </div>
+                          <div
+                            style={{
+                              padding: "4px 10px",
+                              borderRadius: "6px",
+                              background: intervention.isGarageSigned ? "rgba(16, 185, 129, 0.1)" : "rgba(156, 163, 175, 0.1)",
+                              fontSize: "12px",
+                              fontWeight: "500",
+                              color: intervention.isGarageSigned ? "#10B981" : "#9CA3AF",
+                            }}
+                          >
+                            {intervention.isGarageSigned ? "✓" : "○"} Atelier
+                          </div>
                         </div>
-                        <div
-                          style={{
-                            padding: "4px 10px",
-                            borderRadius: "6px",
-                            background: intervention.isGarageSigned ? "rgba(16, 185, 129, 0.1)" : "rgba(156, 163, 175, 0.1)",
-                            fontSize: "12px",
-                            fontWeight: "500",
-                            color: intervention.isGarageSigned ? "#10B981" : "#9CA3AF",
-                          }}
-                        >
-                          {intervention.isGarageSigned ? "✓" : "○"} Atelier
-                        </div>
-                      </div>
-                    </td>
+                      </td>
+                    )}
 
                     <td style={{ padding: "16px" }} onClick={(e) => e.stopPropagation()}>
                       <div style={{ position: "relative" }}>

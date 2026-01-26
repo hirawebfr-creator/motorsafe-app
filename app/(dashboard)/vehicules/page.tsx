@@ -18,6 +18,23 @@ import {
   Trash2
 } from 'lucide-react'
 
+// Responsive hook
+function useResponsive() {
+  const [screen, setScreen] = useState<"mobile" | "tablet" | "desktop">("desktop");
+  useEffect(() => {
+    const check = () => {
+      const w = window.innerWidth;
+      if (w < 640) setScreen("mobile");
+      else if (w < 1024) setScreen("tablet");
+      else setScreen("desktop");
+    };
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+  return { isMobile: screen === "mobile", isTablet: screen === "tablet", screen };
+}
+
 // ============================================================================
 // VEHICLES LIST PAGE - SafeMotor
 // Design moderne avec données réelles et recherche SIV
@@ -86,6 +103,7 @@ const FUEL_FILTERS = [
 
 export default function VehiculesPage() {
   const router = useRouter()
+  const { isMobile, isTablet } = useResponsive()
   
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [clients, setClients] = useState<Client[]>([])
@@ -324,56 +342,56 @@ export default function VehiculesPage() {
   }
 
   return (
-    <div style={{ padding: '32px', maxWidth: '1400px', margin: '0 auto' }}>
+    <div style={{ padding: isMobile ? '16px' : isTablet ? '24px' : '32px', maxWidth: '1400px', margin: '0 auto' }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center', marginBottom: isMobile ? '24px' : '32px', gap: '16px' }}>
         <div>
-          <h1 style={{ fontSize: '28px', fontWeight: 700, color: '#111827', margin: 0, marginBottom: '4px' }}>Véhicules</h1>
-          <p style={{ fontSize: '14px', color: '#6B7280', margin: 0 }}>Gérez la flotte de véhicules</p>
+          <h1 style={{ fontSize: isMobile ? '22px' : '28px', fontWeight: 700, color: '#111827', margin: 0, marginBottom: '4px' }}>Véhicules</h1>
+          <p style={{ fontSize: isMobile ? '13px' : '14px', color: '#6B7280', margin: 0 }}>Gérez la flotte de véhicules</p>
         </div>
-        <div style={{ display: 'flex', gap: '12px' }}>
-          <button onClick={() => { setSivPlate(''); setSivResult(null); setSivError(null); setSivModalOpen(true) }} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 20px', borderRadius: '12px', border: '1px solid #E5E7EB', background: '#fff', fontSize: '14px', fontWeight: 600, color: '#374151', cursor: 'pointer' }}>
-            <Search size={18} /> Recherche SIV
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          <button onClick={() => { setSivPlate(''); setSivResult(null); setSivError(null); setSivModalOpen(true) }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: isMobile ? '10px 14px' : '12px 20px', borderRadius: '12px', border: '1px solid #E5E7EB', background: '#fff', fontSize: '14px', fontWeight: 600, color: '#374151', cursor: 'pointer', flex: isMobile ? '1' : 'none' }}>
+            <Search size={18} /> {isMobile ? 'SIV' : 'Recherche SIV'}
           </button>
-          <button onClick={() => { setFormData({ clientId: '', plate: '', vin: '', brand: '', model: '', version: '', year: '', mileage: '', color: '', fuel: 'ESSENCE' }); setFormErrors({}); setCreateModalOpen(true) }} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 20px', borderRadius: '12px', border: 'none', background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)', fontSize: '14px', fontWeight: 600, color: '#fff', cursor: 'pointer', boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)' }}>
-            <Plus size={18} /> Ajouter un véhicule
+          <button onClick={() => { setFormData({ clientId: '', plate: '', vin: '', brand: '', model: '', version: '', year: '', mileage: '', color: '', fuel: 'ESSENCE' }); setFormErrors({}); setCreateModalOpen(true) }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: isMobile ? '10px 14px' : '12px 20px', borderRadius: '12px', border: 'none', background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)', fontSize: '14px', fontWeight: 600, color: '#fff', cursor: 'pointer', boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)', flex: isMobile ? '1' : 'none' }}>
+            <Plus size={18} /> Ajouter
           </button>
         </div>
       </div>
 
       {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '32px' }}>
-        <div style={{ padding: '20px', borderRadius: '16px', background: '#fff', border: '1px solid #E5E7EB' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-            <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#EEF2FF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Car size={24} color="#6366F1" /></div>
-            <div><p style={{ fontSize: '13px', color: '#6B7280', margin: 0 }}>Total</p><p style={{ fontSize: '28px', fontWeight: 700, color: '#111827', margin: 0 }}>{stats.total}</p></div>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: isMobile ? '12px' : '16px', marginBottom: isMobile ? '24px' : '32px' }}>
+        <div style={{ padding: isMobile ? '16px' : '20px', borderRadius: '16px', background: '#fff', border: '1px solid #E5E7EB' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '10px' : '14px' }}>
+            <div style={{ width: isMobile ? '40px' : '48px', height: isMobile ? '40px' : '48px', borderRadius: '12px', background: '#EEF2FF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Car size={isMobile ? 20 : 24} color="#6366F1" /></div>
+            <div><p style={{ fontSize: isMobile ? '11px' : '13px', color: '#6B7280', margin: 0 }}>Total</p><p style={{ fontSize: isMobile ? '22px' : '28px', fontWeight: 700, color: '#111827', margin: 0 }}>{stats.total}</p></div>
           </div>
         </div>
-        <div style={{ padding: '20px', borderRadius: '16px', background: '#fff', border: '1px solid #E5E7EB' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-            <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Fuel size={24} color="#EF4444" /></div>
-            <div><p style={{ fontSize: '13px', color: '#6B7280', margin: 0 }}>Essence</p><p style={{ fontSize: '28px', fontWeight: 700, color: '#EF4444', margin: 0 }}>{stats.essence}</p></div>
+        <div style={{ padding: isMobile ? '16px' : '20px', borderRadius: '16px', background: '#fff', border: '1px solid #E5E7EB' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '10px' : '14px' }}>
+            <div style={{ width: isMobile ? '40px' : '48px', height: isMobile ? '40px' : '48px', borderRadius: '12px', background: '#FEE2E2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Fuel size={isMobile ? 20 : 24} color="#EF4444" /></div>
+            <div><p style={{ fontSize: isMobile ? '11px' : '13px', color: '#6B7280', margin: 0 }}>Essence</p><p style={{ fontSize: isMobile ? '22px' : '28px', fontWeight: 700, color: '#EF4444', margin: 0 }}>{stats.essence}</p></div>
           </div>
         </div>
-        <div style={{ padding: '20px', borderRadius: '16px', background: '#fff', border: '1px solid #E5E7EB' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-            <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#DBEAFE', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Fuel size={24} color="#1D4ED8" /></div>
-            <div><p style={{ fontSize: '13px', color: '#6B7280', margin: 0 }}>Diesel</p><p style={{ fontSize: '28px', fontWeight: 700, color: '#1D4ED8', margin: 0 }}>{stats.diesel}</p></div>
+        <div style={{ padding: isMobile ? '16px' : '20px', borderRadius: '16px', background: '#fff', border: '1px solid #E5E7EB' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '10px' : '14px' }}>
+            <div style={{ width: isMobile ? '40px' : '48px', height: isMobile ? '40px' : '48px', borderRadius: '12px', background: '#DBEAFE', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Fuel size={isMobile ? 20 : 24} color="#1D4ED8" /></div>
+            <div><p style={{ fontSize: isMobile ? '11px' : '13px', color: '#6B7280', margin: 0 }}>Diesel</p><p style={{ fontSize: isMobile ? '22px' : '28px', fontWeight: 700, color: '#1D4ED8', margin: 0 }}>{stats.diesel}</p></div>
           </div>
         </div>
-        <div style={{ padding: '20px', borderRadius: '16px', background: '#fff', border: '1px solid #E5E7EB' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-            <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: '#E0E7FF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Fuel size={24} color="#6366F1" /></div>
-            <div><p style={{ fontSize: '13px', color: '#6B7280', margin: 0 }}>Électrique</p><p style={{ fontSize: '28px', fontWeight: 700, color: '#6366F1', margin: 0 }}>{stats.electric}</p></div>
+        <div style={{ padding: isMobile ? '16px' : '20px', borderRadius: '16px', background: '#fff', border: '1px solid #E5E7EB' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '10px' : '14px' }}>
+            <div style={{ width: isMobile ? '40px' : '48px', height: isMobile ? '40px' : '48px', borderRadius: '12px', background: '#E0E7FF', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Fuel size={isMobile ? 20 : 24} color="#6366F1" /></div>
+            <div><p style={{ fontSize: isMobile ? '11px' : '13px', color: '#6B7280', margin: 0 }}>Électrique</p><p style={{ fontSize: isMobile ? '22px' : '28px', fontWeight: 700, color: '#6366F1', margin: 0 }}>{stats.electric}</p></div>
           </div>
         </div>
       </div>
 
       {/* Search & Filters */}
-      <div style={{ display: 'flex', gap: '16px', marginBottom: '24px' }}>
+      <div style={{ display: 'flex', gap: '12px', marginBottom: '24px', flexDirection: isMobile ? 'column' : 'row' }}>
         <div style={{ flex: 1, position: 'relative' }}>
           <Search size={20} color="#9CA3AF" style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)' }} />
-          <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Rechercher par immatriculation, marque, modèle..." style={{ width: '100%', padding: '14px 14px 14px 48px', borderRadius: '12px', border: '1px solid #E5E7EB', fontSize: '14px', outline: 'none' }} />
+          <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Rechercher..." style={{ width: '100%', padding: '14px 14px 14px 48px', borderRadius: '12px', border: '1px solid #E5E7EB', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }} />
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', borderRadius: '12px', border: '1px solid #E5E7EB', background: '#fff' }}>
           <Filter size={18} color="#6B7280" />
@@ -395,7 +413,42 @@ export default function VehiculesPage() {
             <h3 style={{ fontSize: '16px', fontWeight: 600, color: '#111827', margin: 0, marginBottom: '8px' }}>Aucun véhicule</h3>
             <p style={{ fontSize: '14px', color: '#6B7280', margin: 0 }}>Commencez par ajouter un véhicule</p>
           </div>
+        ) : isMobile ? (
+          /* Mobile: Card view */
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {vehicles.map((vehicle, index) => {
+              const fuelConfig = getFuelConfig(getFuel(vehicle))
+              return (
+                <div
+                  key={vehicle.id}
+                  onClick={() => router.push(`/vehicules/${vehicle.id}`)}
+                  style={{
+                    padding: '16px',
+                    borderBottom: index < vehicles.length - 1 ? '1px solid #F3F4F6' : 'none',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                    <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Car size={20} color="#fff" /></div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '15px', fontWeight: 600, color: '#111827', marginBottom: '2px' }}>{getMake(vehicle)} {vehicle.model}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                        <span style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 700, background: '#EEF2FF', color: '#6366F1' }}>{getPlate(vehicle)}</span>
+                        <span style={{ padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600, background: fuelConfig.bg, color: fuelConfig.color }}>{fuelConfig.label}</span>
+                      </div>
+                      <div style={{ fontSize: '13px', color: '#6B7280' }}>{getClientName(vehicle)}</div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <button onClick={(e) => { e.stopPropagation(); setVehicleToDelete(vehicle); setDeleteModalOpen(true) }} style={{ padding: '8px', borderRadius: '8px', border: '1px solid #FECACA', background: '#FEF2F2', cursor: 'pointer' }}><Trash2 size={16} color="#EF4444" /></button>
+                      <ChevronRight size={18} color="#D1D5DB" />
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         ) : (
+          /* Desktop/Tablet: Table view */
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #E5E7EB' }}>
@@ -403,7 +456,7 @@ export default function VehiculesPage() {
                 <th style={{ padding: '14px 20px', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#6B7280', textTransform: 'uppercase' }}>Immatriculation</th>
                 <th style={{ padding: '14px 20px', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#6B7280', textTransform: 'uppercase' }}>Client</th>
                 <th style={{ padding: '14px 20px', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#6B7280', textTransform: 'uppercase' }}>Énergie</th>
-                <th style={{ padding: '14px 20px', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#6B7280', textTransform: 'uppercase' }}>Année</th>
+                {!isTablet && <th style={{ padding: '14px 20px', textAlign: 'left', fontSize: '12px', fontWeight: 600, color: '#6B7280', textTransform: 'uppercase' }}>Année</th>}
                 <th style={{ padding: '14px 20px', textAlign: 'right', fontSize: '12px', fontWeight: 600, color: '#6B7280', textTransform: 'uppercase' }}>Actions</th>
               </tr>
             </thead>
@@ -437,9 +490,11 @@ export default function VehiculesPage() {
                         <Fuel size={12} /> {fuelConfig.label}
                       </span>
                     </td>
-                    <td style={{ padding: '16px 20px' }}>
-                      <span style={{ fontSize: '14px', color: '#374151' }}>{vehicle.year || '-'}</span>
-                    </td>
+                    {!isTablet && (
+                      <td style={{ padding: '16px 20px' }}>
+                        <span style={{ fontSize: '14px', color: '#374151' }}>{vehicle.year || '-'}</span>
+                      </td>
+                    )}
                     <td style={{ padding: '16px 20px', textAlign: 'right' }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px' }}>
                         <button onClick={(e) => { e.stopPropagation(); setVehicleToDelete(vehicle); setDeleteModalOpen(true) }} style={{ padding: '8px', borderRadius: '8px', border: '1px solid #FECACA', background: '#FEF2F2', cursor: 'pointer' }}><Trash2 size={16} color="#EF4444" /></button>
