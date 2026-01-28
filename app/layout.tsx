@@ -1,6 +1,5 @@
 
-import type { Metadata } from "next";
-import { IBM_Plex_Mono, Inter } from "next/font/google";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/Toast";
 import { DevTools } from "@/components/common/DevTools";
@@ -8,19 +7,13 @@ import { ServiceWorkerRegistration } from "@/components/common/ServiceWorkerRegi
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Analytics } from "@vercel/analytics/next";
 
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-sans",
-  weight: ["400", "500", "600", "700"],
-  display: "swap",
-});
-
-const plexMono = IBM_Plex_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  variable: "--font-mono",
-  display: "swap",
-});
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  themeColor: "#4F46E5",
+};
 
 export const metadata: Metadata = {
   title: {
@@ -39,13 +32,6 @@ export const metadata: Metadata = {
   formatDetection: {
     telephone: true,
   },
-  themeColor: "#4F46E5",
-  viewport: {
-    width: "device-width",
-    initialScale: 1,
-    maximumScale: 1,
-    userScalable: false,
-  },
   icons: {
     icon: [
       { url: "/brand/icon-192.png", sizes: "192x192", type: "image/png" },
@@ -61,7 +47,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="fr" className="h-full">
       <body
-        className={`${inter.variable} ${inter.variable} ${plexMono.variable} min-h-screen font-sans antialiased`}
+        className="min-h-screen font-sans antialiased"
       >
         <ToastProvider>
           {children}
