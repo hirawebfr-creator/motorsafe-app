@@ -24,12 +24,28 @@ function normalizeText(value: unknown) {
   return String(value ?? "").trim();
 }
 
+// Mapping statuts FR → EN pour compatibilité frontend
+const STATUS_FR_TO_EN: Record<string, string> = {
+  "BROUILLON": "DRAFT",
+  "OUVERT": "OPEN",
+  "EN_COURS": "OPEN",
+  "TERMINE": "DONE",
+  "COMPLETED": "DONE",
+  "ANNULE": "CANCELED",
+  "CANCELLED": "CANCELED",
+};
+
 const QuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
   q: z.string().trim().max(120).optional(),
   vehicleId: z.string().trim().min(1).optional(),
-  status: z.enum(["DRAFT", "OPEN", "DONE", "CANCELED"]).optional(),
+  status: z.string().optional().transform(val => {
+    if (!val) return undefined;
+    const mapped = STATUS_FR_TO_EN[val] || val;
+    if (!["DRAFT", "OPEN", "DONE", "CANCELED"].includes(mapped)) return undefined;
+    return mapped as "DRAFT" | "OPEN" | "DONE" | "CANCELED";
+  }),
   from: z.string().datetime().optional(),
   to: z.string().datetime().optional(),
 });

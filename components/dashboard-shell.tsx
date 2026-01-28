@@ -7,6 +7,7 @@ import { UserProvider } from "@/components/user-context";
 import { AppShell } from "@/components/layout/AppShell";
 import { CommandPalette, CommandItem } from "@/components/shared/command-palette";
 import { useCommandPalette } from "@/components/shared/use-command-palette";
+import { CopilotButton } from "@/components/ai/CopilotButton";
 import { Toaster } from "sonner";
 import type { SessionUser } from "@/lib/auth";
 
@@ -71,6 +72,7 @@ export default function DashboardShell({
         placeholder="Rechercher ou taper une commande..."
         emptyText="Aucun résultat trouvé"
       />
+      <CopilotButton />
       <Toaster 
         position="top-right" 
         richColors 

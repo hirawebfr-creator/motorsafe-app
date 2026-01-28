@@ -6,6 +6,7 @@
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { success } from "@/lib/api";
 import { requireUser, requireRole } from "@/lib/guards";
 import { toErrorResponse } from "@/lib/routeErrors";
 
@@ -34,7 +35,7 @@ export async function GET(req: Request) {
       },
     });
 
-    return NextResponse.json({ maintenances });
+    return NextResponse.json(success({ maintenances }));
   } catch (err) {
     console.error("[API:Admin:Maintenance:List] Error:", err);
     return toErrorResponse(err);

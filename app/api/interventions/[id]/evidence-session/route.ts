@@ -14,8 +14,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { success, failure } from "@/lib/api";
-import { requireApprovedTenant, requireUser, getTenantId } from "@/lib/guards";
-import { toErrorResponse } from "@/lib/routeErrors";
+import { requireApprovedTenant, requireUser, getTenantIdWithAdminOverride } from "@/lib/guards";
+import { toErrorResponse, RouteError } from "@/lib/routeErrors";
 import { z } from "zod";
 import { EvidenceCaptureStep } from "@prisma/client";
 
@@ -34,17 +34,43 @@ const UpdateSessionSchema = z.object({
 type RouteContext = { params: Promise<{ id: string }> };
 
 /**
+ * Helper: Get garageId from intervention (for admins) or from user tenant
+ */
+async function getGarageIdForIntervention(user: { role: string; garageId: number | null }, req: Request, interventionId: string): Promise<number> {
+  // Si admin, on récupère le garageId de l'intervention directement
+  if (user.role === "ADMIN") {
+    const intervention = await prisma.intervention.findUnique({
+      where: { id: interventionId },
+      select: { garageId: true },
+    });
+    if (!intervention || intervention.garageId === null) {
+      throw new RouteError(404, "NOT_FOUND", "Intervention introuvable");
+    }
+    return intervention.garageId;
+  }
+  
+  // Si garage, on utilise le tenant
+  const garageId = getTenantIdWithAdminOverride(user as Parameters<typeof getTenantIdWithAdminOverride>[0], req);
+  if (!garageId) {
+    throw new RouteError(400, "TENANT_REQUIRED", "Garage requis");
+  }
+  return garageId;
+}
+
+/**
  * GET /api/interventions/[id]/evidence-session?step=INTAKE
  */
 export async function GET(req: Request, context: RouteContext) {
   try {
     const user = requireApprovedTenant(await requireUser(req));
-    const garageId = getTenantId(user);
     const { id: interventionId } = await context.params;
+    const garageId = await getGarageIdForIntervention(user, req, interventionId);
 
     // Verify intervention access
     const intervention = await prisma.intervention.findFirst({
-      where: { id: interventionId, garageId, deletedAt: null },
+      where: user.role === "ADMIN" 
+        ? { id: interventionId, deletedAt: null }
+        : { id: interventionId, garageId, deletedAt: null },
       select: { id: true },
     });
     if (!intervention) {
@@ -115,7 +141,6 @@ export async function GET(req: Request, context: RouteContext) {
 export async function POST(req: Request, context: RouteContext) {
   try {
     const user = requireApprovedTenant(await requireUser(req));
-    const garageId = getTenantId(user);
     const { id: interventionId } = await context.params;
 
     // Parse body
@@ -129,10 +154,13 @@ export async function POST(req: Request, context: RouteContext) {
     }
 
     const { step } = parsed.data;
+    const garageId = await getGarageIdForIntervention(user, req, interventionId);
 
     // Verify intervention access
     const intervention = await prisma.intervention.findFirst({
-      where: { id: interventionId, garageId, deletedAt: null },
+      where: user.role === "ADMIN"
+        ? { id: interventionId, deletedAt: null }
+        : { id: interventionId, garageId, deletedAt: null },
       select: { id: true, status: true, disputeStatus: true },
     });
     if (!intervention) {
@@ -174,7 +202,6 @@ export async function POST(req: Request, context: RouteContext) {
 export async function PATCH(req: Request, context: RouteContext) {
   try {
     const user = requireApprovedTenant(await requireUser(req));
-    const garageId = getTenantId(user);
     const { id: interventionId } = await context.params;
 
     // Get step from query
@@ -193,6 +220,8 @@ export async function PATCH(req: Request, context: RouteContext) {
         { status: 400 }
       );
     }
+
+    const garageId = await getGarageIdForIntervention(user, req, interventionId);
 
     // Find session
     const session = await prisma.evidenceCaptureSession.findFirst({

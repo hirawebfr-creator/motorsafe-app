@@ -5,8 +5,9 @@
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { success } from "@/lib/api";
 import { requireApprovedTenant, requireUser } from "@/lib/guards";
-import { toErrorResponse } from "@/lib/routeErrors";
+import { toErrorResponse, RouteError } from "@/lib/routeErrors";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,10 +40,10 @@ export async function GET(req: Request, { params }: Params) {
     });
 
     if (!entry) {
-      return NextResponse.json({ error: "Entrée non trouvée" }, { status: 404 });
+      throw new RouteError(404, "NOT_FOUND", "Entrée non trouvée");
     }
 
-    return NextResponse.json({ entry });
+    return NextResponse.json(success({ entry }));
   } catch (err) {
     console.error("[API:Changelog:Detail] Error:", err);
     return toErrorResponse(err);

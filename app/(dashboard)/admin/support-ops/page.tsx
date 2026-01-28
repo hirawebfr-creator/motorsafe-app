@@ -9,8 +9,6 @@ import {
   AlertTriangle,
   RefreshCw,
   Loader2,
-  TrendingUp,
-  TrendingDown,
   Inbox,
   Timer,
   Target,
@@ -21,12 +19,26 @@ import {
   Tag,
 } from "lucide-react";
 import { fetcher, requestJson } from "@/lib/fetcher";
-import { useToast } from "@/components/ui/Toast";
+import { toast } from "sonner";
 
-// ============================================
+// Responsive hook
+function useResponsive() {
+  const [screen, setScreen] = useState<"mobile" | "tablet" | "desktop">("desktop");
+  useEffect(() => {
+    const check = () => {
+      const w = window.innerWidth;
+      if (w < 640) setScreen("mobile");
+      else if (w < 1024) setScreen("tablet");
+      else setScreen("desktop");
+    };
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+  return { isMobile: screen === "mobile", isTablet: screen === "tablet", screen };
+}
+
 // Types
-// ============================================
-
 interface OpsData {
   range: string;
   kpis: {
@@ -60,18 +72,12 @@ interface OpsData {
 
 type Range = "today" | "7d" | "30d";
 
-// ============================================
 // Helpers
-// ============================================
-
 function formatDuration(ms: number | null): string {
   if (ms === null) return "—";
   const hours = Math.floor(ms / (1000 * 60 * 60));
   const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
-  if (hours > 24) {
-    const days = Math.floor(hours / 24);
-    return `${days}j ${hours % 24}h`;
-  }
+  if (hours > 24) return `${Math.floor(hours / 24)}j ${hours % 24}h`;
   if (hours > 0) return `${hours}h ${minutes}min`;
   return `${minutes}min`;
 }
@@ -92,195 +98,20 @@ const PRIORITY_LABELS: Record<string, string> = {
 };
 
 const PRIORITY_COLORS: Record<string, string> = {
-  LOW: "bg-gray-200",
-  NORMAL: "bg-blue-200",
-  HIGH: "bg-orange-300",
-  URGENT: "bg-red-400",
+  LOW: "#D1D5DB",
+  NORMAL: "#93C5FD",
+  HIGH: "#FDBA74",
+  URGENT: "#F87171",
 };
 
-// ============================================
-// Components
-// ============================================
-
-function StatCard({
-  title,
-  value,
-  icon: Icon,
-  trend,
-  subtitle,
-  color = "text-[var(--ms-primary)]",
-}: {
-  title: string;
-  value: string | number;
-  icon: React.ElementType;
-  trend?: "up" | "down" | "neutral";
-  subtitle?: string;
-  color?: string;
-}) {
-  return (
-    <div className="ms-card">
-      <div className="ms-card-body">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-sm text-[var(--ms-text-muted)]">{title}</p>
-            <p className={`text-2xl font-bold ${color}`}>{value}</p>
-            {subtitle && (
-              <p className="text-xs text-[var(--ms-text-muted)]">{subtitle}</p>
-            )}
-          </div>
-          <div className="flex items-center gap-1">
-            <Icon size={24} className={color} />
-            {trend === "up" && <TrendingUp size={14} className="text-green-500" />}
-            {trend === "down" && <TrendingDown size={14} className="text-red-500" />}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function MiniBarChart({ data, label }: { data: Array<{ date: string; created: number; resolved: number }>; label: string }) {
-  const maxValue = Math.max(...data.map((d) => Math.max(d.created, d.resolved)), 1);
-  
-  return (
-    <div className="ms-card">
-      <div className="ms-card-header">
-        <h3 className="text-sm font-medium">{label}</h3>
-      </div>
-      <div className="ms-card-body">
-        <div className="flex items-end gap-1 h-32">
-          {data.map((d, i) => (
-            <div key={i} className="flex-1 flex flex-col items-center gap-0.5">
-              <div className="w-full flex gap-0.5" style={{ height: "100px" }}>
-                <div
-                  className="flex-1 bg-blue-400 rounded-t"
-                  style={{ height: `${(d.created / maxValue) * 100}%`, marginTop: "auto" }}
-                  title={`Créés: ${d.created}`}
-                />
-                <div
-                  className="flex-1 bg-green-400 rounded-t"
-                  style={{ height: `${(d.resolved / maxValue) * 100}%`, marginTop: "auto" }}
-                  title={`Résolus: ${d.resolved}`}
-                />
-              </div>
-              <span className="text-[8px] text-[var(--ms-text-muted)]">
-                {new Date(d.date).getDate()}
-              </span>
-            </div>
-          ))}
-        </div>
-        <div className="mt-2 flex justify-center gap-4 text-xs">
-          <span className="flex items-center gap-1">
-            <span className="w-3 h-3 rounded bg-blue-400" /> Créés
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-3 h-3 rounded bg-green-400" /> Résolus
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PieBreakdown({
-  title,
-  data,
-  labels,
-  colors,
-}: {
-  title: string;
-  data: Array<{ key: string; count: number }>;
-  labels: Record<string, string>;
-  colors?: Record<string, string>;
-}) {
-  const total = data.reduce((a, b) => a + b.count, 0) || 1;
-  const defaultColors = ["bg-blue-400", "bg-green-400", "bg-yellow-400", "bg-red-400", "bg-purple-400"];
-
-  return (
-    <div className="ms-card">
-      <div className="ms-card-header">
-        <h3 className="text-sm font-medium">{title}</h3>
-      </div>
-      <div className="ms-card-body">
-        {/* Simple horizontal stacked bar */}
-        <div className="flex h-6 rounded-full overflow-hidden mb-3">
-          {data.map((d, i) => (
-            <div
-              key={d.key}
-              className={colors?.[d.key] || defaultColors[i % defaultColors.length]}
-              style={{ width: `${(d.count / total) * 100}%` }}
-              title={`${labels[d.key] || d.key}: ${d.count}`}
-            />
-          ))}
-        </div>
-        <div className="space-y-1">
-          {data.map((d, i) => (
-            <div key={d.key} className="flex items-center justify-between text-xs">
-              <span className="flex items-center gap-2">
-                <span
-                  className={`w-2 h-2 rounded ${colors?.[d.key] || defaultColors[i % defaultColors.length]}`}
-                />
-                {labels[d.key] || d.key}
-              </span>
-              <span className="font-medium">{d.count}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function QueueCard({
-  title,
-  count,
-  icon: Icon,
-  href,
-  color,
-  critical,
-}: {
-  title: string;
-  count: number;
-  icon: React.ElementType;
-  href: string;
-  color: string;
-  critical?: boolean;
-}) {
-  return (
-    <Link
-      href={href}
-      className={`ms-card transition-transform hover:scale-[1.02] ${critical && count > 0 ? "ring-2 ring-red-400" : ""}`}
-    >
-      <div className="ms-card-body">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className={`rounded-full p-2 ${color}`}>
-              <Icon size={18} className="text-white" />
-            </div>
-            <div>
-              <p className="text-sm text-[var(--ms-text-muted)]">{title}</p>
-              <p className={`text-xl font-bold ${critical && count > 0 ? "text-red-600" : "text-[var(--ms-text)]"}`}>
-                {count}
-              </p>
-            </div>
-          </div>
-          <ChevronRight size={20} className="text-[var(--ms-text-muted)]" />
-        </div>
-      </div>
-    </Link>
-  );
-}
-
-// ============================================
-// Main Page
-// ============================================
+const CATEGORY_COLORS = ["#93C5FD", "#86EFAC", "#FDE047", "#F87171", "#C4B5FD"];
 
 export default function SupportOpsPage() {
+  const { isMobile, isTablet } = useResponsive();
   const [data, setData] = useState<OpsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [range, setRange] = useState<Range>("7d");
   const [creatingKb, setCreatingKb] = useState<string | null>(null);
-  const toast = useToast();
 
   const loadData = useCallback(async () => {
     try {
@@ -289,15 +120,11 @@ export default function SupportOpsPage() {
       setData(res);
     } catch (err) {
       console.error("Failed to load ops data:", err);
-      toast.push({
-        title: "Erreur",
-        description: "Impossible de charger les données",
-        variant: "error",
-      });
+      toast.error("Impossible de charger les données");
     } finally {
       setLoading(false);
     }
-  }, [range, toast]);
+  }, [range]);
 
   useEffect(() => {
     void loadData();
@@ -311,266 +138,251 @@ export default function SupportOpsPage() {
         body: {
           title: suggestion.suggestTitle,
           slug: suggestion.tag.toLowerCase().replace(/\s+/g, "-"),
-          categoryId: 1, // Default category
+          categoryId: 1,
           bodyMarkdown: `# ${suggestion.suggestTitle}\n\n## Introduction\n\nCet article répond aux questions fréquentes concernant **${suggestion.tag}**.\n\n## Contenu\n\n_À compléter..._\n\n## Besoin d'aide ?\n\nContactez notre support si vous avez d'autres questions.`,
           tags: [suggestion.tag],
-          isPublished: false, // Draft only
+          isPublished: false,
         },
       });
-      toast.push({
-        title: "Brouillon créé",
-        description: `Article "${suggestion.suggestTitle}" créé en brouillon`,
-        variant: "success",
-      });
+      toast.success(`Article "${suggestion.suggestTitle}" créé en brouillon`);
       void loadData();
     } catch (err) {
       console.error("Failed to create KB draft:", err);
-      toast.push({
-        title: "Erreur",
-        description: "Impossible de créer le brouillon",
-        variant: "error",
-      });
+      toast.error("Impossible de créer le brouillon");
     } finally {
       setCreatingKb(null);
     }
   };
 
+  const statCardStyle: React.CSSProperties = { padding: "20px", borderRadius: "16px", background: "#fff", border: "1px solid #E5E7EB" };
+
   return (
-    <div className="ms-animate-slide-up">
+    <div style={{ padding: isMobile ? "16px" : isTablet ? "24px" : "32px", maxWidth: "1400px", margin: "0 auto" }}>
       {/* Header */}
-      <div className="ms-page-header">
-        <div>
-          <h1 className="ms-page-title">Support Ops</h1>
-          <p className="ms-page-subtitle">Tableau de bord opérationnel support</p>
+      <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", alignItems: isMobile ? "stretch" : "center", marginBottom: "32px", gap: "16px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div style={{ width: "48px", height: "48px", borderRadius: "12px", background: "#EDE9FE", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <BarChart3 size={24} color="#7C3AED" />
+          </div>
+          <div>
+            <h1 style={{ fontSize: isMobile ? "24px" : "28px", fontWeight: 700, color: "#111827", margin: 0 }}>Support Ops</h1>
+            <p style={{ fontSize: "14px", color: "#6B7280", marginTop: "4px" }}>Tableau de bord opérationnel support</p>
+          </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
           {/* Range Selector */}
-          <div className="flex rounded-lg border border-[var(--ms-border)] bg-white">
+          <div style={{ display: "flex", borderRadius: "10px", border: "1px solid #E5E7EB", overflow: "hidden" }}>
             {(["today", "7d", "30d"] as const).map((r) => (
-              <button
-                key={r}
-                type="button"
-                onClick={() => setRange(r)}
-                className={`px-3 py-1.5 text-sm transition-colors ${
-                  range === r
-                    ? "bg-[var(--ms-primary)] text-white"
-                    : "text-[var(--ms-text-muted)] hover:bg-gray-50"
-                } ${r === "today" ? "rounded-l-lg" : ""} ${r === "30d" ? "rounded-r-lg" : ""}`}
-              >
+              <button key={r} onClick={() => setRange(r)} style={{ padding: "8px 16px", border: "none", background: range === r ? "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)" : "#fff", fontSize: "14px", fontWeight: 500, color: range === r ? "#fff" : "#6B7280", cursor: "pointer" }}>
                 {r === "today" ? "Aujourd'hui" : r === "7d" ? "7 jours" : "30 jours"}
               </button>
             ))}
           </div>
-          <button
-            type="button"
-            onClick={() => void loadData()}
-            disabled={loading}
-            className="ms-btn ms-btn-secondary"
-          >
-            {loading ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+          <button onClick={() => void loadData()} disabled={loading} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "10px 16px", borderRadius: "10px", border: "1px solid #E5E7EB", background: "#fff", fontSize: "14px", fontWeight: 500, color: "#374151", cursor: "pointer" }}>
+            {loading ? <Loader2 size={16} style={{ animation: "spin 1s linear infinite" }} /> : <RefreshCw size={16} />}
             Actualiser
           </button>
         </div>
       </div>
 
       {loading && !data ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 size={32} className="animate-spin text-[var(--ms-primary)]" />
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "80px" }}>
+          <RefreshCw size={32} color="#6366F1" style={{ animation: "spin 1s linear infinite" }} />
         </div>
       ) : data ? (
-        <div className="space-y-6">
+        <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
           {/* KPI Cards */}
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
-            <StatCard
-              title="Tickets créés"
-              value={data.kpis.ticketsCreated}
-              icon={Inbox}
-              color="text-blue-600"
-            />
-            <StatCard
-              title="Tickets résolus"
-              value={data.kpis.ticketsResolved}
-              icon={CheckCircle}
-              color="text-green-600"
-            />
-            <StatCard
-              title="Temps 1ère réponse"
-              value={formatDuration(data.kpis.avgFirstResponseTimeMs)}
-              icon={Timer}
-              color="text-purple-600"
-              subtitle="Moyenne"
-            />
-            <StatCard
-              title="Temps résolution"
-              value={formatDuration(data.kpis.avgResolutionTimeMs)}
-              icon={Clock}
-              color="text-indigo-600"
-              subtitle="Moyenne"
-            />
-            <StatCard
-              title="SLA respecté"
-              value={`${data.kpis.slaRespectedPct}%`}
-              icon={Target}
-              color={data.kpis.slaRespectedPct >= 90 ? "text-green-600" : "text-orange-600"}
-              subtitle={`${data.kpis.slaBreachedCount} dépassés`}
-            />
-            <StatCard
-              title="Backlog"
-              value={data.kpis.backlog}
-              icon={BarChart3}
-              color={data.kpis.backlog > 20 ? "text-red-600" : "text-gray-600"}
-              subtitle="OPEN + IN_PROGRESS"
-            />
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : isTablet ? "repeat(3, 1fr)" : "repeat(6, 1fr)", gap: "16px" }}>
+            {[
+              { title: "Tickets créés", value: data.kpis.ticketsCreated, icon: Inbox, color: "#2563EB", bg: "#DBEAFE" },
+              { title: "Tickets résolus", value: data.kpis.ticketsResolved, icon: CheckCircle, color: "#059669", bg: "#D1FAE5" },
+              { title: "Temps 1ère réponse", value: formatDuration(data.kpis.avgFirstResponseTimeMs), icon: Timer, color: "#7C3AED", bg: "#EDE9FE", subtitle: "Moyenne" },
+              { title: "Temps résolution", value: formatDuration(data.kpis.avgResolutionTimeMs), icon: Clock, color: "#6366F1", bg: "#EEF2FF", subtitle: "Moyenne" },
+              { title: "SLA respecté", value: `${data.kpis.slaRespectedPct}%`, icon: Target, color: data.kpis.slaRespectedPct >= 90 ? "#059669" : "#D97706", bg: data.kpis.slaRespectedPct >= 90 ? "#D1FAE5" : "#FEF3C7", subtitle: `${data.kpis.slaBreachedCount} dépassés` },
+              { title: "Backlog", value: data.kpis.backlog, icon: BarChart3, color: data.kpis.backlog > 20 ? "#DC2626" : "#6B7280", bg: data.kpis.backlog > 20 ? "#FEE2E2" : "#F3F4F6", subtitle: "OPEN + IN_PROGRESS" },
+            ].map((stat, i) => (
+              <div key={i} style={statCardStyle}>
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+                  <div>
+                    <p style={{ fontSize: "13px", color: "#6B7280", margin: 0 }}>{stat.title}</p>
+                    <p style={{ fontSize: "24px", fontWeight: 700, color: stat.color, margin: "4px 0 0" }}>{stat.value}</p>
+                    {stat.subtitle && <p style={{ fontSize: "11px", color: "#9CA3AF", margin: "2px 0 0" }}>{stat.subtitle}</p>}
+                  </div>
+                  <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: stat.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <stat.icon size={18} color={stat.color} />
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
 
           {/* Charts Row */}
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-            <MiniBarChart
-              data={data.timeseries}
-              label={`Tickets par jour (${data.range})`}
-            />
-            <PieBreakdown
-              title="Par catégorie"
-              data={data.breakdown.byCategory}
-              labels={CATEGORY_LABELS}
-            />
-            <PieBreakdown
-              title="Par priorité"
-              data={data.breakdown.byPriority}
-              labels={PRIORITY_LABELS}
-              colors={PRIORITY_COLORS}
-            />
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: "16px" }}>
+            {/* Mini Bar Chart */}
+            <div style={{ padding: "20px", borderRadius: "16px", background: "#fff", border: "1px solid #E5E7EB" }}>
+              <h3 style={{ fontSize: "14px", fontWeight: 600, color: "#111827", margin: "0 0 16px" }}>Tickets par jour ({data.range})</h3>
+              <div style={{ display: "flex", alignItems: "flex-end", gap: "4px", height: "120px" }}>
+                {data.timeseries.map((d, i) => {
+                  const maxValue = Math.max(...data.timeseries.map((t) => Math.max(t.created, t.resolved)), 1);
+                  return (
+                    <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: "2px" }}>
+                      <div style={{ display: "flex", gap: "2px", height: "100px", width: "100%", alignItems: "flex-end" }}>
+                        <div style={{ flex: 1, background: "#93C5FD", borderRadius: "4px 4px 0 0", height: `${(d.created / maxValue) * 100}%` }} title={`Créés: ${d.created}`} />
+                        <div style={{ flex: 1, background: "#86EFAC", borderRadius: "4px 4px 0 0", height: `${(d.resolved / maxValue) * 100}%` }} title={`Résolus: ${d.resolved}`} />
+                      </div>
+                      <span style={{ fontSize: "10px", color: "#9CA3AF" }}>{new Date(d.date).getDate()}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{ display: "flex", justifyContent: "center", gap: "16px", marginTop: "12px" }}>
+                <span style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "#6B7280" }}>
+                  <span style={{ width: "12px", height: "12px", borderRadius: "3px", background: "#93C5FD" }} /> Créés
+                </span>
+                <span style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", color: "#6B7280" }}>
+                  <span style={{ width: "12px", height: "12px", borderRadius: "3px", background: "#86EFAC" }} /> Résolus
+                </span>
+              </div>
+            </div>
+
+            {/* By Category */}
+            <div style={{ padding: "20px", borderRadius: "16px", background: "#fff", border: "1px solid #E5E7EB" }}>
+              <h3 style={{ fontSize: "14px", fontWeight: 600, color: "#111827", margin: "0 0 16px" }}>Par catégorie</h3>
+              <div style={{ display: "flex", height: "20px", borderRadius: "10px", overflow: "hidden", marginBottom: "12px" }}>
+                {data.breakdown.byCategory.map((d, i) => {
+                  const total = data.breakdown.byCategory.reduce((a, b) => a + b.count, 0) || 1;
+                  return <div key={d.key} style={{ width: `${(d.count / total) * 100}%`, background: CATEGORY_COLORS[i % CATEGORY_COLORS.length] }} title={`${CATEGORY_LABELS[d.key] || d.key}: ${d.count}`} />;
+                })}
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                {data.breakdown.byCategory.map((d, i) => (
+                  <div key={d.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "13px" }}>
+                    <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <span style={{ width: "8px", height: "8px", borderRadius: "2px", background: CATEGORY_COLORS[i % CATEGORY_COLORS.length] }} />
+                      <span style={{ color: "#374151" }}>{CATEGORY_LABELS[d.key] || d.key}</span>
+                    </span>
+                    <span style={{ fontWeight: 600, color: "#111827" }}>{d.count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* By Priority */}
+            <div style={{ padding: "20px", borderRadius: "16px", background: "#fff", border: "1px solid #E5E7EB" }}>
+              <h3 style={{ fontSize: "14px", fontWeight: 600, color: "#111827", margin: "0 0 16px" }}>Par priorité</h3>
+              <div style={{ display: "flex", height: "20px", borderRadius: "10px", overflow: "hidden", marginBottom: "12px" }}>
+                {data.breakdown.byPriority.map((d) => {
+                  const total = data.breakdown.byPriority.reduce((a, b) => a + b.count, 0) || 1;
+                  return <div key={d.key} style={{ width: `${(d.count / total) * 100}%`, background: PRIORITY_COLORS[d.key] || "#D1D5DB" }} title={`${PRIORITY_LABELS[d.key] || d.key}: ${d.count}`} />;
+                })}
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                {data.breakdown.byPriority.map((d) => (
+                  <div key={d.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: "13px" }}>
+                    <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <span style={{ width: "8px", height: "8px", borderRadius: "2px", background: PRIORITY_COLORS[d.key] || "#D1D5DB" }} />
+                      <span style={{ color: "#374151" }}>{PRIORITY_LABELS[d.key] || d.key}</span>
+                    </span>
+                    <span style={{ fontWeight: 600, color: "#111827" }}>{d.count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
 
           {/* Queues & Tags Row */}
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "24px" }}>
             {/* Queues */}
-            <div className="space-y-3">
-              <h2 className="text-lg font-semibold text-[var(--ms-text)]">Files d'attente</h2>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <QueueCard
-                  title="En retard SLA"
-                  count={data.queues.slaBreached}
-                  icon={AlertTriangle}
-                  href="/admin/support?status=OPEN&slaBreached=true"
-                  color="bg-red-500"
-                  critical
-                />
-                <QueueCard
-                  title="Urgent ouverts"
-                  count={data.queues.urgentOpen}
-                  icon={Zap}
-                  href="/admin/support?priority=URGENT&status=OPEN"
-                  color="bg-orange-500"
-                  critical
-                />
-                <QueueCard
-                  title="Relances dues"
-                  count={data.queues.followUpsDue}
-                  icon={Clock}
-                  href="/admin/support?status=WAITING_CUSTOMER"
-                  color="bg-yellow-500"
-                />
-                <QueueCard
-                  title="Backlog total"
-                  count={data.queues.totalBacklog}
-                  icon={Inbox}
-                  href="/admin/support?status=OPEN"
-                  color="bg-blue-500"
-                />
+            <div>
+              <h2 style={{ fontSize: "18px", fontWeight: 600, color: "#111827", margin: "0 0 16px" }}>Files d&apos;attente</h2>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                {[
+                  { title: "En retard SLA", count: data.queues.slaBreached, icon: AlertTriangle, href: "/admin/support?status=OPEN&slaBreached=true", color: "#DC2626", bg: "#FEE2E2", critical: true },
+                  { title: "Urgent ouverts", count: data.queues.urgentOpen, icon: Zap, href: "/admin/support?priority=URGENT&status=OPEN", color: "#D97706", bg: "#FEF3C7", critical: true },
+                  { title: "Relances dues", count: data.queues.followUpsDue, icon: Clock, href: "/admin/support?status=WAITING_CUSTOMER", color: "#CA8A04", bg: "#FEF9C3", critical: false },
+                  { title: "Backlog total", count: data.queues.totalBacklog, icon: Inbox, href: "/admin/support?status=OPEN", color: "#2563EB", bg: "#DBEAFE", critical: false },
+                ].map((q, i) => (
+                  <Link key={i} href={q.href} style={{ display: "block", padding: "16px", borderRadius: "12px", background: "#fff", border: q.critical && q.count > 0 ? "2px solid #F87171" : "1px solid #E5E7EB", textDecoration: "none", transition: "transform 0.15s" }}>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                        <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: q.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <q.icon size={18} color={q.color} />
+                        </div>
+                        <div>
+                          <p style={{ fontSize: "13px", color: "#6B7280", margin: 0 }}>{q.title}</p>
+                          <p style={{ fontSize: "20px", fontWeight: 700, color: q.critical && q.count > 0 ? "#DC2626" : "#111827", margin: 0 }}>{q.count}</p>
+                        </div>
+                      </div>
+                      <ChevronRight size={20} color="#9CA3AF" />
+                    </div>
+                  </Link>
+                ))}
               </div>
             </div>
 
             {/* Top Tags */}
-            <div className="ms-card">
-              <div className="ms-card-header">
-                <h3 className="flex items-center gap-2 text-sm font-medium">
-                  <Tag size={16} />
-                  Top Tags
-                </h3>
+            <div style={{ padding: "20px", borderRadius: "16px", background: "#fff", border: "1px solid #E5E7EB" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
+                <Tag size={16} color="#6B7280" />
+                <h3 style={{ fontSize: "14px", fontWeight: 600, color: "#111827", margin: 0 }}>Top Tags</h3>
               </div>
-              <div className="ms-card-body">
-                {data.breakdown.topTags.length === 0 ? (
-                  <p className="text-sm text-[var(--ms-text-muted)]">Aucun tag sur cette période</p>
-                ) : (
-                  <div className="space-y-2">
-                    {data.breakdown.topTags.map((tag, i) => {
-                      const maxCount = data.breakdown.topTags[0]?.count || 1;
-                      return (
-                        <div key={tag.key} className="flex items-center gap-3">
-                          <span className="w-4 text-xs text-[var(--ms-text-muted)]">{i + 1}</span>
-                          <div className="flex-1">
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="text-sm font-medium">{tag.key}</span>
-                              <span className="text-xs text-[var(--ms-text-muted)]">{tag.count}</span>
-                            </div>
-                            <div className="h-1.5 rounded-full bg-gray-100">
-                              <div
-                                className="h-1.5 rounded-full bg-purple-400"
-                                style={{ width: `${(tag.count / maxCount) * 100}%` }}
-                              />
-                            </div>
+              {data.breakdown.topTags.length === 0 ? (
+                <p style={{ fontSize: "14px", color: "#6B7280" }}>Aucun tag sur cette période</p>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  {data.breakdown.topTags.map((tag, i) => {
+                    const maxCount = data.breakdown.topTags[0]?.count || 1;
+                    return (
+                      <div key={tag.key} style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                        <span style={{ width: "16px", fontSize: "12px", color: "#9CA3AF", textAlign: "center" }}>{i + 1}</span>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "4px" }}>
+                            <span style={{ fontSize: "13px", fontWeight: 500, color: "#111827" }}>{tag.key}</span>
+                            <span style={{ fontSize: "12px", color: "#6B7280" }}>{tag.count}</span>
+                          </div>
+                          <div style={{ height: "6px", borderRadius: "3px", background: "#F3F4F6" }}>
+                            <div style={{ height: "6px", borderRadius: "3px", background: "#A78BFA", width: `${(tag.count / maxCount) * 100}%` }} />
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
 
           {/* KB Suggestions */}
           {data.kbSuggestions.length > 0 && (
-            <div className="ms-card border-amber-200 bg-amber-50">
-              <div className="ms-card-header">
-                <h3 className="flex items-center gap-2 text-sm font-medium text-amber-800">
-                  <Book size={16} />
-                  Suggestions d'articles KB
-                </h3>
+            <div style={{ padding: "20px", borderRadius: "16px", background: "#FFFBEB", border: "1px solid #FDE68A" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+                <Book size={16} color="#92400E" />
+                <h3 style={{ fontSize: "14px", fontWeight: 600, color: "#92400E", margin: 0 }}>Suggestions d&apos;articles KB</h3>
               </div>
-              <div className="ms-card-body">
-                <p className="mb-3 text-xs text-amber-700">
-                  Ces tags reviennent souvent mais n'ont pas d'article KB associé.
-                </p>
-                <div className="space-y-2">
-                  {data.kbSuggestions.map((s) => (
-                    <div
-                      key={s.tag}
-                      className="flex items-center justify-between rounded-lg bg-white p-3 shadow-sm"
-                    >
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
-                            {s.tag}
-                          </span>
-                          <span className="text-xs text-[var(--ms-text-muted)]">
-                            {s.count} tickets
-                          </span>
-                        </div>
-                        <p className="mt-1 text-xs text-[var(--ms-text-muted)]">{s.reason}</p>
+              <p style={{ fontSize: "12px", color: "#A16207", marginBottom: "16px" }}>Ces tags reviennent souvent mais n&apos;ont pas d&apos;article KB associé.</p>
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                {data.kbSuggestions.map((s) => (
+                  <div key={s.tag} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", borderRadius: "12px", background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" }}>
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <span style={{ padding: "4px 8px", borderRadius: "6px", fontSize: "12px", fontWeight: 500, background: "#FEF3C7", color: "#92400E" }}>{s.tag}</span>
+                        <span style={{ fontSize: "12px", color: "#6B7280" }}>{s.count} tickets</span>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => void handleCreateKbDraft(s)}
-                        disabled={creatingKb === s.tag}
-                        className="ms-btn ms-btn-secondary text-xs"
-                      >
-                        {creatingKb === s.tag ? (
-                          <Loader2 size={14} className="animate-spin" />
-                        ) : (
-                          <Plus size={14} />
-                        )}
-                        Créer brouillon
-                      </button>
+                      <p style={{ fontSize: "12px", color: "#6B7280", margin: "6px 0 0" }}>{s.reason}</p>
                     </div>
-                  ))}
-                </div>
+                    <button onClick={() => void handleCreateKbDraft(s)} disabled={creatingKb === s.tag} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "8px 14px", borderRadius: "8px", border: "1px solid #E5E7EB", background: "#fff", fontSize: "13px", fontWeight: 500, color: "#374151", cursor: "pointer", opacity: creatingKb === s.tag ? 0.5 : 1 }}>
+                      {creatingKb === s.tag ? <Loader2 size={14} style={{ animation: "spin 1s linear infinite" }} /> : <Plus size={14} />}
+                      Créer brouillon
+                    </button>
+                  </div>
+                ))}
               </div>
             </div>
           )}
         </div>
       ) : null}
+
+      <style dangerouslySetInnerHTML={{ __html: `@keyframes spin { to { transform: rotate(360deg); } }` }} />
     </div>
   );
 }

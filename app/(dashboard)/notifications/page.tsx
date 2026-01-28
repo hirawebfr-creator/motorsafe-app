@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   AlertCircle,
   Bell,
@@ -9,15 +9,40 @@ import {
   CheckCircle,
   ChevronRight,
   Clock,
-  Info,
   Settings,
+  Loader2,
+  RefreshCw,
+  Car,
+  FileText,
+  CreditCard,
+  PenTool,
+  Calendar,
+  UserPlus,
 } from "lucide-react";
 
-type NotificationType = "info" | "success" | "warning" | "error";
+// Responsive hook
+function useResponsive() {
+  const [screen, setScreen] = useState<"mobile" | "tablet" | "desktop">("desktop");
+  useEffect(() => {
+    const check = () => {
+      const w = window.innerWidth;
+      if (w < 640) setScreen("mobile");
+      else if (w < 1024) setScreen("tablet");
+      else setScreen("desktop");
+    };
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+  return { isMobile: screen === "mobile", isTablet: screen === "tablet", screen };
+}
+
+type NotificationCategory = "info" | "success" | "warning" | "error";
 
 type Notification = {
   id: string;
-  type: NotificationType;
+  type: string;
+  category: NotificationCategory;
   title: string;
   message: string;
   time: string;
@@ -25,234 +50,295 @@ type Notification = {
   actionUrl?: string;
 };
 
-const TYPE_CONFIG: Record<NotificationType, { icon: typeof Bell; bg: string; color: string }> = {
-  info: { icon: Info, bg: "var(--ms-info-light)", color: "var(--ms-info)" },
-  success: { icon: CheckCircle, bg: "var(--ms-success-light)", color: "var(--ms-success)" },
-  warning: { icon: AlertCircle, bg: "var(--ms-warning-light)", color: "var(--ms-warning)" },
-  error: { icon: AlertCircle, bg: "var(--ms-error-light)", color: "var(--ms-error)" },
+interface ApiNotification {
+  id: string;
+  type: string;
+  content: string;
+  read: boolean;
+  createdAt: string;
+}
+
+const CATEGORY_CONFIG: Record<NotificationCategory, { bg: string; color: string }> = {
+  info: { bg: "#DBEAFE", color: "#2563EB" },
+  success: { bg: "#D1FAE5", color: "#059669" },
+  warning: { bg: "#FEF3C7", color: "#D97706" },
+  error: { bg: "#FEE2E2", color: "#DC2626" },
 };
 
-// Demo notifications - currently empty
-const DEMO_NOTIFICATIONS: Notification[] = [];
+function getNotificationMeta(type: string): { Icon: typeof Bell; category: NotificationCategory } {
+  switch (type) {
+    case "intervention_created":
+    case "intervention_completed":
+      return { Icon: Car, category: "info" };
+    case "signature_requested":
+    case "signature_completed":
+      return { Icon: PenTool, category: "success" };
+    case "signature_expired":
+      return { Icon: PenTool, category: "warning" };
+    case "quote_accepted":
+      return { Icon: FileText, category: "success" };
+    case "quote_rejected":
+      return { Icon: FileText, category: "error" };
+    case "invoice_paid":
+      return { Icon: CreditCard, category: "success" };
+    case "invoice_overdue":
+      return { Icon: CreditCard, category: "error" };
+    case "client_created":
+    case "vehicle_created":
+      return { Icon: UserPlus, category: "info" };
+    case "appointment_reminder":
+      return { Icon: Calendar, category: "warning" };
+    case "siv_quota_low":
+    case "storage_quota_low":
+    case "subscription_expiring":
+      return { Icon: AlertCircle, category: "warning" };
+    default:
+      return { Icon: Bell, category: "info" };
+  }
+}
+
+function parseContent(content: string): { title: string; message: string; actionUrl?: string } {
+  try {
+    const parsed = JSON.parse(content);
+    return { title: parsed.title || "Notification", message: parsed.message || content, actionUrl: parsed.actionUrl };
+  } catch {
+    return { title: "Notification", message: content };
+  }
+}
+
+function formatTime(isoDate: string): string {
+  const date = new Date(isoDate);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+  if (diffMins < 1) return "À l'instant";
+  if (diffMins < 60) return `Il y a ${diffMins} min`;
+  if (diffHours < 24) return `Il y a ${diffHours}h`;
+  if (diffDays < 7) return `Il y a ${diffDays}j`;
+  return date.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+}
+
+// ============================================
+// Component
+// ============================================
 
 export default function NotificationsPage() {
-  const [notifications, setNotifications] = useState<Notification[]>(DEMO_NOTIFICATIONS);
+  const { isMobile, isTablet } = useResponsive();
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "unread">("all");
 
   const unreadCount = notifications.filter((n) => !n.read).length;
-  const filteredNotifications = filter === "unread" 
-    ? notifications.filter((n) => !n.read) 
-    : notifications;
+  const filteredNotifications = filter === "unread" ? notifications.filter((n) => !n.read) : notifications;
 
-  function markAsRead(id: string) {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
+  const fetchNotifications = useCallback(async () => {
+    try {
+      const res = await fetch("/api/notifications");
+      const data = await res.json();
+      if (data.ok && data.notifications) {
+        const mapped: Notification[] = data.notifications.map((n: ApiNotification) => {
+          const { title, message, actionUrl } = parseContent(n.content);
+          const meta = getNotificationMeta(n.type);
+          return { id: n.id, type: n.type, category: meta.category, title, message, time: formatTime(n.createdAt), read: n.read, actionUrl };
+        });
+        setNotifications(mapped);
+      }
+    } catch (err) {
+      console.error("Failed to fetch notifications:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 30000);
+    return () => clearInterval(interval);
+  }, [fetchNotifications]);
+
+  async function markAsRead(id: string) {
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
+    try {
+      await fetch("/api/notifications", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "mark_read", id }) });
+    } catch (err) {
+      console.error("Failed to mark as read:", err);
+      fetchNotifications();
+    }
+  }
+
+  async function markAllAsRead() {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    try {
+      await fetch("/api/notifications", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "mark_all_read" }) });
+    } catch (err) {
+      console.error("Failed to mark all as read:", err);
+      fetchNotifications();
+    }
+  }
+
+  async function deleteNotification(id: string) {
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+    try {
+      await fetch("/api/notifications", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "delete", id }) });
+    } catch (err) {
+      console.error("Failed to delete notification:", err);
+      fetchNotifications();
+    }
+  }
+
+  async function clearAll() {
+    if (!confirm("Supprimer toutes les notifications ?")) return;
+    setNotifications([]);
+    try {
+      await fetch("/api/notifications", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "delete_all" }) });
+    } catch (err) {
+      console.error("Failed to clear notifications:", err);
+      fetchNotifications();
+    }
+  }
+
+  const cardStyle: React.CSSProperties = { borderRadius: "16px", background: "#fff", border: "1px solid #E5E7EB" };
+  const statCardStyle: React.CSSProperties = { ...cardStyle, padding: "20px" };
+
+  if (loading) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "80px 0" }}>
+        <Loader2 size={32} color="#6366F1" style={{ animation: "spin 1s linear infinite" }} />
+      </div>
     );
   }
 
-  function markAllAsRead() {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-  }
-
-  function deleteNotification(id: string) {
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
-  }
-
-  function clearAll() {
-    setNotifications([]);
-  }
-
   return (
-    <div className="ms-animate-slide-up">
-      {/* Page Header */}
-      <div className="ms-page-header">
-        <div>
-          <h1 className="ms-page-title">Notifications</h1>
-          <p className="ms-page-subtitle">
-            Restez informé des événements importants
-          </p>
+    <div style={{ padding: isMobile ? "16px" : isTablet ? "24px" : "32px", maxWidth: "1200px", margin: "0 auto" }}>
+      {/* Header */}
+      <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", alignItems: isMobile ? "stretch" : "center", marginBottom: "32px", gap: "16px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div style={{ width: "48px", height: "48px", borderRadius: "12px", background: "#EDE9FE", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Bell size={24} color="#7C3AED" />
+          </div>
+          <div>
+            <h1 style={{ fontSize: isMobile ? "24px" : "28px", fontWeight: 700, color: "#111827", margin: 0 }}>Notifications</h1>
+            <p style={{ fontSize: "14px", color: "#6B7280", marginTop: "4px" }}>Restez informé des événements importants</p>
+          </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+          <button onClick={() => void fetchNotifications()} style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "8px", borderRadius: "8px", border: "1px solid #E5E7EB", background: "#fff", cursor: "pointer" }}>
+            <RefreshCw size={16} color="#6B7280" />
+          </button>
           {unreadCount > 0 && (
-            <button
-              type="button"
-              onClick={markAllAsRead}
-              className="ms-btn ms-btn-secondary"
-            >
-              <Check size={16} />
-              Tout marquer comme lu
+            <button onClick={() => void markAllAsRead()} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "10px 14px", borderRadius: "10px", border: "1px solid #E5E7EB", background: "#fff", fontSize: "14px", fontWeight: 500, color: "#374151", cursor: "pointer" }}>
+              <Check size={16} /> Tout marquer comme lu
             </button>
           )}
-          <button type="button" className="ms-btn ms-btn-ghost">
-            <Settings size={16} />
-            Paramètres
-          </button>
+          <a href="/parametres?tab=notifications" style={{ display: "flex", alignItems: "center", gap: "6px", padding: "10px 14px", borderRadius: "10px", border: "1px solid #E5E7EB", background: "#fff", fontSize: "14px", fontWeight: 500, color: "#374151", textDecoration: "none" }}>
+            <Settings size={16} /> Paramètres
+          </a>
         </div>
       </div>
 
       {/* Stats */}
-      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="ms-stat-card">
-          <div className="flex items-center justify-between">
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: "16px", marginBottom: "24px" }}>
+        <div style={statCardStyle}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div>
-              <div className="ms-stat-label">Total</div>
-              <div className="ms-stat-value">{notifications.length}</div>
+              <div style={{ fontSize: "13px", color: "#6B7280", marginBottom: "4px" }}>Total</div>
+              <div style={{ fontSize: "28px", fontWeight: 700, color: "#111827" }}>{notifications.length}</div>
             </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--ms-primary-light)]">
-              <Bell size={24} className="text-[var(--ms-primary)]" />
+            <div style={{ width: "48px", height: "48px", borderRadius: "12px", background: "#EDE9FE", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Bell size={24} color="#7C3AED" />
             </div>
           </div>
         </div>
-        <div className="ms-stat-card">
-          <div className="flex items-center justify-between">
+        <div style={statCardStyle}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div>
-              <div className="ms-stat-label">Non lues</div>
-              <div className="ms-stat-value">{unreadCount}</div>
+              <div style={{ fontSize: "13px", color: "#6B7280", marginBottom: "4px" }}>Non lues</div>
+              <div style={{ fontSize: "28px", fontWeight: 700, color: "#111827" }}>{unreadCount}</div>
             </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--ms-warning-light)]">
-              <AlertCircle size={24} className="text-[var(--ms-warning)]" />
+            <div style={{ width: "48px", height: "48px", borderRadius: "12px", background: "#FEF3C7", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <AlertCircle size={24} color="#D97706" />
             </div>
           </div>
         </div>
-        <div className="ms-stat-card">
-          <div className="flex items-center justify-between">
+        <div style={statCardStyle}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div>
-              <div className="ms-stat-label">Lues</div>
-              <div className="ms-stat-value">{notifications.length - unreadCount}</div>
+              <div style={{ fontSize: "13px", color: "#6B7280", marginBottom: "4px" }}>Lues</div>
+              <div style={{ fontSize: "28px", fontWeight: 700, color: "#111827" }}>{notifications.length - unreadCount}</div>
             </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--ms-success-light)]">
-              <CheckCircle size={24} className="text-[var(--ms-success)]" />
+            <div style={{ width: "48px", height: "48px", borderRadius: "12px", background: "#D1FAE5", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <CheckCircle size={24} color="#059669" />
             </div>
           </div>
         </div>
       </div>
 
       {/* Filter Tabs */}
-      <div className="mb-6 flex items-center justify-between">
-        <div className="ms-tabs">
-          <button
-            type="button"
-            onClick={() => setFilter("all")}
-            className={`ms-tab ${filter === "all" ? "ms-tab-active" : ""}`}
-          >
-            Toutes
-          </button>
-          <button
-            type="button"
-            onClick={() => setFilter("unread")}
-            className={`ms-tab ${filter === "unread" ? "ms-tab-active" : ""}`}
-          >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "24px" }}>
+        <div style={{ display: "flex", gap: "8px" }}>
+          <button onClick={() => setFilter("all")} style={{ padding: "8px 16px", borderRadius: "9999px", border: "none", fontSize: "14px", fontWeight: 500, background: filter === "all" ? "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)" : "#F3F4F6", color: filter === "all" ? "#fff" : "#6B7280", cursor: "pointer" }}>Toutes</button>
+          <button onClick={() => setFilter("unread")} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "8px 16px", borderRadius: "9999px", border: "none", fontSize: "14px", fontWeight: 500, background: filter === "unread" ? "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)" : "#F3F4F6", color: filter === "unread" ? "#fff" : "#6B7280", cursor: "pointer" }}>
             Non lues
-            {unreadCount > 0 && (
-              <span className="ml-2 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[var(--ms-primary)] px-1.5 text-xs font-semibold text-white">
-                {unreadCount}
-              </span>
-            )}
+            {unreadCount > 0 && <span style={{ padding: "2px 8px", borderRadius: "9999px", fontSize: "12px", fontWeight: 600, background: filter === "unread" ? "rgba(255,255,255,0.3)" : "#6366F1", color: "#fff" }}>{unreadCount}</span>}
           </button>
         </div>
-
         {notifications.length > 0 && (
-          <button
-            type="button"
-            onClick={clearAll}
-            className="text-sm text-[var(--ms-error)] hover:underline"
-          >
-            Tout supprimer
-          </button>
+          <button onClick={() => void clearAll()} style={{ background: "none", border: "none", fontSize: "14px", color: "#DC2626", cursor: "pointer" }}>Tout supprimer</button>
         )}
       </div>
 
       {/* Notifications List */}
-      <div className="ms-card">
+      <div style={cardStyle}>
         {filteredNotifications.length === 0 ? (
-          <div className="ms-empty py-12">
-            <div className="ms-empty-icon">
-              <BellOff size={28} />
-            </div>
-            <div className="ms-empty-title">Aucune notification</div>
-            <div className="ms-empty-text">
-              {filter === "unread"
-                ? "Vous avez lu toutes vos notifications"
-                : "Vous n'avez pas encore de notifications"}
-            </div>
+          <div style={{ textAlign: "center", padding: "48px" }}>
+            <BellOff size={48} color="#D1D5DB" style={{ marginBottom: "16px" }} />
+            <div style={{ fontSize: "16px", fontWeight: 600, color: "#374151", marginBottom: "4px" }}>Aucune notification</div>
+            <div style={{ fontSize: "14px", color: "#6B7280" }}>{filter === "unread" ? "Vous avez lu toutes vos notifications" : "Vous n'avez pas encore de notifications"}</div>
           </div>
         ) : (
-          <div className="divide-y divide-[var(--ms-border)]">
+          <div>
             {filteredNotifications.map((notification, idx) => {
-              const cfg = TYPE_CONFIG[notification.type];
-              const Icon = cfg.icon;
-
+              const cfg = CATEGORY_CONFIG[notification.category];
+              const meta = getNotificationMeta(notification.type);
+              const Icon = meta.Icon;
               return (
-                <div
-                  key={notification.id}
-                  className={`flex items-start gap-4 p-5 transition-colors ms-animate-slide-up ${
-                    !notification.read ? "bg-[var(--ms-primary-light)]/30" : ""
-                  }`}
-                  style={{ animationDelay: `${idx * 50}ms` }}
-                >
-                  <div
-                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
-                    style={{ backgroundColor: cfg.bg }}
-                  >
-                    <Icon size={20} style={{ color: cfg.color }} />
+                <div key={notification.id} style={{ display: "flex", alignItems: "flex-start", gap: "16px", padding: "20px", borderTop: idx > 0 ? "1px solid #E5E7EB" : "none", background: !notification.read ? "rgba(99, 102, 241, 0.05)" : "transparent" }}>
+                  <div style={{ width: "40px", height: "40px", borderRadius: "12px", background: cfg.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <Icon size={20} color={cfg.color} />
                   </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-4">
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "16px" }}>
                       <div>
-                        <h3 className={`text-sm ${!notification.read ? "font-semibold text-[var(--ms-text)]" : "font-medium text-[var(--ms-text-secondary)]"}`}>
-                          {notification.title}
-                        </h3>
-                        <p className="mt-1 text-sm text-[var(--ms-text-muted)]">
-                          {notification.message}
-                        </p>
+                        <h3 style={{ margin: 0, fontSize: "14px", fontWeight: notification.read ? 500 : 600, color: notification.read ? "#6B7280" : "#111827" }}>{notification.title}</h3>
+                        <p style={{ margin: "4px 0 0", fontSize: "14px", color: "#6B7280" }}>{notification.message}</p>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="whitespace-nowrap text-xs text-[var(--ms-text-muted)]">
-                          <Clock size={12} className="mr-1 inline-block" />
-                          {notification.time}
-                        </span>
-                      </div>
+                      <span style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "12px", color: "#9CA3AF", whiteSpace: "nowrap" }}>
+                        <Clock size={12} /> {notification.time}
+                      </span>
                     </div>
-
-                    <div className="mt-3 flex items-center gap-3">
+                    <div style={{ marginTop: "12px", display: "flex", alignItems: "center", gap: "12px" }}>
                       {!notification.read && (
-                        <button
-                          type="button"
-                          onClick={() => markAsRead(notification.id)}
-                          className="text-sm font-medium text-[var(--ms-primary)] hover:underline"
-                        >
-                          Marquer comme lu
-                        </button>
+                        <button onClick={() => void markAsRead(notification.id)} style={{ background: "none", border: "none", fontSize: "13px", fontWeight: 500, color: "#6366F1", cursor: "pointer" }}>Marquer comme lu</button>
                       )}
                       {notification.actionUrl && (
-                        <a
-                          href={notification.actionUrl}
-                          className="flex items-center gap-1 text-sm font-medium text-[var(--ms-primary)] hover:underline"
-                        >
-                          Voir détails
-                          <ChevronRight size={14} />
+                        <a href={notification.actionUrl} style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "13px", fontWeight: 500, color: "#6366F1", textDecoration: "none" }}>
+                          Voir détails <ChevronRight size={14} />
                         </a>
                       )}
-                      <button
-                        type="button"
-                        onClick={() => deleteNotification(notification.id)}
-                        className="text-sm text-[var(--ms-text-muted)] hover:text-[var(--ms-error)]"
-                      >
-                        Supprimer
-                      </button>
+                      <button onClick={() => void deleteNotification(notification.id)} style={{ background: "none", border: "none", fontSize: "13px", color: "#9CA3AF", cursor: "pointer" }}>Supprimer</button>
                     </div>
                   </div>
-
-                  {!notification.read && (
-                    <div className="h-2 w-2 shrink-0 rounded-full bg-[var(--ms-primary)]" />
-                  )}
+                  {!notification.read && <div style={{ width: "8px", height: "8px", borderRadius: "9999px", background: "#6366F1", flexShrink: 0, marginTop: "6px" }} />}
                 </div>
               );
             })}
           </div>
         )}
       </div>
+
+      <style dangerouslySetInnerHTML={{ __html: `@keyframes spin { to { transform: rotate(360deg); } }` }} />
     </div>
   );
 }

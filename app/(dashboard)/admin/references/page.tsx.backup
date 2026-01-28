@@ -1,0 +1,313 @@
+﻿"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { fetcher, requestJson } from "@/lib/fetcher";
+import { useToast } from "@/components/ui/Toast";
+import { useUser } from "@/components/user-context";
+
+type LegalReference = {
+  id: string;
+  title: string;
+  summary?: string | null;
+  sourceUrl?: string | null;
+  code?: string | null;
+  articleRef?: string | null;
+  tags?: string | null;
+  severity: "INFO" | "WARNING" | "CRITICAL";
+  isActive: boolean;
+  assignments: Array<{ interventionType: string }>;
+};
+
+const TYPES = ["E85", "Reprog", "Diag", "Autre"];
+
+export default function AdminReferencesPage() {
+  const user = useUser();
+
+  const [items, setItems] = useState<LegalReference[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [form, setForm] = useState({
+    title: "",
+    summary: "",
+    sourceUrl: "",
+    code: "",
+    articleRef: "",
+    tags: "",
+    severity: "INFO",
+    types: [] as string[],
+  });
+  const toast = useToast();
+
+  const load = useCallback(async () => {
+    setError(null);
+    try {
+      const data = await fetcher<LegalReference[]>("/api/legal-references", { noStore: true });
+      setItems(data ?? []);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Erreur serveur.";
+      setError(message);
+      toast.push({ title: "Erreur", description: message, variant: "error" });
+    }
+  }, [toast]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const toggleType = (type: string) => {
+    setForm((prev) => ({
+      ...prev,
+      types: prev.types.includes(type)
+        ? prev.types.filter((item) => item !== type)
+        : [...prev.types, type],
+    }));
+  };
+
+  const submit = async () => {
+    setError(null);
+    try {
+      await requestJson("/api/legal-references", {
+        method: "POST",
+        body: {
+          title: form.title,
+          summary: form.summary || null,
+          sourceUrl: form.sourceUrl || null,
+          code: form.code || null,
+          articleRef: form.articleRef || null,
+          tags: form.tags || null,
+          severity: form.severity,
+          types: form.types,
+        },
+      });
+      toast.push({
+        title: "Référence ajoutée",
+        description: "La référence est maintenant disponible.",
+        variant: "success",
+      });
+      setForm({
+        title: "",
+        summary: "",
+        sourceUrl: "",
+        code: "",
+        articleRef: "",
+        tags: "",
+        severity: "INFO",
+        types: [],
+      });
+      await load();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Erreur serveur.";
+      setError(message);
+      toast.push({ title: "Erreur", description: message, variant: "error" });
+    }
+  };
+
+  const toggleActive = async (reference: LegalReference) => {
+    try {
+      await requestJson(`/api/legal-references/${reference.id}`, {
+        method: "PUT",
+        body: { isActive: !reference.isActive },
+      });
+      await load();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Erreur serveur.";
+      setError(message);
+      toast.push({ title: "Erreur", description: message, variant: "error" });
+    }
+  };
+
+  const deleteReference = async (reference: LegalReference) => {
+    if (!confirm("Supprimer cette référence ?")) return;
+    try {
+      await requestJson(`/api/legal-references/${reference.id}`, { method: "DELETE" });
+      await load();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Erreur serveur.";
+      setError(message);
+      toast.push({ title: "Erreur", description: message, variant: "error" });
+    }
+  };
+
+  const isAdmin = user.role === "ADMIN";
+
+  const activeCount = useMemo(() => items.filter((item) => item.isActive).length, [items]);
+
+  if (!user) return null;
+
+  if (!isAdmin) {
+    return (
+      <div className="ms-card">
+        <div className="ms-card-header">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--ms-primary)]">Administration</p>
+          <p className="mt-2 text-lg font-semibold text-[var(--ms-text)]">Accès restreint</p>
+        </div>
+        <div className="ms-card-body">
+          <p className="text-sm text-[var(--ms-text-muted)]">Accès réservé à l'administration.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="ms-animate-slide-up">
+      <div className="ms-page-header">
+        <div>
+          <h1 className="ms-page-title">Références légales</h1>
+          <p className="ms-page-subtitle">Gérez les références applicables aux interventions. Elles seront visibles dans les dossiers.</p>
+        </div>
+      </div>
+
+      {error && (
+        <div className="ms-alert ms-alert-error mb-6">
+          <span>{error}</span>
+        </div>
+      )}
+
+      <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+        <div className="ms-card overflow-hidden">
+          <div className="ms-card-header flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-[var(--ms-text)]">Références actives</h2>
+            <span className="ms-badge ms-badge-info">{activeCount} actives</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-[var(--ms-border)] bg-[var(--ms-bg-subtle)]">
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-[var(--ms-text-muted)]">Référence</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-[var(--ms-text-muted)]">Types</th>
+                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-[var(--ms-text-muted)]">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.length === 0 ? (
+                  <tr>
+                    <td colSpan={3}>
+                      <div className="p-6 text-sm text-[var(--ms-text-muted)]">Aucune référence.</div>
+                    </td>
+                  </tr>
+              ) : (
+                items.map((item) => (
+                    <tr key={item.id} className="border-b border-[var(--ms-border-light)] hover:bg-[var(--ms-surface-hover)] transition-colors">
+                      <td className="px-4 py-3">
+                        <p className="font-semibold text-[var(--ms-text)]">{item.title}</p>
+                        <p className="text-xs text-[var(--ms-text-muted)]">{item.summary || "-"}</p>
+                        <div className="mt-2 flex flex-wrap gap-2 text-xs text-[var(--ms-text-muted)]">
+                          {item.code ? <span>{item.code}</span> : null}
+                          {item.articleRef ? <span>{item.articleRef}</span> : null}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-[var(--ms-text-muted)]">
+                        {item.assignments.map((entry) => entry.interventionType).join(", ") || "-"}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex justify-end gap-2">
+                          <button type="button" onClick={() => toggleActive(item)} className="ms-btn ms-btn-ghost ms-btn-sm">
+                            {item.isActive ? "Désactiver" : "Activer"}
+                          </button>
+                          <button type="button" onClick={() => deleteReference(item)} className="ms-btn ms-btn-danger ms-btn-sm">
+                            Supprimer
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div className="ms-card">
+          <div className="ms-card-header">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--ms-primary)]">Nouvelle référence</p>
+            <h2 className="mt-2 text-xl font-semibold text-[var(--ms-text)]">Ajouter une référence</h2>
+          </div>
+          <div className="ms-card-body space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-[var(--ms-text)] mb-1.5">Titre</label>
+              <input
+                type="text"
+                value={form.title}
+                onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
+                placeholder="Intervention E85 et obligations"
+                className="ms-input"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-[var(--ms-text)] mb-1.5">Résumé</label>
+              <textarea
+                value={form.summary}
+                onChange={(event) => setForm((prev) => ({ ...prev, summary: event.target.value }))}
+                placeholder="Résumé court pour les techniciens."
+                className="ms-input min-h-[80px]"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-[var(--ms-text)] mb-1.5">Source URL</label>
+              <input
+                type="text"
+                value={form.sourceUrl}
+                onChange={(event) => setForm((prev) => ({ ...prev, sourceUrl: event.target.value }))}
+                placeholder="https://..."
+                className="ms-input"
+              />
+            </div>
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div>
+                <label className="block text-sm font-medium text-[var(--ms-text)] mb-1.5">Code</label>
+                <input
+                  type="text"
+                  value={form.code}
+                  onChange={(event) => setForm((prev) => ({ ...prev, code: event.target.value }))}
+                  placeholder="Code de la route"
+                  className="ms-input"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-[var(--ms-text)] mb-1.5">Article</label>
+                <input
+                  type="text"
+                  value={form.articleRef}
+              onChange={(event) => setForm((prev) => ({ ...prev, articleRef: event.target.value }))}
+              placeholder="R.123-4"
+            />
+          </div>
+          <Input
+            label="Tags"
+            value={form.tags}
+            onChange={(event) => setForm((prev) => ({ ...prev, tags: event.target.value }))}
+            placeholder="E85, anti-demarrage"
+          />
+          <Select
+            label="Sévérité"
+            value={form.severity}
+            onChange={(value) => setForm((prev) => ({ ...prev, severity: value }))}
+          >
+            <option value="INFO">Info</option>
+            <option value="WARNING">Attention</option>
+            <option value="CRITICAL">Critique</option>
+          </Select>
+          <div className="grid gap-2 text-xs text-muted2">
+            <p className="text-text">Types d’intervention associés</p>
+            <div className="flex flex-wrap gap-2">
+              {TYPES.map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => toggleType(type)}
+                  className={`rounded-[var(--rButton)] border px-3 py-2 text-xs font-semibold transition ${
+                    form.types.includes(type)
+                      ? "border-primary bg-primaryWeak text-text"
+                      : "border-border text-muted2 hover:bg-surface2"
+                  }`}
+                >
+                  {type}
+                </button>
+              ))}
+            </div>
+          </div>
+          <Button onClick={submit}>Ajouter la référence</Button>
+        </Card>
+      </div>
+    </div>
+  );
+}
+

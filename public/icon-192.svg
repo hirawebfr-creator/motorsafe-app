@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1e3a5f"/>
+      <stop offset="100%" style="stop-color:#0f2744"/>
+    </linearGradient>
+  </defs>
+  <rect width="192" height="192" rx="32" fill="url(#bg)"/>
+  <!-- Shield -->
+  <path d="M96 28c-35 0-52 12-52 12v56c0 35 52 68 52 68s52-33 52-68V40s-17-12-52-12z" fill="#2563eb" stroke="#60a5fa" stroke-width="3"/>
+  <!-- Check -->
+  <path d="M72 96l18 18 30-36" fill="none" stroke="white" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- M letter -->
+  <text x="96" y="170" font-family="Arial Black, sans-serif" font-size="28" font-weight="900" fill="white" text-anchor="middle">M</text>
+</svg>

@@ -24,6 +24,7 @@ import {
   Newspaper,
   Calendar,
   HelpCircle,
+  Zap,
   type LucideIcon,
 } from "lucide-react";
 
@@ -67,6 +68,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Clients", href: "/clients", icon: Users, group: "gestion" },
   { label: "Véhicules", href: "/vehicules", icon: Car, group: "gestion" },
   { label: "Interventions", href: "/interventions", icon: Wrench, group: "gestion" },
+  { label: "Comparateur E85/Stage", href: "/comparateur", icon: Zap, group: "gestion", isNew: true },
   { label: "Planning", href: "/planning", icon: CalendarDays, group: "gestion" },
   { label: "Devis", href: "/devis", icon: FileCheck, group: "gestion" },
   { label: "Factures", href: "/factures", icon: Receipt, group: "gestion" },

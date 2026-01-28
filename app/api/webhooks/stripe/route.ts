@@ -107,9 +107,53 @@ export async function POST(req: Request) {
       const session = event.data.object as any;
       const customerId = session.customer as string | null;
       const subscriptionId = session.subscription as string | null;
+      const mode = session.mode as string; // "subscription" | "payment"
 
       if (customerId) {
         const garage = await upsertGarageByCustomer(customerId);
+        
+        // Handle one-time payment (pack purchase)
+        if (mode === "payment" && garage) {
+          const metadata = session.metadata || {};
+          const packId = metadata.packId;
+          const packType = metadata.packType;
+          const packAmount = parseInt(metadata.packAmount || "0", 10);
+          
+          if (packId && packType && packAmount > 0) {
+            // Record the pack purchase
+            await prisma.packPurchase.create({
+              data: {
+                garageId: garage.id,
+                packType,
+                packId,
+                productId: metadata.productId || "",
+                amount: packAmount,
+                priceEuros: session.amount_total || 0,
+                stripePaymentId: session.payment_intent || session.id,
+              },
+            });
+            
+            // Add credits to garage
+            if (packType === "SIV") {
+              await prisma.garage.update({
+                where: { id: garage.id },
+                data: { extraSivCredits: { increment: packAmount } },
+              });
+            } else if (packType === "STORAGE") {
+              await prisma.garage.update({
+                where: { id: garage.id },
+                data: { extraStorageGB: { increment: packAmount } },
+              });
+            }
+            
+            await prisma.stripeEvent.update({
+              where: { id: event.id },
+              data: { garageId: garage.id, processedAt: new Date() },
+            });
+          }
+        }
+        
+        // Handle subscription
         if (garage && subscriptionId) {
           // Fetch subscription for canonical status and period.
           const sub: any = await stripe.subscriptions.retrieve(subscriptionId);

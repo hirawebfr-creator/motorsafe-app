@@ -15,7 +15,7 @@ import {
   Loader2,
   AlertTriangle,
 } from "lucide-react";
-import { useToast } from "@/components/shared/use-toast";
+import { toast } from "sonner";
 
 // ============================================================================
 // DOCUMENTS PAGE - SafeMotor Design System (Fully Responsive)
@@ -99,29 +99,45 @@ function useResponsive() {
   };
 }
 
-// Status configs
-const DEVIS_STATUS: Record<DevisStatus, { color: string; bg: string; label: string }> = {
+// Status configs (API returns English status values)
+const DEVIS_STATUS: Record<string, { color: string; bg: string; label: string }> = {
+  DRAFT: { color: "#6B7280", bg: "#F3F4F6", label: "Brouillon" },
+  SENT: { color: "#3B82F6", bg: "#DBEAFE", label: "Envoyé" },
+  ACCEPTED: { color: "#10B981", bg: "#ECFDF5", label: "Accepté" },
+  REJECTED: { color: "#EF4444", bg: "#FEF2F2", label: "Refusé" },
+  // Legacy French statuses for backward compatibility
   BROUILLON: { color: "#6B7280", bg: "#F3F4F6", label: "Brouillon" },
   ENVOYE: { color: "#3B82F6", bg: "#DBEAFE", label: "Envoyé" },
   ACCEPTE: { color: "#10B981", bg: "#ECFDF5", label: "Accepté" },
   REFUSE: { color: "#EF4444", bg: "#FEF2F2", label: "Refusé" },
 };
 
-const FACTURE_STATUS: Record<FactureStatus, { color: string; bg: string; label: string }> = {
+const FACTURE_STATUS: Record<string, { color: string; bg: string; label: string }> = {
+  DRAFT: { color: "#6B7280", bg: "#F3F4F6", label: "Brouillon" },
+  ISSUED: { color: "#3B82F6", bg: "#DBEAFE", label: "Émise" },
+  PAID: { color: "#10B981", bg: "#ECFDF5", label: "Payée" },
+  PARTIALLY_PAID: { color: "#F59E0B", bg: "#FFFBEB", label: "Partielle" },
+  OVERDUE: { color: "#EF4444", bg: "#FEF2F2", label: "Impayée" },
+  CANCELED: { color: "#9CA3AF", bg: "#F3F4F6", label: "Annulée" },
+  // Legacy French statuses for backward compatibility
   BROUILLON: { color: "#6B7280", bg: "#F3F4F6", label: "Brouillon" },
   ENVOYEE: { color: "#3B82F6", bg: "#DBEAFE", label: "Envoyée" },
   PAYEE: { color: "#10B981", bg: "#ECFDF5", label: "Payée" },
   IMPAYEE: { color: "#EF4444", bg: "#FEF2F2", label: "Impayée" },
 };
 
-const EXPORT_TYPE: Record<ExportType, { color: string; bg: string; label: string }> = {
+const EXPORT_TYPE: Record<string, { color: string; bg: string; label: string }> = {
+  INTERVENTION_REPORT: { color: "#3B82F6", bg: "#DBEAFE", label: "Rapport" },
+  UPLOAD: { color: "#F59E0B", bg: "#FFFBEB", label: "Document" },
   ASSURANCE: { color: "#3B82F6", bg: "#DBEAFE", label: "Assurance" },
   EXPERT: { color: "#F59E0B", bg: "#FFFBEB", label: "Expert" },
   COMPLET: { color: "#10B981", bg: "#ECFDF5", label: "Complet" },
 };
 
+// Default badge for unknown statuses
+const DEFAULT_STATUS = { color: "#6B7280", bg: "#F3F4F6", label: "Inconnu" };
+
 export default function DocumentsPage() {
-  const toast = useToast();
   const { isMobile, isTablet } = useResponsive();
 
   const [activeTab, setActiveTab] = useState<DocumentType>("DEVIS");
@@ -184,14 +200,28 @@ export default function DocumentsPage() {
       const response = await fetch(`/api/documents/devis?${params}`);
       const data = await response.json();
       if (data.ok && data.data?.items) {
-        setDevis(data.data.items);
+        // Map API data to frontend format
+        const mappedDevis = data.data.items.map((item: any) => ({
+          id: item.id,
+          number: item.quoteNumber || `D-${item.id.slice(0, 8)}`,
+          interventionId: item.vehicleId || "",
+          interventionNumber: "-",
+          clientName: item.client ? `${item.client.firstName} ${item.client.lastName}` : "Client inconnu",
+          vehicleInfo: item.vehicle ? `${item.vehicle.brand} ${item.vehicle.model} - ${item.vehicle.plate}` : "-",
+          amount: item.totalIncl || 0,
+          status: item.status,
+          validUntil: item.createdAt ? new Date(new Date(item.createdAt).getTime() + 30 * 24 * 60 * 60 * 1000) : new Date(),
+          createdAt: new Date(item.createdAt),
+          pdfUrl: `/api/quotes/${item.id}/pdf`,
+        }));
+        setDevis(mappedDevis);
       }
     } catch {
-      toast.error("Erreur", "Impossible de charger les devis");
+      toast.error("Impossible de charger les devis");
     } finally {
       setIsLoading(false);
     }
-  }, [searchQuery, statusFilter, toast]);
+  }, [searchQuery, statusFilter]);
 
   // Load factures
   const loadFactures = useCallback(async () => {
@@ -206,14 +236,29 @@ export default function DocumentsPage() {
       const response = await fetch(`/api/documents/factures?${params}`);
       const data = await response.json();
       if (data.ok && data.data?.items) {
-        setFactures(data.data.items);
+        // Map API data to frontend format
+        const mappedFactures = data.data.items.map((item: any) => ({
+          id: item.id,
+          number: item.invoiceNumber || `F-${item.id.slice(0, 8)}`,
+          interventionId: item.vehicleId || "",
+          interventionNumber: "-",
+          clientName: item.client ? `${item.client.firstName} ${item.client.lastName}` : "Client inconnu",
+          vehicleInfo: item.vehicle ? `${item.vehicle.brand} ${item.vehicle.model} - ${item.vehicle.plate}` : "-",
+          amount: item.totalIncl || 0,
+          status: item.status,
+          paidAt: item.paidAt ? new Date(item.paidAt) : undefined,
+          dueDate: item.dueAt ? new Date(item.dueAt) : new Date(),
+          createdAt: new Date(item.createdAt),
+          pdfUrl: `/api/invoices/${item.id}/pdf`,
+        }));
+        setFactures(mappedFactures);
       }
     } catch {
-      toast.error("Erreur", "Impossible de charger les factures");
+      toast.error("Impossible de charger les factures");
     } finally {
       setIsLoading(false);
     }
-  }, [searchQuery, statusFilter, toast]);
+  }, [searchQuery, statusFilter]);
 
   // Load exports
   const loadExports = useCallback(async () => {
@@ -227,14 +272,27 @@ export default function DocumentsPage() {
       const response = await fetch(`/api/documents/exports?${params}`);
       const data = await response.json();
       if (data.ok && data.data?.items) {
-        setExports(data.data.items);
+        // Map API data to frontend format
+        const mappedExports = data.data.items.map((item: any) => ({
+          id: item.id,
+          number: `EXP-${item.id.slice(0, 8)}`,
+          type: item.type || "INTERVENTION_REPORT",
+          interventionId: item.interventionId || "",
+          interventionNumber: item.intervention?.id?.slice(0, 8) || "-",
+          clientName: "-",
+          vehicleInfo: item.vehicle ? `${item.vehicle.brand} ${item.vehicle.model} - ${item.vehicle.plate}` : "-",
+          requestedBy: "Système",
+          createdAt: new Date(item.createdAt),
+          zipUrl: item.fileUrl || undefined,
+        }));
+        setExports(mappedExports);
       }
     } catch {
-      toast.error("Erreur", "Impossible de charger les exports");
+      toast.error("Impossible de charger les exports");
     } finally {
       setIsLoading(false);
     }
-  }, [searchQuery, toast]);
+  }, [searchQuery]);
 
   useEffect(() => {
     void loadInterventions();
@@ -257,7 +315,7 @@ export default function DocumentsPage() {
 
   const handleGenerate = async () => {
     if (!selectedInterventionId) {
-      toast.error("Erreur", "Sélectionnez une intervention");
+      toast.error("Sélectionnez une intervention");
       return;
     }
 
@@ -287,16 +345,16 @@ export default function DocumentsPage() {
       const data = await response.json();
 
       if (data.ok) {
-        toast.success("Document généré", sendEmail ? "Document généré et envoyé par email" : "Document généré avec succès");
+        toast.success(sendEmail ? "Document généré et envoyé par email" : "Document généré avec succès");
         setIsGenerateModalOpen(false);
         if (generateType === "DEVIS") loadDevis();
         else if (generateType === "FACTURE") loadFactures();
         else loadExports();
       } else {
-        toast.error("Erreur", data.error || "Impossible de générer le document");
+        toast.error(data.error || "Impossible de générer le document");
       }
     } catch {
-      toast.error("Erreur", "Impossible de se connecter au serveur");
+      toast.error("Impossible de se connecter au serveur");
     } finally {
       setIsGenerating(false);
     }
@@ -306,7 +364,7 @@ export default function DocumentsPage() {
     if (url) {
       window.open(url, "_blank");
     } else {
-      toast.info("Génération en cours", "Le fichier sera disponible dans quelques secondes");
+      toast.info("Le fichier sera disponible dans quelques secondes");
     }
   };
 
@@ -331,17 +389,17 @@ export default function DocumentsPage() {
       const data = await response.json();
 
       if (data.ok) {
-        toast.success("Document supprimé", "Le document a été supprimé avec succès");
+        toast.success("Le document a été supprimé avec succès");
         setDeleteModalOpen(false);
         setDocumentToDelete(null);
         if (activeTab === "DEVIS") loadDevis();
         else if (activeTab === "FACTURE") loadFactures();
         else loadExports();
       } else {
-        toast.error("Erreur", data.error || "Impossible de supprimer le document");
+        toast.error(data.error || "Impossible de supprimer le document");
       }
     } catch {
-      toast.error("Erreur", "Impossible de se connecter au serveur");
+      toast.error("Impossible de se connecter au serveur");
     } finally {
       setIsDeleting(false);
     }
@@ -1095,7 +1153,8 @@ const tdStyle: React.CSSProperties = {
   verticalAlign: "top",
 };
 
-function StatusBadge({ config }: { config: { color: string; bg: string; label: string } }) {
+function StatusBadge({ config }: { config: { color: string; bg: string; label: string } | undefined }) {
+  const safeConfig = config || DEFAULT_STATUS;
   return (
     <span
       style={{
@@ -1105,11 +1164,11 @@ function StatusBadge({ config }: { config: { color: string; bg: string; label: s
         borderRadius: "20px",
         fontSize: "12px",
         fontWeight: 600,
-        background: config.bg,
-        color: config.color,
+        background: safeConfig.bg,
+        color: safeConfig.color,
       }}
     >
-      {config.label}
+      {safeConfig.label}
     </span>
   );
 }

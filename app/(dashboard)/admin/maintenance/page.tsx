@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from "react";
 import {
   Wrench,
   RefreshCw,
-  Loader2,
   Plus,
   Calendar,
   Clock,
@@ -14,13 +13,28 @@ import {
   X,
   AlertTriangle,
   Info,
+  Shield,
 } from "lucide-react";
+import { toast } from "sonner";
+import { useUser } from "@/components/user-context";
 import { fetcher, requestJson } from "@/lib/fetcher";
-import { useToast } from "@/components/ui/Toast";
 
-// ============================================
-// Types
-// ============================================
+// Responsive hook
+function useResponsive() {
+  const [screen, setScreen] = useState<"mobile" | "tablet" | "desktop">("desktop");
+  useEffect(() => {
+    const check = () => {
+      const w = window.innerWidth;
+      if (w < 640) setScreen("mobile");
+      else if (w < 1024) setScreen("tablet");
+      else setScreen("desktop");
+    };
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+  return { isMobile: screen === "mobile", isTablet: screen === "tablet", screen };
+}
 
 type MaintenanceSeverity = "INFO" | "WARNING";
 
@@ -36,19 +50,17 @@ interface MaintenanceWindow {
   createdBy: { id: string; email: string } | null;
 }
 
-// ============================================
-// Component
-// ============================================
-
 export default function AdminMaintenancePage() {
-  const { push: toast } = useToast();
+  const user = useUser();
+  const { isMobile, isTablet } = useResponsive();
+  const isAdmin = user?.role === "ADMIN";
+
   const [maintenances, setMaintenances] = useState<MaintenanceWindow[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // Form state
   const [formTitle, setFormTitle] = useState("");
   const [formMessage, setFormMessage] = useState("");
   const [formStartsAt, setFormStartsAt] = useState("");
@@ -63,15 +75,17 @@ export default function AdminMaintenancePage() {
       setMaintenances(res.maintenances);
     } catch (err) {
       console.error("Failed to load maintenances:", err);
-      toast({ title: "Erreur de chargement", variant: "error" });
+      toast.error("Erreur de chargement");
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, []);
 
   useEffect(() => {
-    void loadMaintenances();
-  }, [loadMaintenances]);
+    if (isAdmin) {
+      void loadMaintenances();
+    }
+  }, [isAdmin, loadMaintenances]);
 
   const resetForm = () => {
     setFormTitle("");
@@ -87,7 +101,6 @@ export default function AdminMaintenancePage() {
   const handleEdit = (m: MaintenanceWindow) => {
     setFormTitle(m.title);
     setFormMessage(m.message);
-    // Format dates for datetime-local input
     setFormStartsAt(new Date(m.startsAt).toISOString().slice(0, 16));
     setFormEndsAt(new Date(m.endsAt).toISOString().slice(0, 16));
     setFormSeverity(m.severity);
@@ -102,42 +115,24 @@ export default function AdminMaintenancePage() {
 
     try {
       setSaving(true);
-
       if (editingId) {
-        // Update
         await requestJson(`/api/admin/maintenance/${editingId}`, {
           method: "PATCH",
-          body: JSON.stringify({
-            title: formTitle,
-            message: formMessage,
-            startsAt: new Date(formStartsAt).toISOString(),
-            endsAt: new Date(formEndsAt).toISOString(),
-            severity: formSeverity,
-            isActive: formActive,
-          }),
+          body: { title: formTitle, message: formMessage, startsAt: new Date(formStartsAt).toISOString(), endsAt: new Date(formEndsAt).toISOString(), severity: formSeverity, isActive: formActive },
         });
-        toast({ title: "Maintenance mise à jour", variant: "success" });
+        toast.success("Maintenance mise à jour");
       } else {
-        // Create
         await requestJson("/api/admin/maintenance", {
           method: "POST",
-          body: JSON.stringify({
-            title: formTitle,
-            message: formMessage,
-            startsAt: new Date(formStartsAt).toISOString(),
-            endsAt: new Date(formEndsAt).toISOString(),
-            severity: formSeverity,
-            isActive: formActive,
-          }),
+          body: { title: formTitle, message: formMessage, startsAt: new Date(formStartsAt).toISOString(), endsAt: new Date(formEndsAt).toISOString(), severity: formSeverity, isActive: formActive },
         });
-        toast({ title: "Maintenance créée", variant: "success" });
+        toast.success("Maintenance créée");
       }
-
       resetForm();
       await loadMaintenances();
     } catch (err) {
       console.error("Failed to save:", err);
-      toast({ title: "Erreur lors de la sauvegarde", variant: "error" });
+      toast.error("Erreur lors de la sauvegarde");
     } finally {
       setSaving(false);
     }
@@ -145,250 +140,175 @@ export default function AdminMaintenancePage() {
 
   const handleDeactivate = async (m: MaintenanceWindow) => {
     try {
-      await requestJson(`/api/admin/maintenance/${m.id}/deactivate`, {
-        method: "POST",
-      });
-      toast({ title: "Maintenance désactivée", variant: "success" });
+      await requestJson(`/api/admin/maintenance/${m.id}/deactivate`, { method: "POST" });
+      toast.success("Maintenance désactivée");
       await loadMaintenances();
     } catch (err) {
       console.error("Failed to deactivate:", err);
-      toast({ title: "Erreur", variant: "error" });
+      toast.error("Erreur");
     }
   };
 
   const formatDate = (isoDate: string): string => {
     try {
-      return new Date(isoDate).toLocaleString("fr-FR", {
-        day: "numeric",
-        month: "short",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
+      return new Date(isoDate).toLocaleString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
     } catch {
       return "—";
     }
   };
 
-  const getStatus = (m: MaintenanceWindow): { label: string; color: string } => {
+  const getStatus = (m: MaintenanceWindow): { label: string; color: string; bg: string } => {
     const now = new Date();
     const start = new Date(m.startsAt);
     const end = new Date(m.endsAt);
-
-    if (!m.isActive) return { label: "Désactivée", color: "text-gray-500" };
-    if (now >= start && now <= end) return { label: "En cours", color: "text-orange-600" };
-    if (now < start) return { label: "Planifiée", color: "text-blue-600" };
-    return { label: "Terminée", color: "text-green-600" };
+    if (!m.isActive) return { label: "Désactivée", color: "#6B7280", bg: "#F3F4F6" };
+    if (now >= start && now <= end) return { label: "En cours", color: "#EA580C", bg: "#FFEDD5" };
+    if (now < start) return { label: "Planifiée", color: "#2563EB", bg: "#DBEAFE" };
+    return { label: "Terminée", color: "#059669", bg: "#D1FAE5" };
   };
 
+  const inputStyle: React.CSSProperties = { width: "100%", padding: "12px 14px", borderRadius: "10px", border: "1px solid #E5E7EB", fontSize: "14px", color: "#111827", background: "#fff", outline: "none" };
+  const labelStyle: React.CSSProperties = { display: "block", fontSize: "14px", fontWeight: 500, color: "#374151", marginBottom: "6px" };
+
+  if (!isAdmin) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "64px", textAlign: "center" }}>
+        <div style={{ width: "64px", height: "64px", borderRadius: "50%", background: "#FEE2E2", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "16px" }}>
+          <Shield size={32} color="#DC2626" />
+        </div>
+        <h2 style={{ fontSize: "18px", fontWeight: 600, color: "#111827", margin: "0 0 8px" }}>Accès refusé</h2>
+        <p style={{ fontSize: "14px", color: "#6B7280", margin: 0 }}>Accès réservé aux administrateurs</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="ms-animate-slide-up">
+    <div style={{ padding: isMobile ? "16px" : isTablet ? "24px" : "32px", maxWidth: "1200px", margin: "0 auto" }}>
       {/* Header */}
-      <div className="ms-page-header">
-        <div className="flex items-center gap-3">
-          <Wrench size={28} className="text-[var(--ms-primary)]" />
+      <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", alignItems: isMobile ? "stretch" : "center", marginBottom: "32px", gap: "16px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div style={{ width: "48px", height: "48px", borderRadius: "12px", background: "#EDE9FE", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Wrench size={24} color="#7C3AED" />
+          </div>
           <div>
-            <h1 className="ms-page-title">Maintenance</h1>
-            <p className="ms-page-subtitle">Planifier les fenêtres de maintenance</p>
+            <h1 style={{ fontSize: isMobile ? "24px" : "28px", fontWeight: 700, color: "#111827", margin: 0 }}>Maintenance</h1>
+            <p style={{ fontSize: "14px", color: "#6B7280", marginTop: "4px" }}>Planifier les fenêtres de maintenance</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => void loadMaintenances()}
-            disabled={loading}
-            className="ms-btn ms-btn-secondary"
-          >
-            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+        <div style={{ display: "flex", gap: "8px" }}>
+          <button onClick={() => void loadMaintenances()} disabled={loading} style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "10px", borderRadius: "10px", border: "1px solid #E5E7EB", background: "#fff", cursor: "pointer" }}>
+            <RefreshCw size={18} color="#6B7280" style={loading ? { animation: "spin 1s linear infinite" } : {}} />
           </button>
-          <button
-            type="button"
-            onClick={() => {
-              resetForm();
-              setShowForm(true);
-            }}
-            className="ms-btn ms-btn-primary"
-          >
-            <Plus size={16} />
-            Nouvelle maintenance
+          <button onClick={() => { resetForm(); setShowForm(true); }} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "10px 16px", borderRadius: "10px", border: "none", background: "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)", fontSize: "14px", fontWeight: 600, color: "#fff", cursor: "pointer" }}>
+            <Plus size={16} /> Nouvelle maintenance
           </button>
         </div>
       </div>
 
       {/* Form */}
       {showForm && (
-        <div className="ms-card mb-6">
-          <div className="ms-card-header">
-            <h2 className="ms-card-title">
-              {editingId ? "Modifier la maintenance" : "Nouvelle maintenance"}
-            </h2>
-          </div>
-          <form onSubmit={(e) => void handleSubmit(e)} className="ms-card-body pt-0">
-            <div className="grid gap-4 md:grid-cols-2">
+        <div style={{ padding: "24px", borderRadius: "16px", background: "#fff", border: "1px solid #E5E7EB", marginBottom: "24px" }}>
+          <h2 style={{ fontSize: "16px", fontWeight: 600, color: "#111827", margin: "0 0 20px" }}>{editingId ? "Modifier la maintenance" : "Nouvelle maintenance"}</h2>
+          <form onSubmit={(e) => void handleSubmit(e)}>
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "16px", marginBottom: "16px" }}>
               <div>
-                <label className="ms-label">Titre *</label>
-                <input
-                  type="text"
-                  value={formTitle}
-                  onChange={(e) => setFormTitle(e.target.value)}
-                  className="ms-input"
-                  placeholder="Ex: Mise à jour serveur"
-                  required
-                />
+                <label style={labelStyle}>Titre *</label>
+                <input type="text" value={formTitle} onChange={(e) => setFormTitle(e.target.value)} style={inputStyle} placeholder="Ex: Mise à jour serveur" required />
               </div>
               <div>
-                <label className="ms-label">Sévérité *</label>
-                <select
-                  value={formSeverity}
-                  onChange={(e) => setFormSeverity(e.target.value as MaintenanceSeverity)}
-                  className="ms-input"
-                >
+                <label style={labelStyle}>Sévérité *</label>
+                <select value={formSeverity} onChange={(e) => setFormSeverity(e.target.value as MaintenanceSeverity)} style={inputStyle}>
                   <option value="INFO">Info (bleu)</option>
                   <option value="WARNING">Warning (orange)</option>
                 </select>
               </div>
             </div>
-
-            <div className="mt-4">
-              <label className="ms-label">Message *</label>
-              <textarea
-                value={formMessage}
-                onChange={(e) => setFormMessage(e.target.value)}
-                className="ms-input min-h-[100px]"
-                placeholder="Description de la maintenance visible aux utilisateurs..."
-                required
-              />
+            <div style={{ marginBottom: "16px" }}>
+              <label style={labelStyle}>Message *</label>
+              <textarea value={formMessage} onChange={(e) => setFormMessage(e.target.value)} style={{ ...inputStyle, minHeight: "100px", resize: "vertical" }} placeholder="Description de la maintenance visible aux utilisateurs..." required />
             </div>
-
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "16px", marginBottom: "16px" }}>
               <div>
-                <label className="ms-label">Début *</label>
-                <input
-                  type="datetime-local"
-                  value={formStartsAt}
-                  onChange={(e) => setFormStartsAt(e.target.value)}
-                  className="ms-input"
-                  required
-                />
+                <label style={labelStyle}>Début *</label>
+                <input type="datetime-local" value={formStartsAt} onChange={(e) => setFormStartsAt(e.target.value)} style={inputStyle} required />
               </div>
               <div>
-                <label className="ms-label">Fin *</label>
-                <input
-                  type="datetime-local"
-                  value={formEndsAt}
-                  onChange={(e) => setFormEndsAt(e.target.value)}
-                  className="ms-input"
-                  required
-                />
+                <label style={labelStyle}>Fin *</label>
+                <input type="datetime-local" value={formEndsAt} onChange={(e) => setFormEndsAt(e.target.value)} style={inputStyle} required />
               </div>
             </div>
-
-            <div className="mt-4 flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="active"
-                checked={formActive}
-                onChange={(e) => setFormActive(e.target.checked)}
-                className="rounded border-gray-300"
-              />
-              <label htmlFor="active" className="text-sm">
-                Active (visible aux utilisateurs)
-              </label>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "20px" }}>
+              <input type="checkbox" id="active" checked={formActive} onChange={(e) => setFormActive(e.target.checked)} style={{ width: "18px", height: "18px" }} />
+              <label htmlFor="active" style={{ fontSize: "14px", color: "#374151" }}>Active (visible aux utilisateurs)</label>
             </div>
-
-            <div className="mt-6 flex items-center gap-2">
-              <button
-                type="submit"
-                disabled={saving || !formTitle.trim() || !formMessage.trim() || !formStartsAt || !formEndsAt}
-                className="ms-btn ms-btn-primary"
-              >
-                {saving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
-                {editingId ? "Enregistrer" : "Créer"}
+            <div style={{ display: "flex", gap: "8px" }}>
+              <button type="submit" disabled={saving || !formTitle.trim() || !formMessage.trim() || !formStartsAt || !formEndsAt} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "10px 16px", borderRadius: "10px", border: "none", background: "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)", fontSize: "14px", fontWeight: 600, color: "#fff", cursor: "pointer", opacity: saving ? 0.5 : 1 }}>
+                {saving ? <RefreshCw size={16} style={{ animation: "spin 1s linear infinite" }} /> : <Check size={16} />} {editingId ? "Enregistrer" : "Créer"}
               </button>
-              <button
-                type="button"
-                onClick={resetForm}
-                className="ms-btn ms-btn-secondary"
-              >
-                <X size={16} />
-                Annuler
+              <button type="button" onClick={resetForm} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "10px 16px", borderRadius: "10px", border: "1px solid #E5E7EB", background: "#fff", fontSize: "14px", fontWeight: 500, color: "#374151", cursor: "pointer" }}>
+                <X size={16} /> Annuler
               </button>
             </div>
           </form>
         </div>
       )}
 
-      {/* Maintenances List */}
-      {loading ? (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 size={32} className="animate-spin text-[var(--ms-primary)]" />
+      {/* Loading */}
+      {loading && (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "64px" }}>
+          <RefreshCw size={32} color="#6366F1" style={{ animation: "spin 1s linear infinite" }} />
         </div>
-      ) : maintenances.length === 0 ? (
-        <div className="ms-card">
-          <div className="ms-card-body text-center py-12">
-            <Wrench size={48} className="mx-auto mb-4 text-[var(--ms-text-muted)] opacity-30" />
-            <p className="text-[var(--ms-text-muted)]">Aucune maintenance planifiée</p>
+      )}
+
+      {/* Empty */}
+      {!loading && maintenances.length === 0 && (
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "64px", background: "#fff", borderRadius: "16px", border: "1px solid #E5E7EB" }}>
+          <div style={{ width: "64px", height: "64px", borderRadius: "50%", background: "#F3F4F6", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "16px" }}>
+            <Wrench size={32} color="#9CA3AF" />
           </div>
+          <p style={{ fontSize: "16px", fontWeight: 600, color: "#111827", margin: "0 0 8px" }}>Aucune maintenance planifiée</p>
+          <p style={{ fontSize: "14px", color: "#6B7280", margin: 0 }}>Cliquez sur &quot;Nouvelle maintenance&quot; pour en créer une</p>
         </div>
-      ) : (
-        <div className="space-y-4">
+      )}
+
+      {/* List */}
+      {!loading && maintenances.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           {maintenances.map((m) => {
             const status = getStatus(m);
             return (
-              <div
-                key={m.id}
-                className={`ms-card ${!m.isActive ? "opacity-60" : ""}`}
-              >
-                <div className="ms-card-body">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        {m.severity === "WARNING" ? (
-                          <AlertTriangle size={18} className="text-orange-500" />
-                        ) : (
-                          <Info size={18} className="text-blue-500" />
-                        )}
-                        <h3 className="font-semibold text-[var(--ms-text)]">
-                          {m.title}
-                        </h3>
-                        <span className={`text-xs font-medium ${status.color}`}>
-                          {status.label}
-                        </span>
-                      </div>
-                      <p className="text-sm text-[var(--ms-text-muted)] mb-3">
-                        {m.message}
-                      </p>
-                      <div className="flex items-center gap-4 text-xs text-[var(--ms-text-muted)]">
-                        <span className="flex items-center gap-1">
-                          <Calendar size={12} />
-                          {formatDate(m.startsAt)}
-                        </span>
-                        <span>→</span>
-                        <span className="flex items-center gap-1">
-                          <Clock size={12} />
-                          {formatDate(m.endsAt)}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => handleEdit(m)}
-                        className="ms-btn ms-btn-secondary ms-btn-sm"
-                        title="Modifier"
-                      >
-                        <Pencil size={14} />
-                      </button>
-                      {m.isActive && (
-                        <button
-                          type="button"
-                          onClick={() => void handleDeactivate(m)}
-                          className="ms-btn ms-btn-secondary ms-btn-sm"
-                          title="Désactiver"
-                        >
-                          <Power size={14} />
-                        </button>
+              <div key={m.id} style={{ padding: "20px", borderRadius: "16px", background: "#fff", border: "1px solid #E5E7EB", opacity: m.isActive ? 1 : 0.6 }}>
+                <div style={{ display: "flex", alignItems: isMobile ? "flex-start" : "center", justifyContent: "space-between", gap: "16px", flexDirection: isMobile ? "column" : "row" }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px", flexWrap: "wrap" }}>
+                      {m.severity === "WARNING" ? (
+                        <AlertTriangle size={18} color="#EA580C" />
+                      ) : (
+                        <Info size={18} color="#2563EB" />
                       )}
+                      <span style={{ fontSize: "15px", fontWeight: 600, color: "#111827" }}>{m.title}</span>
+                      <span style={{ padding: "3px 8px", borderRadius: "6px", fontSize: "12px", fontWeight: 500, background: status.bg, color: status.color }}>{status.label}</span>
                     </div>
+                    <p style={{ fontSize: "14px", color: "#6B7280", margin: "0 0 12px", lineHeight: 1.5 }}>{m.message}</p>
+                    <div style={{ display: "flex", alignItems: "center", gap: "16px", flexWrap: "wrap" }}>
+                      <span style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "13px", color: "#9CA3AF" }}>
+                        <Calendar size={14} /> {formatDate(m.startsAt)}
+                      </span>
+                      <span style={{ fontSize: "13px", color: "#9CA3AF" }}>→</span>
+                      <span style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "13px", color: "#9CA3AF" }}>
+                        <Clock size={14} /> {formatDate(m.endsAt)}
+                      </span>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: "6px" }}>
+                    <button onClick={() => handleEdit(m)} title="Modifier" style={{ padding: "8px", borderRadius: "8px", border: "1px solid #E5E7EB", background: "#fff", cursor: "pointer" }}>
+                      <Pencil size={16} color="#6B7280" />
+                    </button>
+                    {m.isActive && (
+                      <button onClick={() => void handleDeactivate(m)} title="Désactiver" style={{ padding: "8px", borderRadius: "8px", border: "1px solid #E5E7EB", background: "#fff", cursor: "pointer" }}>
+                        <Power size={16} color="#6B7280" />
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -396,6 +316,8 @@ export default function AdminMaintenancePage() {
           })}
         </div>
       )}
+
+      <style dangerouslySetInnerHTML={{ __html: `@keyframes spin { to { transform: rotate(360deg); } }` }} />
     </div>
   );
 }

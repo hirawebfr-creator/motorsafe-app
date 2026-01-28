@@ -144,7 +144,7 @@ Observation: pas de dossier `pages/` → **App Router uniquement**, donc pas d'o
 	- [components/ui/Badge.tsx](components/ui/Badge.tsx)
 	- [components/ui/Table.tsx](components/ui/Table.tsx)
 
-## Étape 4 — Pages (en cours)
+## Étape 4 — Pages (terminé)
 
 Nettoyage des overrides legacy sur les tables (pages consomment les primitives sans hacks):
 - [app/(dashboard)/dashboard/page.tsx](app/(dashboard)/dashboard/page.tsx)
@@ -152,6 +152,18 @@ Nettoyage des overrides legacy sur les tables (pages consomment les primitives s
 - [app/(dashboard)/admin/garages/page.tsx](app/(dashboard)/admin/garages/page.tsx)
 - [app/(dashboard)/documents/page.tsx](app/(dashboard)/documents/page.tsx)
 - [app/(dashboard)/admin/references/page.tsx](app/(dashboard)/admin/references/page.tsx)
+
+### Pages dashboard refactorées (2026-01-03)
+
+Les pages suivantes ont été entièrement refactorées pour utiliser le design system `ms-*` :
+- [app/(dashboard)/devis/page.tsx](app/(dashboard)/devis/page.tsx) — Gestion des devis
+- [app/(dashboard)/factures/page.tsx](app/(dashboard)/factures/page.tsx) — Gestion des factures
+- [app/(dashboard)/equipe/page.tsx](app/(dashboard)/equipe/page.tsx) — Gestion d'équipe (invitations, rôles, permissions)
+- [app/(dashboard)/incidents/page.tsx](app/(dashboard)/incidents/page.tsx) — État des services
+- [app/(dashboard)/partner/page.tsx](app/(dashboard)/partner/page.tsx) — Dashboard partenaire affilié
+
+Page différée (trop complexe, 1270 lignes) :
+- [app/(dashboard)/planning/page.tsx](app/(dashboard)/planning/page.tsx) — Calendrier/planning (refonte future recommandée)
 
 Amélioration cohérence UI (kicker + accents):
 - [app/auth/login/page.tsx](app/auth/login/page.tsx)

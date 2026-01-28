@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useUser } from "@/components/user-context";
+import { fetcher } from "@/lib/fetcher";
 import {
   Building2,
   Users,
@@ -16,120 +18,69 @@ import {
   AlertCircle,
   DollarSign,
   BarChart3,
-  Loader2,
   RefreshCw,
   Shield,
   Crown,
   Star,
   CreditCard,
+  ChevronRight,
 } from "lucide-react";
-import { useUser } from "@/components/user-context";
-import { fetcher } from "@/lib/fetcher";
-import { SectionHeader } from "@/components/ui/SectionHeader";
-import { Card } from "@/components/ui/Card";
-import { Button } from "@/components/ui/button";
+
+// Responsive hook
+function useResponsive() {
+  const [screen, setScreen] = useState<"mobile" | "tablet" | "desktop">("desktop");
+  useEffect(() => {
+    const check = () => {
+      const w = window.innerWidth;
+      if (w < 640) setScreen("mobile");
+      else if (w < 1024) setScreen("tablet");
+      else setScreen("desktop");
+    };
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+  return { isMobile: screen === "mobile", isTablet: screen === "tablet", screen };
+}
 
 type AdminStats = {
-  totals: {
-    garages: number;
-    activeGarages: number;
-    pendingGarages: number;
-    rejectedGarages: number;
-    users: number;
-    clients: number;
-    vehicles: number;
-    interventions: number;
-    quotes: number;
-    invoices: number;
-  };
-  thisWeek: {
-    newGarages: number;
-    newClients: number;
-    newVehicles: number;
-    newInterventions: number;
-    newQuotes: number;
-    newInvoices: number;
-  };
-  today: {
-    newGarages: number;
-  };
-  thisMonth: {
-    newGarages: number;
-  };
-  finances: {
-    totalRevenue: number;
-    pendingRevenue: number;
-    paidInvoices: number;
-    unpaidInvoices: number;
-  };
-  subscriptions: {
-    active: number;
-    trialing: number;
-    mrr: number;
-    arr: number;
-  };
-  plans: {
-    FREE: number;
-    STARTER: number;
-    PRO: number;
-  };
-  topGarages: Array<{
-    id: number;
-    name: string;
-    email: string;
-    plan: string;
-    createdAt: string;
-    stats: {
-      clients: number;
-      vehicles: number;
-      interventions: number;
-      quotes: number;
-      invoices: number;
-    };
-  }>;
-  recentGarages: Array<{
-    id: number;
-    name: string;
-    email: string;
-    status: string;
-    plan: string;
-    createdAt: string;
-    usersCount: number;
-  }>;
+  totals: { garages: number; activeGarages: number; pendingGarages: number; rejectedGarages: number; users: number; clients: number; vehicles: number; interventions: number; quotes: number; invoices: number };
+  thisWeek: { newGarages: number; newClients: number; newVehicles: number; newInterventions: number; newQuotes: number; newInvoices: number };
+  today: { newGarages: number };
+  thisMonth: { newGarages: number };
+  finances: { totalRevenue: number; pendingRevenue: number; paidInvoices: number; unpaidInvoices: number };
+  subscriptions: { active: number; trialing: number; mrr: number; arr: number };
+  plans: { FREE: number; STARTER: number; PRO: number };
+  topGarages: Array<{ id: number; name: string; email: string; plan: string; createdAt: string; stats: { clients: number; vehicles: number; interventions: number; quotes: number; invoices: number } }>;
+  recentGarages: Array<{ id: number; name: string; email: string; status: string; plan: string; createdAt: string; usersCount: number }>;
 };
 
 function fmtDate(input?: string | null) {
   if (!input) return "—";
   const d = new Date(input);
   if (Number.isNaN(d.getTime())) return "—";
-  return new Intl.DateTimeFormat("fr-FR", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(d);
+  return new Intl.DateTimeFormat("fr-FR", { day: "2-digit", month: "short", year: "numeric" }).format(d);
 }
 
 function fmtEur(amount: number) {
-  return new Intl.NumberFormat("fr-FR", {
-    style: "currency",
-    currency: "EUR",
-  }).format(amount);
+  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(amount);
 }
 
-const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
-  PENDING: { bg: "bg-yellow-100", text: "text-yellow-700" },
-  ACTIVE: { bg: "bg-green-100", text: "text-green-700" },
-  REJECTED: { bg: "bg-red-100", text: "text-red-700" },
+const STATUS_CONFIG: Record<string, { bg: string; color: string }> = {
+  PENDING: { bg: "#FEF3C7", color: "#D97706" },
+  ACTIVE: { bg: "#D1FAE5", color: "#059669" },
+  REJECTED: { bg: "#FEE2E2", color: "#DC2626" },
 };
 
-const PLAN_COLORS: Record<string, { bg: string; text: string; icon: typeof Star }> = {
-  FREE: { bg: "bg-gray-100", text: "text-gray-700", icon: Shield },
-  STARTER: { bg: "bg-blue-100", text: "text-blue-700", icon: Star },
-  PRO: { bg: "bg-purple-100", text: "text-purple-700", icon: Crown },
+const PLAN_CONFIG: Record<string, { bg: string; color: string; icon: typeof Star }> = {
+  FREE: { bg: "#F3F4F6", color: "#6B7280", icon: Shield },
+  STARTER: { bg: "#DBEAFE", color: "#2563EB", icon: Star },
+  PRO: { bg: "#EDE9FE", color: "#7C3AED", icon: Crown },
 };
 
 export default function AdminDashboardPage() {
   const user = useUser();
+  const { isMobile, isTablet } = useResponsive();
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -157,420 +108,328 @@ export default function AdminDashboardPage() {
 
   if (!isAdmin) {
     return (
-      <div className="flex min-h-[50vh] items-center justify-center">
-        <Card className="max-w-md p-8 text-center">
-          <Shield className="mx-auto mb-4 h-16 w-16 text-red-400" />
-          <h2 className="mb-2 text-xl font-bold">Accès refusé</h2>
-          <p className="text-muted2">Cette page est réservée aux administrateurs.</p>
-        </Card>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "64px", textAlign: "center" }}>
+        <div style={{ width: "64px", height: "64px", borderRadius: "50%", background: "#FEE2E2", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "16px" }}>
+          <Shield size={32} color="#DC2626" />
+        </div>
+        <h2 style={{ fontSize: "18px", fontWeight: 600, color: "#111827", margin: "0 0 8px" }}>Accès refusé</h2>
+        <p style={{ fontSize: "14px", color: "#6B7280", margin: 0 }}>Cette page est réservée aux administrateurs</p>
       </div>
     );
   }
 
   if (loading) {
     return (
-      <div className="flex min-h-[50vh] items-center justify-center">
-        <Loader2 size={40} className="animate-spin text-indigo-600" />
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "64px" }}>
+        <RefreshCw size={32} color="#6366F1" style={{ animation: "spin 1s linear infinite" }} />
+        <style dangerouslySetInnerHTML={{ __html: `@keyframes spin { to { transform: rotate(360deg); } }` }} />
       </div>
     );
   }
 
   if (error || !stats) {
     return (
-      <div className="space-y-6">
-        <SectionHeader title="Dashboard Admin" description="Vue globale de la plateforme" />
-        <Card className="border-red-200 bg-red-50 p-6 text-red-700">
-          {error || "Erreur de chargement"}
-        </Card>
+      <div style={{ padding: "32px", maxWidth: "600px", margin: "0 auto" }}>
+        <div style={{ padding: "24px", borderRadius: "16px", background: "#FEF2F2", border: "1px solid #FECACA", textAlign: "center" }}>
+          <AlertCircle size={48} color="#DC2626" style={{ marginBottom: "16px" }} />
+          <h2 style={{ fontSize: "18px", fontWeight: 600, color: "#DC2626", margin: "0 0 8px" }}>Erreur de chargement</h2>
+          <p style={{ fontSize: "14px", color: "#7F1D1D", margin: 0 }}>{error || "Impossible de charger les statistiques"}</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-8">
-      <SectionHeader
-        title="Dashboard Admin"
-        description="Vue globale de toute la plateforme SafeMotor"
-        action={
-          <Button variant="ghost" onClick={() => void loadStats()}>
-            <RefreshCw size={16} />
-            Rafraîchir
-          </Button>
-        }
-      />
-
-      {/* KPIs principaux */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-        <Card className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-100">
-              <Building2 className="h-5 w-5 text-indigo-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{stats.totals.garages}</p>
-              <p className="text-xs text-muted2">Garages</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-100">
-              <Users className="h-5 w-5 text-green-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{stats.totals.users}</p>
-              <p className="text-xs text-muted2">Utilisateurs</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-100">
-              <Users className="h-5 w-5 text-orange-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{stats.totals.clients}</p>
-              <p className="text-xs text-muted2">Clients</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100">
-              <Car className="h-5 w-5 text-blue-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{stats.totals.vehicles}</p>
-              <p className="text-xs text-muted2">Véhicules</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-100">
-              <Wrench className="h-5 w-5 text-purple-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{stats.totals.interventions}</p>
-              <p className="text-xs text-muted2">Interventions</p>
-            </div>
-          </div>
-        </Card>
-        <Card className="p-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100">
-              <Receipt className="h-5 w-5 text-emerald-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{stats.totals.invoices}</p>
-              <p className="text-xs text-muted2">Factures</p>
-            </div>
-          </div>
-        </Card>
+    <div style={{ padding: isMobile ? "16px" : isTablet ? "24px" : "32px", maxWidth: "1600px", margin: "0 auto" }}>
+      {/* Header */}
+      <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", alignItems: isMobile ? "stretch" : "center", marginBottom: "32px", gap: "16px" }}>
+        <div>
+          <h1 style={{ fontSize: isMobile ? "24px" : "32px", fontWeight: 700, color: "#111827", margin: 0 }}>Dashboard Admin</h1>
+          <p style={{ fontSize: "15px", color: "#6B7280", marginTop: "4px" }}>Vue globale de toute la plateforme SafeMotor</p>
+        </div>
+        <button
+          onClick={() => void loadStats()}
+          style={{ display: "flex", alignItems: "center", gap: "8px", padding: "12px 20px", borderRadius: "12px", border: "1px solid #E5E7EB", background: "#fff", fontSize: "14px", fontWeight: 600, color: "#374151", cursor: "pointer" }}
+        >
+          <RefreshCw size={18} />
+          Rafraîchir
+        </button>
       </div>
 
-      {/* Stats Garages */}
-      <div className="grid gap-6 lg:grid-cols-4">
-        <Card className="p-6">
-          <h3 className="mb-4 flex items-center gap-2 font-semibold">
-            <Building2 className="h-5 w-5 text-indigo-500" />
-            Statut des Garages
-          </h3>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <CheckCircle className="h-4 w-4 text-green-500" />
-                <span>Actifs</span>
+      {/* KPIs principaux */}
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : isTablet ? "repeat(3, 1fr)" : "repeat(6, 1fr)", gap: "16px", marginBottom: "24px" }}>
+        {[
+          { label: "Garages", value: stats.totals.garages, icon: Building2, bg: "#EEF2FF", color: "#6366F1" },
+          { label: "Utilisateurs", value: stats.totals.users, icon: Users, bg: "#D1FAE5", color: "#059669" },
+          { label: "Clients", value: stats.totals.clients, icon: Users, bg: "#FEF3C7", color: "#F59E0B" },
+          { label: "Véhicules", value: stats.totals.vehicles, icon: Car, bg: "#DBEAFE", color: "#3B82F6" },
+          { label: "Interventions", value: stats.totals.interventions, icon: Wrench, bg: "#EDE9FE", color: "#7C3AED" },
+          { label: "Factures", value: stats.totals.invoices, icon: Receipt, bg: "#D1FAE5", color: "#10B981" },
+        ].map((item, i) => {
+          const Icon = item.icon;
+          return (
+            <div key={i} style={{ padding: "16px", borderRadius: "16px", background: "#fff", border: "1px solid #E5E7EB" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <div style={{ width: "40px", height: "40px", borderRadius: "10px", background: item.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Icon size={20} color={item.color} />
+                </div>
+                <div>
+                  <p style={{ fontSize: "22px", fontWeight: 700, color: "#111827", margin: 0 }}>{item.value}</p>
+                  <p style={{ fontSize: "12px", color: "#6B7280", margin: 0 }}>{item.label}</p>
+                </div>
               </div>
-              <span className="font-bold text-green-600">{stats.totals.activeGarages}</span>
             </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-yellow-500" />
-                <span>En attente</span>
-              </div>
-              <span className="font-bold text-yellow-600">{stats.totals.pendingGarages}</span>
+          );
+        })}
+      </div>
+
+      {/* Stats détaillées */}
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : isTablet ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: "16px", marginBottom: "24px" }}>
+        {/* Statut garages */}
+        <div style={{ padding: "20px", borderRadius: "16px", background: "#fff", border: "1px solid #E5E7EB" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
+            <Building2 size={20} color="#6366F1" />
+            <h3 style={{ fontSize: "15px", fontWeight: 600, color: "#111827", margin: 0 }}>Statut des Garages</h3>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "14px", color: "#374151" }}><CheckCircle size={16} color="#10B981" /> Actifs</span>
+              <span style={{ fontSize: "16px", fontWeight: 700, color: "#10B981" }}>{stats.totals.activeGarages}</span>
             </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <XCircle className="h-4 w-4 text-red-500" />
-                <span>Refusés</span>
-              </div>
-              <span className="font-bold text-red-600">{stats.totals.rejectedGarages}</span>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "14px", color: "#374151" }}><Clock size={16} color="#F59E0B" /> En attente</span>
+              <span style={{ fontSize: "16px", fontWeight: 700, color: "#F59E0B" }}>{stats.totals.pendingGarages}</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "14px", color: "#374151" }}><XCircle size={16} color="#EF4444" /> Refusés</span>
+              <span style={{ fontSize: "16px", fontWeight: 700, color: "#EF4444" }}>{stats.totals.rejectedGarages}</span>
             </div>
           </div>
           {stats.totals.pendingGarages > 0 && (
-            <Link
-              href="/admin/pro-demandes"
-              className="mt-4 inline-block text-sm text-indigo-600 hover:underline"
-            >
-              Voir les demandes en attente →
+            <Link href="/admin" style={{ display: "block", marginTop: "16px", fontSize: "13px", color: "#6366F1", textDecoration: "none" }}>
+              Voir les demandes →
             </Link>
           )}
-        </Card>
+        </div>
 
-        <Card className="p-6">
-          <h3 className="mb-4 flex items-center gap-2 font-semibold">
-            <Crown className="h-5 w-5 text-purple-500" />
-            Distribution des Plans
-          </h3>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Shield className="h-4 w-4 text-gray-500" />
-                <span>FREE</span>
-              </div>
-              <span className="font-bold">{stats.plans.FREE}</span>
+        {/* Plans */}
+        <div style={{ padding: "20px", borderRadius: "16px", background: "#fff", border: "1px solid #E5E7EB" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
+            <Crown size={20} color="#7C3AED" />
+            <h3 style={{ fontSize: "15px", fontWeight: 600, color: "#111827", margin: 0 }}>Distribution Plans</h3>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "14px", color: "#374151" }}><Shield size={16} color="#6B7280" /> FREE</span>
+              <span style={{ fontSize: "16px", fontWeight: 700, color: "#6B7280" }}>{stats.plans.FREE}</span>
             </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Star className="h-4 w-4 text-blue-500" />
-                <span>STARTER</span>
-              </div>
-              <span className="font-bold text-blue-600">{stats.plans.STARTER}</span>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "14px", color: "#374151" }}><Star size={16} color="#3B82F6" /> STARTER</span>
+              <span style={{ fontSize: "16px", fontWeight: 700, color: "#3B82F6" }}>{stats.plans.STARTER}</span>
             </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Crown className="h-4 w-4 text-purple-500" />
-                <span>PRO</span>
-              </div>
-              <span className="font-bold text-purple-600">{stats.plans.PRO}</span>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "14px", color: "#374151" }}><Crown size={16} color="#7C3AED" /> PRO</span>
+              <span style={{ fontSize: "16px", fontWeight: 700, color: "#7C3AED" }}>{stats.plans.PRO}</span>
             </div>
           </div>
-          <div className="mt-4 h-3 overflow-hidden rounded-full bg-gray-200">
+          {/* Progress bar */}
+          <div style={{ marginTop: "16px", height: "8px", borderRadius: "4px", background: "#E5E7EB", overflow: "hidden", display: "flex" }}>
             {(() => {
               const total = stats.plans.FREE + stats.plans.STARTER + stats.plans.PRO;
               if (total === 0) return null;
-              const freePct = (stats.plans.FREE / total) * 100;
-              const starterPct = (stats.plans.STARTER / total) * 100;
-              const proPct = (stats.plans.PRO / total) * 100;
               return (
-                <div className="flex h-full">
-                  <div className="bg-gray-400" style={{ width: `${freePct}%` }} />
-                  <div className="bg-blue-500" style={{ width: `${starterPct}%` }} />
-                  <div className="bg-purple-500" style={{ width: `${proPct}%` }} />
-                </div>
+                <>
+                  <div style={{ width: `${(stats.plans.FREE / total) * 100}%`, background: "#9CA3AF" }} />
+                  <div style={{ width: `${(stats.plans.STARTER / total) * 100}%`, background: "#3B82F6" }} />
+                  <div style={{ width: `${(stats.plans.PRO / total) * 100}%`, background: "#7C3AED" }} />
+                </>
               );
             })()}
           </div>
-        </Card>
+        </div>
 
-        <Card className="p-6">
-          <h3 className="mb-4 flex items-center gap-2 font-semibold">
-            <CreditCard className="h-5 w-5 text-cyan-500" />
-            Abonnements Stripe
-          </h3>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-muted2">MRR</span>
-              <span className="font-bold text-cyan-600">{fmtEur(stats.subscriptions.mrr)}</span>
+        {/* Abonnements Stripe */}
+        <div style={{ padding: "20px", borderRadius: "16px", background: "#fff", border: "1px solid #E5E7EB" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
+            <CreditCard size={20} color="#06B6D4" />
+            <h3 style={{ fontSize: "15px", fontWeight: 600, color: "#111827", margin: 0 }}>Abonnements Stripe</h3>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ fontSize: "14px", color: "#6B7280" }}>MRR</span>
+              <span style={{ fontSize: "16px", fontWeight: 700, color: "#06B6D4" }}>{fmtEur(stats.subscriptions.mrr)}</span>
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-muted2">ARR</span>
-              <span className="font-bold text-cyan-600">{fmtEur(stats.subscriptions.arr)}</span>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ fontSize: "14px", color: "#6B7280" }}>ARR</span>
+              <span style={{ fontSize: "16px", fontWeight: 700, color: "#06B6D4" }}>{fmtEur(stats.subscriptions.arr)}</span>
             </div>
-            <hr className="border-border" />
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted2">Abos actifs</span>
-              <span className="text-green-600">{stats.subscriptions.active}</span>
+            <div style={{ height: "1px", background: "#E5E7EB" }} />
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ fontSize: "13px", color: "#6B7280" }}>Abos actifs</span>
+              <span style={{ fontSize: "14px", fontWeight: 600, color: "#10B981" }}>{stats.subscriptions.active}</span>
             </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted2">Essais en cours</span>
-              <span className="text-blue-600">{stats.subscriptions.trialing}</span>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ fontSize: "13px", color: "#6B7280" }}>Essais en cours</span>
+              <span style={{ fontSize: "14px", fontWeight: 600, color: "#3B82F6" }}>{stats.subscriptions.trialing}</span>
             </div>
           </div>
-        </Card>
+        </div>
 
-        <Card className="p-6">
-          <h3 className="mb-4 flex items-center gap-2 font-semibold">
-            <DollarSign className="h-5 w-5 text-emerald-500" />
-            Finances Globales
-          </h3>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-muted2">CA Total (payé)</span>
-              <span className="font-bold text-emerald-600">{fmtEur(stats.finances.totalRevenue)}</span>
+        {/* Finances */}
+        <div style={{ padding: "20px", borderRadius: "16px", background: "#fff", border: "1px solid #E5E7EB" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "16px" }}>
+            <DollarSign size={20} color="#10B981" />
+            <h3 style={{ fontSize: "15px", fontWeight: 600, color: "#111827", margin: 0 }}>Finances Globales</h3>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ fontSize: "14px", color: "#6B7280" }}>CA Total (payé)</span>
+              <span style={{ fontSize: "16px", fontWeight: 700, color: "#10B981" }}>{fmtEur(stats.finances.totalRevenue)}</span>
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-muted2">En attente</span>
-              <span className="font-bold text-yellow-600">{fmtEur(stats.finances.pendingRevenue)}</span>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ fontSize: "14px", color: "#6B7280" }}>En attente</span>
+              <span style={{ fontSize: "16px", fontWeight: 700, color: "#F59E0B" }}>{fmtEur(stats.finances.pendingRevenue)}</span>
             </div>
-            <hr className="border-border" />
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted2">Factures payées</span>
-              <span className="text-green-600">{stats.finances.paidInvoices}</span>
+            <div style={{ height: "1px", background: "#E5E7EB" }} />
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ fontSize: "13px", color: "#6B7280" }}>Factures payées</span>
+              <span style={{ fontSize: "14px", fontWeight: 600, color: "#10B981" }}>{stats.finances.paidInvoices}</span>
             </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-muted2">Factures en cours</span>
-              <span className="text-yellow-600">{stats.finances.unpaidInvoices}</span>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <span style={{ fontSize: "13px", color: "#6B7280" }}>Factures en cours</span>
+              <span style={{ fontSize: "14px", fontWeight: 600, color: "#F59E0B" }}>{stats.finances.unpaidInvoices}</span>
             </div>
           </div>
-        </Card>
+        </div>
       </div>
 
       {/* Activité cette semaine */}
-      <Card className="p-6">
-        <h3 className="mb-4 flex items-center gap-2 font-semibold">
-          <TrendingUp className="h-5 w-5 text-indigo-500" />
-          Activité cette semaine
-        </h3>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-          <div className="rounded-lg bg-surface2 p-4 text-center">
-            <p className="text-2xl font-bold text-indigo-600">+{stats.thisWeek.newGarages}</p>
-            <p className="text-xs text-muted2">Garages</p>
-          </div>
-          <div className="rounded-lg bg-surface2 p-4 text-center">
-            <p className="text-2xl font-bold text-orange-600">+{stats.thisWeek.newClients}</p>
-            <p className="text-xs text-muted2">Clients</p>
-          </div>
-          <div className="rounded-lg bg-surface2 p-4 text-center">
-            <p className="text-2xl font-bold text-blue-600">+{stats.thisWeek.newVehicles}</p>
-            <p className="text-xs text-muted2">Véhicules</p>
-          </div>
-          <div className="rounded-lg bg-surface2 p-4 text-center">
-            <p className="text-2xl font-bold text-purple-600">+{stats.thisWeek.newInterventions}</p>
-            <p className="text-xs text-muted2">Interventions</p>
-          </div>
-          <div className="rounded-lg bg-surface2 p-4 text-center">
-            <p className="text-2xl font-bold text-cyan-600">+{stats.thisWeek.newQuotes}</p>
-            <p className="text-xs text-muted2">Devis</p>
-          </div>
-          <div className="rounded-lg bg-surface2 p-4 text-center">
-            <p className="text-2xl font-bold text-emerald-600">+{stats.thisWeek.newInvoices}</p>
-            <p className="text-xs text-muted2">Factures</p>
-          </div>
+      <div style={{ padding: "20px", borderRadius: "16px", background: "#fff", border: "1px solid #E5E7EB", marginBottom: "24px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "20px" }}>
+          <TrendingUp size={20} color="#6366F1" />
+          <h3 style={{ fontSize: "15px", fontWeight: 600, color: "#111827", margin: 0 }}>Activité cette semaine</h3>
         </div>
-      </Card>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : isTablet ? "repeat(3, 1fr)" : "repeat(6, 1fr)", gap: "12px" }}>
+          {[
+            { label: "Garages", value: stats.thisWeek.newGarages, color: "#6366F1" },
+            { label: "Clients", value: stats.thisWeek.newClients, color: "#F59E0B" },
+            { label: "Véhicules", value: stats.thisWeek.newVehicles, color: "#3B82F6" },
+            { label: "Interventions", value: stats.thisWeek.newInterventions, color: "#7C3AED" },
+            { label: "Devis", value: stats.thisWeek.newQuotes, color: "#06B6D4" },
+            { label: "Factures", value: stats.thisWeek.newInvoices, color: "#10B981" },
+          ].map((item, i) => (
+            <div key={i} style={{ padding: "16px", borderRadius: "12px", background: "#F9FAFB", textAlign: "center" }}>
+              <p style={{ fontSize: "24px", fontWeight: 700, color: item.color, margin: 0 }}>+{item.value}</p>
+              <p style={{ fontSize: "12px", color: "#6B7280", margin: "4px 0 0" }}>{item.label}</p>
+            </div>
+          ))}
+        </div>
+      </div>
 
       {/* Top Garages & Récents */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card className="overflow-hidden p-0">
-          <div className="border-b border-border bg-surface2 px-5 py-3">
-            <h3 className="flex items-center gap-2 font-semibold">
-              <BarChart3 className="h-5 w-5 text-indigo-500" />
-              Top Garages (par interventions)
-            </h3>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(2, 1fr)", gap: "24px", marginBottom: "24px" }}>
+        {/* Top Garages */}
+        <div style={{ background: "#fff", borderRadius: "16px", border: "1px solid #E5E7EB", overflow: "hidden" }}>
+          <div style={{ padding: "16px 20px", borderBottom: "1px solid #E5E7EB", background: "#F9FAFB", display: "flex", alignItems: "center", gap: "8px" }}>
+            <BarChart3 size={18} color="#6366F1" />
+            <h3 style={{ fontSize: "15px", fontWeight: 600, color: "#111827", margin: 0 }}>Top Garages (par interventions)</h3>
           </div>
-          <div className="divide-y divide-border">
+          <div>
             {stats.topGarages.slice(0, 5).map((garage, idx) => {
-              const planCfg = PLAN_COLORS[garage.plan] || PLAN_COLORS.FREE;
+              const planCfg = PLAN_CONFIG[garage.plan] || PLAN_CONFIG.FREE;
               const PlanIcon = planCfg.icon;
               return (
-                <div key={garage.id} className="flex items-center gap-4 px-5 py-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-sm font-bold text-indigo-600">
-                    {idx + 1}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium">{garage.name}</p>
-                      <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs ${planCfg.bg} ${planCfg.text}`}>
-                        <PlanIcon className="h-3 w-3" />
-                        {garage.plan}
+                <div key={garage.id} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "12px 20px", borderBottom: idx < 4 ? "1px solid #F3F4F6" : "none" }}>
+                  <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "#EEF2FF", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "14px", fontWeight: 700, color: "#6366F1" }}>{idx + 1}</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <span style={{ fontSize: "14px", fontWeight: 600, color: "#111827" }}>{garage.name}</span>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: "3px", padding: "2px 6px", borderRadius: "4px", fontSize: "10px", fontWeight: 600, background: planCfg.bg, color: planCfg.color }}>
+                        <PlanIcon size={10} /> {garage.plan}
                       </span>
                     </div>
-                    <p className="text-xs text-muted2">{garage.email}</p>
+                    <p style={{ fontSize: "12px", color: "#6B7280", margin: 0 }}>{garage.email}</p>
                   </div>
-                  <div className="text-right text-sm">
-                    <p className="font-semibold">{garage.stats.interventions}</p>
-                    <p className="text-xs text-muted2">interventions</p>
+                  <div style={{ textAlign: "right" }}>
+                    <p style={{ fontSize: "16px", fontWeight: 700, color: "#111827", margin: 0 }}>{garage.stats.interventions}</p>
+                    <p style={{ fontSize: "11px", color: "#9CA3AF", margin: 0 }}>interventions</p>
                   </div>
                 </div>
               );
             })}
           </div>
-          <div className="border-t border-border bg-surface2 px-5 py-3">
-            <Link href="/admin/garages" className="text-sm text-indigo-600 hover:underline">
-              Voir tous les garages →
-            </Link>
+          <div style={{ padding: "12px 20px", borderTop: "1px solid #E5E7EB", background: "#F9FAFB" }}>
+            <Link href="/admin/garages" style={{ fontSize: "13px", color: "#6366F1", textDecoration: "none" }}>Voir tous les garages →</Link>
           </div>
-        </Card>
+        </div>
 
-        <Card className="overflow-hidden p-0">
-          <div className="border-b border-border bg-surface2 px-5 py-3">
-            <h3 className="flex items-center gap-2 font-semibold">
-              <Clock className="h-5 w-5 text-orange-500" />
-              Dernières inscriptions
-            </h3>
+        {/* Dernières inscriptions */}
+        <div style={{ background: "#fff", borderRadius: "16px", border: "1px solid #E5E7EB", overflow: "hidden" }}>
+          <div style={{ padding: "16px 20px", borderBottom: "1px solid #E5E7EB", background: "#F9FAFB", display: "flex", alignItems: "center", gap: "8px" }}>
+            <Clock size={18} color="#F59E0B" />
+            <h3 style={{ fontSize: "15px", fontWeight: 600, color: "#111827", margin: 0 }}>Dernières inscriptions</h3>
           </div>
-          <div className="divide-y divide-border">
-            {stats.recentGarages.slice(0, 5).map((garage) => {
-              const statusCfg = STATUS_COLORS[garage.status] || STATUS_COLORS.PENDING;
+          <div>
+            {stats.recentGarages.slice(0, 5).map((garage, idx) => {
+              const statusCfg = STATUS_CONFIG[garage.status] || STATUS_CONFIG.PENDING;
               return (
-                <div key={garage.id} className="flex items-center gap-4 px-5 py-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-100">
-                    <Building2 className="h-5 w-5 text-orange-600" />
+                <div key={garage.id} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "12px 20px", borderBottom: idx < 4 ? "1px solid #F3F4F6" : "none" }}>
+                  <div style={{ width: "40px", height: "40px", borderRadius: "10px", background: "#FEF3C7", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Building2 size={20} color="#F59E0B" />
                   </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="font-medium">{garage.name}</p>
-                      <span className={`rounded px-1.5 py-0.5 text-xs ${statusCfg.bg} ${statusCfg.text}`}>
-                        {garage.status}
-                      </span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <span style={{ fontSize: "14px", fontWeight: 600, color: "#111827" }}>{garage.name}</span>
+                      <span style={{ padding: "2px 6px", borderRadius: "4px", fontSize: "10px", fontWeight: 500, background: statusCfg.bg, color: statusCfg.color }}>{garage.status}</span>
                     </div>
-                    <p className="text-xs text-muted2">{fmtDate(garage.createdAt)}</p>
+                    <p style={{ fontSize: "12px", color: "#6B7280", margin: 0 }}>{fmtDate(garage.createdAt)}</p>
                   </div>
-                  <div className="text-right text-sm">
-                    <p className="font-semibold">{garage.usersCount}</p>
-                    <p className="text-xs text-muted2">users</p>
+                  <div style={{ textAlign: "right" }}>
+                    <p style={{ fontSize: "16px", fontWeight: 700, color: "#111827", margin: 0 }}>{garage.usersCount}</p>
+                    <p style={{ fontSize: "11px", color: "#9CA3AF", margin: 0 }}>users</p>
                   </div>
                 </div>
               );
             })}
           </div>
-          <div className="border-t border-border bg-surface2 px-5 py-3">
-            <Link href="/admin" className="text-sm text-indigo-600 hover:underline">
-              Voir demandes en attente →
-            </Link>
+          <div style={{ padding: "12px 20px", borderTop: "1px solid #E5E7EB", background: "#F9FAFB" }}>
+            <Link href="/admin" style={{ fontSize: "13px", color: "#6366F1", textDecoration: "none" }}>Voir demandes en attente →</Link>
           </div>
-        </Card>
+        </div>
       </div>
 
       {/* Navigation rapide */}
-      <Card className="p-6">
-        <h3 className="mb-4 font-semibold">Navigation Admin</h3>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Link
-            href="/admin"
-            className="flex items-center gap-3 rounded-lg border border-border p-4 transition-colors hover:bg-surface2"
-          >
-            <AlertCircle className="h-6 w-6 text-yellow-500" />
-            <div>
-              <p className="font-medium">Demandes Pro</p>
-              <p className="text-xs text-muted2">{stats.totals.pendingGarages} en attente</p>
-            </div>
-          </Link>
-          <Link
-            href="/admin/garages"
-            className="flex items-center gap-3 rounded-lg border border-border p-4 transition-colors hover:bg-surface2"
-          >
-            <Building2 className="h-6 w-6 text-indigo-500" />
-            <div>
-              <p className="font-medium">Tous les Garages</p>
-              <p className="text-xs text-muted2">{stats.totals.garages} total</p>
-            </div>
-          </Link>
-          <Link
-            href="/admin/clients"
-            className="flex items-center gap-3 rounded-lg border border-border p-4 transition-colors hover:bg-surface2"
-          >
-            <Users className="h-6 w-6 text-orange-500" />
-            <div>
-              <p className="font-medium">Tous les Clients</p>
-              <p className="text-xs text-muted2">{stats.totals.clients} total</p>
-            </div>
-          </Link>
-          <Link
-            href="/admin/references"
-            className="flex items-center gap-3 rounded-lg border border-border p-4 transition-colors hover:bg-surface2"
-          >
-            <FileText className="h-6 w-6 text-purple-500" />
-            <div>
-              <p className="font-medium">Références légales</p>
-              <p className="text-xs text-muted2">Gérer les références</p>
-            </div>
-          </Link>
+      <div style={{ padding: "20px", borderRadius: "16px", background: "#fff", border: "1px solid #E5E7EB" }}>
+        <h3 style={{ fontSize: "15px", fontWeight: 600, color: "#111827", margin: "0 0 16px" }}>Navigation Admin</h3>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : isTablet ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: "12px" }}>
+          {[
+            { href: "/admin", label: "Demandes Pro", sub: `${stats.totals.pendingGarages} en attente`, icon: AlertCircle, color: "#F59E0B" },
+            { href: "/admin/garages", label: "Tous les Garages", sub: `${stats.totals.garages} total`, icon: Building2, color: "#6366F1" },
+            { href: "/admin/clients", label: "Tous les Clients", sub: `${stats.totals.clients} total`, icon: Users, color: "#F97316" },
+            { href: "/admin/references", label: "Références légales", sub: "Gérer les références", icon: FileText, color: "#7C3AED" },
+          ].map((item, i) => {
+            const Icon = item.icon;
+            return (
+              <Link key={i} href={item.href} style={{ textDecoration: "none" }}>
+                <div
+                  style={{ display: "flex", alignItems: "center", gap: "12px", padding: "16px", borderRadius: "12px", border: "1px solid #E5E7EB", cursor: "pointer", transition: "background 0.15s" }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = "#F9FAFB")}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                >
+                  <Icon size={24} color={item.color} />
+                  <div style={{ flex: 1 }}>
+                    <p style={{ fontSize: "14px", fontWeight: 600, color: "#111827", margin: 0 }}>{item.label}</p>
+                    <p style={{ fontSize: "12px", color: "#6B7280", margin: 0 }}>{item.sub}</p>
+                  </div>
+                  <ChevronRight size={18} color="#D1D5DB" />
+                </div>
+              </Link>
+            );
+          })}
         </div>
-      </Card>
+      </div>
+
+      <style dangerouslySetInnerHTML={{ __html: `@keyframes spin { to { transform: rotate(360deg); } }` }} />
     </div>
   );
 }

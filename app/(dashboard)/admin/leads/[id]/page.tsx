@@ -2,8 +2,7 @@
 
 /**
  * LEADS-CRM-01: Lead Detail Page
- * 
- * Admin-only page for managing a single lead with activity timeline
+ * SafeMotor Design System - Aligned with support page patterns
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -23,13 +22,14 @@ import {
   Trash2,
   Copy,
   Check,
-  X,
   Plus,
   ChevronDown,
+  Loader2,
+  AlertTriangle,
 } from "lucide-react";
+import { toast } from "sonner";
 import { useUser } from "@/components/user-context";
 import { fetcher, requestJson } from "@/lib/fetcher";
-import { useToast } from "@/components/ui/Toast";
 
 // Types
 type LeadStatus = "NEW" | "CONTACTED" | "DEMO_SCHEDULED" | "DEMO_DONE" | "TRIAL_STARTED" | "WON" | "LOST";
@@ -70,46 +70,46 @@ interface Lead {
   activities: Activity[];
 }
 
-// Labels
-const STATUS_LABELS: Record<LeadStatus, string> = {
-  NEW: "Nouveau",
-  CONTACTED: "Contacté",
-  DEMO_SCHEDULED: "Démo planifiée",
-  DEMO_DONE: "Démo effectuée",
-  TRIAL_STARTED: "Essai démarré",
-  WON: "Gagné",
-  LOST: "Perdu",
+// Config
+const STATUS_CONFIG: Record<LeadStatus, { label: string; color: string; bg: string }> = {
+  NEW: { label: "Nouveau", color: "text-blue-600", bg: "bg-blue-100" },
+  CONTACTED: { label: "Contacté", color: "text-indigo-600", bg: "bg-indigo-100" },
+  DEMO_SCHEDULED: { label: "Démo planifiée", color: "text-yellow-700", bg: "bg-yellow-100" },
+  DEMO_DONE: { label: "Démo effectuée", color: "text-orange-600", bg: "bg-orange-100" },
+  TRIAL_STARTED: { label: "Essai démarré", color: "text-purple-600", bg: "bg-purple-100" },
+  WON: { label: "Gagné", color: "text-emerald-600", bg: "bg-emerald-100" },
+  LOST: { label: "Perdu", color: "text-red-600", bg: "bg-red-100" },
 };
 
-const STATUS_COLORS: Record<LeadStatus, string> = {
-  NEW: "bg-blue-100 text-blue-800",
-  CONTACTED: "bg-indigo-100 text-indigo-800",
-  DEMO_SCHEDULED: "bg-yellow-100 text-yellow-800",
-  DEMO_DONE: "bg-orange-100 text-orange-800",
-  TRIAL_STARTED: "bg-purple-100 text-purple-800",
-  WON: "bg-green-100 text-green-800",
-  LOST: "bg-red-100 text-red-800",
+const ACTIVITY_CONFIG: Record<ActivityType, { label: string; icon: React.ReactNode; bg: string }> = {
+  NOTE: { label: "Note", icon: <MessageSquare className="h-4 w-4" />, bg: "bg-gray-100" },
+  CALL: { label: "Appel", icon: <Phone className="h-4 w-4" />, bg: "bg-green-100" },
+  SMS: { label: "SMS", icon: <MessageSquare className="h-4 w-4" />, bg: "bg-blue-100" },
+  EMAIL: { label: "Email", icon: <Mail className="h-4 w-4" />, bg: "bg-indigo-100" },
+  DM: { label: "DM", icon: <MessageSquare className="h-4 w-4" />, bg: "bg-pink-100" },
+  DEMO: { label: "Démo", icon: <Calendar className="h-4 w-4" />, bg: "bg-yellow-100" },
+  STATUS_CHANGE: { label: "Statut", icon: <Clock className="h-4 w-4" />, bg: "bg-purple-100" },
 };
 
-const ACTIVITY_ICONS: Record<ActivityType, React.ReactNode> = {
-  NOTE: <MessageSquare className="h-4 w-4" />,
-  CALL: <Phone className="h-4 w-4" />,
-  SMS: <MessageSquare className="h-4 w-4" />,
-  EMAIL: <Mail className="h-4 w-4" />,
-  DM: <MessageSquare className="h-4 w-4" />,
-  DEMO: <Calendar className="h-4 w-4" />,
-  STATUS_CHANGE: <Clock className="h-4 w-4" />,
-};
-
-const ACTIVITY_LABELS: Record<ActivityType, string> = {
-  NOTE: "Note",
-  CALL: "Appel",
+const CHANNEL_LABELS: Record<LeadChannel, string> = {
+  INSTAGRAM: "Instagram",
+  FACEBOOK: "Facebook",
   SMS: "SMS",
   EMAIL: "Email",
-  DM: "DM",
-  DEMO: "Démo",
-  STATUS_CHANGE: "Changement statut",
+  PHONE: "Téléphone",
+  LINKEDIN: "LinkedIn",
+  REFERRAL: "Parrainage",
+  OTHER: "Autre",
 };
+
+const ACTIVITY_OPTIONS = [
+  { value: "NOTE", label: "Note" },
+  { value: "CALL", label: "Appel" },
+  { value: "SMS", label: "SMS" },
+  { value: "EMAIL", label: "Email" },
+  { value: "DM", label: "DM" },
+  { value: "DEMO", label: "Démo" },
+];
 
 function formatDateTime(input?: string | null) {
   if (!input) return "—";
@@ -139,7 +139,6 @@ export default function AdminLeadDetailPage() {
   const params = useParams();
   const router = useRouter();
   const user = useUser();
-  const toast = useToast();
   const isAdmin = user?.role === "ADMIN";
   const leadId = params.id as string;
 
@@ -152,14 +151,13 @@ export default function AdminLeadDetailPage() {
   const [showActivityForm, setShowActivityForm] = useState(false);
   const [activityForm, setActivityForm] = useState({ type: "NOTE" as ActivityType, summary: "", details: "" });
   const [copied, setCopied] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const loadLead = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetcher<{ data: Lead }>(`/api/admin/leads/${leadId}`, {
-        noStore: true,
-      });
+      const data = await fetcher<{ data: Lead }>(`/api/admin/leads/${leadId}`, { noStore: true });
       setLead(data.data);
       setEditForm(data.data);
     } catch (err) {
@@ -180,120 +178,110 @@ export default function AdminLeadDetailPage() {
   };
 
   const handleUpdate = async () => {
+    setSaving(true);
     try {
-      await requestJson(`/api/admin/leads/${leadId}`, {
-        method: "PATCH",
-        body: editForm,
-      });
-      toast.push({ title: "Lead mis à jour", variant: "success" });
+      await requestJson(`/api/admin/leads/${leadId}`, { method: "PATCH", body: editForm });
+      toast.success("Lead mis à jour");
       setEditing(false);
       loadLead();
     } catch (err) {
-      toast.push({
-        title: "Erreur",
-        description: err instanceof Error ? err.message : "Échec de la mise à jour",
-        variant: "error",
-      });
+      toast.error(err instanceof Error ? err.message : "Échec de la mise à jour");
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleStatusChange = async (newStatus: LeadStatus) => {
     try {
-      let body: Record<string, unknown> = { status: newStatus };
-      
+      const body: Record<string, unknown> = { status: newStatus };
       if (newStatus === "LOST") {
         const reason = prompt("Raison de la perte (optionnel):");
         if (reason) body.lostReason = reason;
       }
-
-      await requestJson(`/api/admin/leads/${leadId}/status`, {
-        method: "POST",
-        body,
-      });
-      toast.push({ title: `Statut: ${STATUS_LABELS[newStatus]}`, variant: "success" });
+      await requestJson(`/api/admin/leads/${leadId}/status`, { method: "POST", body });
+      toast.success(`Statut: ${STATUS_CONFIG[newStatus].label}`);
       setShowStatusMenu(false);
       loadLead();
     } catch (err) {
-      toast.push({
-        title: "Erreur",
-        description: err instanceof Error ? err.message : "Échec du changement de statut",
-        variant: "error",
-      });
+      toast.error(err instanceof Error ? err.message : "Échec du changement de statut");
     }
   };
 
   const handleAddActivity = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSaving(true);
     try {
-      await requestJson(`/api/admin/leads/${leadId}/activity`, {
-        method: "POST",
-        body: activityForm,
-      });
-      toast.push({ title: "Activité ajoutée", variant: "success" });
+      await requestJson(`/api/admin/leads/${leadId}/activity`, { method: "POST", body: activityForm });
+      toast.success("Activité ajoutée");
       setShowActivityForm(false);
       setActivityForm({ type: "NOTE", summary: "", details: "" });
       loadLead();
     } catch (err) {
-      toast.push({
-        title: "Erreur",
-        description: err instanceof Error ? err.message : "Échec de l'ajout",
-        variant: "error",
-      });
+      toast.error(err instanceof Error ? err.message : "Échec de l'ajout");
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleAnonymize = async () => {
     if (!confirm("Anonymiser ce lead ? Cette action est irréversible (RGPD).")) return;
     try {
-      await requestJson(`/api/admin/leads/${leadId}`, {
-        method: "DELETE",
-      });
-      toast.push({ title: "Lead anonymisé", variant: "success" });
+      await requestJson(`/api/admin/leads/${leadId}`, { method: "DELETE" });
+      toast.success("Lead anonymisé");
       router.push("/admin/leads");
     } catch (err) {
-      toast.push({
-        title: "Erreur",
-        description: err instanceof Error ? err.message : "Échec de l'anonymisation",
-        variant: "error",
-      });
+      toast.error(err instanceof Error ? err.message : "Échec de l'anonymisation");
     }
   };
 
   if (!isAdmin) {
     return (
-      <div className="p-8 text-center text-gray-500">
-        Accès réservé aux administrateurs.
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[var(--ms-bg-subtle)] mb-4">
+          <User size={24} className="text-[var(--ms-text-muted)]" />
+        </div>
+        <p className="text-[var(--ms-text-secondary)]">Accès réservé aux administrateurs</p>
       </div>
     );
   }
 
   if (loading) {
-    return <div className="p-8 text-center text-gray-500">Chargement...</div>;
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 size={32} className="animate-spin text-[var(--ms-primary)]" />
+      </div>
+    );
   }
 
   if (error || !lead) {
     return (
-      <div className="p-8 text-center">
-        <p className="text-red-500">{error || "Lead introuvable"}</p>
-        <Link href="/admin/leads" className="mt-4 inline-block text-primary-600 hover:underline">
-          ← Retour à la liste
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <div className="flex h-14 w-14 items-center justify-center rounded-full bg-red-100 mb-4">
+          <AlertTriangle size={24} className="text-red-500" />
+        </div>
+        <p className="text-[var(--ms-text)] font-medium mb-2">{error || "Lead introuvable"}</p>
+        <Link href="/admin/leads" className="ms-btn ms-btn-primary mt-4">
+          <ArrowLeft size={16} />
+          Retour à la liste
         </Link>
       </div>
     );
   }
 
+  const statusCfg = STATUS_CONFIG[lead.status];
+
   return (
-    <div className="space-y-6 p-6">
+    <div className="ms-animate-slide-up">
       {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="ms-page-header">
         <div className="flex items-center gap-4">
-          <Link href="/admin/leads" className="text-gray-500 hover:text-gray-700">
-            <ArrowLeft className="h-5 w-5" />
+          <Link href="/admin/leads" className="ms-btn ms-btn-ghost ms-btn-icon">
+            <ArrowLeft size={20} />
           </Link>
           <div>
-            <h1 className="text-2xl font-bold">{lead.garageName}</h1>
+            <h1 className="ms-page-title">{lead.garageName}</h1>
             {lead.city && (
-              <p className="text-sm text-gray-500 flex items-center gap-1">
+              <p className="ms-page-subtitle flex items-center gap-1">
                 <MapPin className="h-4 w-4" />
                 {lead.postalCode} {lead.city}
               </p>
@@ -305,249 +293,244 @@ export default function AdminLeadDetailPage() {
           <div className="relative">
             <button
               onClick={() => setShowStatusMenu(!showStatusMenu)}
-              className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium ${STATUS_COLORS[lead.status]}`}
+              className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium cursor-pointer transition-opacity hover:opacity-80 ${statusCfg.bg} ${statusCfg.color}`}
             >
-              {STATUS_LABELS[lead.status]}
+              {statusCfg.label}
               <ChevronDown className="h-4 w-4" />
             </button>
             {showStatusMenu && (
-              <div className="absolute right-0 z-10 mt-2 w-48 rounded-lg border bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800">
-                {Object.entries(STATUS_LABELS).map(([status, label]) => (
+              <div className="absolute right-0 z-10 mt-2 w-48 rounded-lg border border-[var(--ms-border)] bg-white shadow-lg">
+                {Object.entries(STATUS_CONFIG).map(([status, cfg]) => (
                   <button
                     key={status}
                     onClick={() => handleStatusChange(status as LeadStatus)}
-                    className={`block w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 ${
-                      lead.status === status ? "font-medium" : ""
-                    }`}
+                    className={`block w-full px-4 py-2 text-left text-sm hover:bg-[var(--ms-surface-hover)] transition-colors first:rounded-t-lg last:rounded-b-lg ${lead.status === status ? "font-medium bg-[var(--ms-bg-subtle)]" : ""}`}
                   >
-                    {label}
+                    {cfg.label}
                   </button>
                 ))}
               </div>
             )}
           </div>
-          <button
-            onClick={() => setEditing(true)}
-            className="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700"
-          >
-            <Edit2 className="h-4 w-4" />
+          <button onClick={() => setEditing(true)} className="ms-btn ms-btn-secondary ms-btn-icon">
+            <Edit2 size={18} />
           </button>
-          <button
-            onClick={handleAnonymize}
-            className="inline-flex items-center gap-2 rounded-lg border border-red-300 px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-900/30"
-          >
-            <Trash2 className="h-4 w-4" />
+          <button onClick={handleAnonymize} className="ms-btn ms-btn-ghost ms-btn-icon text-red-500 hover:bg-red-50">
+            <Trash2 size={18} />
           </button>
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* Main info */}
+      <div className="grid gap-6 lg:grid-cols-3 mt-6">
+        {/* Main content */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Contact */}
-          <div className="rounded-xl border bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
-            <h2 className="mb-4 text-lg font-semibold flex items-center gap-2">
-              <User className="h-5 w-5" />
-              Contact
-            </h2>
-            <div className="space-y-3">
-              {lead.contactName && (
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-500">Nom</span>
-                  <span className="font-medium">{lead.contactName}</span>
-                </div>
-              )}
-              {lead.contactPhone && (
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-500">Téléphone</span>
-                  <div className="flex items-center gap-2">
-                    <a href={`tel:${lead.contactPhone}`} className="font-medium text-primary-600 hover:underline">
-                      {lead.contactPhone}
-                    </a>
-                    <button
-                      onClick={() => handleCopy(lead.contactPhone!, "phone")}
-                      className="text-gray-400 hover:text-gray-600"
-                    >
-                      {copied === "phone" ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
-                    </button>
+          {/* Contact card */}
+          <div className="ms-card">
+            <div className="ms-card-header">
+              <h2 className="text-base font-semibold text-[var(--ms-text)] flex items-center gap-2">
+                <User size={18} />
+                Contact
+              </h2>
+            </div>
+            <div className="ms-card-body">
+              <div className="space-y-3">
+                {lead.contactName && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-[var(--ms-text-muted)]">Nom</span>
+                    <span className="font-medium text-[var(--ms-text)]">{lead.contactName}</span>
                   </div>
-                </div>
-              )}
-              {lead.contactEmail && (
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-500">Email</span>
-                  <div className="flex items-center gap-2">
-                    <a href={`mailto:${lead.contactEmail}`} className="font-medium text-primary-600 hover:underline">
-                      {lead.contactEmail}
-                    </a>
-                    <button
-                      onClick={() => handleCopy(lead.contactEmail!, "email")}
-                      className="text-gray-400 hover:text-gray-600"
-                    >
-                      {copied === "email" ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
-                    </button>
+                )}
+                {lead.contactPhone && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-[var(--ms-text-muted)]">Téléphone</span>
+                    <div className="flex items-center gap-2">
+                      <a href={`tel:${lead.contactPhone}`} className="font-medium text-[var(--ms-primary)] hover:underline">
+                        {lead.contactPhone}
+                      </a>
+                      <button onClick={() => handleCopy(lead.contactPhone!, "phone")} className="text-[var(--ms-text-muted)] hover:text-[var(--ms-text)]">
+                        {copied === "phone" ? <Check size={16} className="text-emerald-500" /> : <Copy size={16} />}
+                      </button>
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+                {lead.contactEmail && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-[var(--ms-text-muted)]">Email</span>
+                    <div className="flex items-center gap-2">
+                      <a href={`mailto:${lead.contactEmail}`} className="font-medium text-[var(--ms-primary)] hover:underline">
+                        {lead.contactEmail}
+                      </a>
+                      <button onClick={() => handleCopy(lead.contactEmail!, "email")} className="text-[var(--ms-text-muted)] hover:text-[var(--ms-text)]">
+                        {copied === "email" ? <Check size={16} className="text-emerald-500" /> : <Copy size={16} />}
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {!lead.contactName && !lead.contactPhone && !lead.contactEmail && (
+                  <p className="text-sm text-[var(--ms-text-muted)] text-center py-2">Aucun contact renseigné</p>
+                )}
+              </div>
             </div>
           </div>
 
           {/* Notes */}
           {lead.notes && (
-            <div className="rounded-xl border bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
-              <h2 className="mb-4 text-lg font-semibold">Notes</h2>
-              <p className="whitespace-pre-wrap text-gray-600 dark:text-gray-300">{lead.notes}</p>
+            <div className="ms-card">
+              <div className="ms-card-header">
+                <h2 className="text-base font-semibold text-[var(--ms-text)]">Notes</h2>
+              </div>
+              <div className="ms-card-body">
+                <p className="whitespace-pre-wrap text-[var(--ms-text-secondary)]">{lead.notes}</p>
+              </div>
             </div>
           )}
 
           {/* Activities */}
-          <div className="rounded-xl border bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Historique</h2>
-              <button
-                onClick={() => setShowActivityForm(true)}
-                className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-700"
-              >
-                <Plus className="h-4 w-4" />
+          <div className="ms-card">
+            <div className="ms-card-header flex items-center justify-between">
+              <h2 className="text-base font-semibold text-[var(--ms-text)]">Historique</h2>
+              <button onClick={() => setShowActivityForm(true)} className="ms-btn ms-btn-primary ms-btn-sm">
+                <Plus size={16} />
                 Activité
               </button>
             </div>
-
-            {/* Activity form */}
-            {showActivityForm && (
-              <form onSubmit={handleAddActivity} className="mb-6 rounded-lg border bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900">
-                <div className="mb-3 flex gap-3">
-                  <select
-                    value={activityForm.type}
-                    onChange={(e) => setActivityForm({ ...activityForm, type: e.target.value as ActivityType })}
-                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800"
-                  >
-                    <option value="NOTE">Note</option>
-                    <option value="CALL">Appel</option>
-                    <option value="SMS">SMS</option>
-                    <option value="EMAIL">Email</option>
-                    <option value="DM">DM</option>
-                    <option value="DEMO">Démo</option>
-                  </select>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Résumé..."
-                    value={activityForm.summary}
-                    onChange={(e) => setActivityForm({ ...activityForm, summary: e.target.value })}
-                    className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800"
+            <div className="ms-card-body">
+              {/* Activity form */}
+              {showActivityForm && (
+                <form onSubmit={handleAddActivity} className="mb-6 p-4 rounded-xl bg-[var(--ms-bg-subtle)] border border-[var(--ms-border)]">
+                  <div className="flex flex-wrap gap-3 mb-3">
+                    <select
+                      value={activityForm.type}
+                      onChange={(e) => setActivityForm({ ...activityForm, type: e.target.value as ActivityType })}
+                      className="ms-input"
+                    >
+                      {ACTIVITY_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Résumé..."
+                      value={activityForm.summary}
+                      onChange={(e) => setActivityForm({ ...activityForm, summary: e.target.value })}
+                      className="ms-input flex-1 min-w-[200px]"
+                    />
+                  </div>
+                  <textarea
+                    placeholder="Détails (optionnel)..."
+                    value={activityForm.details}
+                    onChange={(e) => setActivityForm({ ...activityForm, details: e.target.value })}
+                    className="ms-input w-full mb-3"
+                    rows={2}
+                    style={{ height: "auto", paddingTop: 10, paddingBottom: 10 }}
                   />
-                </div>
-                <textarea
-                  placeholder="Détails (optionnel)..."
-                  value={activityForm.details}
-                  onChange={(e) => setActivityForm({ ...activityForm, details: e.target.value })}
-                  className="mb-3 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800"
-                  rows={2}
-                />
-                <div className="flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowActivityForm(false)}
-                    className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-100 dark:border-gray-600 dark:hover:bg-gray-700"
-                  >
-                    Annuler
-                  </button>
-                  <button
-                    type="submit"
-                    className="rounded-lg bg-primary-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-primary-700"
-                  >
-                    Ajouter
-                  </button>
-                </div>
-              </form>
-            )}
-
-            {/* Timeline */}
-            <div className="space-y-4">
-              {lead.activities.map((activity) => (
-                <div key={activity.id} className="flex gap-4">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
-                    {ACTIVITY_ICONS[activity.type]}
+                  <div className="flex justify-end gap-2">
+                    <button type="button" onClick={() => setShowActivityForm(false)} className="ms-btn ms-btn-secondary ms-btn-sm">
+                      Annuler
+                    </button>
+                    <button type="submit" disabled={saving} className="ms-btn ms-btn-primary ms-btn-sm">
+                      {saving ? <Loader2 size={14} className="animate-spin" /> : "Ajouter"}
+                    </button>
                   </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-medium text-gray-500 uppercase">
-                        {ACTIVITY_LABELS[activity.type]}
-                      </span>
-                      <span className="text-xs text-gray-400">
-                        {formatDateTime(activity.createdAt)}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-sm">{activity.summary}</p>
-                    {activity.details && (
-                      <p className="mt-1 text-sm text-gray-500">{activity.details}</p>
-                    )}
-                  </div>
-                </div>
-              ))}
-              {lead.activities.length === 0 && (
-                <p className="text-center text-sm text-gray-500">Aucune activité</p>
+                </form>
               )}
+
+              {/* Timeline */}
+              <div className="space-y-4">
+                {lead.activities.map((activity) => {
+                  const cfg = ACTIVITY_CONFIG[activity.type];
+                  return (
+                    <div key={activity.id} className="flex gap-4">
+                      <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${cfg.bg} text-[var(--ms-text-secondary)]`}>
+                        {cfg.icon}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-semibold text-[var(--ms-text-muted)] uppercase tracking-wide">
+                            {cfg.label}
+                          </span>
+                          <span className="text-xs text-[var(--ms-text-muted)]">
+                            {formatDateTime(activity.createdAt)}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-sm text-[var(--ms-text)]">{activity.summary}</p>
+                        {activity.details && (
+                          <p className="mt-1 text-sm text-[var(--ms-text-muted)]">{activity.details}</p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+                {lead.activities.length === 0 && (
+                  <p className="text-center text-sm text-[var(--ms-text-muted)] py-4">Aucune activité</p>
+                )}
+              </div>
             </div>
           </div>
         </div>
 
         {/* Sidebar */}
         <div className="space-y-6">
-          {/* Meta */}
-          <div className="rounded-xl border bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
-            <h2 className="mb-4 text-lg font-semibold">Informations</h2>
-            <div className="space-y-3 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-500">Canal</span>
-                <span className="font-medium">{lead.channel}</span>
+          {/* Meta info */}
+          <div className="ms-card">
+            <div className="ms-card-header">
+              <h2 className="text-base font-semibold text-[var(--ms-text)]">Informations</h2>
+            </div>
+            <div className="ms-card-body">
+              <div className="space-y-3 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-[var(--ms-text-muted)]">Canal</span>
+                  <span className="font-medium text-[var(--ms-text)]">{CHANNEL_LABELS[lead.channel]}</span>
+                </div>
+                {lead.source && (
+                  <div className="flex justify-between">
+                    <span className="text-[var(--ms-text-muted)]">Source</span>
+                    <span className="font-medium text-[var(--ms-text)]">{lead.source}</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-[var(--ms-text-muted)]">Créé le</span>
+                  <span className="text-[var(--ms-text)]">{formatDate(lead.createdAt)}</span>
+                </div>
+                {lead.lastContactedAt && (
+                  <div className="flex justify-between">
+                    <span className="text-[var(--ms-text-muted)]">Dernier contact</span>
+                    <span className="text-[var(--ms-text)]">{formatDate(lead.lastContactedAt)}</span>
+                  </div>
+                )}
+                {lead.nextFollowUpAt && (
+                  <div className="flex justify-between">
+                    <span className="text-[var(--ms-text-muted)]">Prochaine relance</span>
+                    <span className="font-medium text-orange-600">{formatDate(lead.nextFollowUpAt)}</span>
+                  </div>
+                )}
+                {lead.ownerUser && (
+                  <div className="flex justify-between">
+                    <span className="text-[var(--ms-text-muted)]">Responsable</span>
+                    <span className="text-[var(--ms-text)]">{lead.ownerUser.email}</span>
+                  </div>
+                )}
               </div>
-              {lead.source && (
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Source</span>
-                  <span className="font-medium">{lead.source}</span>
-                </div>
-              )}
-              <div className="flex justify-between">
-                <span className="text-gray-500">Créé le</span>
-                <span>{formatDate(lead.createdAt)}</span>
-              </div>
-              {lead.lastContactedAt && (
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Dernier contact</span>
-                  <span>{formatDate(lead.lastContactedAt)}</span>
-                </div>
-              )}
-              {lead.nextFollowUpAt && (
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Prochaine relance</span>
-                  <span className="font-medium text-orange-600">{formatDate(lead.nextFollowUpAt)}</span>
-                </div>
-              )}
-              {lead.ownerUser && (
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Responsable</span>
-                  <span>{lead.ownerUser.email}</span>
-                </div>
-              )}
             </div>
           </div>
 
           {/* Conversion */}
           {lead.trialGarage && (
-            <div className="rounded-xl border border-green-200 bg-green-50 p-6 dark:border-green-800 dark:bg-green-900/30">
-              <h2 className="mb-4 text-lg font-semibold text-green-800 dark:text-green-200 flex items-center gap-2">
-                <Building2 className="h-5 w-5" />
-                Converti
-              </h2>
-              <div className="space-y-2 text-sm">
-                <div className="font-medium">{lead.trialGarage.name}</div>
-                <div className="text-green-600 dark:text-green-400">
+            <div className="ms-card border-emerald-200 bg-emerald-50">
+              <div className="ms-card-header">
+                <h2 className="text-base font-semibold text-emerald-800 flex items-center gap-2">
+                  <Building2 size={18} />
+                  Converti
+                </h2>
+              </div>
+              <div className="ms-card-body">
+                <div className="font-medium text-[var(--ms-text)]">{lead.trialGarage.name}</div>
+                <div className="text-sm text-emerald-600 mt-1">
                   Plan: {lead.trialGarage.plan} • {lead.trialGarage.status}
                 </div>
                 {lead.wonAt && (
-                  <div className="text-gray-500">Gagné le {formatDate(lead.wonAt)}</div>
+                  <div className="text-xs text-[var(--ms-text-muted)] mt-2">Gagné le {formatDate(lead.wonAt)}</div>
                 )}
               </div>
             </div>
@@ -555,12 +538,16 @@ export default function AdminLeadDetailPage() {
 
           {/* Lost reason */}
           {lead.status === "LOST" && lead.lostReason && (
-            <div className="rounded-xl border border-red-200 bg-red-50 p-6 dark:border-red-800 dark:bg-red-900/30">
-              <h2 className="mb-2 text-sm font-semibold text-red-800 dark:text-red-200">Raison de perte</h2>
-              <p className="text-sm text-red-600 dark:text-red-300">{lead.lostReason}</p>
-              {lead.lostAt && (
-                <div className="mt-2 text-xs text-gray-500">Perdu le {formatDate(lead.lostAt)}</div>
-              )}
+            <div className="ms-card border-red-200 bg-red-50">
+              <div className="ms-card-header">
+                <h2 className="text-base font-semibold text-red-800">Raison de perte</h2>
+              </div>
+              <div className="ms-card-body">
+                <p className="text-sm text-red-600">{lead.lostReason}</p>
+                {lead.lostAt && (
+                  <div className="text-xs text-[var(--ms-text-muted)] mt-2">Perdu le {formatDate(lead.lostAt)}</div>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -568,112 +555,104 @@ export default function AdminLeadDetailPage() {
 
       {/* Edit modal */}
       {editing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl dark:bg-gray-800">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-bold">Modifier le lead</h2>
-              <button onClick={() => setEditing(false)}>
-                <X className="h-5 w-5" />
-              </button>
+        <div className="ms-modal-overlay" onClick={() => setEditing(false)}>
+          <div className="ms-modal" style={{ maxWidth: 560 }} onClick={(e) => e.stopPropagation()}>
+            <div className="ms-modal-header">
+              <h2 className="ms-modal-title">Modifier le lead</h2>
             </div>
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <label className="mb-1 block text-sm font-medium">Nom du garage</label>
+            <div className="ms-modal-body">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-medium text-[var(--ms-text)] mb-1.5">Nom du garage</label>
                   <input
                     type="text"
                     value={editForm.garageName || ""}
                     onChange={(e) => setEditForm({ ...editForm, garageName: e.target.value })}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700"
+                    className="ms-input"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium">Ville</label>
+                  <label className="block text-sm font-medium text-[var(--ms-text)] mb-1.5">Ville</label>
                   <input
                     type="text"
                     value={editForm.city || ""}
                     onChange={(e) => setEditForm({ ...editForm, city: e.target.value })}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700"
+                    className="ms-input"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium">Code postal</label>
+                  <label className="block text-sm font-medium text-[var(--ms-text)] mb-1.5">Code postal</label>
                   <input
                     type="text"
                     value={editForm.postalCode || ""}
                     onChange={(e) => setEditForm({ ...editForm, postalCode: e.target.value })}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700"
+                    className="ms-input"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium">Contact</label>
+                  <label className="block text-sm font-medium text-[var(--ms-text)] mb-1.5">Contact</label>
                   <input
                     type="text"
                     value={editForm.contactName || ""}
                     onChange={(e) => setEditForm({ ...editForm, contactName: e.target.value })}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700"
+                    className="ms-input"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium">Téléphone</label>
+                  <label className="block text-sm font-medium text-[var(--ms-text)] mb-1.5">Téléphone</label>
                   <input
                     type="tel"
                     value={editForm.contactPhone || ""}
                     onChange={(e) => setEditForm({ ...editForm, contactPhone: e.target.value })}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700"
+                    className="ms-input"
                   />
                 </div>
-                <div className="col-span-2">
-                  <label className="mb-1 block text-sm font-medium">Email</label>
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-medium text-[var(--ms-text)] mb-1.5">Email</label>
                   <input
                     type="email"
                     value={editForm.contactEmail || ""}
                     onChange={(e) => setEditForm({ ...editForm, contactEmail: e.target.value })}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700"
+                    className="ms-input"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium">Prochaine relance</label>
+                  <label className="block text-sm font-medium text-[var(--ms-text)] mb-1.5">Prochaine relance</label>
                   <input
                     type="date"
                     value={editForm.nextFollowUpAt?.split("T")[0] || ""}
                     onChange={(e) => setEditForm({ ...editForm, nextFollowUpAt: e.target.value })}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700"
+                    className="ms-input"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium">Source</label>
+                  <label className="block text-sm font-medium text-[var(--ms-text)] mb-1.5">Source</label>
                   <input
                     type="text"
                     value={editForm.source || ""}
                     onChange={(e) => setEditForm({ ...editForm, source: e.target.value })}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700"
+                    className="ms-input"
                   />
                 </div>
-                <div className="col-span-2">
-                  <label className="mb-1 block text-sm font-medium">Notes</label>
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-medium text-[var(--ms-text)] mb-1.5">Notes</label>
                   <textarea
                     rows={3}
                     value={editForm.notes || ""}
                     onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
-                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-700"
+                    className="ms-input w-full"
+                    style={{ height: "auto", paddingTop: 10, paddingBottom: 10 }}
                   />
                 </div>
               </div>
-              <div className="flex justify-end gap-2">
-                <button
-                  onClick={() => setEditing(false)}
-                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700"
-                >
-                  Annuler
-                </button>
-                <button
-                  onClick={handleUpdate}
-                  className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700"
-                >
-                  Enregistrer
-                </button>
-              </div>
+            </div>
+            <div className="ms-modal-footer">
+              <button onClick={() => setEditing(false)} className="ms-btn ms-btn-secondary">
+                Annuler
+              </button>
+              <button onClick={handleUpdate} disabled={saving} className="ms-btn ms-btn-primary">
+                {saving ? <Loader2 size={16} className="animate-spin" /> : "Enregistrer"}
+              </button>
             </div>
           </div>
         </div>

@@ -1,0 +1,49 @@
+{
+  "name": "MotorSafe",
+  "short_name": "MotorSafe",
+  "description": "Logiciel de gestion et protection juridique pour garages automobiles",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#4F46E5",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "fr",
+  "categories": ["business", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Nouvelle intervention",
+      "short_name": "Intervention",
+      "description": "Créer une nouvelle intervention",
+      "url": "/interventions/nouvelle"
+    },
+    {
+      "name": "Rechercher véhicule",
+      "short_name": "Rechercher",
+      "description": "Rechercher par plaque d'immatriculation",
+      "url": "/vehicules?focus=search"
+    },
+    {
+      "name": "Scanner QR",
+      "short_name": "Scanner",
+      "description": "Scanner un QR code signature",
+      "url": "/sign"
+    }
+  ],
+  "related_applications": [],
+  "prefer_related_applications": false
+}

@@ -225,12 +225,11 @@ textarea:focus-visible {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   COMPONENT CLASSES
+   COMPONENT CLASSES (outside @layer for Tailwind v4 compatibility)
    ═══════════════════════════════════════════════════════════════════════════ */
 
-@layer components {
-  /* ─── Cards ─── */
-  .ms-card {
+/* ─── Cards ─── */
+.ms-card {
     background: var(--ms-surface);
     border: 1px solid var(--ms-border);
     border-radius: var(--ms-radius-lg);
@@ -413,6 +412,51 @@ textarea:focus-visible {
     overflow: hidden;
   }
 
+  /* HTML Table styles */
+  .ms-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .ms-thead {
+    background: var(--ms-bg-subtle);
+    border-bottom: 1px solid var(--ms-border);
+  }
+
+  .ms-th {
+    padding: 12px 16px;
+    text-align: left;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ms-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  .ms-tbody {
+    background: var(--ms-surface);
+  }
+
+  .ms-tr {
+    border-bottom: 1px solid var(--ms-border-light);
+    transition: background var(--ms-transition-fast);
+  }
+
+  .ms-tr:last-child {
+    border-bottom: none;
+  }
+
+  .ms-tr:hover {
+    background: var(--ms-surface-hover);
+  }
+
+  .ms-td {
+    padding: 16px;
+    font-size: 14px;
+    color: var(--ms-text);
+  }
+
+  /* Grid-based table rows (div-based layout) */
   .ms-table-header {
     display: grid;
     align-items: center;
@@ -784,7 +828,6 @@ textarea:focus-visible {
     padding: 16px 24px;
     border-top: 1px solid var(--ms-border-light);
   }
-}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    ANIMATIONS

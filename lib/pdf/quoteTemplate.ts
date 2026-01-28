@@ -589,7 +589,7 @@ function renderLegalSection(
   let y = startY;
   
   // Validity and conditions
-  page.drawText("CONDITIONS", {
+  page.drawText("CONDITIONS GÉNÉRALES", {
     x: MARGIN_LEFT,
     y,
     size: 8,
@@ -601,25 +601,50 @@ function renderLegalSection(
   const conditions = [
     "• Ce devis est valable 30 jours à compter de sa date d'émission.",
     "• Pour accepter ce devis, veuillez le signer et nous le retourner.",
-    "• Paiement selon les conditions convenues lors de l'acceptation.",
+    "• Paiement : à la livraison, sauf accord préalable.",
+    "• En cas de retard de paiement, des pénalités seront appliquées (taux BCE + 10 points).",
+    "• Indemnité forfaitaire de recouvrement : 40€.",
   ];
   
   for (const condition of conditions) {
     page.drawText(condition, {
       x: MARGIN_LEFT,
       y,
-      size: 8,
+      size: 7,
       font: fonts.regular,
       color: MUTED_COLOR,
     });
-    y -= 12;
+    y -= 11;
   }
   
-  y -= 15;
+  y -= 10;
   
-  // Legal mentions
+  // Legal mentions - Mandatory for French businesses
+  page.drawText("MENTIONS LÉGALES", {
+    x: MARGIN_LEFT,
+    y,
+    size: 8,
+    font: fonts.bold,
+    color: MUTED_COLOR,
+  });
+  y -= 12;
+  
+  // Company legal info
+  const legalLines: string[] = [];
+  
   if (data.organisation.siret) {
-    page.drawText(`SIRET: ${data.organisation.siret}`, {
+    legalLines.push(`SIRET: ${data.organisation.siret}`);
+  }
+  
+  if (data.organisation.vatNumber) {
+    legalLines.push(`N° TVA Intracommunautaire: ${data.organisation.vatNumber}`);
+  }
+  
+  // Add RCS if available (extracted from SIRET location)
+  legalLines.push("Activité: Réparation automobile");
+  
+  for (const line of legalLines) {
+    page.drawText(line, {
       x: MARGIN_LEFT,
       y,
       size: 7,
@@ -627,16 +652,6 @@ function renderLegalSection(
       color: MUTED_COLOR,
     });
     y -= 10;
-  }
-  
-  if (data.organisation.vatNumber) {
-    page.drawText(`N° TVA: ${data.organisation.vatNumber}`, {
-      x: MARGIN_LEFT,
-      y,
-      size: 7,
-      font: fonts.regular,
-      color: MUTED_COLOR,
-    });
   }
   
   return y;

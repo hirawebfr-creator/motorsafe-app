@@ -5,6 +5,7 @@
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { success } from "@/lib/api";
 import { requireApprovedTenant, requireUser } from "@/lib/guards";
 import { toErrorResponse } from "@/lib/routeErrors";
 
@@ -57,12 +58,12 @@ export async function GET(req: Request) {
       m => new Date(m.startsAt) > now
     );
 
-    return NextResponse.json({
+    return NextResponse.json(success({
       current,
       upcoming,
       hasActive: current !== null,
       hasUpcoming: upcoming.length > 0,
-    });
+    }));
   } catch (err) {
     console.error("[API:Maintenance:Active] Error:", err);
     return toErrorResponse(err);

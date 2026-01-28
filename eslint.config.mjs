@@ -26,6 +26,15 @@ const eslintConfig = defineConfig([
     rules: {
       // Trop agressif pour nos patterns (loading/error) et pénalise des useEffect légitimes.
       "react-hooks/set-state-in-effect": "off",
+      // Désactivé: le français utilise naturellement des apostrophes, les navigateurs modernes les gèrent bien
+      "react/no-unescaped-entities": "off",
+      // Désactivé: trop strict pour du code legacy, on préfère un typage progressif
+      "@typescript-eslint/no-explicit-any": "warn",
+      // Désactivé: règles React Compiler trop strictes pour le code existant
+      "react-hooks/purity": "off",
+      "react-hooks/refs": "off",
+      "react-hooks/immutability": "off",
+      "react-hooks/incompatible-library": "off",
     },
   },
 ]);

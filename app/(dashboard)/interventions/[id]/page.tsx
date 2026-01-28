@@ -786,6 +786,7 @@ export default function InterventionDetailPage() {
                 PV de restitution
               </button>
               <button
+                onClick={() => window.open(`/api/interventions/${intervention.id}/pdf`, "_blank")}
                 style={{
                   width: "100%",
                   display: "flex",

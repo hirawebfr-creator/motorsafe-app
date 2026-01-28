@@ -145,7 +145,7 @@ export function IncidentSection({
       } else {
         setIncidentCase(null);
       }
-    } catch (err) {
+    } catch (_err) {
       setError("Erreur de chargement");
     } finally {
       setLoading(false);

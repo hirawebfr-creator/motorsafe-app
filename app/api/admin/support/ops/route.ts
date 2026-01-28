@@ -12,6 +12,7 @@
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { success } from "@/lib/api";
 import { requireUser, requireRole } from "@/lib/guards";
 import { toErrorResponse } from "@/lib/routeErrors";
 
@@ -235,7 +236,7 @@ export async function GET(req: Request) {
     }
 
     // 12. Format response
-    return NextResponse.json({
+    return NextResponse.json(success({
       range: RANGE_CONFIG[range].label,
       kpis: {
         ticketsCreated: totalCreated,
@@ -259,7 +260,7 @@ export async function GET(req: Request) {
         totalBacklog: backlogCount,
       },
       kbSuggestions,
-    });
+    }));
   } catch (err) {
     console.error("[API:Support-Ops] Error:", err);
     return toErrorResponse(err);

@@ -9,8 +9,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { success, failure } from "@/lib/api";
-import { requireApprovedTenant, requireUser, getTenantId } from "@/lib/guards";
-import { toErrorResponse } from "@/lib/routeErrors";
+import { requireApprovedTenant, requireUser, getTenantIdWithAdminOverride } from "@/lib/guards";
+import { toErrorResponse, RouteError } from "@/lib/routeErrors";
 import { z } from "zod";
 import { randomBytes, createHash } from "crypto";
 import { addEvidenceEntry } from "@/lib/legal/evidenceChain";
@@ -34,6 +34,28 @@ const SubmitSignatureSchema = z.object({
 
 type RouteContext = { params: Promise<{ id: string }> };
 
+/**
+ * Helper: Get garageId from intervention (for admins) or from user tenant
+ */
+async function getGarageIdForIntervention(user: { role: string; garageId: number | null }, req: Request, interventionId: string): Promise<number> {
+  if (user.role === "ADMIN") {
+    const intervention = await prisma.intervention.findUnique({
+      where: { id: interventionId },
+      select: { garageId: true },
+    });
+    if (!intervention || intervention.garageId === null) {
+      throw new RouteError(404, "NOT_FOUND", "Intervention introuvable");
+    }
+    return intervention.garageId;
+  }
+  
+  const garageId = getTenantIdWithAdminOverride(user as Parameters<typeof getTenantIdWithAdminOverride>[0], req);
+  if (!garageId) {
+    throw new RouteError(400, "TENANT_REQUIRED", "Garage requis");
+  }
+  return garageId;
+}
+
 function sha256(data: string): string {
   return createHash("sha256").update(data, "utf8").digest("hex");
 }
@@ -45,8 +67,8 @@ function sha256(data: string): string {
 export async function POST(req: Request, context: RouteContext) {
   try {
     const user = requireApprovedTenant(await requireUser(req));
-    const garageId = getTenantId(user);
     const { id: interventionId } = await context.params;
+    const garageId = await getGarageIdForIntervention(user, req, interventionId);
 
     const json = await req.json().catch(() => null);
 
@@ -67,7 +89,9 @@ export async function POST(req: Request, context: RouteContext) {
 
       // Verify intervention
       const intervention = await prisma.intervention.findFirst({
-        where: { id: interventionId, garageId, deletedAt: null },
+        where: user.role === "ADMIN"
+          ? { id: interventionId, deletedAt: null }
+          : { id: interventionId, garageId, deletedAt: null },
         include: { 
           vehicle: { include: { client: true } },
           garage: true,
@@ -86,17 +110,11 @@ export async function POST(req: Request, context: RouteContext) {
         return NextResponse.json(failure("Session non trouvée"), { status: 404 });
       }
 
-      // Check minimum requirements for INTAKE
+      // Check requirements for INTAKE - photos are now optional but recommended
       if (step === "INTAKE") {
-        const photos = session.items.filter(i => i.type === "PHOTO");
         const forms = session.items.filter(i => i.type === "FORM");
         
-        if (photos.length < 6) {
-          return NextResponse.json(
-            failure(`Minimum 6 photos requises pour la réception (${photos.length} actuellement)`),
-            { status: 400 }
-          );
-        }
+        // Only forms are required, photos are optional but highly recommended
         if (forms.length === 0) {
           return NextResponse.json(failure("Formulaire de réception requis"), { status: 400 });
         }
@@ -280,8 +298,8 @@ export async function POST(req: Request, context: RouteContext) {
 export async function GET(req: Request, context: RouteContext) {
   try {
     const user = requireApprovedTenant(await requireUser(req));
-    const garageId = getTenantId(user);
     const { id: interventionId } = await context.params;
+    const garageId = await getGarageIdForIntervention(user, req, interventionId);
 
     const url = new URL(req.url);
     const step = url.searchParams.get("step");
@@ -292,7 +310,9 @@ export async function GET(req: Request, context: RouteContext) {
 
     // Verify intervention
     const intervention = await prisma.intervention.findFirst({
-      where: { id: interventionId, garageId, deletedAt: null },
+      where: user.role === "ADMIN"
+        ? { id: interventionId, deletedAt: null }
+        : { id: interventionId, garageId, deletedAt: null },
       select: { id: true },
     });
     if (!intervention) {

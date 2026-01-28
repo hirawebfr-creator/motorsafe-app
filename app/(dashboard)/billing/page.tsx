@@ -1,188 +1,360 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+/**
+ * BILLING-PAGE: Complete subscription & credits management
+ * 
+ * Features:
+ * - Current plan display with status
+ * - Credits overview (SIV, Storage, AI)
+ * - Subscription plans (PRO, EXPERT, PREMIUM)
+ * - Credit packs purchase (SIV, Storage)
+ * - Stripe portal access
+ */
+
+import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import {
-  Check,
   Crown,
-  Rocket,
   Loader2,
-  Sparkles,
   Shield,
-  Zap,
-  Star,
-  Users,
-  TrendingUp,
-  Headphones,
-  Gift,
-  CreditCard,
-  Calendar,
+  Check,
   AlertTriangle,
   ExternalLink,
-  RefreshCw,
   Info,
+  HardDrive,
   Car,
   Brain,
-  FileSignature,
+  Users,
+  Package,
+  ChevronRight,
+  Gift,
 } from "lucide-react";
-import { SectionHeader } from "@/components/ui/SectionHeader";
-import { Card } from "@/components/ui/Card";
-import { Button } from "@/components/ui/button";
 import { useUser } from "@/components/user-context";
+import { 
+  SUBSCRIPTION_PLANS, 
+  SIV_PACKS, 
+  STORAGE_PACKS,
+  type PlanType,
+} from "@/lib/stripe-products";
 
-type QuotaUsage = {
-  used: number;
-  limit: number;
-  remaining: number;
-  unlimited: boolean;
-};
+// ============================================================================
+// Types
+// ============================================================================
 
-type BillingStatus = {
-  plan: "FREE" | "STARTER" | "PRO" | "ADMIN";
+type BillingPeriod = "monthly" | "yearly";
+
+interface CreditsData {
+  plan: string;
+  effectivePlan: string;
+  subscriptionStatus: string;
+  siv: {
+    includedInPlan: number;
+    usedThisMonth: number;
+    remainingFromPlan: number;
+    extraCredits: number;
+    totalRemaining: number;
+    monthKey: string;
+  };
+  storage: {
+    includedGB: number;
+    extraGB: number;
+    totalGB: number;
+    usedGB: number;
+    remainingGB: number;
+    usedPercent: number;
+  };
+  ai: {
+    includedPerMonth: number;
+    usedThisMonth: number;
+    remainingThisMonth: number;
+  };
+  users: {
+    limit: number;
+    unlimited: boolean;
+  };
+}
+
+interface BillingStatus {
+  plan: string;
   status: string | null;
   currentPeriodEnd: string | null;
   trialEnd: string | null;
   trialDaysLeft: number | null;
-  hasPaymentMethod: boolean;
   hasSubscription: boolean;
   canManageBilling: boolean;
   referralRewardMonths: number;
-  pendingReferralMonthsApplied: number | null;
-  // Quotas
-  quotaUsage?: Record<string, QuotaUsage>;
-  limits?: {
-    clients: number | null;
-    vehicules: number | null;
-    interventionsPerWeek: number | null;
-    users: number;
-  };
-};
-
-const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  ACTIVE: { label: "Actif", color: "text-green-600" },
-  TRIALING: { label: "Période d'essai", color: "text-blue-600" },
-  PAST_DUE: { label: "Paiement en retard", color: "text-orange-600" },
-  CANCELED: { label: "Annulé", color: "text-red-600" },
-  UNPAID: { label: "Impayé", color: "text-red-600" },
-  INCOMPLETE: { label: "Incomplet", color: "text-gray-600" },
-  INCOMPLETE_EXPIRED: { label: "Expiré", color: "text-gray-600" },
-};
-
-function formatDate(iso: string | null) {
-  if (!iso) return "—";
-  return new Intl.DateTimeFormat("fr-FR", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  }).format(new Date(iso));
 }
 
-type BillingPeriod = "monthly" | "yearly";
+// ============================================================================
+// Components
+// ============================================================================
 
-// Component to display quota usage with progress bar
-function QuotaProgress({ 
+function CreditCard2({ 
+  icon: Icon, 
   label, 
-  icon: Icon,
-  usage 
+  used, 
+  total, 
+  unit = "",
+  color = "indigo",
+  showBuyButton = false,
+  onBuy,
 }: { 
-  label: string; 
   icon: React.ComponentType<{ size?: number; className?: string }>;
-  usage?: QuotaUsage;
+  label: string;
+  used: number;
+  total: number;
+  unit?: string;
+  color?: "indigo" | "green" | "blue" | "purple";
+  showBuyButton?: boolean;
+  onBuy?: () => void;
 }) {
-  if (!usage) return null;
+  const remaining = Math.max(0, total - used);
+  const percent = total > 0 ? Math.min(100, (used / total) * 100) : 0;
   
-  const { used, limit, remaining, unlimited } = usage;
+  const colorClasses = {
+    indigo: { bg: "bg-indigo-500", light: "bg-indigo-100", text: "text-indigo-600" },
+    green: { bg: "bg-green-500", light: "bg-green-100", text: "text-green-600" },
+    blue: { bg: "bg-blue-500", light: "bg-blue-100", text: "text-blue-600" },
+    purple: { bg: "bg-purple-500", light: "bg-purple-100", text: "text-purple-600" },
+  };
   
-  // Calculate percentage (cap at 100%)
-  const percentage = unlimited ? 0 : Math.min(100, (used / limit) * 100);
-  
-  // Determine color based on usage
-  let colorClass = "bg-green-500";
-  if (!unlimited) {
-    if (percentage >= 90) colorClass = "bg-red-500";
-    else if (percentage >= 70) colorClass = "bg-orange-500";
-    else if (percentage >= 50) colorClass = "bg-yellow-500";
-  }
+  const colors = colorClasses[color];
   
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 text-sm font-medium">
-          <Icon size={16} className="text-muted2" />
-          {label}
+    <div className="ms-card p-5">
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <div className={`w-10 h-10 rounded-xl ${colors.light} flex items-center justify-center`}>
+            <Icon size={20} className={colors.text} />
+          </div>
+          <div>
+            <div className="font-medium text-[var(--ms-text)]">{label}</div>
+            <div className="text-sm text-[var(--ms-text-secondary)]">
+              {remaining} {unit} restant{remaining !== 1 ? "s" : ""}
+            </div>
+          </div>
         </div>
-        <span className="text-sm text-muted2">
-          {unlimited ? (
-            <span className="text-green-600">Illimité</span>
-          ) : (
-            <>
-              <span className="font-medium text-foreground">{used}</span>
-              <span className="text-muted2"> / {limit}</span>
-              <span className="ml-2 text-xs">
-                ({remaining} restant{remaining > 1 ? "s" : ""})
-              </span>
-            </>
-          )}
-        </span>
+        {showBuyButton && (
+          <button
+            onClick={onBuy}
+            className="text-sm font-medium text-indigo-600 hover:text-indigo-700 flex items-center gap-1"
+          >
+            Acheter plus
+            <ChevronRight size={14} />
+          </button>
+        )}
       </div>
-      {!unlimited && (
-        <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
+      
+      <div className="space-y-2">
+        <div className="flex justify-between text-sm">
+          <span className="text-[var(--ms-text-muted)]">Utilisé: {used} {unit}</span>
+          <span className="text-[var(--ms-text-muted)]">Total: {total} {unit}</span>
+        </div>
+        <div className="h-2.5 w-full overflow-hidden rounded-full bg-[var(--ms-bg-subtle)]">
           <div
-            className={`h-full rounded-full transition-all ${colorClass}`}
-            style={{ width: `${percentage}%` }}
+            className={`h-full rounded-full transition-all ${colors.bg}`}
+            style={{ width: `${percent}%` }}
           />
         </div>
-      )}
+      </div>
     </div>
   );
 }
 
+function PlanCard({
+  config,
+  period,
+  isCurrentPlan,
+  onSelect,
+  loading,
+}: {
+  plan: PlanType;
+  config: typeof SUBSCRIPTION_PLANS[PlanType];
+  period: BillingPeriod;
+  isCurrentPlan: boolean;
+  onSelect: () => void;
+  loading: boolean;
+}) {
+  const price = period === "monthly" ? config.monthlyPrice : config.yearlyPrice;
+  const monthlyEquivalent = period === "yearly" ? Math.round(config.yearlyPrice / 12) : config.monthlyPrice;
+  const savings = period === "yearly" ? (config.monthlyPrice * 12) - config.yearlyPrice : 0;
+  
+  return (
+    <div className={`ms-card p-6 relative ${config.popular ? "ring-2 ring-indigo-500" : ""}`}>
+      {config.popular && (
+        <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-indigo-500 text-white text-xs font-medium">
+          Populaire
+        </div>
+      )}
+      
+      <div className="text-center mb-6">
+        <h3 className="text-xl font-bold text-[var(--ms-text)] mb-1">{config.name}</h3>
+        <p className="text-sm text-[var(--ms-text-secondary)]">{config.description}</p>
+      </div>
+      
+      <div className="text-center mb-6">
+        <div className="text-4xl font-bold text-[var(--ms-text)]">
+          {price}€
+          <span className="text-base font-normal text-[var(--ms-text-muted)]">
+            /{period === "monthly" ? "mois" : "an"}
+          </span>
+        </div>
+        {period === "yearly" && (
+          <div className="text-sm text-green-600 mt-1">
+            Soit {monthlyEquivalent}€/mois — Économisez {savings}€
+          </div>
+        )}
+      </div>
+      
+      <ul className="space-y-3 mb-6">
+        {config.features.map((feature, i) => (
+          <li key={i} className="flex items-start gap-2 text-sm">
+            <Check size={16} className="text-green-500 shrink-0 mt-0.5" />
+            <span className="text-[var(--ms-text-secondary)]">{feature}</span>
+          </li>
+        ))}
+      </ul>
+      
+      <button
+        onClick={onSelect}
+        disabled={loading || isCurrentPlan}
+        className={`w-full py-3 rounded-lg font-medium transition-colors ${
+          isCurrentPlan
+            ? "bg-gray-100 text-gray-500 cursor-not-allowed"
+            : config.popular
+            ? "ms-btn ms-btn-primary"
+            : "ms-btn ms-btn-secondary"
+        }`}
+      >
+        {loading ? (
+          <Loader2 size={18} className="animate-spin mx-auto" />
+        ) : isCurrentPlan ? (
+          "Plan actuel"
+        ) : (
+          "Choisir ce plan"
+        )}
+      </button>
+    </div>
+  );
+}
+
+function PackCard({
+  pack,
+  onPurchase,
+  loading,
+}: {
+  pack: typeof SIV_PACKS[0];
+  onPurchase: () => void;
+  loading: boolean;
+}) {
+  const isSiv = pack.type === "SIV";
+  
+  return (
+    <div className={`ms-card p-5 ${pack.popular ? "ring-2 ring-indigo-500" : ""}`}>
+      {pack.popular && (
+        <span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-600 mb-2">
+          Meilleur rapport
+        </span>
+      )}
+      
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          {isSiv ? (
+            <Car size={20} className="text-blue-500" />
+          ) : (
+            <HardDrive size={20} className="text-purple-500" />
+          )}
+          <span className="font-semibold text-[var(--ms-text)]">{pack.name}</span>
+        </div>
+        <div className="text-right">
+          <div className="font-bold text-[var(--ms-text)]">{pack.price}€</div>
+          <div className="text-xs text-[var(--ms-text-muted)]">
+            {pack.pricePerUnit.toFixed(2)}€/{isSiv ? "recherche" : "Go"}
+          </div>
+        </div>
+      </div>
+      
+      <button
+        onClick={onPurchase}
+        disabled={loading}
+        className="w-full py-2 rounded-lg text-sm font-medium ms-btn ms-btn-secondary"
+      >
+        {loading ? <Loader2 size={16} className="animate-spin mx-auto" /> : "Acheter"}
+      </button>
+    </div>
+  );
+}
+
+// ============================================================================
+// Main Page
+// ============================================================================
+
 export default function BillingPage() {
   const user = useUser();
   const searchParams = useSearchParams();
-  const upgradeRequired = searchParams.get("upgrade") === "required";
-  const fromPage = searchParams.get("from");
   
   const [loading, setLoading] = useState(true);
-  const [status, setStatus] = useState<BillingStatus | null>(null);
+  const [credits, setCredits] = useState<CreditsData | null>(null);
+  const [billingStatus, setBillingStatus] = useState<BillingStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
-  const [showUpgradeNotice, setShowUpgradeNotice] = useState(upgradeRequired);
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>("monthly");
+  const [activeTab, setActiveTab] = useState<"plans" | "packs">("plans");
+  
+  // Check for success/cancel messages
+  const packSuccess = searchParams.get("pack_success") === "true";
+  const packCancelled = searchParams.get("pack_cancelled") === "true";
 
-  const loadStatus = useCallback(async () => {
+  // Load credits data
+  const loadCredits = useCallback(async () => {
     try {
-      setLoading(true);
-      setError(null);
-      const res = await fetch("/api/billing/status", { cache: "no-store" });
+      const res = await fetch("/api/billing/credits");
+      const json = await res.json();
+      if (json.ok) {
+        setCredits(json);
+      }
+    } catch (e) {
+      console.error("Failed to load credits:", e);
+    }
+  }, []);
+
+  // Load billing status
+  const loadBillingStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/billing/status");
       const json = await res.json();
       if (json.ok && json.data) {
-        setStatus(json.data);
-      } else {
-        setError(json.error?.message || "Erreur lors du chargement");
+        setBillingStatus(json.data);
       }
     } catch (e) {
       console.error("Failed to load billing status:", e);
-      setError("Erreur de connexion");
-    } finally {
-      setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    void loadStatus();
-  }, [loadStatus]);
+    Promise.all([loadCredits(), loadBillingStatus()])
+      .finally(() => setLoading(false));
+  }, [loadCredits, loadBillingStatus]);
 
-  const handleCheckout = async (priceKey: string) => {
+  // Handle subscription checkout
+  const handleSubscribe = async (plan: PlanType) => {
     try {
       setError(null);
+      const priceKey = `${plan}_${billingPeriod.toUpperCase()}`;
       setActionLoading(priceKey);
+      
       const res = await fetch("/api/billing/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ priceKey }),
+        body: JSON.stringify({ 
+          priceKey,
+          productId: billingPeriod === "monthly" 
+            ? SUBSCRIPTION_PLANS[plan].monthlyProductId 
+            : SUBSCRIPTION_PLANS[plan].yearlyProductId,
+        }),
       });
       const json = await res.json();
+      
       if (json.ok && json.data?.url) {
         window.location.href = json.data.url;
       } else {
@@ -195,12 +367,40 @@ export default function BillingPage() {
     }
   };
 
+  // Handle pack purchase
+  const handlePurchasePack = async (packId: string) => {
+    try {
+      setError(null);
+      setActionLoading(packId);
+      
+      const res = await fetch("/api/billing/purchase-pack", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ packId }),
+      });
+      const json = await res.json();
+      
+      if (json.ok && json.url) {
+        window.location.href = json.url;
+      } else {
+        setError(json.error?.message || "Erreur lors de l'achat");
+      }
+    } catch {
+      setError("Erreur de connexion");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // Handle portal access
   const handlePortal = async () => {
     try {
       setError(null);
       setActionLoading("portal");
+      
       const res = await fetch("/api/billing/portal", { method: "POST" });
       const json = await res.json();
+      
       if (json.ok && json.data?.url) {
         window.location.href = json.data.url;
       } else {
@@ -213,21 +413,17 @@ export default function BillingPage() {
     }
   };
 
-  // Admin users see a special message
+  // Admin view
   if (user.role === "ADMIN") {
     return (
-      <div className="mx-auto max-w-4xl py-8">
-        <SectionHeader
-          title="Facturation"
-          description="Gestion des abonnements"
-        />
-        <Card className="p-8 text-center">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto">
+        <div className="ms-card p-8 text-center">
           <Shield size={48} className="mx-auto mb-4 text-indigo-600" />
-          <h2 className="text-xl font-semibold">Compte Administrateur</h2>
-          <p className="mt-2 text-muted2">
+          <h2 className="text-xl font-semibold text-[var(--ms-text)]">Compte Administrateur</h2>
+          <p className="mt-2 text-[var(--ms-text-secondary)]">
             Les comptes administrateurs ont un accès complet sans abonnement.
           </p>
-        </Card>
+        </div>
       </div>
     );
   }
@@ -241,424 +437,290 @@ export default function BillingPage() {
     );
   }
 
-  const isActive = status?.status === "ACTIVE" || status?.status === "TRIALING";
-  const isPro = status?.plan === "PRO";
-  const isStarter = status?.plan === "STARTER";
-  const isPaid = isPro || isStarter;
-  const statusInfo = STATUS_LABELS[status?.status ?? ""] || { label: status?.status || "Inconnu", color: "text-gray-600" };
-  
-  // Nom du plan pour l'affichage
-  const planName = status?.plan === "PRO" ? "Pro" : status?.plan === "STARTER" ? "Starter" : "Gratuit";
+  const currentPlan = credits?.effectivePlan || "PRO";
 
   return (
-    <div className="mx-auto max-w-6xl py-8">
-      <SectionHeader
-        title="Facturation"
-        description="Gérez votre abonnement SafeMotor"
-        action={
-          status?.canManageBilling ? (
-            <Button
-              variant="secondary"
-              onClick={handlePortal}
-              disabled={actionLoading === "portal"}
-            >
-              {actionLoading === "portal" ? (
-                <Loader2 size={16} className="animate-spin" />
-              ) : (
-                <ExternalLink size={16} />
-              )}
-              Portail Stripe
-            </Button>
-          ) : null
-        }
-      />
+    <div className="ms-animate-slide-up">
+      {/* Header */}
+      <div className="ms-page-header">
+        <div>
+          <h1 className="ms-page-title">Facturation</h1>
+          <p className="ms-page-subtitle">Gérez votre abonnement et vos crédits</p>
+        </div>
+        {billingStatus?.canManageBilling && (
+          <button
+            onClick={handlePortal}
+            disabled={actionLoading === "portal"}
+            className="ms-btn ms-btn-secondary"
+          >
+            {actionLoading === "portal" ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <ExternalLink size={16} />
+            )}
+            Portail Stripe
+          </button>
+        )}
+      </div>
 
-      {/* Error Banner */}
+      {/* Error/Success Banners */}
       {error && (
-        <div className="mb-6 flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
+        <div className="flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
           <AlertTriangle size={20} />
-          <span>{error}</span>
-          <button
-            onClick={() => setError(null)}
-            className="ml-auto text-red-500 hover:text-red-700"
-          >
-            ✕
-          </button>
+          <span className="flex-1">{error}</span>
+          <button onClick={() => setError(null)} className="text-red-500 hover:text-red-700">✕</button>
         </div>
       )}
-
-      {/* Upgrade Required Banner */}
-      {showUpgradeNotice && (
-        <div className="mb-6 flex items-center gap-3 rounded-lg border border-indigo-200 bg-indigo-50 p-4 text-indigo-700">
+      
+      {packSuccess && (
+        <div className="flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 p-4 text-green-700">
+          <Check size={20} />
+          <span className="flex-1">Votre pack a été ajouté avec succès !</span>
+        </div>
+      )}
+      
+      {packCancelled && (
+        <div className="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-700">
           <Info size={20} />
-          <div className="flex-1">
-            <p className="font-medium">Abonnement requis</p>
-            <p className="text-sm text-indigo-600">
-              Pour accéder à {fromPage ? `"${fromPage}"` : "cette fonctionnalité"}, vous devez passer à un plan payant.
-            </p>
-          </div>
-          <button
-            onClick={() => setShowUpgradeNotice(false)}
-            className="text-indigo-500 hover:text-indigo-700"
-          >
-            ✕
-          </button>
+          <span className="flex-1">Achat annulé. Vous pouvez réessayer quand vous le souhaitez.</span>
         </div>
       )}
 
-      {/* Referral Reward Banner */}
-      {status && status.referralRewardMonths > 0 && !status.pendingReferralMonthsApplied && (
-        <div className="mb-6 flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 p-4 text-green-700">
-          <Gift size={20} />
-          <div className="flex-1">
-            <p className="font-medium">
-              🎁 Vous avez {status.referralRewardMonths} mois offert{status.referralRewardMonths > 1 ? "s" : ""} !
-            </p>
-            <p className="text-sm text-green-600">
-              Récompense de parrainage — Elle sera appliquée automatiquement lors de votre prochain abonnement.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Pending Coupon Banner */}
-      {status && status.pendingReferralMonthsApplied && (
-        <div className="mb-6 flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-700">
-          <Gift size={20} />
-          <div className="flex-1">
-            <p className="font-medium">
-              Remise en attente d&apos;activation
-            </p>
-            <p className="text-sm text-amber-600">
-              {status.pendingReferralMonthsApplied} mois offert{status.pendingReferralMonthsApplied > 1 ? "s" : ""} sera appliqué{status.pendingReferralMonthsApplied > 1 ? "s" : ""} dès la confirmation de votre abonnement.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Current Status Card */}
-      {status && (
-        <Card className="mb-8 p-6">
-          <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-            <div className="flex items-center gap-4">
-              <div className={`flex h-14 w-14 items-center justify-center rounded-xl ${isPaid ? (isPro ? "bg-gradient-to-br from-indigo-500 to-purple-500" : "bg-gradient-to-br from-blue-400 to-blue-600") : "bg-gray-100"}`}>
-                {isPro ? (
-                  <Crown size={28} className="text-white" />
-                ) : isStarter ? (
-                  <Sparkles size={28} className="text-white" />
-                ) : (
-                  <Rocket size={28} className="text-gray-600" />
-                )}
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-xl font-bold">
-                    Plan {planName}
-                  </h2>
-                  {status.hasSubscription && (
-                    <span className={`text-sm font-medium ${statusInfo.color}`}>
-                      • {statusInfo.label}
-                      {status.trialDaysLeft !== null && status.trialDaysLeft > 0 && (
-                        <> ({status.trialDaysLeft} jour{status.trialDaysLeft > 1 ? "s" : ""} restant{status.trialDaysLeft > 1 ? "s" : ""})</>
-                      )}
-                    </span>
-                  )}
-                </div>
-                {status.status === "TRIALING" && status.trialEnd && (
-                  <p className="mt-1 flex items-center gap-2 text-sm text-blue-600">
-                    <Gift size={14} />
-                    Essai gratuit jusqu'au {formatDate(status.trialEnd)}
-                  </p>
-                )}
-                {status.currentPeriodEnd && isActive && status.status !== "TRIALING" && (
-                  <p className="mt-1 flex items-center gap-2 text-sm text-muted2">
-                    <Calendar size={14} />
-                    Renouvellement le {formatDate(status.currentPeriodEnd)}
-                  </p>
-                )}
-                {!status.hasSubscription && (
-                  <p className="mt-1 text-sm text-muted2">
-                    Passez à un plan payant pour débloquer toutes les fonctionnalités
-                  </p>
-                )}
+      {/* Current Plan & Credits Overview */}
+      <div className="grid lg:grid-cols-3 gap-6">
+        {/* Current Plan Card */}
+        <div className="ms-card p-6 lg:col-span-1">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center">
+              <Crown size={24} className="text-white" />
+            </div>
+            <div>
+              <div className="font-bold text-lg text-[var(--ms-text)]">Plan {currentPlan}</div>
+              <div className="text-sm text-green-600">
+                {billingStatus?.status === "ACTIVE" ? "Actif" : 
+                 billingStatus?.status === "TRIALING" ? `Essai (${billingStatus.trialDaysLeft}j restants)` :
+                 billingStatus?.status || "—"}
               </div>
             </div>
-
-            <div className="flex flex-wrap gap-3">
-              {status.canManageBilling && (
-                <Button
-                  variant="secondary"
-                  onClick={handlePortal}
-                  disabled={!!actionLoading}
-                >
-                  {actionLoading === "portal" ? (
-                    <Loader2 size={16} className="animate-spin" />
-                  ) : (
-                    <CreditCard size={16} />
-                  )}
-                  Gérer l'abonnement
-                </Button>
-              )}
-              <Button
-                variant="ghost"
-                onClick={() => void loadStatus()}
-                disabled={loading}
-              >
-                <RefreshCw size={16} />
-              </Button>
-            </div>
           </div>
-        </Card>
-      )}
-
-      {/* Quota Usage Section - Always show if we have status */}
-      {status && status.quotaUsage && (
-        <Card className="mb-8 p-6">
-          <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold">
-            <TrendingUp size={20} className="text-indigo-600" />
-            Consommation du mois
-          </h3>
-          <div className="grid gap-6 md:grid-cols-3">
-            <QuotaProgress
-              label="Recherches plaques"
-              icon={Car}
-              usage={status.quotaUsage.vehicleLookupPerMonth}
-            />
-            <QuotaProgress
-              label="Assistants IA"
-              icon={Brain}
-              usage={status.quotaUsage.aiRequestsPerMonth}
-            />
-            <QuotaProgress
-              label="Signatures électroniques"
-              icon={FileSignature}
-              usage={status.quotaUsage.signaturesPerMonth}
-            />
-          </div>
-          <p className="mt-4 text-xs text-muted2">
-            Les quotas sont réinitialisés le 1er de chaque mois.
-          </p>
-        </Card>
-      )}
-
-      {/* Pricing Section - Show if not paid or not active */}
-      {(!isPaid || !isActive) && (
-        <>
-          <h2 className="mb-4 text-center text-2xl font-bold">Choisissez votre formule</h2>
           
+          {billingStatus?.currentPeriodEnd && (
+            <p className="text-sm text-[var(--ms-text-muted)]">
+              Renouvellement le {new Date(billingStatus.currentPeriodEnd).toLocaleDateString("fr-FR")}
+            </p>
+          )}
+          
+          {billingStatus && billingStatus.referralRewardMonths > 0 && (
+            <div className="mt-4 p-3 rounded-lg bg-green-50 border border-green-200">
+              <div className="flex items-center gap-2 text-green-700">
+                <Gift size={16} />
+                <span className="text-sm font-medium">
+                  {billingStatus.referralRewardMonths} mois offert{billingStatus.referralRewardMonths > 1 ? "s" : ""} (parrainage)
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Credits Cards */}
+        <div className="lg:col-span-2 grid sm:grid-cols-2 gap-4">
+          {credits && (
+            <>
+              <CreditCard2
+                icon={Car}
+                label="Recherches SIV"
+                used={credits.siv.usedThisMonth}
+                total={credits.siv.includedInPlan + credits.siv.extraCredits}
+                color="blue"
+                showBuyButton
+                onBuy={() => setActiveTab("packs")}
+              />
+              <CreditCard2
+                icon={HardDrive}
+                label="Stockage"
+                used={credits.storage.usedGB}
+                total={credits.storage.totalGB}
+                unit="Go"
+                color="purple"
+                showBuyButton
+                onBuy={() => setActiveTab("packs")}
+              />
+              <CreditCard2
+                icon={Brain}
+                label="Requêtes IA"
+                used={credits.ai.usedThisMonth}
+                total={credits.ai.includedPerMonth}
+                color="indigo"
+              />
+              <CreditCard2
+                icon={Users}
+                label="Utilisateurs"
+                used={1}
+                total={credits.users.unlimited ? 999 : credits.users.limit}
+                color="green"
+              />
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-2 p-1 rounded-lg bg-[var(--ms-bg-subtle)] w-fit">
+        <button
+          onClick={() => setActiveTab("plans")}
+          className={`px-4 py-2 rounded-md font-medium transition-colors ${
+            activeTab === "plans"
+              ? "bg-[var(--ms-surface)] text-[var(--ms-text)] shadow-sm"
+              : "text-[var(--ms-text-secondary)] hover:text-[var(--ms-text)]"
+          }`}
+        >
+          <Crown size={16} className="inline mr-2" />
+          Abonnements
+        </button>
+        <button
+          onClick={() => setActiveTab("packs")}
+          className={`px-4 py-2 rounded-md font-medium transition-colors ${
+            activeTab === "packs"
+              ? "bg-[var(--ms-surface)] text-[var(--ms-text)] shadow-sm"
+              : "text-[var(--ms-text-secondary)] hover:text-[var(--ms-text)]"
+          }`}
+        >
+          <Package size={16} className="inline mr-2" />
+          Packs de crédits
+        </button>
+      </div>
+
+      {/* Plans Tab */}
+      {activeTab === "plans" && (
+        <div className="space-y-6">
           {/* Billing Period Toggle */}
-          <div className="mb-8 flex items-center justify-center gap-4">
+          <div className="flex items-center justify-center gap-4">
             <button
               onClick={() => setBillingPeriod("monthly")}
-              className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
                 billingPeriod === "monthly"
-                  ? "bg-indigo-600 text-white"
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  ? "bg-indigo-100 text-indigo-700"
+                  : "text-[var(--ms-text-secondary)] hover:text-[var(--ms-text)]"
               }`}
             >
               Mensuel
             </button>
             <button
               onClick={() => setBillingPeriod("yearly")}
-              className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+              className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${
                 billingPeriod === "yearly"
-                  ? "bg-indigo-600 text-white"
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                  ? "bg-indigo-100 text-indigo-700"
+                  : "text-[var(--ms-text-secondary)] hover:text-[var(--ms-text)]"
               }`}
             >
               Annuel
-              <span className="rounded bg-green-500 px-2 py-0.5 text-xs text-white">
+              <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">
                 -17%
               </span>
             </button>
           </div>
 
-          <div className="grid gap-8 md:grid-cols-3">
-            {/* FREE CARD */}
-            <Card className="flex flex-col p-6">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-gray-100">
-                <Rocket size={24} className="text-gray-600" />
-              </div>
-              <h3 className="text-xl font-bold">Gratuit</h3>
-              <p className="mt-1 text-sm text-muted2">Pour démarrer</p>
-              <div className="my-4">
-                <span className="text-3xl font-bold">0€</span>
-                <span className="text-muted2">/mois</span>
-              </div>
-              <ul className="mb-6 flex-1 space-y-2 text-sm">
-                <li className="flex items-center gap-2">
-                  <Check size={16} className="text-green-500" />5 véhicules max
-                </li>
-                <li className="flex items-center gap-2">
-                  <Check size={16} className="text-green-500" />10 interventions/mois
-                </li>
-                <li className="flex items-center gap-2">
-                  <Check size={16} className="text-green-500" />Export PDF basique
-                </li>
-                <li className="flex items-center gap-2">
-                  <Check size={16} className="text-green-500" />Support email
-                </li>
-              </ul>
-              <Button variant="secondary" disabled>
-                {status?.plan === "FREE" ? "Plan actuel" : "Plan de base"}
-              </Button>
-            </Card>
-
-            {/* STARTER CARD */}
-            <Card className="flex flex-col p-6">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-400 to-blue-600">
-                <Sparkles size={24} className="text-white" />
-              </div>
-              <h3 className="text-xl font-bold">Starter</h3>
-              <p className="mt-1 text-sm text-muted2">Pour les indépendants</p>
-              <div className="my-4">
-                {billingPeriod === "monthly" ? (
-                  <>
-                    <span className="text-3xl font-bold">49€</span>
-                    <span className="text-muted2">/mois</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="text-3xl font-bold">490€</span>
-                    <span className="text-muted2">/an</span>
-                    <p className="text-sm text-green-600">Soit 40€/mois</p>
-                  </>
-                )}
-              </div>
-              <ul className="mb-6 flex-1 space-y-2 text-sm">
-                <li className="flex items-center gap-2">
-                  <Check size={16} className="text-blue-600" />50 véhicules
-                </li>
-                <li className="flex items-center gap-2">
-                  <Check size={16} className="text-blue-600" />Interventions illimitées
-                </li>
-                <li className="flex items-center gap-2">
-                  <TrendingUp size={16} className="text-blue-600" />Statistiques de base
-                </li>
-                <li className="flex items-center gap-2">
-                  <Gift size={16} className="text-blue-600" />14 jours d'essai
-                </li>
-              </ul>
-              <Button
-                variant="secondary"
-                onClick={() => handleCheckout(billingPeriod === "monthly" ? "STARTER_MONTHLY" : "STARTER_YEARLY")}
-                disabled={!!actionLoading}
-              >
-                {actionLoading === "STARTER_MONTHLY" || actionLoading === "STARTER_YEARLY" ? (
-                  <Loader2 size={16} className="animate-spin" />
-                ) : (
-                  "S'abonner"
-                )}
-              </Button>
-            </Card>
-
-            {/* PRO CARD */}
-            <Card className="relative flex flex-col border-2 border-indigo-500 bg-gradient-to-br from-indigo-50 to-purple-50 p-6">
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                <span className="flex items-center gap-1 rounded-full bg-indigo-500 px-3 py-1 text-xs font-bold text-white">
-                  <Star size={12} />
-                  Recommandé
-                </span>
-              </div>
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500">
-                <Crown size={24} className="text-white" />
-              </div>
-              <h3 className="text-xl font-bold">Pro</h3>
-              <p className="mt-1 text-sm text-muted2">Pour les professionnels</p>
-              <div className="my-4">
-                {billingPeriod === "monthly" ? (
-                  <>
-                    <span className="text-3xl font-bold">129€</span>
-                    <span className="text-muted2">/mois</span>
-                  </>
-                ) : (
-                  <>
-                    <span className="text-3xl font-bold">1290€</span>
-                    <span className="text-muted2">/an</span>
-                    <p className="text-sm text-green-600">Soit 107€/mois</p>
-                  </>
-                )}
-              </div>
-              <ul className="mb-6 flex-1 space-y-2 text-sm">
-                <li className="flex items-center gap-2">
-                  <Check size={16} className="text-indigo-600" />Véhicules illimités
-                </li>
-                <li className="flex items-center gap-2">
-                  <Check size={16} className="text-indigo-600" />Interventions illimitées
-                </li>
-                <li className="flex items-center gap-2">
-                  <TrendingUp size={16} className="text-indigo-600" />Statistiques avancées
-                </li>
-                <li className="flex items-center gap-2">
-                  <Users size={16} className="text-indigo-600" />Multi-utilisateurs
-                </li>
-                <li className="flex items-center gap-2">
-                  <Headphones size={16} className="text-indigo-600" />Support prioritaire
-                </li>
-                <li className="flex items-center gap-2">
-                  <Gift size={16} className="text-indigo-600" />14 jours d'essai
-                </li>
-              </ul>
-              <Button
-                onClick={() => handleCheckout(billingPeriod === "monthly" ? "PRO_MONTHLY" : "PRO_YEARLY")}
-                disabled={!!actionLoading || (status?.plan === "PRO" && isActive)}
-              >
-                {actionLoading === "PRO_MONTHLY" || actionLoading === "PRO_YEARLY" ? (
-                  <Loader2 size={16} className="animate-spin" />
-                ) : status?.plan === "PRO" && isActive ? (
-                  "Plan actuel"
-                ) : (
-                  "S'abonner"
-                )}
-              </Button>
-            </Card>
+          {/* Plans Grid */}
+          <div className="grid md:grid-cols-3 gap-6">
+            {(Object.keys(SUBSCRIPTION_PLANS) as PlanType[]).map((planKey) => (
+              <PlanCard
+                key={planKey}
+                plan={planKey}
+                config={SUBSCRIPTION_PLANS[planKey]}
+                period={billingPeriod}
+                isCurrentPlan={currentPlan === planKey}
+                onSelect={() => handleSubscribe(planKey)}
+                loading={actionLoading === `${planKey}_${billingPeriod.toUpperCase()}`}
+              />
+            ))}
           </div>
-        </>
+        </div>
       )}
 
-      {/* Trust Badges */}
-      <div className="mt-12 flex flex-wrap items-center justify-center gap-6 text-sm text-muted2">
-        <span className="flex items-center gap-2">
-          <Shield size={18} className="text-green-500" />
-          Paiement sécurisé Stripe
-        </span>
-        <span className="flex items-center gap-2">
-          <Zap size={18} className="text-yellow-500" />
-          Activation instantanée
-        </span>
-        <span className="flex items-center gap-2">
-          <Check size={18} className="text-green-500" />
-          Annulation en 1 clic
-        </span>
-      </div>
+      {/* Packs Tab */}
+      {activeTab === "packs" && (
+        <div className="space-y-8">
+          {/* SIV Packs */}
+          <div>
+            <div className="flex items-center gap-2 mb-4">
+              <Car size={20} className="text-blue-500" />
+              <h2 className="text-lg font-semibold text-[var(--ms-text)]">Packs Recherches SIV</h2>
+            </div>
+            <p className="text-sm text-[var(--ms-text-secondary)] mb-4">
+              Crédits supplémentaires pour les recherches de plaque d&apos;immatriculation
+            </p>
+            <div className="grid sm:grid-cols-3 gap-4">
+              {SIV_PACKS.map((pack) => (
+                <PackCard
+                  key={pack.id}
+                  pack={pack}
+                  onPurchase={() => handlePurchasePack(pack.id)}
+                  loading={actionLoading === pack.id}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Storage Packs */}
+          <div>
+            <div className="flex items-center gap-2 mb-4">
+              <HardDrive size={20} className="text-purple-500" />
+              <h2 className="text-lg font-semibold text-[var(--ms-text)]">Packs Stockage</h2>
+            </div>
+            <p className="text-sm text-[var(--ms-text-secondary)] mb-4">
+              Espace de stockage supplémentaire pour vos documents et photos
+            </p>
+            <div className="grid sm:grid-cols-3 gap-4">
+              {STORAGE_PACKS.map((pack) => (
+                <PackCard
+                  key={pack.id}
+                  pack={pack}
+                  onPurchase={() => handlePurchasePack(pack.id)}
+                  loading={actionLoading === pack.id}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Info */}
+          <div className="ms-card p-4 bg-blue-50 border-blue-200">
+            <div className="flex items-start gap-3">
+              <Info size={20} className="text-blue-600 shrink-0 mt-0.5" />
+              <div className="text-sm text-blue-700">
+                <p className="font-medium mb-1">Comment fonctionnent les packs ?</p>
+                <ul className="list-disc pl-4 space-y-1 text-blue-600">
+                  <li>Les crédits SIV s&apos;ajoutent à votre quota mensuel et n&apos;expirent pas</li>
+                  <li>Le stockage supplémentaire est permanent tant que votre abonnement est actif</li>
+                  <li>Les crédits sont utilisés en priorité (quota mensuel d&apos;abord, puis les packs)</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* FAQ */}
-      <div className="mx-auto mt-16 max-w-3xl">
-        <h2 className="mb-6 text-center text-xl font-bold">Questions fréquentes</h2>
+      <div className="ms-card p-6">
+        <h2 className="text-lg font-semibold text-[var(--ms-text)] mb-4">Questions fréquentes</h2>
         <div className="space-y-4">
-          {[
-            {
-              q: "Puis-je annuler à tout moment ?",
-              a: "Oui, vous pouvez annuler votre abonnement à tout moment depuis le portail Stripe. Aucun engagement.",
-            },
-            {
-              q: "L'essai gratuit est-il vraiment gratuit ?",
-              a: "Absolument ! Vous avez 14 jours pour tester toutes les fonctionnalités sans aucun paiement.",
-            },
-            {
-              q: "Quelle est la différence entre Starter et Pro ?",
-              a: "Starter est limité à 50 véhicules et offre des statistiques de base. Pro offre un accès illimité, les statistiques avancées, le multi-utilisateurs et un support prioritaire.",
-            },
-            {
-              q: "Mes données sont-elles sécurisées ?",
-              a: "Vos données sont chiffrées et sauvegardées automatiquement. Nous utilisons les mêmes standards que les banques.",
-            },
-          ].map((item, i) => (
-            <Card key={i} className="p-5">
-              <h3 className="font-semibold">{item.q}</h3>
-              <p className="mt-2 text-sm text-muted2">{item.a}</p>
-            </Card>
-          ))}
+          <div>
+            <h3 className="font-medium text-[var(--ms-text)]">Puis-je changer de plan à tout moment ?</h3>
+            <p className="text-sm text-[var(--ms-text-secondary)]">
+              Oui, vous pouvez upgrader ou downgrader à tout moment. Le prorata sera calculé automatiquement.
+            </p>
+          </div>
+          <div>
+            <h3 className="font-medium text-[var(--ms-text)]">Que se passe-t-il si je dépasse mes quotas ?</h3>
+            <p className="text-sm text-[var(--ms-text-secondary)]">
+              Vous recevrez une notification et pourrez acheter des packs supplémentaires. L&apos;accès n&apos;est jamais coupé brutalement.
+            </p>
+          </div>
+          <div>
+            <h3 className="font-medium text-[var(--ms-text)]">Les crédits non utilisés sont-ils reportés ?</h3>
+            <p className="text-sm text-[var(--ms-text-secondary)]">
+              Le quota mensuel de votre plan est réinitialisé chaque mois. Les crédits achetés via les packs n&apos;expirent pas.
+            </p>
+          </div>
         </div>
       </div>
     </div>

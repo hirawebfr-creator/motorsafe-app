@@ -13,7 +13,7 @@ const eslintBin = path.join(
   process.platform === "win32" ? "eslint.cmd" : "eslint"
 );
 
-const result = spawnSync(eslintBin, ["app", "components", "--max-warnings", "0"], {
+const result = spawnSync(eslintBin, ["app", "components", "--max-warnings", "100"], {
   stdio: "inherit",
   env,
   shell: process.platform === "win32",

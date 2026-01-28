@@ -15,8 +15,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { success, failure } from "@/lib/api";
-import { requireApprovedTenant, requireUser, getTenantId } from "@/lib/guards";
-import { toErrorResponse } from "@/lib/routeErrors";
+import { requireApprovedTenant, requireUser, getTenantIdWithAdminOverride } from "@/lib/guards";
+import { toErrorResponse, RouteError } from "@/lib/routeErrors";
 import { z } from "zod";
 import { createHash } from "crypto";
 import { addEvidenceEntry } from "@/lib/legal/evidenceChain";
@@ -41,6 +41,28 @@ const CreateItemSchema = z.object({
 type RouteContext = { params: Promise<{ id: string }> };
 
 /**
+ * Helper: Get garageId from intervention (for admins) or from user tenant
+ */
+async function getGarageIdForIntervention(user: { role: string; garageId: number | null }, req: Request, interventionId: string): Promise<number> {
+  if (user.role === "ADMIN") {
+    const intervention = await prisma.intervention.findUnique({
+      where: { id: interventionId },
+      select: { garageId: true },
+    });
+    if (!intervention || intervention.garageId === null) {
+      throw new RouteError(404, "NOT_FOUND", "Intervention introuvable");
+    }
+    return intervention.garageId;
+  }
+  
+  const garageId = getTenantIdWithAdminOverride(user as Parameters<typeof getTenantIdWithAdminOverride>[0], req);
+  if (!garageId) {
+    throw new RouteError(400, "TENANT_REQUIRED", "Garage requis");
+  }
+  return garageId;
+}
+
+/**
  * Compute SHA256 hash
  */
 function sha256(data: string | Buffer): string {
@@ -53,12 +75,14 @@ function sha256(data: string | Buffer): string {
 export async function GET(req: Request, context: RouteContext) {
   try {
     const user = requireApprovedTenant(await requireUser(req));
-    const garageId = getTenantId(user);
     const { id: interventionId } = await context.params;
+    const garageId = await getGarageIdForIntervention(user, req, interventionId);
 
     // Verify intervention access
     const intervention = await prisma.intervention.findFirst({
-      where: { id: interventionId, garageId, deletedAt: null },
+      where: user.role === "ADMIN"
+        ? { id: interventionId, deletedAt: null }
+        : { id: interventionId, garageId, deletedAt: null },
       select: { id: true },
     });
     if (!intervention) {
@@ -95,7 +119,6 @@ export async function GET(req: Request, context: RouteContext) {
 export async function POST(req: Request, context: RouteContext) {
   try {
     const user = requireApprovedTenant(await requireUser(req));
-    const garageId = getTenantId(user);
     const { id: interventionId } = await context.params;
 
     // Parse body
@@ -109,10 +132,13 @@ export async function POST(req: Request, context: RouteContext) {
     }
 
     const data = parsed.data;
+    const garageId = await getGarageIdForIntervention(user, req, interventionId);
 
     // Verify intervention access
     const intervention = await prisma.intervention.findFirst({
-      where: { id: interventionId, garageId, deletedAt: null },
+      where: user.role === "ADMIN"
+        ? { id: interventionId, deletedAt: null }
+        : { id: interventionId, garageId, deletedAt: null },
       select: { id: true, disputeStatus: true },
     });
     if (!intervention) {
@@ -229,8 +255,8 @@ export async function POST(req: Request, context: RouteContext) {
 export async function DELETE(req: Request, context: RouteContext) {
   try {
     const user = requireApprovedTenant(await requireUser(req));
-    const garageId = getTenantId(user);
     const { id: interventionId } = await context.params;
+    const garageId = await getGarageIdForIntervention(user, req, interventionId);
 
     const url = new URL(req.url);
     const itemId = url.searchParams.get("itemId");
@@ -240,7 +266,9 @@ export async function DELETE(req: Request, context: RouteContext) {
 
     // Verify intervention access
     const intervention = await prisma.intervention.findFirst({
-      where: { id: interventionId, garageId, deletedAt: null },
+      where: user.role === "ADMIN"
+        ? { id: interventionId, deletedAt: null }
+        : { id: interventionId, garageId, deletedAt: null },
       select: { id: true, disputeStatus: true },
     });
     if (!intervention) {

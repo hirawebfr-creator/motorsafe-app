@@ -24,8 +24,21 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
   try {
     const user = requireApprovedTenant(await requireUser(req));
+    
+    // Admin without emulated garage cannot access team
+    if (user.role === "ADMIN") {
+      const emulateHeader = req.headers.get("x-emulate-garage");
+      if (!emulateHeader) {
+        return NextResponse.json(success({ 
+          members: [], 
+          quota: { current: 0, max: 0, canInvite: false },
+          adminNote: "Sélectionnez un garage à émuler pour voir son équipe"
+        }));
+      }
+    }
+    
     const memberCtx = await requirePermission(user, Permission.TEAM_READ);
-    const garageId = memberCtx.garageId || getTenantId(user);
+    const garageId = memberCtx.garageId > 0 ? memberCtx.garageId : getTenantId(user);
 
     const members = await prisma.garageMember.findMany({
       where: { garageId },

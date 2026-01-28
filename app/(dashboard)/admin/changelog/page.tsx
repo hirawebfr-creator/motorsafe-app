@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from "react";
 import {
   FileText,
   RefreshCw,
-  Loader2,
   Plus,
   Sparkles,
   Bug,
@@ -17,11 +16,24 @@ import {
   X,
 } from "lucide-react";
 import { fetcher, requestJson } from "@/lib/fetcher";
-import { useToast } from "@/components/ui/Toast";
+import { toast } from "sonner";
 
-// ============================================
-// Types
-// ============================================
+// Responsive hook
+function useResponsive() {
+  const [screen, setScreen] = useState<"mobile" | "tablet" | "desktop">("desktop");
+  useEffect(() => {
+    const check = () => {
+      const w = window.innerWidth;
+      if (w < 640) setScreen("mobile");
+      else if (w < 1024) setScreen("tablet");
+      else setScreen("desktop");
+    };
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+  return { isMobile: screen === "mobile", isTablet: screen === "tablet", screen };
+}
 
 type ChangelogType = "FEATURE" | "FIX" | "SECURITY" | "LEGAL";
 
@@ -37,35 +49,11 @@ interface ChangelogEntry {
   createdBy: { id: string; email: string } | null;
 }
 
-// ============================================
-// Constants
-// ============================================
-
-const TYPE_CONFIG: Record<ChangelogType, { color: string; bg: string; icon: React.ReactNode; label: string }> = {
-  FEATURE: {
-    color: "text-blue-600",
-    bg: "bg-blue-100",
-    icon: <Sparkles size={14} />,
-    label: "Nouveauté",
-  },
-  FIX: {
-    color: "text-orange-600",
-    bg: "bg-orange-100",
-    icon: <Bug size={14} />,
-    label: "Correction",
-  },
-  SECURITY: {
-    color: "text-red-600",
-    bg: "bg-red-100",
-    icon: <Shield size={14} />,
-    label: "Sécurité",
-  },
-  LEGAL: {
-    color: "text-purple-600",
-    bg: "bg-purple-100",
-    icon: <Scale size={14} />,
-    label: "Légal",
-  },
+const TYPE_CONFIG: Record<ChangelogType, { color: string; bg: string; label: string; Icon: typeof Sparkles }> = {
+  FEATURE: { color: "#2563EB", bg: "#DBEAFE", label: "Nouveauté", Icon: Sparkles },
+  FIX: { color: "#D97706", bg: "#FEF3C7", label: "Correction", Icon: Bug },
+  SECURITY: { color: "#DC2626", bg: "#FEE2E2", label: "Sécurité", Icon: Shield },
+  LEGAL: { color: "#7C3AED", bg: "#EDE9FE", label: "Légal", Icon: Scale },
 };
 
 const TYPE_OPTIONS: { value: ChangelogType; label: string }[] = [
@@ -75,17 +63,14 @@ const TYPE_OPTIONS: { value: ChangelogType; label: string }[] = [
   { value: "LEGAL", label: "Légal" },
 ];
 
-// ============================================
-// Component
-// ============================================
-
 export default function AdminChangelogPage() {
-  const { push: toast } = useToast();
+  const { isMobile, isTablet } = useResponsive();
   const [entries, setEntries] = useState<ChangelogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [hoveredRow, setHoveredRow] = useState<string | null>(null);
 
   // Form state
   const [formTitle, setFormTitle] = useState("");
@@ -101,11 +86,11 @@ export default function AdminChangelogPage() {
       setEntries(res.entries);
     } catch (err) {
       console.error("Failed to load entries:", err);
-      toast({ title: "Erreur de chargement", variant: "error" });
+      toast.error("Erreur de chargement");
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, []);
 
   useEffect(() => {
     void loadEntries();
@@ -134,43 +119,26 @@ export default function AdminChangelogPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formTitle.trim() || !formBody.trim()) return;
-
     try {
       setSaving(true);
-
       if (editingId) {
-        // Update
         await requestJson(`/api/admin/changelog/${editingId}`, {
           method: "PATCH",
-          body: JSON.stringify({
-            title: formTitle,
-            bodyMarkdown: formBody,
-            type: formType,
-            version: formVersion || null,
-            isPublished: formPublished,
-          }),
+          body: { title: formTitle, bodyMarkdown: formBody, type: formType, version: formVersion || null, isPublished: formPublished },
         });
-        toast({ title: "Entrée mise à jour", variant: "success" });
+        toast.success("Entrée mise à jour");
       } else {
-        // Create
         await requestJson("/api/admin/changelog", {
           method: "POST",
-          body: JSON.stringify({
-            title: formTitle,
-            bodyMarkdown: formBody,
-            type: formType,
-            version: formVersion || null,
-            isPublished: formPublished,
-          }),
+          body: { title: formTitle, bodyMarkdown: formBody, type: formType, version: formVersion || null, isPublished: formPublished },
         });
-        toast({ title: "Entrée créée", variant: "success" });
+        toast.success("Entrée créée");
       }
-
       resetForm();
       await loadEntries();
     } catch (err) {
       console.error("Failed to save:", err);
-      toast({ title: "Erreur lors de la sauvegarde", variant: "error" });
+      toast.error("Erreur lors de la sauvegarde");
     } finally {
       setSaving(false);
     }
@@ -178,152 +146,91 @@ export default function AdminChangelogPage() {
 
   const handleTogglePublish = async (entry: ChangelogEntry) => {
     try {
-      await requestJson(`/api/admin/changelog/${entry.id}/publish`, {
-        method: "POST",
-      });
-      toast({ title: entry.isPublished ? "Dépublié" : "Publié", variant: "success" });
+      await requestJson(`/api/admin/changelog/${entry.id}/publish`, { method: "POST" });
+      toast.success(entry.isPublished ? "Dépublié" : "Publié");
       await loadEntries();
     } catch (err) {
       console.error("Failed to toggle publish:", err);
-      toast({ title: "Erreur", variant: "error" });
+      toast.error("Erreur");
     }
   };
 
   const formatDate = (isoDate: string): string => {
     try {
-      return new Date(isoDate).toLocaleDateString("fr-FR", {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-      });
+      return new Date(isoDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" });
     } catch {
       return "—";
     }
   };
 
+  const inputStyle: React.CSSProperties = { width: "100%", padding: "12px 14px", borderRadius: "10px", border: "1px solid #E5E7EB", fontSize: "14px", color: "#111827", background: "#fff", outline: "none" };
+  const labelStyle: React.CSSProperties = { display: "block", fontSize: "14px", fontWeight: 500, color: "#374151", marginBottom: "6px" };
+
   return (
-    <div className="ms-animate-slide-up">
+    <div style={{ padding: isMobile ? "16px" : isTablet ? "24px" : "32px", maxWidth: "1200px", margin: "0 auto" }}>
       {/* Header */}
-      <div className="ms-page-header">
-        <div className="flex items-center gap-3">
-          <FileText size={28} className="text-[var(--ms-primary)]" />
+      <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", alignItems: isMobile ? "stretch" : "center", marginBottom: "32px", gap: "16px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div style={{ width: "48px", height: "48px", borderRadius: "12px", background: "#EEF2FF", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <FileText size={24} color="#6366F1" />
+          </div>
           <div>
-            <h1 className="ms-page-title">Changelog</h1>
-            <p className="ms-page-subtitle">Gérer les nouveautés visibles aux garages</p>
+            <h1 style={{ fontSize: isMobile ? "24px" : "28px", fontWeight: 700, color: "#111827", margin: 0 }}>Changelog</h1>
+            <p style={{ fontSize: "14px", color: "#6B7280", marginTop: "4px" }}>Gérer les nouveautés visibles aux garages</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => void loadEntries()}
-            disabled={loading}
-            className="ms-btn ms-btn-secondary"
-          >
-            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+        <div style={{ display: "flex", gap: "12px" }}>
+          <button onClick={() => void loadEntries()} disabled={loading} style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "10px", borderRadius: "10px", border: "1px solid #E5E7EB", background: "#fff", cursor: "pointer" }}>
+            <RefreshCw size={18} color="#6B7280" style={loading ? { animation: "spin 1s linear infinite" } : {}} />
           </button>
-          <button
-            type="button"
-            onClick={() => {
-              resetForm();
-              setShowForm(true);
-            }}
-            className="ms-btn ms-btn-primary"
-          >
-            <Plus size={16} />
-            Nouvelle entrée
+          <button onClick={() => { resetForm(); setShowForm(true); }} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "10px 16px", borderRadius: "10px", border: "none", background: "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)", fontSize: "14px", fontWeight: 600, color: "#fff", cursor: "pointer" }}>
+            <Plus size={16} /> Nouvelle entrée
           </button>
         </div>
       </div>
 
       {/* Form */}
       {showForm && (
-        <div className="ms-card mb-6">
-          <div className="ms-card-header">
-            <h2 className="ms-card-title">
-              {editingId ? "Modifier l'entrée" : "Nouvelle entrée"}
-            </h2>
-          </div>
-          <form onSubmit={(e) => void handleSubmit(e)} className="ms-card-body pt-0">
-            <div className="grid gap-4 md:grid-cols-2">
+        <div style={{ padding: "24px", borderRadius: "16px", background: "#fff", border: "1px solid #E5E7EB", marginBottom: "24px" }}>
+          <h2 style={{ fontSize: "18px", fontWeight: 600, color: "#111827", margin: "0 0 20px" }}>
+            {editingId ? "Modifier l'entrée" : "Nouvelle entrée"}
+          </h2>
+          <form onSubmit={(e) => void handleSubmit(e)}>
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "16px" }}>
               <div>
-                <label className="ms-label">Titre *</label>
-                <input
-                  type="text"
-                  value={formTitle}
-                  onChange={(e) => setFormTitle(e.target.value)}
-                  className="ms-input"
-                  placeholder="Ex: Signature client mobile"
-                  required
-                />
+                <label style={labelStyle}>Titre *</label>
+                <input type="text" value={formTitle} onChange={(e) => setFormTitle(e.target.value)} placeholder="Ex: Signature client mobile" required style={inputStyle} />
               </div>
-              <div className="flex gap-4">
-                <div className="flex-1">
-                  <label className="ms-label">Type *</label>
-                  <select
-                    value={formType}
-                    onChange={(e) => setFormType(e.target.value as ChangelogType)}
-                    className="ms-input"
-                  >
+              <div style={{ display: "flex", gap: "12px" }}>
+                <div style={{ flex: 1 }}>
+                  <label style={labelStyle}>Type *</label>
+                  <select value={formType} onChange={(e) => setFormType(e.target.value as ChangelogType)} style={inputStyle}>
                     {TYPE_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
                     ))}
                   </select>
                 </div>
-                <div className="w-32">
-                  <label className="ms-label">Version</label>
-                  <input
-                    type="text"
-                    value={formVersion}
-                    onChange={(e) => setFormVersion(e.target.value)}
-                    className="ms-input"
-                    placeholder="1.0.0"
-                  />
+                <div style={{ width: "120px" }}>
+                  <label style={labelStyle}>Version</label>
+                  <input type="text" value={formVersion} onChange={(e) => setFormVersion(e.target.value)} placeholder="1.0.0" style={inputStyle} />
                 </div>
               </div>
             </div>
-
-            <div className="mt-4">
-              <label className="ms-label">Contenu (Markdown) *</label>
-              <textarea
-                value={formBody}
-                onChange={(e) => setFormBody(e.target.value)}
-                className="ms-input min-h-[200px] font-mono text-sm"
-                placeholder="## Description&#10;&#10;Détaillez la nouveauté ici...&#10;&#10;- Point 1&#10;- Point 2"
-                required
-              />
+            <div style={{ marginTop: "16px" }}>
+              <label style={labelStyle}>Contenu (Markdown) *</label>
+              <textarea value={formBody} onChange={(e) => setFormBody(e.target.value)} placeholder={`## Description\n\nDétaillez la nouveauté ici...\n\n- Point 1\n- Point 2`} required style={{ ...inputStyle, minHeight: "200px", fontFamily: "monospace", resize: "vertical" }} />
             </div>
-
-            <div className="mt-4 flex items-center gap-2">
-              <input
-                type="checkbox"
-                id="published"
-                checked={formPublished}
-                onChange={(e) => setFormPublished(e.target.checked)}
-                className="rounded border-gray-300"
-              />
-              <label htmlFor="published" className="text-sm">
-                Publier immédiatement
-              </label>
+            <div style={{ marginTop: "16px", display: "flex", alignItems: "center", gap: "8px" }}>
+              <input type="checkbox" id="published" checked={formPublished} onChange={(e) => setFormPublished(e.target.checked)} style={{ width: "18px", height: "18px", borderRadius: "4px", cursor: "pointer" }} />
+              <label htmlFor="published" style={{ fontSize: "14px", color: "#374151", cursor: "pointer" }}>Publier immédiatement</label>
             </div>
-
-            <div className="mt-6 flex items-center gap-2">
-              <button
-                type="submit"
-                disabled={saving || !formTitle.trim() || !formBody.trim()}
-                className="ms-btn ms-btn-primary"
-              >
-                {saving ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
+            <div style={{ marginTop: "24px", display: "flex", gap: "12px" }}>
+              <button type="submit" disabled={saving || !formTitle.trim() || !formBody.trim()} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "10px 20px", borderRadius: "10px", border: "none", background: "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)", fontSize: "14px", fontWeight: 600, color: "#fff", cursor: "pointer", opacity: saving || !formTitle.trim() || !formBody.trim() ? 0.5 : 1 }}>
+                {saving ? <RefreshCw size={16} style={{ animation: "spin 1s linear infinite" }} /> : <Check size={16} />}
                 {editingId ? "Enregistrer" : "Créer"}
               </button>
-              <button
-                type="button"
-                onClick={resetForm}
-                className="ms-btn ms-btn-secondary"
-              >
-                <X size={16} />
-                Annuler
+              <button type="button" onClick={resetForm} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "10px 20px", borderRadius: "10px", border: "1px solid #E5E7EB", background: "#fff", fontSize: "14px", fontWeight: 500, color: "#374151", cursor: "pointer" }}>
+                <X size={16} /> Annuler
               </button>
             </div>
           </form>
@@ -332,76 +239,60 @@ export default function AdminChangelogPage() {
 
       {/* Entries List */}
       {loading ? (
-        <div className="flex items-center justify-center py-16">
-          <Loader2 size={32} className="animate-spin text-[var(--ms-primary)]" />
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "80px" }}>
+          <RefreshCw size={32} color="#6366F1" style={{ animation: "spin 1s linear infinite" }} />
         </div>
       ) : entries.length === 0 ? (
-        <div className="ms-card">
-          <div className="ms-card-body text-center py-12">
-            <FileText size={48} className="mx-auto mb-4 text-[var(--ms-text-muted)] opacity-30" />
-            <p className="text-[var(--ms-text-muted)]">Aucune entrée dans le changelog</p>
-          </div>
+        <div style={{ padding: "64px", borderRadius: "16px", background: "#fff", border: "1px solid #E5E7EB", textAlign: "center" }}>
+          <FileText size={48} color="#D1D5DB" style={{ marginBottom: "16px" }} />
+          <p style={{ fontSize: "14px", color: "#6B7280", margin: 0 }}>Aucune entrée dans le changelog</p>
         </div>
       ) : (
-        <div className="ms-card">
-          <div className="overflow-x-auto">
-            <table className="ms-table">
+        <div style={{ borderRadius: "16px", background: "#fff", border: "1px solid #E5E7EB", overflow: "hidden" }}>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
-                <tr>
-                  <th>Type</th>
-                  <th>Titre</th>
-                  <th>Version</th>
-                  <th>Publié</th>
-                  <th>Date</th>
-                  <th>Actions</th>
+                <tr style={{ background: "#F9FAFB", borderBottom: "1px solid #E5E7EB" }}>
+                  <th style={{ padding: "14px 16px", textAlign: "left", fontSize: "12px", fontWeight: 600, color: "#6B7280", textTransform: "uppercase" }}>Type</th>
+                  <th style={{ padding: "14px 16px", textAlign: "left", fontSize: "12px", fontWeight: 600, color: "#6B7280", textTransform: "uppercase" }}>Titre</th>
+                  <th style={{ padding: "14px 16px", textAlign: "left", fontSize: "12px", fontWeight: 600, color: "#6B7280", textTransform: "uppercase" }}>Version</th>
+                  <th style={{ padding: "14px 16px", textAlign: "left", fontSize: "12px", fontWeight: 600, color: "#6B7280", textTransform: "uppercase" }}>Publié</th>
+                  <th style={{ padding: "14px 16px", textAlign: "left", fontSize: "12px", fontWeight: 600, color: "#6B7280", textTransform: "uppercase" }}>Date</th>
+                  <th style={{ padding: "14px 16px", textAlign: "left", fontSize: "12px", fontWeight: 600, color: "#6B7280", textTransform: "uppercase" }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {entries.map((entry) => {
                   const cfg = TYPE_CONFIG[entry.type];
+                  const TypeIcon = cfg.Icon;
                   return (
-                    <tr key={entry.id}>
-                      <td>
-                        <span className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${cfg.bg} ${cfg.color}`}>
-                          {cfg.icon}
-                          {cfg.label}
+                    <tr key={entry.id} style={{ borderBottom: "1px solid #F3F4F6", background: hoveredRow === entry.id ? "#F9FAFB" : "transparent", transition: "background 0.15s" }} onMouseEnter={() => setHoveredRow(entry.id)} onMouseLeave={() => setHoveredRow(null)}>
+                      <td style={{ padding: "16px" }}>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "4px 10px", borderRadius: "6px", fontSize: "12px", fontWeight: 500, background: cfg.bg, color: cfg.color }}>
+                          <TypeIcon size={14} /> {cfg.label}
                         </span>
                       </td>
-                      <td className="font-medium">{entry.title}</td>
-                      <td className="text-[var(--ms-text-muted)]">
-                        {entry.version || "—"}
-                      </td>
-                      <td>
+                      <td style={{ padding: "16px", fontSize: "14px", fontWeight: 500, color: "#111827" }}>{entry.title}</td>
+                      <td style={{ padding: "16px", fontSize: "14px", color: "#6B7280" }}>{entry.version || "—"}</td>
+                      <td style={{ padding: "16px" }}>
                         {entry.isPublished ? (
-                          <span className="flex items-center gap-1 text-green-600">
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "13px", color: "#059669" }}>
                             <Eye size={14} /> Oui
                           </span>
                         ) : (
-                          <span className="flex items-center gap-1 text-[var(--ms-text-muted)]">
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "13px", color: "#6B7280" }}>
                             <EyeOff size={14} /> Non
                           </span>
                         )}
                       </td>
-                      <td className="text-sm text-[var(--ms-text-muted)]">
-                        {formatDate(entry.publishedAt)}
-                      </td>
-                      <td>
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => handleEdit(entry)}
-                            className="ms-btn ms-btn-secondary ms-btn-sm"
-                            title="Modifier"
-                          >
-                            <Pencil size={14} />
+                      <td style={{ padding: "16px", fontSize: "13px", color: "#6B7280" }}>{formatDate(entry.publishedAt)}</td>
+                      <td style={{ padding: "16px" }}>
+                        <div style={{ display: "flex", gap: "8px" }}>
+                          <button onClick={() => handleEdit(entry)} title="Modifier" style={{ padding: "8px", borderRadius: "8px", border: "1px solid #E5E7EB", background: "#fff", cursor: "pointer" }}>
+                            <Pencil size={14} color="#6B7280" />
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => void handleTogglePublish(entry)}
-                            className="ms-btn ms-btn-secondary ms-btn-sm"
-                            title={entry.isPublished ? "Dépublier" : "Publier"}
-                          >
-                            {entry.isPublished ? <EyeOff size={14} /> : <Eye size={14} />}
+                          <button onClick={() => void handleTogglePublish(entry)} title={entry.isPublished ? "Dépublier" : "Publier"} style={{ padding: "8px", borderRadius: "8px", border: "1px solid #E5E7EB", background: "#fff", cursor: "pointer" }}>
+                            {entry.isPublished ? <EyeOff size={14} color="#6B7280" /> : <Eye size={14} color="#6B7280" />}
                           </button>
                         </div>
                       </td>
@@ -413,6 +304,8 @@ export default function AdminChangelogPage() {
           </div>
         </div>
       )}
+
+      <style dangerouslySetInnerHTML={{ __html: `@keyframes spin { to { transform: rotate(360deg); } }` }} />
     </div>
   );
 }

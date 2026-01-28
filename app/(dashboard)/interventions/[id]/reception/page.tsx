@@ -358,7 +358,7 @@ export default function ReceptionWizardPage() {
   const step1Valid = odometerKm.length > 0;
   const step2Valid = true; // Always valid (optional warnings)
   const photosUploaded = Object.values(photos).filter((p) => p !== null).length;
-  const step3Valid = photosUploaded >= 6;
+  const step3Valid = true; // Photos are now optional but recommended
   const step4Valid = signatureStatus === "signed";
 
   const canProceed = [step1Valid, step2Valid, step3Valid, step4Valid][step];
@@ -532,9 +532,9 @@ export default function ReceptionWizardPage() {
                 <Camera size={20} className="text-[var(--ms-accent)]" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold">Photos obligatoires</h3>
+                <h3 className="text-lg font-semibold">Photos du véhicule</h3>
                 <p className="text-xs text-muted2">
-                  {photosUploaded}/6 photos — Minimum 6 requises
+                  {photosUploaded}/6 photos — Très conseillées pour preuve
                 </p>
               </div>
             </div>
@@ -604,9 +604,9 @@ export default function ReceptionWizardPage() {
                 onChange={handlePhotoUpload}
               />
               {photosUploaded < 6 && (
-                <p className="mt-4 text-sm text-[var(--ms-warning)] text-center">
-                  <AlertTriangle size={14} className="inline mr-1" />
-                  Il manque {6 - photosUploaded} photo(s) pour pouvoir signer
+                <p className="mt-4 text-sm text-[var(--ms-text-muted)] text-center">
+                  <Camera size={14} className="inline mr-1" />
+                  {photosUploaded === 0 ? "Ajoutez des photos pour documenter l'état du véhicule" : `${6 - photosUploaded} photo(s) supplémentaire(s) conseillée(s)`}
                 </p>
               )}
             </div>
@@ -681,11 +681,19 @@ export default function ReceptionWizardPage() {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted2">Photos</span>
-                      <span className="font-semibold">{photosUploaded}/6</span>
+                      <span className="font-semibold">{photosUploaded}/6 {photosUploaded < 3 && "(conseillé: min. 3)"}</span>
                     </div>
                   </div>
+                  {photosUploaded === 0 && (
+                    <div className="mt-4 p-3 rounded-lg bg-amber-50 border border-amber-200">
+                      <p className="text-sm text-amber-800">
+                        <AlertTriangle size={14} className="inline mr-1" />
+                        Sans photos, vous n'aurez pas de preuves visuelles en cas de litige.
+                      </p>
+                    </div>
+                  )}
                   <div className="mt-6">
-                    <Button onClick={startSignature} disabled={saving || !step3Valid}>
+                    <Button onClick={startSignature} disabled={saving}>
                       {saving ? (
                         <RefreshCw size={16} className="mr-1 animate-spin" />
                       ) : (

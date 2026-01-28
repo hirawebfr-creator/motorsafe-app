@@ -9,6 +9,17 @@ import { prisma } from "@/lib/prisma";
 import { RouteError } from "@/lib/routeErrors";
 
 // ============================================
+// ADMIN CHECK HELPER
+// ============================================
+
+/**
+ * Check if user is an admin
+ */
+export function isAdmin(user: { role: string } | null | undefined): boolean {
+  return user?.role === "ADMIN";
+}
+
+// ============================================
 // FEATURE KEYS (enum-like constants)
 // ============================================
 
@@ -206,6 +217,36 @@ export function isSubscriptionActive(status: SubscriptionStatus | string | null)
 }
 
 // ============================================
+// ADMIN FULL ACCESS ENTITLEMENTS
+// ============================================
+
+/**
+ * Returns unlimited PRO entitlements for admin users
+ * Admins have access to everything without subscription
+ */
+export function getAdminEntitlements(): GarageEntitlements {
+  return {
+    garageId: 0, // Admin has no garage
+    planKey: "PRO",
+    subscriptionStatus: "ACTIVE",
+    isActive: true,
+    features: Object.values(FeatureKey) as FeatureKeyType[], // All features
+    quotas: {
+      vehicleLookupPerMonth: -1, // Unlimited
+      aiRequestsPerMonth: -1, // Unlimited
+      signaturesPerMonth: -1, // Unlimited
+      importRowsPerBatch: -1, // Unlimited
+    },
+    limits: {
+      clients: Infinity,
+      vehicules: Infinity,
+      interventionsPerWeek: Infinity,
+      users: Infinity,
+    },
+  };
+}
+
+// ============================================
 // GARAGE ENTITLEMENTS FETCHER
 // ============================================
 
@@ -288,8 +329,14 @@ export function getPlanDisplayName(plan: PlanKey | string): string {
 /**
  * Require an active subscription (at least STARTER)
  * Throws SUBSCRIPTION_REQUIRED if not active
+ * Admin users bypass this check entirely
  */
-export async function requireActivePlan(garageId: number): Promise<GarageEntitlements> {
+export async function requireActivePlan(garageId: number, isAdmin = false): Promise<GarageEntitlements> {
+  // Admin bypass - has full access without subscription
+  if (isAdmin) {
+    return getAdminEntitlements();
+  }
+  
   const entitlements = await getGarageEntitlements(garageId);
   
   if (!entitlements.isActive || entitlements.planKey === "FREE") {
@@ -306,8 +353,14 @@ export async function requireActivePlan(garageId: number): Promise<GarageEntitle
 /**
  * Require a specific feature
  * Throws FEATURE_NOT_AVAILABLE if not allowed
+ * Admin users bypass this check entirely
  */
-export async function requireFeature(garageId: number, feature: FeatureKeyType): Promise<GarageEntitlements> {
+export async function requireFeature(garageId: number, feature: FeatureKeyType, isAdmin = false): Promise<GarageEntitlements> {
+  // Admin bypass - has access to all features
+  if (isAdmin) {
+    return getAdminEntitlements();
+  }
+  
   const entitlements = await getGarageEntitlements(garageId);
 
   if (!entitlements.isActive) {
@@ -331,8 +384,14 @@ export async function requireFeature(garageId: number, feature: FeatureKeyType):
 
 /**
  * Require PRO plan specifically
+ * Admin users bypass this check entirely
  */
-export async function requireProPlan(garageId: number): Promise<GarageEntitlements> {
+export async function requireProPlan(garageId: number, isAdmin = false): Promise<GarageEntitlements> {
+  // Admin bypass - has PRO access
+  if (isAdmin) {
+    return getAdminEntitlements();
+  }
+  
   const entitlements = await getGarageEntitlements(garageId);
 
   if (!entitlements.isActive || entitlements.planKey !== "PRO") {
@@ -511,11 +570,18 @@ export async function checkQuota(
 
 /**
  * Require quota available (throws QUOTA_EXCEEDED if not)
+ * Admin users bypass this check entirely
  */
 export async function requireQuota(
   garageId: number,
-  quotaType: QuotaType
+  quotaType: QuotaType,
+  isAdmin = false
 ): Promise<void> {
+  // Admin bypass - has unlimited quotas
+  if (isAdmin) {
+    return;
+  }
+  
   const { allowed, limit } = await checkQuota(garageId, quotaType);
   
   if (!allowed) {
@@ -604,4 +670,82 @@ export async function getEntitlementsForResponse(garageId: number) {
       users: entitlements.limits.users,
     },
   };
+}
+// ============================================
+// USER-BASED ENFORCEMENT (Simplified API)
+// ============================================
+
+type UserLike = { role: string; garageId?: number | null };
+
+/**
+ * Require feature for user - automatically bypasses for admin
+ * Use this instead of requireFeature for cleaner code
+ */
+export async function requireFeatureForUser(
+  user: UserLike,
+  feature: FeatureKeyType
+): Promise<GarageEntitlements> {
+  if (isAdmin(user)) {
+    return getAdminEntitlements();
+  }
+  
+  const garageId = user.garageId ?? -1;
+  return requireFeature(garageId, feature, false);
+}
+
+/**
+ * Require active plan for user - automatically bypasses for admin
+ */
+export async function requireActivePlanForUser(
+  user: UserLike
+): Promise<GarageEntitlements> {
+  if (isAdmin(user)) {
+    return getAdminEntitlements();
+  }
+  
+  const garageId = user.garageId ?? -1;
+  return requireActivePlan(garageId, false);
+}
+
+/**
+ * Require PRO plan for user - automatically bypasses for admin
+ */
+export async function requireProPlanForUser(
+  user: UserLike
+): Promise<GarageEntitlements> {
+  if (isAdmin(user)) {
+    return getAdminEntitlements();
+  }
+  
+  const garageId = user.garageId ?? -1;
+  return requireProPlan(garageId, false);
+}
+
+/**
+ * Require quota for user - automatically bypasses for admin
+ */
+export async function requireQuotaForUser(
+  user: UserLike,
+  quotaType: QuotaType
+): Promise<void> {
+  if (isAdmin(user)) {
+    return; // Admin has unlimited quotas
+  }
+  
+  const garageId = user.garageId ?? -1;
+  await requireQuota(garageId, quotaType, false);
+}
+
+/**
+ * Get entitlements for user - returns admin entitlements for admin users
+ */
+export async function getEntitlementsForUser(
+  user: UserLike
+): Promise<GarageEntitlements> {
+  if (isAdmin(user)) {
+    return getAdminEntitlements();
+  }
+  
+  const garageId = user.garageId ?? -1;
+  return getGarageEntitlements(garageId);
 }

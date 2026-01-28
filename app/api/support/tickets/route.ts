@@ -9,7 +9,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { success } from "@/lib/api";
-import { requireApprovedTenant, requireUser, getTenantId } from "@/lib/guards";
+import { requireApprovedTenant, requireUser, getTenantIdWithAdminOverride } from "@/lib/guards";
 import { RouteError, toErrorResponse } from "@/lib/routeErrors";
 import { checkGarageRateLimit, getClientIp, rateLimitHeaders } from "@/lib/rateLimit";
 import {
@@ -39,7 +39,18 @@ const VALID_CHANNELS: SupportChannel[] = ["FORM", "EMAIL", "WHATSAPP"];
 export async function POST(req: Request) {
   try {
     const user = requireApprovedTenant(await requireUser(req));
-    const garageId = getTenantId(user);
+    // Admin can create tickets too - use their emulated garage or a special admin garage
+    let garageId = getTenantIdWithAdminOverride(user, req);
+    
+    // For admins without an emulated garage, we need a garageId for the ticket
+    // Either require emulation or create a special admin ticket
+    if (!garageId) {
+      if (user.role === "ADMIN") {
+        // For now, require admin to emulate a garage when creating tickets
+        throw new RouteError(400, "TENANT_REQUIRED", "Sélectionnez un garage à émuler pour créer un ticket");
+      }
+      throw new RouteError(400, "TENANT_REQUIRED", "Garage invalide");
+    }
 
     // Rate limit by garage + IP
     const ip = getClientIp(req);
@@ -196,14 +207,16 @@ export async function POST(req: Request) {
 export async function GET(req: Request) {
   try {
     const user = requireApprovedTenant(await requireUser(req));
-    const garageId = getTenantId(user);
+    const garageId = getTenantIdWithAdminOverride(user, req);
 
     const url = new URL(req.url);
     const status = url.searchParams.get("status");
     const limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get("limit") || "50", 10)));
     const offset = Math.max(0, parseInt(url.searchParams.get("offset") || "0", 10));
 
-    const where: { garageId: number; status?: "OPEN" | "IN_PROGRESS" | "WAITING_CUSTOMER" | "RESOLVED" | "CLOSED" } = { garageId };
+    // Admin sans garage émulé = voir tous les tickets
+    const where: { garageId?: number; status?: "OPEN" | "IN_PROGRESS" | "WAITING_CUSTOMER" | "RESOLVED" | "CLOSED" } = 
+      garageId ? { garageId } : {};
     if (status && ["OPEN", "IN_PROGRESS", "WAITING_CUSTOMER", "RESOLVED", "CLOSED"].includes(status)) {
       where.status = status as "OPEN" | "IN_PROGRESS" | "WAITING_CUSTOMER" | "RESOLVED" | "CLOSED";
     }

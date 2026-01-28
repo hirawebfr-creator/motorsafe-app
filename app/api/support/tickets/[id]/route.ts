@@ -6,7 +6,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { success } from "@/lib/api";
-import { requireApprovedTenant, requireUser, getTenantId } from "@/lib/guards";
+import { requireApprovedTenant, requireUser, getTenantIdWithAdminOverride } from "@/lib/guards";
 import { RouteError, toErrorResponse } from "@/lib/routeErrors";
 
 export const runtime = "nodejs";
@@ -17,7 +17,7 @@ type Context = { params: Promise<{ id: string }> };
 export async function GET(req: Request, context: Context) {
   try {
     const user = requireApprovedTenant(await requireUser(req));
-    const garageId = getTenantId(user);
+    const garageId = getTenantIdWithAdminOverride(user, req);
     const { id } = await context.params;
 
     if (!id) {
@@ -25,10 +25,9 @@ export async function GET(req: Request, context: Context) {
     }
 
     const ticket = await prisma.supportTicket.findFirst({
-      where: {
-        id,
-        garageId, // Strict scope
-      },
+      where: user.role === "ADMIN" 
+        ? { id } // Admin can see any ticket
+        : { id, garageId: garageId ?? undefined },
       include: {
         messages: {
           orderBy: { createdAt: "asc" },

@@ -292,15 +292,12 @@ export default function VehiculesPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           clientId: parseInt(formData.clientId),
-          registrationNumber: formData.plate.toUpperCase(),
+          plate: formData.plate.toUpperCase(),
           vin: formData.vin || undefined,
-          make: formData.brand,
+          brand: formData.brand,
           model: formData.model,
-          version: formData.version || undefined,
           year: formData.year ? parseInt(formData.year) : undefined,
-          mileage: formData.mileage ? parseInt(formData.mileage) : undefined,
-          color: formData.color || undefined,
-          fuelType: formData.fuel
+          fuel: formData.fuel
         })
       })
       
@@ -563,12 +560,54 @@ export default function VehiculesPage() {
               {sivResult && (
                 <div style={{ padding: '20px', borderRadius: '12px', background: '#F0FDF4', border: '1px solid #BBF7D0' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}><CheckCircle size={18} color="#10B981" /><span style={{ fontSize: '14px', fontWeight: 600, color: '#166534' }}>Véhicule trouvé</span></div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px' }}>
+                  
+                  {/* Brand Logo */}
+                  {sivResult.logoUrl && (
+                    <div style={{ marginBottom: '16px', textAlign: 'center' }}>
+                      <img 
+                        src={sivResult.logoUrl} 
+                        alt={sivResult.make} 
+                        style={{ maxWidth: '80px', maxHeight: '60px', objectFit: 'contain' }} 
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                      />
+                    </div>
+                  )}
+                  
+                  {/* Main Info */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
                     <div><div style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Marque</div><div style={{ fontSize: '15px', fontWeight: 600, color: '#111827' }}>{sivResult.make || '-'}</div></div>
                     <div><div style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Modèle</div><div style={{ fontSize: '15px', fontWeight: 600, color: '#111827' }}>{sivResult.model || '-'}</div></div>
+                    <div><div style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Version</div><div style={{ fontSize: '15px', fontWeight: 600, color: '#111827' }}>{sivResult.version || sivResult.sraCommercial || '-'}</div></div>
                     <div><div style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Année</div><div style={{ fontSize: '15px', fontWeight: 600, color: '#111827' }}>{sivResult.year || '-'}</div></div>
-                    <div><div style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Énergie</div><div style={{ fontSize: '15px', fontWeight: 600, color: '#111827' }}>{sivResult.fuelType || '-'}</div></div>
                   </div>
+                  
+                  {/* Technical Info */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+                    <div><div style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Énergie</div><div style={{ fontSize: '14px', fontWeight: 500, color: '#111827' }}>{sivResult.fuelType || '-'}</div></div>
+                    <div><div style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Puissance</div><div style={{ fontSize: '14px', fontWeight: 500, color: '#111827' }}>{sivResult.horsePower || sivResult.power || '-'}</div></div>
+                    <div><div style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Cylindrée</div><div style={{ fontSize: '14px', fontWeight: 500, color: '#111827' }}>{sivResult.displacement || '-'}</div></div>
+                  </div>
+                  
+                  {/* Additional Info - Section 1 */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px', padding: '12px', background: '#fff', borderRadius: '8px' }}>
+                    {sivResult.vin && <div><div style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>VIN</div><div style={{ fontSize: '11px', fontWeight: 500, color: '#111827', fontFamily: 'monospace' }}>{sivResult.vin}</div></div>}
+                    {(sivResult.firstRegistration || sivResult.firstRegistrationDate) && <div><div style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>1ère immat.</div><div style={{ fontSize: '14px', fontWeight: 500, color: '#111827' }}>{sivResult.firstRegistration || sivResult.firstRegistrationDate}</div></div>}
+                    {sivResult.fiscalPower && <div><div style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Puissance fiscale</div><div style={{ fontSize: '14px', fontWeight: 500, color: '#111827' }}>{sivResult.fiscalPower} CV</div></div>}
+                    {sivResult.gearbox && <div><div style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Boîte</div><div style={{ fontSize: '14px', fontWeight: 500, color: '#111827' }}>{sivResult.gearbox}</div></div>}
+                  </div>
+                  
+                  {/* Additional Info - Section 2 */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '8px', marginBottom: '16px', padding: '12px', background: '#fff', borderRadius: '8px' }}>
+                    {sivResult.doors && <div><div style={{ fontSize: '10px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Portes</div><div style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>{sivResult.doors}</div></div>}
+                    {sivResult.seats && <div><div style={{ fontSize: '10px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Places</div><div style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>{sivResult.seats}</div></div>}
+                    {sivResult.co2 && <div><div style={{ fontSize: '10px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>CO₂</div><div style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>{sivResult.co2} g/km</div></div>}
+                    {sivResult.weight && <div><div style={{ fontSize: '10px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Poids</div><div style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>{sivResult.weight}</div></div>}
+                    {sivResult.color && <div><div style={{ fontSize: '10px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Couleur</div><div style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>{sivResult.color}</div></div>}
+                    {sivResult.bodyType && <div><div style={{ fontSize: '10px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Carrosserie</div><div style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>{sivResult.bodyType}</div></div>}
+                    {sivResult.genre && <div><div style={{ fontSize: '10px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Genre</div><div style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>{sivResult.genre}</div></div>}
+                    {sivResult.typeApproval && <div><div style={{ fontSize: '10px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Type mine</div><div style={{ fontSize: '11px', fontWeight: 500, color: '#111827', fontFamily: 'monospace' }}>{sivResult.typeApproval}</div></div>}
+                  </div>
+                  
                   <button onClick={handleSivImport} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)', color: '#fff', fontSize: '14px', fontWeight: 600, cursor: 'pointer' }}>Importer ces informations</button>
                 </div>
               )}

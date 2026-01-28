@@ -4,6 +4,7 @@ import { IBM_Plex_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { ToastProvider } from "@/components/ui/Toast";
 import { DevTools } from "@/components/common/DevTools";
+import { ServiceWorkerRegistration } from "@/components/common/ServiceWorkerRegistration";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Analytics } from "@vercel/analytics/next";
 
@@ -27,8 +28,33 @@ export const metadata: Metadata = {
     template: "%s | MotorSafe",
   },
   metadataBase: new URL("https://motorsafe.fr"),
-  description: "Panel professionnel pour garages, interventions et conformite.",
+  description: "Logiciel de gestion et protection juridique pour garages automobiles",
   applicationName: "MotorSafe",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "MotorSafe",
+  },
+  formatDetection: {
+    telephone: true,
+  },
+  themeColor: "#4F46E5",
+  viewport: {
+    width: "device-width",
+    initialScale: 1,
+    maximumScale: 1,
+    userScalable: false,
+  },
+  icons: {
+    icon: [
+      { url: "/brand/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/brand/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [
+      { url: "/brand/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -41,6 +67,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {children}
           {process.env.NODE_ENV === "development" ? <DevTools /> : null}
         </ToastProvider>
+        <ServiceWorkerRegistration />
         <SpeedInsights />
         <Analytics />
       </body>

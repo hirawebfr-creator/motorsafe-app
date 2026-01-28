@@ -2,13 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Card } from "@/components/ui/Card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
-import { Badge } from "@/components/ui/Badge";
-import { Toggle } from "@/components/ui/Toggle";
-import { ConfirmDialog as Dialog } from "@/components/ui/ConfirmDialog";
 import {
   Users,
   Plus,
@@ -18,7 +11,27 @@ import {
   TrendingUp,
   CheckCircle,
   RefreshCw,
+  X,
+  Shield,
 } from "lucide-react";
+import { useUser } from "@/components/user-context";
+
+// Responsive hook
+function useResponsive() {
+  const [screen, setScreen] = useState<"mobile" | "tablet" | "desktop">("desktop");
+  useEffect(() => {
+    const check = () => {
+      const w = window.innerWidth;
+      if (w < 640) setScreen("mobile");
+      else if (w < 1024) setScreen("tablet");
+      else setScreen("desktop");
+    };
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+  return { isMobile: screen === "mobile", isTablet: screen === "tablet", screen };
+}
 
 interface PartnerStats {
   signups: number;
@@ -51,21 +64,21 @@ const PARTNER_TYPES = [
 ];
 
 function formatCurrency(cents: number): string {
-  return new Intl.NumberFormat("fr-FR", {
-    style: "currency",
-    currency: "EUR",
-  }).format(cents / 100);
+  return new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(cents / 100);
 }
 
 export default function AdminPartnersPage() {
+  const user = useUser();
   const router = useRouter();
+  const { isMobile, isTablet } = useResponsive();
+  const isAdmin = user?.role === "ADMIN";
+
   const [partners, setPartners] = useState<Partner[]>([]);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
 
-  // Form state
   const [formName, setFormName] = useState("");
   const [formEmail, setFormEmail] = useState("");
   const [formType, setFormType] = useState("OTHER");
@@ -87,40 +100,33 @@ export default function AdminPartnersPage() {
   };
 
   useEffect(() => {
-    fetchPartners();
-  }, []);
+    if (isAdmin) {
+      void fetchPartners();
+    }
+  }, [isAdmin]);
 
-  const handleCreatePartner = async () => {
+  const handleCreatePartner = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!formName || !formEmail) return;
-
     try {
       setCreating(true);
       const res = await fetch("/api/admin/partners", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: formName,
-          email: formEmail,
-          type: formType,
-          commissionPercent: formCommission,
-          stripeCouponId: formCouponId || null,
-        }),
+        body: JSON.stringify({ name: formName, email: formEmail, type: formType, commissionPercent: formCommission, stripeCouponId: formCouponId || null }),
       });
-
       if (!res.ok) {
         const data = await res.json();
         alert(data.error || "Erreur création");
         return;
       }
-
-      // Reset form and refresh
       setFormName("");
       setFormEmail("");
       setFormType("OTHER");
       setFormCommission(20);
       setFormCouponId("");
       setCreateOpen(false);
-      fetchPartners();
+      void fetchPartners();
     } catch (error) {
       console.error("Error creating partner:", error);
       alert("Erreur création partenaire");
@@ -136,9 +142,8 @@ export default function AdminPartnersPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ isActive: !partner.isActive }),
       });
-
       if (!res.ok) throw new Error("Erreur mise à jour");
-      fetchPartners();
+      void fetchPartners();
     } catch (error) {
       console.error("Error toggling partner:", error);
     }
@@ -151,210 +156,231 @@ export default function AdminPartnersPage() {
     setTimeout(() => setCopied(null), 2000);
   };
 
-  // Summary stats
   const totalSignups = partners.reduce((sum, p) => sum + p.stats.signups, 0);
   const totalPaid = partners.reduce((sum, p) => sum + p.stats.paid, 0);
   const totalCommissionDue = partners.reduce((sum, p) => sum + p.stats.commissionDue, 0);
   const activePartners = partners.filter((p) => p.isActive).length;
 
+  const inputStyle: React.CSSProperties = { width: "100%", padding: "12px 14px", borderRadius: "10px", border: "1px solid #E5E7EB", fontSize: "14px", color: "#111827", background: "#fff", outline: "none" };
+  const labelStyle: React.CSSProperties = { display: "block", fontSize: "14px", fontWeight: 500, color: "#374151", marginBottom: "6px" };
+
+  if (!isAdmin) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "64px", textAlign: "center" }}>
+        <div style={{ width: "64px", height: "64px", borderRadius: "50%", background: "#FEE2E2", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "16px" }}>
+          <Shield size={32} color="#DC2626" />
+        </div>
+        <h2 style={{ fontSize: "18px", fontWeight: 600, color: "#111827", margin: "0 0 8px" }}>Accès refusé</h2>
+        <p style={{ fontSize: "14px", color: "#6B7280", margin: 0 }}>Accès réservé aux administrateurs</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="container mx-auto py-6 space-y-6">
+    <div style={{ padding: isMobile ? "16px" : isTablet ? "24px" : "32px", maxWidth: "1400px", margin: "0 auto" }}>
       {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold">Partenaires</h1>
-          <p className="text-muted2">Gestion du programme d&apos;affiliation</p>
+      <div style={{ display: "flex", flexDirection: isMobile ? "column" : "row", justifyContent: "space-between", alignItems: isMobile ? "stretch" : "center", marginBottom: "32px", gap: "16px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div style={{ width: "48px", height: "48px", borderRadius: "12px", background: "#D1FAE5", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Users size={24} color="#059669" />
+          </div>
+          <div>
+            <h1 style={{ fontSize: isMobile ? "24px" : "28px", fontWeight: 700, color: "#111827", margin: 0 }}>Partenaires</h1>
+            <p style={{ fontSize: "14px", color: "#6B7280", marginTop: "4px" }}>Gestion du programme d&apos;affiliation</p>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <Button variant="secondary" onClick={fetchPartners} disabled={loading}>
-            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
-            Actualiser
-          </Button>
-          <Button onClick={() => setCreateOpen(true)}>
-            <Plus className="h-4 w-4 mr-2" />
-            Nouveau partenaire
-          </Button>
+        <div style={{ display: "flex", gap: "8px" }}>
+          <button onClick={() => void fetchPartners()} disabled={loading} style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "10px", borderRadius: "10px", border: "1px solid #E5E7EB", background: "#fff", cursor: "pointer" }}>
+            <RefreshCw size={18} color="#6B7280" style={loading ? { animation: "spin 1s linear infinite" } : {}} />
+          </button>
+          <button onClick={() => setCreateOpen(true)} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "10px 16px", borderRadius: "10px", border: "none", background: "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)", fontSize: "14px", fontWeight: 600, color: "#fff", cursor: "pointer" }}>
+            <Plus size={16} /> Nouveau partenaire
+          </button>
         </div>
       </div>
 
-      {/* Create Dialog */}
-      <Dialog
-        open={createOpen}
-        title="Créer un partenaire"
-        description="Un code affilié unique sera généré automatiquement."
-        confirmLabel={creating ? "Création..." : "Créer"}
-        onConfirm={handleCreatePartner}
-        onOpenChange={setCreateOpen}
-      >
-        <div className="grid gap-4 py-4">
-          <Input
-            label="Nom"
-            value={formName}
-            onChange={(e) => setFormName(e.target.value)}
-            placeholder="Garage Martin"
-          />
-          <Input
-            label="Email"
-            type="email"
-            value={formEmail}
-            onChange={(e) => setFormEmail(e.target.value)}
-            placeholder="contact@example.com"
-          />
-          <Select label="Type" value={formType} onChange={setFormType}>
-            {PARTNER_TYPES.map((t) => (
-              <option key={t.value} value={t.value}>{t.label}</option>
+      {/* Stats */}
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: "16px", marginBottom: "24px" }}>
+        {[
+          { label: "Partenaires actifs", value: activePartners, sub: `sur ${partners.length} total`, icon: Users, color: "#6366F1", bg: "#EEF2FF" },
+          { label: "Inscriptions", value: totalSignups, sub: "via liens affiliés", icon: TrendingUp, color: "#2563EB", bg: "#DBEAFE" },
+          { label: "Conversions", value: totalPaid, sub: "abonnements payants", icon: CheckCircle, color: "#059669", bg: "#D1FAE5" },
+          { label: "Commissions dues", value: formatCurrency(totalCommissionDue), sub: "à verser", icon: Euro, color: "#EA580C", bg: "#FFEDD5" },
+        ].map((item, i) => {
+          const Icon = item.icon;
+          return (
+            <div key={i} style={{ padding: "20px", borderRadius: "16px", background: "#fff", border: "1px solid #E5E7EB" }}>
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+                <div>
+                  <p style={{ fontSize: "13px", color: "#6B7280", margin: "0 0 4px" }}>{item.label}</p>
+                  <p style={{ fontSize: "24px", fontWeight: 700, color: item.color, margin: 0 }}>{item.value}</p>
+                  <p style={{ fontSize: "12px", color: "#9CA3AF", margin: "4px 0 0" }}>{item.sub}</p>
+                </div>
+                <div style={{ width: "44px", height: "44px", borderRadius: "12px", background: item.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Icon size={22} color={item.color} />
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Partners */}
+      <div style={{ borderRadius: "16px", background: "#fff", border: "1px solid #E5E7EB", overflow: "hidden" }}>
+        <div style={{ padding: "16px 20px", borderBottom: "1px solid #E5E7EB", background: "#F9FAFB" }}>
+          <h2 style={{ fontSize: "15px", fontWeight: 600, color: "#111827", margin: 0 }}>Liste des partenaires</h2>
+        </div>
+
+        {loading ? (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: "64px" }}>
+            <RefreshCw size={32} color="#6366F1" style={{ animation: "spin 1s linear infinite" }} />
+          </div>
+        ) : partners.length === 0 ? (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "64px", textAlign: "center" }}>
+            <div style={{ width: "64px", height: "64px", borderRadius: "50%", background: "#F3F4F6", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "16px" }}>
+              <Users size={32} color="#9CA3AF" />
+            </div>
+            <p style={{ fontSize: "16px", fontWeight: 600, color: "#111827", margin: "0 0 8px" }}>Aucun partenaire</p>
+            <p style={{ fontSize: "14px", color: "#6B7280", margin: "0 0 16px" }}>Créez le premier partenaire affilié</p>
+            <button onClick={() => setCreateOpen(true)} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "10px 16px", borderRadius: "10px", border: "none", background: "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)", fontSize: "14px", fontWeight: 600, color: "#fff", cursor: "pointer" }}>
+              <Plus size={16} /> Créer un partenaire
+            </button>
+          </div>
+        ) : isMobile ? (
+          <div>
+            {partners.map((partner, idx) => (
+              <div key={partner.id} style={{ padding: "16px", borderBottom: idx < partners.length - 1 ? "1px solid #F3F4F6" : "none", opacity: partner.isActive ? 1 : 0.6 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "8px" }}>
+                  <span style={{ fontSize: "15px", fontWeight: 600, color: "#111827" }}>{partner.name}</span>
+                  <span style={{ padding: "3px 8px", borderRadius: "6px", fontSize: "11px", fontWeight: 500, background: "#EEF2FF", color: "#6366F1" }}>
+                    {PARTNER_TYPES.find((t) => t.value === partner.type)?.label || partner.type}
+                  </span>
+                </div>
+                <p style={{ fontSize: "13px", color: "#6B7280", margin: "0 0 8px" }}>{partner.email}</p>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
+                  <code style={{ fontSize: "12px", padding: "4px 8px", background: "#F3F4F6", borderRadius: "6px", fontFamily: "monospace" }}>{partner.refCode}</code>
+                  <button onClick={(e) => { e.stopPropagation(); copyRefLink(partner.refCode); }} style={{ padding: "4px", border: "none", background: "transparent", cursor: "pointer" }}>
+                    {copied === partner.refCode ? <CheckCircle size={14} color="#059669" /> : <Copy size={14} color="#6B7280" />}
+                  </button>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div style={{ display: "flex", gap: "16px" }}>
+                    <span style={{ fontSize: "13px", color: "#6B7280" }}>{partner.stats.signups} inscrits</span>
+                    <span style={{ fontSize: "13px", color: "#6B7280" }}>{partner.stats.paid} payants</span>
+                  </div>
+                  <button onClick={() => router.push(`/admin/partners/${partner.id}`)} style={{ padding: "6px", border: "none", background: "transparent", cursor: "pointer" }}>
+                    <ExternalLink size={16} color="#6366F1" />
+                  </button>
+                </div>
+              </div>
             ))}
-          </Select>
-          <Input
-            label="Commission (%)"
-            type="number"
-            min={0}
-            max={100}
-            value={formCommission}
-            onChange={(e) => setFormCommission(Number(e.target.value))}
-          />
-          <Input
-            label="Coupon Stripe (optionnel)"
-            value={formCouponId}
-            onChange={(e) => setFormCouponId(e.target.value)}
-            placeholder="PROMO20"
-          />
-        </div>
-      </Dialog>
-
-      {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card className="flex flex-col">
-          <div className="flex items-center justify-between pb-2">
-            <span className="text-sm font-medium">Partenaires actifs</span>
-            <Users className="h-4 w-4 text-muted2" />
           </div>
-          <div className="text-2xl font-bold">{activePartners}</div>
-          <p className="text-xs text-muted2">sur {partners.length} total</p>
-        </Card>
-
-        <Card className="flex flex-col">
-          <div className="flex items-center justify-between pb-2">
-            <span className="text-sm font-medium">Inscriptions</span>
-            <TrendingUp className="h-4 w-4 text-muted2" />
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ background: "#F9FAFB", borderBottom: "1px solid #E5E7EB" }}>
+                  <th style={{ padding: "12px 16px", textAlign: "left", fontSize: "12px", fontWeight: 600, color: "#6B7280", textTransform: "uppercase" }}>Partenaire</th>
+                  <th style={{ padding: "12px 16px", textAlign: "left", fontSize: "12px", fontWeight: 600, color: "#6B7280", textTransform: "uppercase" }}>Type</th>
+                  <th style={{ padding: "12px 16px", textAlign: "left", fontSize: "12px", fontWeight: 600, color: "#6B7280", textTransform: "uppercase" }}>Code affilié</th>
+                  <th style={{ padding: "12px 16px", textAlign: "right", fontSize: "12px", fontWeight: 600, color: "#6B7280", textTransform: "uppercase" }}>Commission</th>
+                  <th style={{ padding: "12px 16px", textAlign: "right", fontSize: "12px", fontWeight: 600, color: "#6B7280", textTransform: "uppercase" }}>Inscrits</th>
+                  <th style={{ padding: "12px 16px", textAlign: "right", fontSize: "12px", fontWeight: 600, color: "#6B7280", textTransform: "uppercase" }}>Payants</th>
+                  <th style={{ padding: "12px 16px", textAlign: "right", fontSize: "12px", fontWeight: 600, color: "#6B7280", textTransform: "uppercase" }}>Due</th>
+                  <th style={{ padding: "12px 16px", textAlign: "center", fontSize: "12px", fontWeight: 600, color: "#6B7280", textTransform: "uppercase" }}>Actif</th>
+                  <th style={{ padding: "12px 16px", width: "60px" }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {partners.map((partner, idx) => (
+                  <tr key={partner.id} style={{ borderBottom: idx < partners.length - 1 ? "1px solid #F3F4F6" : "none", opacity: partner.isActive ? 1 : 0.6, transition: "background 0.15s" }} onMouseEnter={(e) => (e.currentTarget.style.background = "#F9FAFB")} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
+                    <td style={{ padding: "14px 16px" }}>
+                      <div style={{ fontSize: "14px", fontWeight: 600, color: "#111827" }}>{partner.name}</div>
+                      <div style={{ fontSize: "12px", color: "#9CA3AF" }}>{partner.email}</div>
+                    </td>
+                    <td style={{ padding: "14px 16px" }}>
+                      <span style={{ padding: "4px 10px", borderRadius: "6px", fontSize: "12px", fontWeight: 500, background: "#EEF2FF", color: "#6366F1" }}>
+                        {PARTNER_TYPES.find((t) => t.value === partner.type)?.label || partner.type}
+                      </span>
+                    </td>
+                    <td style={{ padding: "14px 16px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                        <code style={{ fontSize: "12px", padding: "4px 8px", background: "#F3F4F6", borderRadius: "6px", fontFamily: "monospace" }}>{partner.refCode}</code>
+                        <button onClick={(e) => { e.stopPropagation(); copyRefLink(partner.refCode); }} style={{ padding: "4px", border: "none", background: "transparent", cursor: "pointer" }}>
+                          {copied === partner.refCode ? <CheckCircle size={14} color="#059669" /> : <Copy size={14} color="#6B7280" />}
+                        </button>
+                      </div>
+                    </td>
+                    <td style={{ padding: "14px 16px", textAlign: "right", fontSize: "14px", color: "#374151" }}>{partner.commissionPercent}%</td>
+                    <td style={{ padding: "14px 16px", textAlign: "right", fontSize: "14px", color: "#374151" }}>{partner.stats.signups}</td>
+                    <td style={{ padding: "14px 16px", textAlign: "right", fontSize: "14px", color: "#374151" }}>{partner.stats.paid}</td>
+                    <td style={{ padding: "14px 16px", textAlign: "right", fontSize: "14px", fontWeight: 600, color: "#111827" }}>{formatCurrency(partner.stats.commissionDue)}</td>
+                    <td style={{ padding: "14px 16px", textAlign: "center" }}>
+                      <button onClick={(e) => { e.stopPropagation(); void handleToggleActive(partner); }} style={{ position: "relative", display: "inline-flex", width: "44px", height: "24px", alignItems: "center", borderRadius: "12px", border: "none", background: partner.isActive ? "#6366F1" : "#D1D5DB", cursor: "pointer", transition: "background 0.2s" }}>
+                        <span style={{ position: "absolute", left: partner.isActive ? "22px" : "2px", width: "20px", height: "20px", borderRadius: "50%", background: "#fff", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
+                      </button>
+                    </td>
+                    <td style={{ padding: "14px 16px" }}>
+                      <button onClick={() => router.push(`/admin/partners/${partner.id}`)} style={{ padding: "6px", borderRadius: "6px", border: "none", background: "transparent", cursor: "pointer" }}>
+                        <ExternalLink size={16} color="#6366F1" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-          <div className="text-2xl font-bold">{totalSignups}</div>
-          <p className="text-xs text-muted2">via liens affiliés</p>
-        </Card>
-
-        <Card className="flex flex-col">
-          <div className="flex items-center justify-between pb-2">
-            <span className="text-sm font-medium">Conversions</span>
-            <CheckCircle className="h-4 w-4 text-muted2" />
-          </div>
-          <div className="text-2xl font-bold">{totalPaid}</div>
-          <p className="text-xs text-muted2">abonnements payants</p>
-        </Card>
-
-        <Card className="flex flex-col">
-          <div className="flex items-center justify-between pb-2">
-            <span className="text-sm font-medium">Commissions dues</span>
-            <Euro className="h-4 w-4 text-muted2" />
-          </div>
-          <div className="text-2xl font-bold">{formatCurrency(totalCommissionDue)}</div>
-          <p className="text-xs text-muted2">à verser</p>
-        </Card>
+        )}
       </div>
 
-      {/* Partners Table */}
-      <Card>
-        <div className="pb-4">
-          <h2 className="text-lg font-semibold">Liste des partenaires</h2>
-          <p className="text-sm text-muted2">Cliquez sur un partenaire pour voir les détails</p>
+      {/* Modal */}
+      {createOpen && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.5)", padding: "16px" }} onClick={() => setCreateOpen(false)}>
+          <div style={{ width: "100%", maxWidth: "500px", borderRadius: "16px", background: "#fff", boxShadow: "0 25px 50px -12px rgba(0,0,0,0.25)" }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 24px", borderBottom: "1px solid #E5E7EB" }}>
+              <h2 style={{ fontSize: "18px", fontWeight: 600, color: "#111827", margin: 0 }}>Créer un partenaire</h2>
+              <button onClick={() => setCreateOpen(false)} style={{ padding: "6px", borderRadius: "6px", border: "none", background: "transparent", cursor: "pointer" }}><X size={20} color="#6B7280" /></button>
+            </div>
+            <form onSubmit={handleCreatePartner}>
+              <div style={{ padding: "24px" }}>
+                <p style={{ fontSize: "14px", color: "#6B7280", margin: "0 0 20px" }}>Un code affilié unique sera généré automatiquement.</p>
+                <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                  <div>
+                    <label style={labelStyle}>Nom *</label>
+                    <input type="text" required value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="Garage Martin" style={inputStyle} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Email *</label>
+                    <input type="email" required value={formEmail} onChange={(e) => setFormEmail(e.target.value)} placeholder="contact@example.com" style={inputStyle} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Type</label>
+                    <select value={formType} onChange={(e) => setFormType(e.target.value)} style={inputStyle}>
+                      {PARTNER_TYPES.map((t) => (<option key={t.value} value={t.value}>{t.label}</option>))}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Commission (%)</label>
+                    <input type="number" min={0} max={100} value={formCommission} onChange={(e) => setFormCommission(Number(e.target.value))} style={inputStyle} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Coupon Stripe (optionnel)</label>
+                    <input type="text" value={formCouponId} onChange={(e) => setFormCouponId(e.target.value)} placeholder="PROMO20" style={inputStyle} />
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", padding: "16px 24px", borderTop: "1px solid #E5E7EB", background: "#F9FAFB" }}>
+                <button type="button" onClick={() => setCreateOpen(false)} style={{ padding: "10px 16px", borderRadius: "10px", border: "1px solid #E5E7EB", background: "#fff", fontSize: "14px", fontWeight: 500, color: "#374151", cursor: "pointer" }}>Annuler</button>
+                <button type="submit" disabled={creating} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "10px 16px", borderRadius: "10px", border: "none", background: "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)", fontSize: "14px", fontWeight: 600, color: "#fff", cursor: "pointer", opacity: creating ? 0.5 : 1 }}>
+                  {creating ? <RefreshCw size={16} style={{ animation: "spin 1s linear infinite" }} /> : <Plus size={16} />} Créer
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border">
-                <th className="text-left py-3 px-2 font-medium">Partenaire</th>
-                <th className="text-left py-3 px-2 font-medium">Type</th>
-                <th className="text-left py-3 px-2 font-medium">Code affilié</th>
-                <th className="text-right py-3 px-2 font-medium">Commission</th>
-                <th className="text-right py-3 px-2 font-medium">Inscrits</th>
-                <th className="text-right py-3 px-2 font-medium">Payants</th>
-                <th className="text-right py-3 px-2 font-medium">Due</th>
-                <th className="text-center py-3 px-2 font-medium">Actif</th>
-                <th className="py-3 px-2"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {partners.map((partner) => (
-                <tr key={partner.id} className="border-b border-border/50 hover:bg-surface2/50">
-                  <td className="py-3 px-2">
-                    <div>
-                      <div className="font-medium">{partner.name}</div>
-                      <div className="text-xs text-muted2">{partner.email}</div>
-                    </div>
-                  </td>
-                  <td className="py-3 px-2">
-                    <Badge variant="accent">
-                      {PARTNER_TYPES.find((t) => t.value === partner.type)?.label || partner.type}
-                    </Badge>
-                  </td>
-                  <td className="py-3 px-2">
-                    <div className="flex items-center gap-2">
-                      <code className="text-xs bg-surface2 px-2 py-1 rounded">{partner.refCode}</code>
-                      <button
-                        className="p-1 hover:bg-surface2 rounded"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          copyRefLink(partner.refCode);
-                        }}
-                      >
-                        {copied === partner.refCode ? (
-                          <CheckCircle className="h-3 w-3 text-green-500" />
-                        ) : (
-                          <Copy className="h-3 w-3" />
-                        )}
-                      </button>
-                    </div>
-                  </td>
-                  <td className="py-3 px-2 text-right">{partner.commissionPercent}%</td>
-                  <td className="py-3 px-2 text-right">{partner.stats.signups}</td>
-                  <td className="py-3 px-2 text-right">{partner.stats.paid}</td>
-                  <td className="py-3 px-2 text-right font-medium">
-                    {formatCurrency(partner.stats.commissionDue)}
-                  </td>
-                  <td className="py-3 px-2 text-center">
-                    <Toggle
-                      checked={partner.isActive}
-                      onChange={() => handleToggleActive(partner)}
-                    />
-                  </td>
-                  <td className="py-3 px-2">
-                    <button
-                      className="p-2 hover:bg-surface2 rounded"
-                      onClick={() => router.push(`/admin/partners/${partner.id}`)}
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {partners.length === 0 && !loading && (
-                <tr>
-                  <td colSpan={9} className="text-center py-8 text-muted2">
-                    Aucun partenaire. Créez le premier !
-                  </td>
-                </tr>
-              )}
-              {loading && (
-                <tr>
-                  <td colSpan={9} className="text-center py-8">
-                    <RefreshCw className="h-4 w-4 animate-spin inline mr-2" />
-                    Chargement...
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+      )}
+
+      <style dangerouslySetInnerHTML={{ __html: `@keyframes spin { to { transform: rotate(360deg); } }` }} />
     </div>
   );
 }

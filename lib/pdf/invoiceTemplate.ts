@@ -648,9 +648,19 @@ function renderLegalSection(
   let y = startY;
   
   // Legal mentions
-  const legalY = Math.min(y, MARGIN_BOTTOM + 70);
+  const legalY = Math.min(y, MARGIN_BOTTOM + 100);
   
   let legalLine = legalY;
+  
+  // Header for legal section
+  page.drawText("MENTIONS OBLIGATOIRES", {
+    x: MARGIN_LEFT,
+    y: legalLine,
+    size: 7,
+    font: fonts.bold,
+    color: MUTED_COLOR,
+  });
+  legalLine -= 11;
   
   if (data.organisation.siret) {
     page.drawText(`SIRET: ${data.organisation.siret}`, {
@@ -660,28 +670,47 @@ function renderLegalSection(
       font: fonts.regular,
       color: MUTED_COLOR,
     });
-    legalLine -= 11;
+    legalLine -= 10;
   }
   
   if (data.organisation.vatNumber) {
-    page.drawText(`N. TVA Intracommunautaire: ${data.organisation.vatNumber}`, {
+    page.drawText(`N° TVA Intracommunautaire: ${data.organisation.vatNumber}`, {
       x: MARGIN_LEFT,
       y: legalLine,
       size: 7,
       font: fonts.regular,
       color: MUTED_COLOR,
     });
-    legalLine -= 11;
+    legalLine -= 10;
   }
   
-  // Conditions
-  page.drawText("En cas de retard de paiement, une pénalité de 3 fois le taux d'intérêt légal sera appliquée.", {
+  // Payment conditions - mandatory
+  page.drawText("CONDITIONS DE PAIEMENT:", {
     x: MARGIN_LEFT,
     y: legalLine,
     size: 7,
-    font: fonts.regular,
+    font: fonts.bold,
     color: MUTED_COLOR,
   });
+  legalLine -= 10;
+  
+  const paymentConditions = [
+    "• Paiement à réception de la facture, sauf accord préalable.",
+    "• En cas de retard: pénalités au taux BCE majoré de 10 points.",
+    "• Indemnité forfaitaire pour frais de recouvrement: 40€.",
+    "• Pas d'escompte pour paiement anticipé.",
+  ];
+  
+  for (const condition of paymentConditions) {
+    page.drawText(condition, {
+      x: MARGIN_LEFT,
+      y: legalLine,
+      size: 6,
+      font: fonts.regular,
+      color: MUTED_COLOR,
+    });
+    legalLine -= 9;
+  }
   
   return legalLine;
 }

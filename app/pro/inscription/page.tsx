@@ -96,9 +96,13 @@ function FormInput({
   required,
   disabled,
 }: FormInputProps) {
+  // Generate stable ID from label
+  const inputId = `input-${label.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')}`;
+  
   return (
     <div style={{ marginBottom: "16px" }}>
       <label
+        htmlFor={inputId}
         style={{
           display: "block",
           fontSize: "14px",
@@ -123,6 +127,7 @@ function FormInput({
           {icon}
         </div>
         <input
+          id={inputId}
           type={type}
           placeholder={placeholder}
           value={value}

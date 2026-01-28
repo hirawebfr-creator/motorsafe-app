@@ -5,6 +5,7 @@
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { success } from "@/lib/api";
 import { requireApprovedTenant, requireUser } from "@/lib/guards";
 import { toErrorResponse } from "@/lib/routeErrors";
 
@@ -43,7 +44,7 @@ export async function GET(req: Request) {
       },
     });
 
-    return NextResponse.json({ entries });
+    return NextResponse.json(success({ entries }));
   } catch (err) {
     console.error("[API:Changelog:List] Error:", err);
     return toErrorResponse(err);

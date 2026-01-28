@@ -282,7 +282,7 @@ export default function ClientDetailPage() {
       <div style={{ padding: '32px', maxWidth: '600px', margin: '0 auto', textAlign: 'center' }}>
         <AlertCircle size={48} color="#EF4444" style={{ marginBottom: '16px' }} />
         <h2 style={{ fontSize: '20px', fontWeight: 600, color: '#111827', marginBottom: '8px' }}>{error || 'Client introuvable'}</h2>
-        <p style={{ fontSize: '14px', color: '#6B7280', marginBottom: '24px' }}>Ce client n'existe pas ou a été supprimé.</p>
+        <p style={{ fontSize: '14px', color: '#6B7280', marginBottom: '24px' }}>Ce client n&apos;existe pas ou a été supprimé.</p>
         <button onClick={() => router.push('/clients')} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '12px 24px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)', color: '#fff', fontSize: '14px', fontWeight: 600, cursor: 'pointer' }}>
           <ArrowLeft size={18} /> Retour aux clients
         </button>
@@ -340,7 +340,7 @@ export default function ClientDetailPage() {
         <div style={{ padding: '24px', borderRadius: '16px', background: '#fff', border: '1px solid #E5E7EB' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <div style={{ width: '52px', height: '52px', borderRadius: '14px', background: '#D1FAE5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Euro size={26} color="#10B981" /></div>
-            <div><p style={{ fontSize: '14px', color: '#6B7280', margin: 0, marginBottom: '4px' }}>Chiffre d'affaires</p><p style={{ fontSize: '32px', fontWeight: 700, color: '#10B981', margin: 0 }}>{formatCurrency(client.totalRevenue || interventions.reduce((sum, i) => sum + (i.totalAmount || i.amount || 0), 0))}</p></div>
+            <div><p style={{ fontSize: '14px', color: '#6B7280', margin: 0, marginBottom: '4px' }}>Chiffre d&apos;affaires</p><p style={{ fontSize: '32px', fontWeight: 700, color: '#10B981', margin: 0 }}>{formatCurrency(client.totalRevenue || interventions.reduce((sum, i) => sum + (i.totalAmount || i.amount || 0), 0))}</p></div>
           </div>
         </div>
       </div>
@@ -373,7 +373,7 @@ export default function ClientDetailPage() {
               <div style={{ padding: '48px', textAlign: 'center' }}>
                 <Car size={48} color="#D1D5DB" style={{ marginBottom: '16px' }} />
                 <p style={{ fontSize: '16px', fontWeight: 600, color: '#111827', margin: 0, marginBottom: '8px' }}>Aucun véhicule</p>
-                <p style={{ fontSize: '14px', color: '#6B7280', margin: 0, marginBottom: '20px' }}>Ce client n'a pas encore de véhicule</p>
+                <p style={{ fontSize: '14px', color: '#6B7280', margin: 0, marginBottom: '20px' }}>Ce client n&apos;a pas encore de véhicule</p>
                 <button onClick={() => router.push('/vehicules')} style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '12px 20px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)', color: '#fff', fontSize: '14px', fontWeight: 600, cursor: 'pointer' }}><Plus size={18} /> Ajouter un véhicule</button>
               </div>
             ) : vehicles.map((vehicle, index) => (

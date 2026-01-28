@@ -171,6 +171,11 @@ model Garage {
   currentPeriodEnd    DateTime?
   trialEnd            DateTime?
 
+  // Credits & Storage (packs purchased)
+  extraSivCredits     Int      @default(0)    // SIV credits from purchased packs
+  extraStorageGB      Int      @default(0)    // Extra storage from purchased packs (in GB)
+  storageUsedBytes    BigInt   @default(0)    // Actual storage used (in bytes)
+
   users         User[]
   clients       Client[]
   vehicles      Vehicle[]
@@ -227,6 +232,9 @@ model Garage {
   // EVIDENCE-CAPTURE-01: Evidence capture sessions and items
   evidenceCaptureSessions EvidenceCaptureSession[]
   evidenceItems           EvidenceItem[]
+  
+  // Pack purchases (SIV, Storage credits)
+  packPurchases      PackPurchase[]
 }
 
 model User {
@@ -285,6 +293,9 @@ model User {
   // EVIDENCE-CAPTURE-01: Evidence capture sessions and items created by user
   createdEvidenceSessions EvidenceCaptureSession[] @relation("EvidenceSessionCreator")
   createdEvidenceItems    EvidenceItem[]           @relation("EvidenceItemCreator")
+  
+  // PWA Push notification subscriptions
+  pushSubscriptions       PushSubscription[]
 
   @@index([garageId])
 }
@@ -545,6 +556,25 @@ model Notification {
   user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([garageId])
+  @@index([userId])
+}
+
+// ============================================
+// PWA Push Notifications Subscriptions
+// ============================================
+
+model PushSubscription {
+  id             String    @id @default(cuid())
+  userId         String
+  endpoint       String    @unique
+  p256dh         String
+  auth           String
+  expirationTime DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId])
 }
 
@@ -1057,6 +1087,25 @@ model DownloadToken {
 // ============================================
 // VEHICLE-LOOKUP: Plate lookup cache, usage quotas, logs
 // ============================================
+
+// Pack purchases (SIV, Storage, etc.)
+model PackPurchase {
+  id            String   @id @default(cuid())
+  garageId      Int
+  packType      String   // "SIV" | "STORAGE"
+  packId        String   // e.g., "siv_50", "storage_10"
+  productId     String   // Stripe product ID
+  amount        Int      // Credits or GB purchased
+  priceEuros    Int      // Price paid in cents
+  stripePaymentId String? // Stripe payment intent/checkout ID
+  createdAt     DateTime @default(now())
+
+  garage        Garage   @relation(fields: [garageId], references: [id], onDelete: Cascade)
+
+  @@index([garageId])
+  @@index([createdAt])
+  @@index([packType])
+}
 
 /// Monthly quota tracking per garage (for billing/rate limiting)
 model VehicleLookupUsage {
@@ -2310,4 +2359,93 @@ model EvidenceItem {
   @@index([sessionId])
   @@index([garageId])
   @@index([sha256])
+}
+
+// ============================================================
+// MESSAGING-01: Internal messaging between garage and clients
+// ============================================================
+
+enum MessageDirection {
+  OUTBOUND   // Garage -> Client
+  INBOUND    // Client -> Garage (future: via reply link)
+}
+
+enum MessageChannel {
+  INTERNAL   // In-app message
+  EMAIL      // Sent via email
+  SMS        // Future: SMS channel
+}
+
+enum MessageStatus {
+  DRAFT
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+/// Thread de messages lié à un contexte (intervention, devis, général)
+model MessageThread {
+  id              String           @id @default(cuid())
+  garageId        Int
+  clientId        Int?             // Client concerné
+  interventionId  String?          // Intervention liée (optionnel)
+  quoteId         String?          // Devis lié (optionnel)
+  invoiceId       String?          // Facture liée (optionnel)
+  
+  subject         String?          // Sujet du thread
+  isArchived      Boolean          @default(false)
+  
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  
+  messages        Message[]
+  
+  @@index([garageId])
+  @@index([garageId, clientId])
+  @@index([garageId, interventionId])
+  @@index([garageId, isArchived])
+}
+
+/// Message individuel dans un thread
+model Message {
+  id              String           @id @default(cuid())
+  threadId        String
+  garageId        Int
+  
+  direction       MessageDirection
+  channel         MessageChannel   @default(INTERNAL)
+  status          MessageStatus    @default(SENT)
+  
+  // Contenu
+  content         String           // Corps du message (texte ou HTML)
+  
+  // Sender info
+  senderType      String           // "garage" | "client" | "system"
+  senderName      String?          // Nom affiché
+  senderUserId    String?          // User ID si envoyé par un membre du garage
+  
+  // Recipient info
+  recipientEmail  String?          // Email du destinataire (pour tracking)
+  recipientPhone  String?          // Téléphone (future SMS)
+  
+  // Tracking
+  sentAt          DateTime?
+  deliveredAt     DateTime?
+  readAt          DateTime?
+  failedAt        DateTime?
+  failReason      String?
+  
+  // Attachments (document keys from storage)
+  attachmentKeys  String[]         @default([])
+  
+  createdAt       DateTime         @default(now())
+  
+  thread          MessageThread    @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  
+  @@index([threadId])
+  @@index([garageId])
+  @@index([garageId, direction])
+  @@index([status])
+  @@index([createdAt])
 }
