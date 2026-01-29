@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { toast } from "sonner";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -213,7 +214,7 @@ export default function InterventionDetailPage() {
         router.push("/interventions");
       }
     } catch (error) {
-      console.error("Error loading intervention:", error);
+      toast.error("Erreur de chargement de l'intervention");
     } finally {
       setIsLoading(false);
     }
@@ -234,7 +235,7 @@ export default function InterventionDetailPage() {
         loadInterventionData();
       }
     } catch (error) {
-      console.error("Error changing status:", error);
+      toast.error("Erreur de changement de statut");
     } finally {
       setIsChangingStatus(false);
     }
@@ -249,7 +250,7 @@ export default function InterventionDetailPage() {
         router.push("/interventions");
       }
     } catch (error) {
-      console.error("Error deleting:", error);
+      toast.error("Erreur de suppression");
     } finally {
       setIsDeleting(false);
     }

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 import { 
   ArrowLeft,
@@ -64,7 +65,7 @@ export default function NouveauClientPage() {
         }
       }
     } catch (err) {
-      console.error('Error loading garages:', err)
+      // Silent fail - garages list will show empty
     } finally {
       setLoadingGarages(false)
     }
@@ -122,7 +123,7 @@ export default function NouveauClientPage() {
         setError(data.error || 'Erreur lors de la création')
       }
     } catch (err) {
-      console.error('Error creating client:', err)
+      toast.error('Erreur de création')
       setError('Erreur de connexion au serveur')
     } finally {
       setIsSaving(false)
