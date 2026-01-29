@@ -64,8 +64,8 @@ export default function NouveauClientPage() {
           setFormData(prev => ({ ...prev, garageId: String(items[0].id) }))
         }
       }
-    } catch (err) {
-      // Silent fail - garages list will show empty
+    } catch {
+      toast.error('Erreur de chargement des garages')
     } finally {
       setLoadingGarages(false)
     }

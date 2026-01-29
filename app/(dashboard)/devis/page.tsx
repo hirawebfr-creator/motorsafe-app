@@ -353,7 +353,7 @@ export default function DevisPage() {
                     )}
                   </div>
                 </div>
-                <div style={{ textAlign: "right", display: "none" }} className="sm:block">
+                <div style={{ textAlign: "right" }} className="hidden sm:block">
                   <p style={{ fontSize: "18px", fontWeight: "700", color: "#111827", margin: 0 }}>{fmtEur(item.totalIncl)}</p>
                   <p style={{ fontSize: "13px", color: "#6B7280", margin: "2px 0 0" }}>{fmtDate(item.createdAt)}</p>
                 </div>
