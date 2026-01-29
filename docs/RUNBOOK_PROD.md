@@ -27,6 +27,9 @@ Ce document décrit les procédures opérationnelles pour le déploiement et la 
   - [ ] SSL actif (Let's Encrypt ou custom)
   - [ ] `NEXT_PUBLIC_APP_URL` pointe vers le domaine prod
 
+- [ ] **Prisma Accelerate**
+  - [ ] `DATABASE_URL` configuré (URL pooler Prisma Accelerate: `prisma://...`)
+  - [ ] `DIRECT_DATABASE_URL` configuré (URL directe PostgreSQL: `postgresql://...`)
 
 ### Services externes
 
@@ -74,8 +77,9 @@ Ce document décrit les procédures opérationnelles pour le déploiement et la 
 ### Obligatoires
 
 ```env
-# Database (connexion directe PostgreSQL)
-DATABASE_URL="postgresql://user:password@host:5432/motorsafe"
+# Database (Prisma Accelerate)
+DATABASE_URL="prisma://accelerate.prisma-data.net/?api_key=..."
+DIRECT_DATABASE_URL="postgresql://user:password@host:5432/motorsafe"
 
 # App URL (pour OAuth callbacks et liens emails)
 NEXT_PUBLIC_APP_URL="https://votredomaine.fr"
