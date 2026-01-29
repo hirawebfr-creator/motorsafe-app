@@ -74,7 +74,8 @@ export default function AdminMaintenancePage() {
       const res = await fetcher<{ maintenances: MaintenanceWindow[] }>("/api/admin/maintenance");
       setMaintenances(res.maintenances);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur de chargement");
+      console.error("Failed to load maintenances:", err);
+      toast.error("Erreur de chargement");
     } finally {
       setLoading(false);
     }
@@ -130,7 +131,8 @@ export default function AdminMaintenancePage() {
       resetForm();
       await loadMaintenances();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur lors de la sauvegarde");
+      console.error("Failed to save:", err);
+      toast.error("Erreur lors de la sauvegarde");
     } finally {
       setSaving(false);
     }
@@ -142,7 +144,8 @@ export default function AdminMaintenancePage() {
       toast.success("Maintenance désactivée");
       await loadMaintenances();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur lors de la désactivation");
+      console.error("Failed to deactivate:", err);
+      toast.error("Erreur");
     }
   };
 

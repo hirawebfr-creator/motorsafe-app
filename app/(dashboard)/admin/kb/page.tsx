@@ -16,7 +16,6 @@ import {
   Shield,
   Tag,
 } from "lucide-react";
-import { toast } from "sonner";
 import { useUser } from "@/components/user-context";
 import { fetcher, requestJson } from "@/lib/fetcher";
 
@@ -96,7 +95,7 @@ export default function AdminKbPage() {
       setCategories(catRes.categories);
       setArticles(artRes.articles);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur de chargement des données");
+      console.error("Failed to load KB data:", err);
     } finally {
       setLoading(false);
     }
@@ -116,10 +115,10 @@ export default function AdminKbPage() {
       setCategoryName("");
       setCategoryDesc("");
       setShowCategoryForm(false);
-      toast.success("Catégorie créée");
       void loadData();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur lors de la création de la catégorie");
+      console.error("Failed to create category:", err);
+      alert("Erreur lors de la création de la catégorie");
     } finally {
       setSavingCategory(false);
     }
@@ -137,7 +136,8 @@ export default function AdminKbPage() {
       setArticlePublished(article.isPublished);
       setShowArticleForm(true);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur lors du chargement de l'article");
+      console.error("Failed to load article:", err);
+      alert("Erreur lors du chargement de l'article");
     }
   };
 
@@ -153,7 +153,7 @@ export default function AdminKbPage() {
 
   const handleSaveArticle = async () => {
     if (!articleTitle.trim() || !articleCategoryId || !articleBody.trim()) {
-      toast.error("Titre, catégorie et contenu sont requis");
+      alert("Titre, catégorie et contenu sont requis");
       return;
     }
     try {
@@ -165,10 +165,10 @@ export default function AdminKbPage() {
         await requestJson("/api/admin/kb/articles", { body: { title: articleTitle.trim(), categoryId: articleCategoryId, bodyMarkdown: articleBody, tags, isPublished: articlePublished } });
       }
       setShowArticleForm(false);
-      toast.success(editingArticle ? "Article mis à jour" : "Article créé");
       void loadData();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur lors de la sauvegarde de l'article");
+      console.error("Failed to save article:", err);
+      alert("Erreur lors de la sauvegarde de l'article");
     } finally {
       setSavingArticle(false);
     }
@@ -177,10 +177,9 @@ export default function AdminKbPage() {
   const handleTogglePublish = async (articleId: number, currentState: boolean) => {
     try {
       await requestJson(`/api/admin/kb/articles/${articleId}`, { method: "PATCH", body: { isPublished: !currentState } });
-      toast.success(currentState ? "Article dépublié" : "Article publié");
       void loadData();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur lors de la modification");
+      console.error("Failed to toggle publish:", err);
     }
   };
 
@@ -188,10 +187,10 @@ export default function AdminKbPage() {
     if (!confirm("Supprimer cet article ?")) return;
     try {
       await requestJson(`/api/admin/kb/articles/${articleId}`, { method: "DELETE" });
-      toast.success("Article supprimé");
       void loadData();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur lors de la suppression");
+      console.error("Failed to delete article:", err);
+      alert("Erreur lors de la suppression");
     }
   };
 

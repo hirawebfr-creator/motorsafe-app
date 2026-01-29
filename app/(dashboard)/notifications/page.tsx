@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { toast } from "sonner";
 import {
   AlertCircle,
   Bell,
@@ -146,8 +145,8 @@ export default function NotificationsPage() {
         });
         setNotifications(mapped);
       }
-    } catch {
-      toast.error("Erreur de chargement des notifications");
+    } catch (err) {
+      console.error("Failed to fetch notifications:", err);
     } finally {
       setLoading(false);
     }
@@ -163,8 +162,8 @@ export default function NotificationsPage() {
     setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, read: true } : n)));
     try {
       await fetch("/api/notifications", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "mark_read", id }) });
-    } catch {
-      toast.error("Erreur lors du marquage comme lu");
+    } catch (err) {
+      console.error("Failed to mark as read:", err);
       fetchNotifications();
     }
   }
@@ -173,9 +172,8 @@ export default function NotificationsPage() {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     try {
       await fetch("/api/notifications", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "mark_all_read" }) });
-      toast.success("Toutes les notifications marquées comme lues");
-    } catch {
-      toast.error("Erreur lors du marquage");
+    } catch (err) {
+      console.error("Failed to mark all as read:", err);
       fetchNotifications();
     }
   }
@@ -184,9 +182,8 @@ export default function NotificationsPage() {
     setNotifications((prev) => prev.filter((n) => n.id !== id));
     try {
       await fetch("/api/notifications", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "delete", id }) });
-      toast.success("Notification supprimée");
-    } catch {
-      toast.error("Erreur lors de la suppression");
+    } catch (err) {
+      console.error("Failed to delete notification:", err);
       fetchNotifications();
     }
   }
@@ -196,9 +193,8 @@ export default function NotificationsPage() {
     setNotifications([]);
     try {
       await fetch("/api/notifications", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "delete_all" }) });
-      toast.success("Toutes les notifications supprimées");
-    } catch {
-      toast.error("Erreur lors de la suppression");
+    } catch (err) {
+      console.error("Failed to clear notifications:", err);
       fetchNotifications();
     }
   }

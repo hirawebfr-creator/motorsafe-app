@@ -972,7 +972,9 @@ export default function ComparateurPage() {
           weight,
           gearbox: siv.gearbox || "",
         };
-
+        
+        console.log("📊 [Comparateur] Données SIV parsées:", v);
+        
         setVehicle(v);
         setE85Analysis(calculateE85Analysis(v, kmPerYear));
         setStageAnalysis(calculateStageAnalysis(v));

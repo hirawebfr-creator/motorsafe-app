@@ -85,7 +85,8 @@ export default function AdminChangelogPage() {
       const res = await fetcher<{ entries: ChangelogEntry[] }>("/api/admin/changelog");
       setEntries(res.entries);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur de chargement");
+      console.error("Failed to load entries:", err);
+      toast.error("Erreur de chargement");
     } finally {
       setLoading(false);
     }
@@ -136,7 +137,8 @@ export default function AdminChangelogPage() {
       resetForm();
       await loadEntries();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur lors de la sauvegarde");
+      console.error("Failed to save:", err);
+      toast.error("Erreur lors de la sauvegarde");
     } finally {
       setSaving(false);
     }
@@ -148,7 +150,8 @@ export default function AdminChangelogPage() {
       toast.success(entry.isPublished ? "Dépublié" : "Publié");
       await loadEntries();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur lors de la modification");
+      console.error("Failed to toggle publish:", err);
+      toast.error("Erreur");
     }
   };
 

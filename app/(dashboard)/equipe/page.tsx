@@ -6,7 +6,6 @@
  */
 
 import { useEffect, useState, useCallback } from "react";
-import { toast } from "sonner";
 import { useUser } from "@/components/user-context";
 import {
   Users,
@@ -184,10 +183,9 @@ export default function TeamPage() {
       if (!res.ok || !data.ok) {
         throw new Error(data?.error?.message || "Erreur");
       }
-      toast.success("Rôle modifié avec succès");
       await fetchTeam();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur lors du changement de rôle");
+      alert(err instanceof Error ? err.message : "Erreur");
     } finally {
       setActionLoading(null);
       setEditingMemberId(null);
@@ -208,10 +206,9 @@ export default function TeamPage() {
       if (!res.ok || !data.ok) {
         throw new Error(data?.error?.message || "Erreur");
       }
-      toast.success("Membre désactivé");
       await fetchTeam();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur lors de la désactivation");
+      alert(err instanceof Error ? err.message : "Erreur");
     } finally {
       setActionLoading(null);
     }

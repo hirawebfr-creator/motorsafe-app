@@ -12,7 +12,6 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
 import {
   Crown,
@@ -314,8 +313,8 @@ export default function BillingPage() {
       if (json.ok) {
         setCredits(json);
       }
-    } catch {
-      toast.error("Erreur de chargement des crédits");
+    } catch (e) {
+      console.error("Failed to load credits:", e);
     }
   }, []);
 
@@ -327,8 +326,8 @@ export default function BillingPage() {
       if (json.ok && json.data) {
         setBillingStatus(json.data);
       }
-    } catch {
-      toast.error("Erreur de chargement du statut de facturation");
+    } catch (e) {
+      console.error("Failed to load billing status:", e);
     }
   }, []);
 

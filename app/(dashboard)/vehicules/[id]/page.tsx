@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { toast } from 'sonner'
 import { useRouter, useParams } from 'next/navigation'
 import { 
   ArrowLeft,
@@ -157,7 +156,7 @@ export default function VehicleDetailPage() {
         setInterventions(interventionsData.data.items || [])
       }
     } catch (err) {
-      toast.error('Erreur de chargement du véhicule')
+      console.error('Error loading vehicle:', err)
       setError('Impossible de charger les données')
     } finally {
       setIsLoading(false)
@@ -175,7 +174,7 @@ export default function VehicleDetailPage() {
         })))
       }
     } catch (err) {
-      // Silent fail - clients list is optional
+      console.error('Error loading clients:', err)
     }
   }
 
@@ -258,7 +257,7 @@ export default function VehicleDetailPage() {
         setFormErrors({ plate: data.error || 'Erreur de sauvegarde' })
       }
     } catch (err) {
-      toast.error('Erreur de sauvegarde')
+      console.error('Error saving vehicle:', err)
       setFormErrors({ plate: 'Erreur de connexion' })
     } finally {
       setIsSaving(false)
@@ -280,7 +279,7 @@ export default function VehicleDetailPage() {
         setDeleteModalOpen(false)
       }
     } catch (err) {
-      toast.error('Erreur de suppression')
+      console.error('Error deleting vehicle:', err)
       setError('Erreur de connexion')
       setDeleteModalOpen(false)
     } finally {

@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { toast } from "sonner";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
@@ -91,7 +90,7 @@ export default function ArticlePage() {
       const res = await fetcher<Article>(`/api/kb/articles/${slug}`);
       setArticle(res);
     } catch (err: unknown) {
-      toast.error("Erreur de chargement de l'article");
+      console.error("Failed to load article:", err);
       setError("Article non trouvé");
     } finally {
       setLoading(false);

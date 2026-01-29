@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { toast } from 'sonner'
 import { useRouter, useParams } from 'next/navigation'
 import { 
   ArrowLeft,
@@ -148,7 +147,7 @@ export default function ClientDetailPage() {
         setInterventions(interventionsData.data.items || [])
       }
     } catch (err) {
-      toast.error('Erreur de chargement du client')
+      console.error('Error loading client:', err)
       setError('Impossible de charger les données')
     } finally {
       setIsLoading(false)
@@ -222,7 +221,7 @@ export default function ClientDetailPage() {
         setFormErrors({ firstName: data.error || 'Erreur de sauvegarde' })
       }
     } catch (err) {
-      toast.error('Erreur de sauvegarde')
+      console.error('Error saving client:', err)
       setFormErrors({ firstName: 'Erreur de connexion' })
     } finally {
       setIsSaving(false)
@@ -244,7 +243,7 @@ export default function ClientDetailPage() {
         setDeleteModalOpen(false)
       }
     } catch (err) {
-      toast.error('Erreur de suppression')
+      console.error('Error deleting client:', err)
       setError('Erreur de connexion')
       setDeleteModalOpen(false)
     } finally {

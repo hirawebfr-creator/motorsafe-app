@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 import { 
   ArrowLeft,
@@ -276,7 +275,7 @@ export default function NouveauVehiculePage() {
         router.push(id ? `/vehicules/${id}` : '/vehicules')
       }, 1500)
     } catch (err) {
-      toast.error('Erreur de création')
+      console.error('Error creating vehicle:', err)
       setError('Erreur de connexion')
     } finally {
       setSaving(false)

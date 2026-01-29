@@ -1,7 +1,6 @@
 "use client";
 
 import { use, useCallback, useEffect, useState } from "react";
-import { toast } from "sonner";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -159,7 +158,7 @@ export default function ChangelogDetailPage({ params }: { params: Promise<{ id: 
       const res = await fetcher<{ entry: ChangelogEntry }>(`/api/changelog/${id}`);
       setEntry(res.entry);
     } catch (err) {
-      toast.error("Erreur de chargement de l'article");
+      console.error("Failed to load entry:", err);
       setError("Impossible de charger cette entrée");
     } finally {
       setLoading(false);

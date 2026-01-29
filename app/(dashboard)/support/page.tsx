@@ -98,7 +98,8 @@ export default function SupportPage() {
       const res = await fetcher<{ tickets: Ticket[] }>("/api/support/tickets");
       setTickets(res.tickets);
     } catch (err) {
-            toast.error("Erreur de chargement");
+      console.error("Failed to load tickets:", err);
+      toast.error("Erreur de chargement");
     } finally {
       setLoading(false);
     }
@@ -110,7 +111,8 @@ export default function SupportPage() {
       const res = await fetcher<TicketDetail>(`/api/support/tickets/${id}`);
       setSelectedTicket(res);
     } catch (err) {
-            toast.error("Erreur de chargement du ticket");
+      console.error("Failed to load ticket:", err);
+      toast.error("Erreur de chargement du ticket");
     } finally {
       setLoadingTicket(false);
     }
@@ -134,7 +136,8 @@ export default function SupportPage() {
       setMessage("");
       void loadTickets();
     } catch (err) {
-            toast.error("Erreur lors de la création du ticket");
+      console.error("Failed to create ticket:", err);
+      toast.error("Erreur lors de la création du ticket");
     } finally {
       setSubmitting(false);
     }
@@ -149,7 +152,8 @@ export default function SupportPage() {
       setReplyMessage("");
       void loadTicketDetail(selectedTicket.id);
     } catch (err) {
-            toast.error("Erreur lors de l'envoi");
+      console.error("Failed to send reply:", err);
+      toast.error("Erreur lors de l'envoi");
     } finally {
       setReplying(false);
     }
@@ -164,7 +168,8 @@ export default function SupportPage() {
       setSelectedTicket(null);
       void loadTickets();
     } catch (err) {
-            toast.error("Erreur");
+      console.error("Failed to close ticket:", err);
+      toast.error("Erreur");
     }
   };
 

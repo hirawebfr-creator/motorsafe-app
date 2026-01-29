@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { toast } from "sonner";
 import Link from "next/link";
 import {
   Search,
@@ -67,7 +66,7 @@ export default function AidePage() {
       const res = await fetcher<{ categories: Category[] }>("/api/kb/categories");
       setCategories(res.categories);
     } catch (err) {
-      toast.error("Erreur de chargement des catégories");
+      console.error("Failed to load categories:", err);
     }
   }, []);
 
@@ -81,7 +80,7 @@ export default function AidePage() {
       const res = await fetcher<{ articles: Article[] }>(`/api/kb/articles?${params.toString()}`);
       setArticles(res.articles);
     } catch (err) {
-      toast.error("Erreur de chargement des articles");
+      console.error("Failed to load articles:", err);
     } finally {
       setSearching(false);
     }

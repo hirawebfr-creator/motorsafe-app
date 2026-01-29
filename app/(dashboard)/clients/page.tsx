@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 import { 
   Search, 
@@ -85,8 +84,8 @@ export default function ClientsPage() {
       if (data.ok && data.data) {
         setClients(data.data.items || [])
       }
-    } catch {
-      toast.error('Erreur lors du chargement des clients')
+    } catch (error) {
+      console.error('Error loading clients:', error)
     } finally {
       setIsLoading(false)
     }
@@ -135,11 +134,10 @@ export default function ClientsPage() {
       if (data.ok) {
         setDeleteModalOpen(false)
         setClientToDelete(null)
-        toast.success('Client supprimé')
         loadClients()
       }
-    } catch {
-      toast.error('Erreur lors de la suppression')
+    } catch (error) {
+      console.error('Error deleting client:', error)
     } finally {
       setIsDeleting(false)
     }

@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { toast } from 'sonner'
 import Link from 'next/link'
 import { 
   Wrench, 
@@ -139,7 +138,7 @@ export default function DashboardPage() {
       setRecentInterventions(recentData.ok ? (recentData.data || []) : [])
       
     } catch (err) {
-      toast.error('Erreur de chargement du tableau de bord')
+      console.error('Dashboard error:', err)
       setError(err instanceof Error ? err.message : 'Erreur de chargement')
     } finally {
       setIsLoading(false)

@@ -89,7 +89,7 @@ export default function IncidentsPage() {
       const res = await fetcher<IncidentsStatus>("/api/incidents/status");
       setStatus(res);
     } catch (err) {
-      // Error already displayed via setError
+      console.error("Failed to load status:", err);
       setError("Impossible de charger le statut des services");
     } finally {
       setLoading(false);

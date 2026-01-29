@@ -25,7 +25,6 @@ import {
   ChevronUp,
   X,
 } from "lucide-react";
-import { toast } from "sonner";
 import { fetcher, requestJson } from "@/lib/fetcher";
 import { getMacros, applyMacroVariables, type SupportMacro } from "@/content/supportMacros";
 
@@ -225,7 +224,7 @@ export default function AdminSupportPage() {
       const res = await fetcher<{ tickets: Ticket[]; total: number }>(url);
       setTickets(res.tickets);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur de chargement des tickets");
+      console.error("Failed to load tickets:", err);
     } finally {
       setLoading(false);
     }
@@ -256,7 +255,7 @@ export default function AdminSupportPage() {
         setLoadingKb(false);
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur de chargement du ticket");
+      console.error("Failed to load ticket:", err);
     } finally {
       setLoadingTicket(false);
     }
@@ -290,10 +289,7 @@ export default function AdminSupportPage() {
     if (aiSuggestion?.draft_reply_fr) {
       try {
         await navigator.clipboard.writeText(aiSuggestion.draft_reply_fr);
-        toast.success("Copié dans le presse-papiers");
-      } catch {
-        toast.error("Erreur lors de la copie");
-      }
+      } catch {}
     }
   }, [aiSuggestion]);
 
@@ -355,10 +351,10 @@ export default function AdminSupportPage() {
       if (res.success && res.rewrittenText) {
         setReplyMessage(res.rewrittenText);
       } else {
-        toast.error(res.message || res.error || "Erreur lors de la réécriture");
+        alert(res.message || res.error || "Erreur lors de la réécriture");
       }
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur lors de la réécriture");
+    } catch {
+      alert("Erreur lors de la réécriture");
     } finally {
       setRewriting(false);
     }
@@ -376,8 +372,8 @@ export default function AdminSupportPage() {
       setReplyMessage("");
       void loadTicketDetail(selectedTicket.id);
       void loadTickets();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur lors de l'envoi du message");
+    } catch {
+      alert("Erreur lors de l'envoi du message");
     } finally {
       setReplying(false);
     }
@@ -390,8 +386,8 @@ export default function AdminSupportPage() {
       await requestJson(`/api/admin/support/tickets/${selectedTicket.id}/status`, { body: { status } });
       void loadTicketDetail(selectedTicket.id);
       void loadTickets();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur lors du changement de statut");
+    } catch {
+      console.error("Failed to change status");
     } finally {
       setChangingStatus(false);
     }
@@ -404,8 +400,8 @@ export default function AdminSupportPage() {
       await requestJson(`/api/admin/support/tickets/${selectedTicket.id}/priority`, { body: { priority } });
       void loadTicketDetail(selectedTicket.id);
       void loadTickets();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur lors du changement de priorité");
+    } catch {
+      console.error("Failed to change priority");
     } finally {
       setChangingPriority(false);
     }
@@ -417,9 +413,7 @@ export default function AdminSupportPage() {
       await requestJson(`/api/admin/support/tickets/${selectedTicket.id}/category`, { body: { category } });
       void loadTicketDetail(selectedTicket.id);
       void loadTickets();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur lors du changement de catégorie");
-    }
+    } catch {}
   };
 
   const filteredTickets = useMemo(() => {
