@@ -163,6 +163,28 @@ export default function DocumentsPage() {
 
   const [dropdownOpen, setDropdownOpen] = useState<string | null>(null);
   const [generateDropdownOpen, setGenerateDropdownOpen] = useState(false);
+  const [sendingEmailId, setSendingEmailId] = useState<string | null>(null);
+
+  // Send document by email
+  const handleSendEmail = async (type: "quote" | "invoice", id: string) => {
+    setSendingEmailId(id);
+    try {
+      const endpoint = type === "quote" ? `/api/quotes/${id}/send` : `/api/invoices/${id}/send`;
+      const response = await fetch(endpoint, { method: "POST" });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.error?.message || "Erreur lors de l'envoi");
+      }
+
+      toast.success("Document envoyé par email");
+      setDropdownOpen(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erreur lors de l'envoi");
+    } finally {
+      setSendingEmailId(null);
+    }
+  };
 
   // Load interventions
   const loadInterventions = useCallback(async () => {
@@ -730,6 +752,8 @@ export default function DocumentsPage() {
                   ]}
                   onDownload={() => handleDownload(d.pdfUrl || "")}
                   onDelete={() => handleDeleteClick(d)}
+                  onSendEmail={() => handleSendEmail("quote", d.id)}
+                  isSending={sendingEmailId === d.id}
                 />
               ))}
             {activeTab === "FACTURE" &&
@@ -745,6 +769,8 @@ export default function DocumentsPage() {
                   ]}
                   onDownload={() => handleDownload(f.pdfUrl || "")}
                   onDelete={() => handleDeleteClick(f)}
+                  onSendEmail={() => handleSendEmail("invoice", f.id)}
+                  isSending={sendingEmailId === f.id}
                 />
               ))}
             {activeTab === "EXPORT" &&
@@ -813,6 +839,8 @@ export default function DocumentsPage() {
                           }}
                           onDownload={() => handleDownload(d.pdfUrl || "")}
                           onDelete={() => handleDeleteClick(d)}
+                          onSendEmail={() => handleSendEmail("quote", d.id)}
+                          isSending={sendingEmailId === d.id}
                         />
                       </td>
                     </tr>
@@ -847,6 +875,8 @@ export default function DocumentsPage() {
                           }}
                           onDownload={() => handleDownload(f.pdfUrl || "")}
                           onDelete={() => handleDeleteClick(f)}
+                          onSendEmail={() => handleSendEmail("invoice", f.id)}
+                          isSending={sendingEmailId === f.id}
                         />
                       </td>
                     </tr>
@@ -1178,13 +1208,17 @@ function ActionMenu({
   onToggle,
   onDownload,
   onDelete,
+  onSendEmail,
   isZip = false,
+  isSending = false,
 }: {
   isOpen: boolean;
   onToggle: (e: React.MouseEvent) => void;
   onDownload: () => void;
   onDelete: () => void;
+  onSendEmail?: () => void;
   isZip?: boolean;
+  isSending?: boolean;
 }) {
   return (
     <div style={{ position: "relative" }}>
@@ -1240,10 +1274,11 @@ function ActionMenu({
             {isZip ? <Package size={16} /> : <Download size={16} />}
             Télécharger {isZip ? "ZIP" : "PDF"}
           </button>
-          {!isZip && (
+          {!isZip && onSendEmail && (
             <button
               type="button"
-              onClick={() => {}}
+              onClick={onSendEmail}
+              disabled={isSending}
               style={{
                 display: "flex",
                 alignItems: "center",
@@ -1253,16 +1288,16 @@ function ActionMenu({
                 border: "none",
                 background: "transparent",
                 fontSize: "14px",
-                color: "#374151",
-                cursor: "pointer",
+                color: isSending ? "#9CA3AF" : "#374151",
+                cursor: isSending ? "not-allowed" : "pointer",
                 textAlign: "left",
                 borderTop: "1px solid #F3F4F6",
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "#F9FAFB")}
+              onMouseEnter={(e) => !isSending && (e.currentTarget.style.background = "#F9FAFB")}
               onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
             >
-              <Mail size={16} />
-              Envoyer par email
+              {isSending ? <Loader2 size={16} className="animate-spin" /> : <Mail size={16} />}
+              {isSending ? "Envoi..." : "Envoyer par email"}
             </button>
           )}
           <button
@@ -1301,7 +1336,9 @@ function MobileCard({
   info,
   onDownload,
   onDelete,
+  onSendEmail,
   isZip = false,
+  isSending = false,
 }: {
   title: string;
   subtitle: string;
@@ -1309,7 +1346,9 @@ function MobileCard({
   info: { label: string; value: string }[];
   onDownload: () => void;
   onDelete: () => void;
+  onSendEmail?: () => void;
   isZip?: boolean;
+  isSending?: boolean;
 }) {
   return (
     <div
@@ -1361,6 +1400,23 @@ function MobileCard({
           {isZip ? <Package size={14} /> : <Download size={14} />}
           {isZip ? "ZIP" : "PDF"}
         </button>
+        {!isZip && onSendEmail && (
+          <button
+            type="button"
+            onClick={onSendEmail}
+            disabled={isSending}
+            style={{
+              padding: "10px 14px",
+              borderRadius: "8px",
+              border: "1px solid #E5E7EB",
+              background: isSending ? "#F9FAFB" : "#fff",
+              color: isSending ? "#9CA3AF" : "#374151",
+              cursor: isSending ? "not-allowed" : "pointer",
+            }}
+          >
+            {isSending ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />}
+          </button>
+        )}
         <button
           type="button"
           onClick={onDelete}

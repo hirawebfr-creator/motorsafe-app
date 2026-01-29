@@ -11,6 +11,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { toast } from "sonner";
 import { useParams, useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/button";
@@ -236,7 +237,7 @@ export default function ReceptionWizardPage() {
 
       await fetchData(); // Refresh
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Erreur");
+      toast.error(err instanceof Error ? err.message : "Erreur");
     } finally {
       setSaving(false);
     }
@@ -282,7 +283,7 @@ export default function ReceptionWizardPage() {
       };
       reader.readAsDataURL(file);
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Erreur");
+      toast.error(err instanceof Error ? err.message : "Erreur");
       setUploading(null);
     }
   };
@@ -297,7 +298,7 @@ export default function ReceptionWizardPage() {
       });
       await fetchData();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Erreur");
+      toast.error(err instanceof Error ? err.message : "Erreur");
     } finally {
       setUploading(null);
     }
@@ -331,7 +332,7 @@ export default function ReceptionWizardPage() {
       setQrUrl(data.data?.signUrl);
       setSignatureStatus("sent");
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Erreur");
+      toast.error(err instanceof Error ? err.message : "Erreur");
     } finally {
       setSaving(false);
     }

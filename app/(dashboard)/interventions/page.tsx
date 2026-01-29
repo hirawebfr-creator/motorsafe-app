@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -177,8 +178,8 @@ export default function InterventionsPage() {
         }));
         setInterventions(mapped);
       }
-    } catch (error) {
-      console.error("Error loading data:", error);
+    } catch {
+      toast.error("Erreur lors du chargement des interventions");
     } finally {
       setIsLoading(false);
     }
@@ -190,12 +191,13 @@ export default function InterventionsPage() {
     try {
       const res = await fetch(`/api/interventions/${interventionToDelete.id}`, { method: "DELETE" });
       if (res.ok) {
+        toast.success("Intervention supprimée");
         loadData();
         setDeleteModalOpen(false);
         setInterventionToDelete(null);
       }
-    } catch (error) {
-      console.error("Error deleting:", error);
+    } catch {
+      toast.error("Erreur lors de la suppression");
     } finally {
       setIsDeleting(false);
     }

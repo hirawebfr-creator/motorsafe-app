@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 import { 
   Search, 
@@ -154,8 +155,8 @@ export default function VehiculesPage() {
       if (data.ok && data.data) {
         setVehicles(data.data.items || [])
       }
-    } catch (error) {
-      console.error('Error loading vehicles:', error)
+    } catch {
+      toast.error('Erreur lors du chargement des véhicules')
     } finally {
       setIsLoading(false)
     }
@@ -171,8 +172,8 @@ export default function VehiculesPage() {
           name: c.name || `${c.firstName || ''} ${c.lastName || ''}`.trim()
         })))
       }
-    } catch (error) {
-      console.error('Error loading clients:', error)
+    } catch {
+      // Silent fail for clients loading - not critical
     }
   }
 
@@ -306,12 +307,12 @@ export default function VehiculesPage() {
       if (data.ok) {
         setCreateModalOpen(false)
         setFormData({ clientId: '', plate: '', vin: '', brand: '', model: '', version: '', year: '', mileage: '', color: '', fuel: 'ESSENCE' })
+        toast.success('Véhicule créé avec succès')
         loadVehicles()
       } else {
         setFormErrors({ plate: data.error || 'Erreur de création' })
       }
-    } catch (error) {
-      console.error('Error creating vehicle:', error)
+    } catch {
       setFormErrors({ plate: 'Erreur de connexion' })
     } finally {
       setIsSaving(false)
@@ -329,10 +330,11 @@ export default function VehiculesPage() {
       if (data.ok) {
         setDeleteModalOpen(false)
         setVehicleToDelete(null)
+        toast.success('Véhicule supprimé')
         loadVehicles()
       }
-    } catch (error) {
-      console.error('Error deleting vehicle:', error)
+    } catch {
+      toast.error('Erreur lors de la suppression')
     } finally {
       setIsDeleting(false)
     }

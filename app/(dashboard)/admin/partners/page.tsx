@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import {
   Users,
@@ -92,8 +93,8 @@ export default function AdminPartnersPage() {
       if (!res.ok) throw new Error("Erreur chargement");
       const data = await res.json();
       setPartners(data.partners);
-    } catch (error) {
-      console.error("Error fetching partners:", error);
+    } catch {
+      toast.error("Erreur de chargement des partenaires");
     } finally {
       setLoading(false);
     }
@@ -117,7 +118,7 @@ export default function AdminPartnersPage() {
       });
       if (!res.ok) {
         const data = await res.json();
-        alert(data.error || "Erreur création");
+        toast.error(data.error || "Erreur création");
         return;
       }
       setFormName("");
@@ -126,10 +127,10 @@ export default function AdminPartnersPage() {
       setFormCommission(20);
       setFormCouponId("");
       setCreateOpen(false);
+      toast.success("Partenaire créé avec succès");
       void fetchPartners();
-    } catch (error) {
-      console.error("Error creating partner:", error);
-      alert("Erreur création partenaire");
+    } catch {
+      toast.error("Erreur création partenaire");
     } finally {
       setCreating(false);
     }
@@ -143,9 +144,10 @@ export default function AdminPartnersPage() {
         body: JSON.stringify({ isActive: !partner.isActive }),
       });
       if (!res.ok) throw new Error("Erreur mise à jour");
+      toast.success("Statut mis à jour");
       void fetchPartners();
-    } catch (error) {
-      console.error("Error toggling partner:", error);
+    } catch {
+      toast.error("Erreur lors de la mise à jour");
     }
   };
 
