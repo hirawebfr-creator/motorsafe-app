@@ -46,12 +46,9 @@ export async function POST(req: Request) {
       return NextResponse.json(failure("Identifiants invalides."), { status: 401 });
     }
 
-    if (user.role !== "ADMIN" && user.garage?.status !== "ACTIVE") {
-      const message =
-        user.garage?.status === "REJECTED"
-          ? "Compte refuse."
-          : "Compte en attente de validation.";
-      return NextResponse.json(failure(message), { status: 403 });
+    // Only REJECTED garages are blocked - ACTIVE and PENDING can login
+    if (user.role !== "ADMIN" && user.garage?.status === "REJECTED") {
+      return NextResponse.json(failure("Compte refuse."), { status: 403 });
     }
 
     const { token, expiresAt } = await createSession(user.id);
