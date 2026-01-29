@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, use } from "react";
+import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/button";
@@ -134,8 +135,8 @@ export default function AdminPartnerDetailPage({
       setEditCommission(data.partner.commissionPercent);
       setEditCouponId(data.partner.stripeCouponId || "");
       setEditActive(data.partner.isActive);
-    } catch (error) {
-      console.error("Error fetching partner:", error);
+    } catch {
+      toast.error("Erreur de chargement du partenaire");
     } finally {
       setLoading(false);
     }
@@ -162,10 +163,10 @@ export default function AdminPartnerDetailPage({
       });
 
       if (!res.ok) throw new Error("Erreur mise à jour");
+      toast.success("Partenaire mis à jour");
       fetchPartner();
-    } catch (error) {
-      console.error("Error saving:", error);
-      alert("Erreur lors de la sauvegarde");
+    } catch {
+      toast.error("Erreur lors de la sauvegarde");
     } finally {
       setSaving(false);
     }
@@ -192,10 +193,10 @@ export default function AdminPartnerDetailPage({
       setPayoutStart("");
       setPayoutEnd("");
       setPayoutAmount(0);
+      toast.success("Paiement créé");
       fetchPartner();
-    } catch (error) {
-      console.error("Error creating payout:", error);
-      alert("Erreur création paiement");
+    } catch {
+      toast.error("Erreur création paiement");
     } finally {
       setCreatingPayout(false);
     }
@@ -213,9 +214,10 @@ export default function AdminPartnerDetailPage({
       });
 
       if (!res.ok) throw new Error("Erreur mise à jour");
+      toast.success("Paiement marqué comme payé");
       fetchPartner();
-    } catch (error) {
-      console.error("Error marking paid:", error);
+    } catch {
+      toast.error("Erreur lors de la mise à jour");
     }
   };
 

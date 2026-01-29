@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 import Link from "next/link";
 import {
   Newspaper,
@@ -142,7 +143,7 @@ export default function NouveautesPage() {
       setStatus(statusRes);
       setMaintenance(maintenanceRes);
     } catch (err) {
-      console.error("Failed to load data:", err);
+      toast.error("Erreur de chargement des nouveautés");
     } finally {
       setLoading(false);
     }

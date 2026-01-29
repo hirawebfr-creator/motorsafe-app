@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 import Link from "next/link";
 import {
   BarChart3,
@@ -119,7 +120,7 @@ export default function SupportOpsPage() {
       const res = await fetcher<OpsData>(`/api/admin/support/ops?range=${range}`);
       setData(res);
     } catch (err) {
-      console.error("Failed to load ops data:", err);
+      toast.error("Erreur de chargement des données");
       toast.error("Impossible de charger les données");
     } finally {
       setLoading(false);
@@ -147,7 +148,7 @@ export default function SupportOpsPage() {
       toast.success(`Article "${suggestion.suggestTitle}" créé en brouillon`);
       void loadData();
     } catch (err) {
-      console.error("Failed to create KB draft:", err);
+      toast.error("Erreur de création du brouillon KB");
       toast.error("Impossible de créer le brouillon");
     } finally {
       setCreatingKb(null);
