@@ -203,12 +203,12 @@ export default function PlanningPage() {
 
       if (!res.ok || !json.ok) throw new Error(json.error?.message || "Erreur");
       setAppointments(json.data);
-    } catch {
-      // Silent fail
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Impossible de charger les rendez-vous");
     } finally {
       setLoading(false);
     }
-  }, [currentDate, view]);
+  }, [currentDate, view, toast]);
 
   const loadClients = useCallback(async () => {
     try {
