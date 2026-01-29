@@ -20,7 +20,6 @@ import {
   Tag,
 } from "lucide-react";
 import { fetcher, requestJson } from "@/lib/fetcher";
-import { toast } from "sonner";
 
 // Responsive hook
 function useResponsive() {
