@@ -5,14 +5,15 @@ import { withSentryConfig } from "@sentry/nextjs";
 // Note: 'unsafe-inline' needed for Next.js inline styles and some scripts
 const cspValue = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval'", // unsafe-eval for dev mode
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: https: blob:",
   "font-src 'self' data:",
-  "connect-src 'self' https://api.resend.com https://api.openai.com https://api.anthropic.com https://*.ingest.sentry.io",
-  "frame-ancestors 'none'", // Stricter than X-Frame-Options
+  "connect-src 'self' https://api.resend.com https://api.openai.com https://api.anthropic.com https://*.ingest.sentry.io https://api.stripe.com https://js.stripe.com",
+  "frame-src 'self' https://js.stripe.com https://hooks.stripe.com",
+  "frame-ancestors 'none'",
   "base-uri 'self'",
-  "form-action 'self'",
+  "form-action 'self' https://checkout.stripe.com",
   "upgrade-insecure-requests",
 ].join("; ");
 
@@ -37,10 +38,10 @@ const securityHeaders = [
     key: "X-XSS-Protection",
     value: "1; mode=block",
   },
-  // Permissions Policy - disable sensitive features
+  // Permissions Policy - disable sensitive features (except payment for Stripe)
   {
     key: "Permissions-Policy",
-    value: "camera=(), microphone=(), geolocation=(), payment=()",
+    value: "camera=(), microphone=(), geolocation=()",
   },
   // Content Security Policy
   {

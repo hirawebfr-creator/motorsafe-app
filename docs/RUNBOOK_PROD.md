@@ -25,11 +25,11 @@ Ce document décrit les procédures opérationnelles pour le déploiement et la 
 - [ ] **Domaine & SSL**
   - [ ] Domaine configuré sur Vercel/hébergeur
   - [ ] SSL actif (Let's Encrypt ou custom)
-  - [ ] `NEXTAUTH_URL` pointe vers le domaine prod
+  - [ ] `NEXT_PUBLIC_APP_URL` pointe vers le domaine prod
 
-- [ ] **NextAuth**
-  - [ ] `NEXTAUTH_SECRET` généré (min 32 chars aléatoires)
-  - [ ] `NEXTAUTH_URL` configuré
+- [ ] **Base de données Prisma Accelerate**
+  - [ ] `DATABASE_URL` configuré (URL pooler Prisma Accelerate)
+  - [ ] `DIRECT_DATABASE_URL` configuré (URL directe PostgreSQL pour migrations)
 
 ### Services externes
 
@@ -77,12 +77,12 @@ Ce document décrit les procédures opérationnelles pour le déploiement et la 
 ### Obligatoires
 
 ```env
-# Database
-DATABASE_URL="postgresql://user:pass@host:5432/motorsafe"
+# Database (Prisma Accelerate)
+DATABASE_URL="prisma://accelerate.prisma-data.net/?api_key=..."
+DIRECT_DATABASE_URL="postgresql://user:pass@host:5432/motorsafe"
 
-# Auth
-NEXTAUTH_SECRET="votre-secret-32-chars-minimum"
-NEXTAUTH_URL="https://votredomaine.fr"
+# App URL (pour OAuth callbacks et liens emails)
+NEXT_PUBLIC_APP_URL="https://votredomaine.fr"
 
 # Stripe
 STRIPE_SECRET_KEY="sk_live_..."
@@ -96,6 +96,8 @@ EMAIL_FROM="MotorSafe <notifications@votredomaine.fr>"
 # Admin
 ADMIN_KEY="votre-cle-admin-secrete"
 ```
+
+> **Note**: MotorSafe utilise un système d'authentification custom basé sur des sessions (cookie `ms_session`), pas NextAuth. Les variables `NEXTAUTH_*` ne sont pas nécessaires.
 
 ### Optionnelles
 
