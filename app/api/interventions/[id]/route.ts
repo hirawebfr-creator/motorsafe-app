@@ -174,6 +174,40 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
       }
     }
 
+    // Get linked invoices for this intervention's vehicle
+    const invoices = intervention.garageId ? await prisma.invoice.findMany({
+      where: {
+        vehicleId: intervention.vehicleId,
+        organisationId: intervention.garageId,
+        deletedAt: null,
+      },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+      select: {
+        id: true,
+        invoiceNumber: true,
+        status: true,
+        totalIncl: true,
+        amountPaid: true,
+        issuedAt: true,
+        paidAt: true,
+        createdAt: true,
+      },
+    }) : [];
+
+    // Determine overall facture status for progress bar
+    const latestInvoice = invoices[0];
+    let factureStatus: "none" | "draft" | "issued" | "paid" = "none";
+    if (latestInvoice) {
+      if (latestInvoice.status === "PAID") {
+        factureStatus = "paid";
+      } else if (latestInvoice.status === "ISSUED" || latestInvoice.status === "PARTIALLY_PAID" || latestInvoice.status === "OVERDUE") {
+        factureStatus = "issued";
+      } else if (latestInvoice.status === "DRAFT") {
+        factureStatus = "draft";
+      }
+    }
+
     // Décrypter les données client
     const result = {
       ...intervention,
@@ -190,10 +224,12 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
       intakeStatus: intakeSession?.status || null,
       deliveryCompletedAt: deliverySession?.deliveryCompletedAt || null,
       deliveryStatus: deliverySession?.status || null,
-      // Add devis and OR status for progress bar
+      // Add devis, OR and facture status for progress bar
       quotes: quotesWithStatus,
       devisStatus,
       orStatus,
+      invoices,
+      factureStatus,
     };
 
     return NextResponse.json(success(result));

@@ -68,6 +68,9 @@ interface Intervention {
   devisStatus?: "none" | "draft" | "sent" | "signed";
   orStatus?: "none" | "draft" | "sent" | "signed";
   quotes?: { id: string; quoteNumber: string | null; status: string; signatureStatus: string | null; totalIncl: number; createdAt: Date }[];
+  // Facture status
+  factureStatus?: "none" | "draft" | "issued" | "paid";
+  invoices?: { id: string; invoiceNumber: string | null; status: string; totalIncl: number; amountPaid: number; issuedAt: Date | null; paidAt: Date | null; createdAt: Date }[];
 }
 
 interface TimelineEvent {
@@ -191,6 +194,9 @@ export default function InterventionDetailPage() {
           devisStatus: itv.devisStatus || "none",
           orStatus: itv.orStatus || "none",
           quotes: itv.quotes || [],
+          // Facture status
+          factureStatus: itv.factureStatus || "none",
+          invoices: itv.invoices || [],
         };
 
         setIntervention(mapped);
@@ -492,7 +498,7 @@ export default function InterventionDetailPage() {
             orStatus: intervention.orStatus || "none",
             interventionStatus: intervention.apiStatus,
             pvRestitutionDone: !!intervention.deliveryCompletedAt,
-            factureStatus: "none", // TODO: fetch from invoice relation
+            factureStatus: intervention.factureStatus || "none",
           })}
           compact={isMobile}
         />
@@ -513,8 +519,8 @@ export default function InterventionDetailPage() {
               orSigned: intervention.orStatus === "signed",
               interventionStatus: intervention.apiStatus,
               pvRestitutionDone: !!intervention.deliveryCompletedAt,
-              hasFacture: false, // TODO: fetch from invoice relation
-              facturePaid: false,
+              hasFacture: (intervention.invoices?.length || 0) > 0,
+              facturePaid: intervention.factureStatus === "paid",
             })}
           />
 
