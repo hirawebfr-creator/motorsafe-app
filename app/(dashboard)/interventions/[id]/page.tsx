@@ -64,6 +64,10 @@ interface Intervention {
   // Progress tracking
   intakeCompletedAt?: Date;
   deliveryCompletedAt?: Date;
+  // Devis and OR status
+  devisStatus?: "none" | "draft" | "sent" | "signed";
+  orStatus?: "none" | "draft" | "sent" | "signed";
+  quotes?: { id: string; quoteNumber: string | null; status: string; signatureStatus: string | null; totalIncl: number; createdAt: Date }[];
 }
 
 interface TimelineEvent {
@@ -183,6 +187,10 @@ export default function InterventionDetailPage() {
           // Progress tracking
           intakeCompletedAt: itv.intakeCompletedAt ? new Date(itv.intakeCompletedAt) : undefined,
           deliveryCompletedAt: itv.deliveryCompletedAt ? new Date(itv.deliveryCompletedAt) : undefined,
+          // Devis and OR status
+          devisStatus: itv.devisStatus || "none",
+          orStatus: itv.orStatus || "none",
+          quotes: itv.quotes || [],
         };
 
         setIntervention(mapped);
@@ -480,8 +488,8 @@ export default function InterventionDetailPage() {
         <DossierProgress
           steps={buildDossierSteps({
             pvReceptionDone: !!intervention.intakeCompletedAt,
-            devisStatus: "none", // TODO: fetch from quote relation
-            orStatus: "none", // TODO: fetch from repair order relation
+            devisStatus: intervention.devisStatus || "none",
+            orStatus: intervention.orStatus || "none",
             interventionStatus: intervention.apiStatus,
             pvRestitutionDone: !!intervention.deliveryCompletedAt,
             factureStatus: "none", // TODO: fetch from invoice relation
@@ -499,10 +507,10 @@ export default function InterventionDetailPage() {
             nextStep={getNextStep({
               interventionId: intervention.id,
               pvReceptionDone: !!intervention.intakeCompletedAt,
-              hasDevis: false, // TODO: fetch from quote relation
-              devisSigned: false,
-              hasOr: false, // TODO: fetch from repair order relation
-              orSigned: false,
+              hasDevis: (intervention.quotes?.length || 0) > 0,
+              devisSigned: intervention.devisStatus === "signed",
+              hasOr: intervention.orStatus !== "none",
+              orSigned: intervention.orStatus === "signed",
               interventionStatus: intervention.apiStatus,
               pvRestitutionDone: !!intervention.deliveryCompletedAt,
               hasFacture: false, // TODO: fetch from invoice relation

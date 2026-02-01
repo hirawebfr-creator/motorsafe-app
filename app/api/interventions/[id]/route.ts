@@ -109,6 +109,71 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
     const intakeSession = intervention.evidenceCaptureSessions?.find((s) => s.step === "INTAKE");
     const deliverySession = intervention.evidenceCaptureSessions?.find((s) => s.step === "DELIVERY");
 
+    // Get linked quotes for this intervention's vehicle
+    const quotes = intervention.garageId ? await prisma.quote.findMany({
+      where: {
+        vehicleId: intervention.vehicleId,
+        organisationId: intervention.garageId,
+        deletedAt: null,
+      },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+    }) : [];
+
+    // Get signature requests for quotes to determine if signed
+    const quoteIds = quotes.map((q) => q.id);
+    const quoteSignatures = quoteIds.length > 0 ? await prisma.signatureRequest.findMany({
+      where: {
+        documentType: "QUOTE",
+        documentId: { in: quoteIds },
+      },
+      select: { documentId: true, status: true },
+    }) : [];
+
+    // Build quote status info
+    const quoteStatusMap = new Map(quoteSignatures.map((s) => [s.documentId, s.status]));
+    const quotesWithStatus = quotes.map((q) => ({
+      id: q.id,
+      quoteNumber: q.quoteNumber,
+      status: q.status,
+      signatureStatus: quoteStatusMap.get(q.id) || null,
+      totalIncl: q.totalIncl,
+      createdAt: q.createdAt,
+    }));
+
+    // Determine overall devis status for progress bar
+    const latestQuote = quotesWithStatus[0];
+    let devisStatus: "none" | "draft" | "sent" | "signed" = "none";
+    if (latestQuote) {
+      if (latestQuote.status === "ACCEPTED" || latestQuote.signatureStatus === "SIGNED") {
+        devisStatus = "signed";
+      } else if (latestQuote.status === "SENT" || latestQuote.signatureStatus === "SENT") {
+        devisStatus = "sent";
+      } else if (latestQuote.status === "DRAFT") {
+        devisStatus = "draft";
+      }
+    }
+
+    // Get signature requests for OR (INTERVENTION_ORDER)
+    const orSignature = await prisma.signatureRequest.findFirst({
+      where: {
+        documentType: "INTERVENTION_ORDER",
+        documentId: intervention.id,
+      },
+      orderBy: { createdAt: "desc" },
+      select: { status: true },
+    });
+
+    // Determine OR status
+    let orStatus: "none" | "draft" | "sent" | "signed" = "none";
+    if (orSignature) {
+      if (orSignature.status === "SIGNED") {
+        orStatus = "signed";
+      } else if (orSignature.status === "SENT" || orSignature.status === "VIEWED") {
+        orStatus = "sent";
+      }
+    }
+
     // Décrypter les données client
     const result = {
       ...intervention,
@@ -125,6 +190,10 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
       intakeStatus: intakeSession?.status || null,
       deliveryCompletedAt: deliverySession?.deliveryCompletedAt || null,
       deliveryStatus: deliverySession?.status || null,
+      // Add devis and OR status for progress bar
+      quotes: quotesWithStatus,
+      devisStatus,
+      orStatus,
     };
 
     return NextResponse.json(success(result));
