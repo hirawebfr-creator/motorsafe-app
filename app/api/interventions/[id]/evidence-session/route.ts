@@ -167,29 +167,52 @@ export async function POST(req: Request, context: RouteContext) {
       return NextResponse.json(failure("Intervention introuvable"), { status: 404 });
     }
 
-    // Check if already exists
-    const existing = await prisma.evidenceCaptureSession.findFirst({
-      where: { interventionId, garageId, step },
-      include: { items: { orderBy: { createdAt: "asc" } } },
-    });
+    // Use upsert to avoid race condition (P2002 unique constraint error)
+    // The unique constraint is on (interventionId, step)
+    try {
+      // First try to find existing session
+      const existing = await prisma.evidenceCaptureSession.findFirst({
+        where: { interventionId, step },
+        include: { items: { orderBy: { createdAt: "asc" } } },
+      });
 
-    if (existing) {
-      return NextResponse.json(success({ session: existing, created: false }));
+      if (existing) {
+        return NextResponse.json(success({ session: existing, created: false }));
+      }
+
+      // Create new session - if it fails with P2002, we fetch and return the existing one
+      const session = await prisma.evidenceCaptureSession.create({
+        data: {
+          garageId,
+          interventionId,
+          step,
+          status: "DRAFT",
+          createdByUserId: user.id,
+        },
+        include: { items: true },
+      });
+
+      return NextResponse.json(success({ session, created: true }), { status: 201 });
+    } catch (createErr) {
+      // Handle unique constraint violation (race condition)
+      if (
+        createErr &&
+        typeof createErr === "object" &&
+        "code" in createErr &&
+        createErr.code === "P2002"
+      ) {
+        // Another request created the session first, fetch and return it
+        const existing = await prisma.evidenceCaptureSession.findFirst({
+          where: { interventionId, step },
+          include: { items: { orderBy: { createdAt: "asc" } } },
+        });
+        if (existing) {
+          return NextResponse.json(success({ session: existing, created: false }));
+        }
+      }
+      // Re-throw other errors
+      throw createErr;
     }
-
-    // Create new session
-    const session = await prisma.evidenceCaptureSession.create({
-      data: {
-        garageId,
-        interventionId,
-        step,
-        status: "DRAFT",
-        createdByUserId: user.id,
-      },
-      include: { items: true },
-    });
-
-    return NextResponse.json(success({ session, created: true }), { status: 201 });
   } catch (err) {
     return toErrorResponse(err);
   }

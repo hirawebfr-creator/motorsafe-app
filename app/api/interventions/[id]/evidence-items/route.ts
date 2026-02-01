@@ -24,6 +24,7 @@ import { EvidenceItemType } from "@prisma/client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 const CreateItemSchema = z.object({
   sessionId: z.string().min(1),
