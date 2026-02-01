@@ -1528,6 +1528,552 @@ export async function sendTeamInviteEmail(params: TeamInviteEmailParams): Promis
 }
 
 // ============================================
+// EVIDENCE-CAPTURE-01: Delivery PV Email
+// ============================================
+
+export interface DeliveryPvEmailParams {
+  to: string;
+  signingUrl: string;
+  pdfDownloadUrl?: string;
+  clientName?: string;
+  garageName: string;
+  garagePhone?: string;
+  garageEmail?: string;
+  garageAddress?: string;
+  vehiclePlate: string;
+  vehicleBrand: string;
+  vehicleModel: string;
+  testsValidated: number;
+  totalTests: number;
+  hasReservations: boolean;
+  photosCount: number;
+  expiresAt?: Date;
+  garageLogoUrl?: string;
+}
+
+function buildDeliveryPvEmailHtml(params: DeliveryPvEmailParams): string {
+  const {
+    signingUrl,
+    clientName,
+    garageName,
+    garagePhone,
+    garageEmail,
+    garageAddress,
+    vehiclePlate,
+    vehicleBrand,
+    vehicleModel,
+    testsValidated,
+    totalTests,
+    hasReservations,
+    photosCount,
+    expiresAt,
+    garageLogoUrl,
+  } = params;
+
+  const greeting = clientName ? `Bonjour ${clientName},` : "Bonjour,";
+  const expirationText = expiresAt
+    ? `Ce lien expire le ${expiresAt.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}.`
+    : "";
+
+  const contactParts: string[] = [];
+  if (garagePhone) contactParts.push(`Tel: ${garagePhone}`);
+  if (garageEmail) contactParts.push(garageEmail);
+  const garageContactHtml = contactParts.length > 0
+    ? `<p style="font-size: 13px; color: #666; margin-top: 16px;">Pour toute question : ${contactParts.join(" - ")}</p>`
+    : "";
+
+  const logoHtml = garageLogoUrl
+    ? `<img src="${garageLogoUrl}" alt="${garageName}" style="max-height: 60px; max-width: 180px; margin-bottom: 16px;" />`
+    : "";
+
+  const reservationsHtml = hasReservations
+    ? `<span style="display: inline-block; background: #fef3c7; color: #b45309; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600;">Reserves signalees</span>`
+    : `<span style="display: inline-block; background: #dcfce7; color: #16a34a; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600;">Aucune reserve</span>`;
+
+  const testsColor = testsValidated >= 4 ? "#16a34a" : "#f59e0b";
+
+  return `
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PV de restitution - Signature requise</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; background: #f5f5f5;">
+  <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 30px; border-radius: 16px 16px 0 0;">
+    ${logoHtml}
+    <h1 style="color: #4ADE80; margin: 0; font-size: 22px;">PV de Restitution</h1>
+    <p style="color: #aaa; margin: 8px 0 0 0; font-size: 14px;">${garageName}</p>
+    ${garageAddress ? `<p style="color: #888; margin: 4px 0 0 0; font-size: 12px;">${garageAddress}</p>` : ""}
+  </div>
+
+  <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none;">
+    <p style="margin-top: 0; font-size: 15px;">${greeting}</p>
+
+    <p style="font-size: 15px;">
+      Votre vehicule est pret ! <strong>${garageName}</strong> vous invite a signer le proces-verbal de restitution.
+    </p>
+
+    <!-- Vehicle Card -->
+    <div style="background: #f8fafc; border-radius: 12px; padding: 20px; margin: 24px 0; border: 1px solid #e2e8f0;">
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <div style="width: 48px; height: 48px; background: #1a1a2e; border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+          <span style="color: #4ADE80; font-size: 20px;">&#128663;</span>
+        </div>
+        <div>
+          <p style="margin: 0; font-weight: 700; font-size: 16px; color: #1a1a2e;">${vehicleBrand} ${vehicleModel}</p>
+          <p style="margin: 4px 0 0 0; color: #64748b; font-size: 14px;">${vehiclePlate}</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Summary -->
+    <div style="background: #f8fafc; border-radius: 12px; padding: 20px; margin: 24px 0;">
+      <h3 style="margin: 0 0 16px 0; font-size: 14px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Recapitulatif</h3>
+
+      <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #e2e8f0;">
+        <span style="color: #64748b;">Tests de sortie</span>
+        <span style="font-weight: 600; color: ${testsColor};">${testsValidated}/${totalTests} valides</span>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #e2e8f0;">
+        <span style="color: #64748b;">Reserves</span>
+        ${reservationsHtml}
+      </div>
+
+      <div style="display: flex; justify-content: space-between; padding: 10px 0;">
+        <span style="color: #64748b;">Photos jointes</span>
+        <span style="font-weight: 600; color: #1a1a2e;">${photosCount} photo(s)</span>
+      </div>
+    </div>
+
+    <!-- CTA Button -->
+    <div style="text-align: center; margin: 32px 0;">
+      <a href="${signingUrl}"
+         style="display: inline-block; background: linear-gradient(135deg, #4ADE80 0%, #22c55e 100%); color: #1a1a2e; padding: 16px 40px;
+                text-decoration: none; border-radius: 12px; font-weight: 700; font-size: 16px; box-shadow: 0 4px 14px rgba(74, 222, 128, 0.4);">
+        Consulter et signer le PV
+      </a>
+    </div>
+
+    <p style="font-size: 14px; color: #666; text-align: center;">
+      ${expirationText}
+    </p>
+
+    ${garageContactHtml}
+
+    <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
+
+    <p style="font-size: 13px; color: #94a3b8; margin-bottom: 0;">
+      En signant ce document, vous confirmez avoir pris possession de votre vehicule dans l'etat decrit dans le PV.
+      Si vous avez des questions, n'hesitez pas a contacter le garage.
+    </p>
+  </div>
+
+  <div style="background: #1a1a2e; padding: 20px; border-radius: 0 0 16px 16px; text-align: center;">
+    <p style="color: #64748b; font-size: 12px; margin: 0;">
+      Envoye via MotorSafe — Gestion digitale pour professionnels auto
+    </p>
+  </div>
+</body>
+</html>
+  `.trim();
+}
+
+function buildDeliveryPvEmailText(params: DeliveryPvEmailParams): string {
+  const {
+    signingUrl,
+    clientName,
+    garageName,
+    garagePhone,
+    garageEmail,
+    vehiclePlate,
+    vehicleBrand,
+    vehicleModel,
+    testsValidated,
+    totalTests,
+    hasReservations,
+    photosCount,
+    expiresAt,
+  } = params;
+
+  const greeting = clientName ? `Bonjour ${clientName},` : "Bonjour,";
+  const expirationText = expiresAt
+    ? `Ce lien expire le ${expiresAt.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}.`
+    : "";
+
+  const contactParts: string[] = [];
+  if (garagePhone) contactParts.push(`Tel: ${garagePhone}`);
+  if (garageEmail) contactParts.push(garageEmail);
+
+  return `
+${greeting}
+
+Votre vehicule est pret ! ${garageName} vous invite a signer le proces-verbal de restitution.
+
+VEHICULE
+${vehicleBrand} ${vehicleModel}
+Immatriculation: ${vehiclePlate}
+
+RECAPITULATIF
+- Tests de sortie: ${testsValidated}/${totalTests} valides
+- Reserves: ${hasReservations ? "Oui (voir details dans le PV)" : "Aucune"}
+- Photos jointes: ${photosCount}
+
+Cliquez sur le lien ci-dessous pour consulter et signer le PV :
+${signingUrl}
+
+${expirationText}
+
+${contactParts.length > 0 ? `Pour toute question : ${contactParts.join(" - ")}` : ""}
+
+---
+En signant ce document, vous confirmez avoir pris possession de votre vehicule dans l'etat decrit.
+
+Envoye via MotorSafe
+  `.trim();
+}
+
+/**
+ * EVIDENCE-CAPTURE-01: Send delivery PV email to client for signature
+ */
+export async function sendDeliveryPvEmail(params: DeliveryPvEmailParams): Promise<EmailResult> {
+  const { to, garageName } = params;
+  const subject = `PV de restitution - ${params.vehiclePlate} - ${garageName}`;
+  const html = buildDeliveryPvEmailHtml(params);
+  const text = buildDeliveryPvEmailText(params);
+
+  if (isTestMode()) {
+    const entry = addToOutbox({
+      to,
+      subject,
+      html,
+      metadata: { type: "delivery_pv", signingUrl: params.signingUrl },
+    });
+    console.log(`[Email:Mock] Stored delivery PV email to ${to}, id: ${entry.id}`);
+    return { success: true, messageId: entry.id };
+  }
+
+  const resend = getResendClient();
+
+  if (!resend) {
+    console.log("\n" + "=".repeat(60));
+    console.log("[Email] RESEND_API_KEY not configured - email simulated");
+    console.log(`[Email] To: ${to}`);
+    console.log(`[Email] Subject: ${subject}`);
+    console.log(`[Email] Signing URL: ${params.signingUrl}`);
+    console.log("=".repeat(60) + "\n");
+    return { success: true, messageId: "dev-mode-no-api-key" };
+  }
+
+  try {
+    const result = await resend.emails.send({
+      from: getMailFrom(),
+      to,
+      subject,
+      html,
+      text,
+    });
+
+    if (result.error) {
+      console.error("[Email] Resend error:", result.error);
+      await trackError(new Error(result.error.message), {
+        area: "email",
+        severity: "error",
+        operation: "send_delivery_pv_email",
+        metadata: { errorCode: result.error.name },
+      });
+      return { success: false, error: result.error.message };
+    }
+
+    console.log(`[Email] Sent delivery PV email to ${to}, messageId: ${result.data?.id}`);
+    return { success: true, messageId: result.data?.id };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    console.error("[Email] Exception sending delivery PV email:", message);
+    await trackError(err instanceof Error ? err : new Error(message), {
+      area: "email",
+      severity: "error",
+      operation: "send_delivery_pv_email",
+    });
+    return { success: false, error: message };
+  }
+}
+
+// ============================================
+// EVIDENCE-CAPTURE-01: Intake PV Email
+// ============================================
+
+export interface IntakePvEmailParams {
+  to: string;
+  signingUrl: string;
+  clientName?: string;
+  garageName: string;
+  garagePhone?: string;
+  garageEmail?: string;
+  garageAddress?: string;
+  vehiclePlate: string;
+  vehicleBrand: string;
+  vehicleModel: string;
+  odometerKm?: number;
+  warningsCount: number;
+  photosCount: number;
+  expiresAt?: Date;
+  garageLogoUrl?: string;
+}
+
+function buildIntakePvEmailHtml(params: IntakePvEmailParams): string {
+  const {
+    signingUrl,
+    clientName,
+    garageName,
+    garagePhone,
+    garageEmail,
+    garageAddress,
+    vehiclePlate,
+    vehicleBrand,
+    vehicleModel,
+    odometerKm,
+    warningsCount,
+    photosCount,
+    expiresAt,
+    garageLogoUrl,
+  } = params;
+
+  const greeting = clientName ? `Bonjour ${clientName},` : "Bonjour,";
+  const expirationText = expiresAt
+    ? `Ce lien expire le ${expiresAt.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}.`
+    : "";
+
+  const contactParts: string[] = [];
+  if (garagePhone) contactParts.push(`Tel: ${garagePhone}`);
+  if (garageEmail) contactParts.push(garageEmail);
+  const garageContactHtml =
+    contactParts.length > 0
+      ? `<p style="font-size: 13px; color: #64748b; margin-top: 16px;">Pour toute question : ${contactParts.join(" - ")}</p>`
+      : "";
+
+  // Logo in header
+  const logoHtml = garageLogoUrl
+    ? `<img src="${garageLogoUrl}" alt="${garageName}" style="max-height: 50px; max-width: 150px; margin-bottom: 12px;" />`
+    : "";
+
+  // Warnings color
+  const warningsColor = warningsCount > 0 ? "#d97706" : "#059669";
+  const warningsText = warningsCount > 0 ? `${warningsCount} anomalie(s)` : "Aucune anomalie";
+
+  return `
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PV de reception - Signature requise</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; background: #f5f5f5;">
+  <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 30px; border-radius: 16px 16px 0 0;">
+    ${logoHtml}
+    <h1 style="color: #4ADE80; margin: 0; font-size: 22px;">PV de Reception</h1>
+    <p style="color: #aaa; margin: 8px 0 0 0; font-size: 14px;">${garageName}</p>
+    ${garageAddress ? `<p style="color: #888; margin: 4px 0 0 0; font-size: 12px;">${garageAddress}</p>` : ""}
+  </div>
+
+  <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none;">
+    <p style="margin-top: 0; font-size: 15px;">${greeting}</p>
+
+    <p style="font-size: 15px;">
+      Vous venez de deposer votre vehicule chez <strong>${garageName}</strong>. Merci de signer le proces-verbal de reception pour confirmer l'etat d'entree.
+    </p>
+
+    <!-- Vehicle Card -->
+    <div style="background: #f8fafc; border-radius: 12px; padding: 20px; margin: 24px 0; border: 1px solid #e2e8f0;">
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <div style="width: 48px; height: 48px; background: #1a1a2e; border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+          <span style="color: #4ADE80; font-size: 20px;">&#128663;</span>
+        </div>
+        <div>
+          <p style="margin: 0; font-weight: 700; font-size: 16px; color: #1a1a2e;">${vehicleBrand} ${vehicleModel}</p>
+          <p style="margin: 4px 0 0 0; color: #64748b; font-size: 14px;">${vehiclePlate}</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Summary -->
+    <div style="background: #f8fafc; border-radius: 12px; padding: 20px; margin: 24px 0;">
+      <h3 style="margin: 0 0 16px 0; font-size: 14px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">Recapitulatif</h3>
+
+      <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #e2e8f0;">
+        <span style="color: #64748b;">Kilometrage</span>
+        <span style="font-weight: 600; color: #1a1a2e;">${odometerKm ? odometerKm.toLocaleString("fr-FR") + " km" : "-"}</span>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #e2e8f0;">
+        <span style="color: #64748b;">Anomalies constatees</span>
+        <span style="font-weight: 600; color: ${warningsColor};">${warningsText}</span>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; padding: 10px 0;">
+        <span style="color: #64748b;">Photos jointes</span>
+        <span style="font-weight: 600; color: #1a1a2e;">${photosCount} photo(s)</span>
+      </div>
+    </div>
+
+    <!-- CTA Button -->
+    <div style="text-align: center; margin: 32px 0;">
+      <a href="${signingUrl}"
+         style="display: inline-block; background: linear-gradient(135deg, #4ADE80 0%, #22c55e 100%); color: #1a1a2e; padding: 16px 40px;
+                text-decoration: none; border-radius: 12px; font-weight: 700; font-size: 16px; box-shadow: 0 4px 14px rgba(74, 222, 128, 0.4);">
+        Consulter et signer le PV
+      </a>
+    </div>
+
+    <p style="font-size: 14px; color: #666; text-align: center;">
+      ${expirationText}
+    </p>
+
+    ${garageContactHtml}
+
+    <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;">
+
+    <p style="font-size: 13px; color: #94a3b8; margin-bottom: 0;">
+      En signant ce document, vous confirmez l'etat du vehicule a son entree dans notre etablissement.
+      Ce PV de reception servira de reference en cas de litige.
+    </p>
+  </div>
+
+  <div style="background: #1a1a2e; padding: 20px; border-radius: 0 0 16px 16px; text-align: center;">
+    <p style="color: #64748b; font-size: 12px; margin: 0;">
+      Envoye via MotorSafe — Gestion digitale pour professionnels auto
+    </p>
+  </div>
+</body>
+</html>
+  `.trim();
+}
+
+function buildIntakePvEmailText(params: IntakePvEmailParams): string {
+  const {
+    signingUrl,
+    clientName,
+    garageName,
+    garagePhone,
+    garageEmail,
+    vehiclePlate,
+    vehicleBrand,
+    vehicleModel,
+    odometerKm,
+    warningsCount,
+    photosCount,
+    expiresAt,
+  } = params;
+
+  const greeting = clientName ? `Bonjour ${clientName},` : "Bonjour,";
+  const expirationText = expiresAt
+    ? `Ce lien expire le ${expiresAt.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}.`
+    : "";
+
+  const contactParts: string[] = [];
+  if (garagePhone) contactParts.push(`Tel: ${garagePhone}`);
+  if (garageEmail) contactParts.push(garageEmail);
+
+  const warningsText = warningsCount > 0 ? `${warningsCount} anomalie(s)` : "Aucune";
+
+  return `
+${greeting}
+
+Vous venez de deposer votre vehicule chez ${garageName}. Merci de signer le proces-verbal de reception.
+
+VEHICULE
+${vehicleBrand} ${vehicleModel}
+Immatriculation: ${vehiclePlate}
+
+RECAPITULATIF
+- Kilometrage: ${odometerKm ? odometerKm.toLocaleString("fr-FR") + " km" : "-"}
+- Anomalies constatees: ${warningsText}
+- Photos jointes: ${photosCount}
+
+Cliquez sur le lien ci-dessous pour consulter et signer le PV :
+${signingUrl}
+
+${expirationText}
+
+${contactParts.length > 0 ? `Pour toute question : ${contactParts.join(" - ")}` : ""}
+
+---
+En signant ce document, vous confirmez l'etat du vehicule a son entree.
+
+Envoye via MotorSafe
+  `.trim();
+}
+
+/**
+ * EVIDENCE-CAPTURE-01: Send intake PV email to client for signature
+ */
+export async function sendIntakePvEmail(params: IntakePvEmailParams): Promise<EmailResult> {
+  const { to, garageName } = params;
+  const subject = `PV de reception - ${params.vehiclePlate} - ${garageName}`;
+  const html = buildIntakePvEmailHtml(params);
+  const text = buildIntakePvEmailText(params);
+
+  if (isTestMode()) {
+    const entry = addToOutbox({
+      to,
+      subject,
+      html,
+      metadata: { type: "intake_pv", signingUrl: params.signingUrl },
+    });
+    console.log(`[Email:Mock] Stored intake PV email to ${to}, id: ${entry.id}`);
+    return { success: true, messageId: entry.id };
+  }
+
+  const resend = getResendClient();
+
+  if (!resend) {
+    console.log("\n" + "=".repeat(60));
+    console.log("[Email] RESEND_API_KEY not configured - email simulated");
+    console.log(`[Email] To: ${to}`);
+    console.log(`[Email] Subject: ${subject}`);
+    console.log(`[Email] Signing URL: ${params.signingUrl}`);
+    console.log("=".repeat(60) + "\n");
+    return { success: true, messageId: "dev-mode-no-api-key" };
+  }
+
+  try {
+    const result = await resend.emails.send({
+      from: getMailFrom(),
+      to,
+      subject,
+      html,
+      text,
+    });
+
+    if (result.error) {
+      console.error("[Email] Resend error:", result.error);
+      await trackError(new Error(result.error.message), {
+        area: "email",
+        severity: "error",
+        operation: "send_intake_pv_email",
+        metadata: { errorCode: result.error.name },
+      });
+      return { success: false, error: result.error.message };
+    }
+
+    console.log(`[Email] Sent intake PV email to ${to}, messageId: ${result.data?.id}`);
+    return { success: true, messageId: result.data?.id };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    console.error("[Email] Exception sending intake PV email:", message);
+    await trackError(err instanceof Error ? err : new Error(message), {
+      area: "email",
+      severity: "error",
+      operation: "send_intake_pv_email",
+    });
+    return { success: false, error: message };
+  }
+}
+
+// ============================================
 // LEADS-CRM-01: Lead Digest Email
 // ============================================
 

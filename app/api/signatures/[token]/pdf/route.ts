@@ -3,10 +3,13 @@ import { prisma } from "@/lib/prisma";
 import { failure } from "@/lib/api";
 import { buildOrderMasterPdf } from "@/lib/pdf/orderMaster";
 import { generateQuotePdf, QuotePdfData } from "@/lib/pdf/quoteTemplate";
+import { generateDeliveryPdf, DeliveryPvData, DeliveryPvPhoto } from "@/lib/pdf/deliveryTemplate";
+import { generateIntakePdf, IntakePvData, IntakePvPhoto } from "@/lib/pdf/intakeTemplate";
 import { buildPdfBrandingContext } from "@/lib/pdf/branding";
 import { decryptClientData } from "@/lib/encryption";
 import { isGarageSubscriptionActive } from "@/lib/guards";
 import { checkIpRateLimit, rateLimitHeaders } from "@/lib/rateLimit";
+import { EvidenceCaptureStep } from "@prisma/client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -150,15 +153,360 @@ export async function GET(req: Request, ctx: Ctx) {
       }
     }
 
-    // Only support INTERVENTION_ORDER for now (the master document)
+    // Handle INTERVENTION_DELIVERY (PV de restitution)
+    if (signatureRequest.documentType === "INTERVENTION_DELIVERY") {
+      try {
+        const interventionId = signatureRequest.documentId;
+
+        // Get intervention with all related data
+        const intervention = await prisma.intervention.findUnique({
+          where: { id: interventionId },
+          include: {
+            vehicle: { include: { client: true } },
+            garage: true,
+          },
+        });
+
+        if (!intervention) {
+          return NextResponse.json(failure("Intervention introuvable"), { status: 404 });
+        }
+
+        // Get delivery session
+        const session = await prisma.evidenceCaptureSession.findFirst({
+          where: {
+            interventionId,
+            step: "DELIVERY" as EvidenceCaptureStep,
+          },
+          include: {
+            items: { orderBy: { createdAt: "asc" } },
+          },
+        });
+
+        if (!session) {
+          return NextResponse.json(failure("Session de restitution non trouvée"), { status: 404 });
+        }
+
+        // Decrypt client data
+        const clientRaw = intervention.vehicle?.client;
+        const client = clientRaw
+          ? (decryptClientData(clientRaw as Record<string, unknown>) as {
+              firstName: string;
+              lastName: string;
+              email?: string | null;
+              phone?: string | null;
+            })
+          : { firstName: "", lastName: "", email: null, phone: null };
+
+        // Extract form data
+        const formItem = session.items.find((i) => i.type === "FORM" && i.category === "DELIVERY_FORM");
+        const photoItems = session.items.filter((i) => i.type === "PHOTO");
+
+        const formData = (formItem?.jsonData as {
+          outtakeChecklist?: Record<string, boolean>;
+          hasReservations?: boolean;
+          reservations?: string;
+        }) || {};
+
+        const outtakeChecklist = formData.outtakeChecklist || {};
+        const hasReservations = formData.hasReservations || false;
+        const reservations = formData.reservations || null;
+
+        // Load photos
+        const photos: DeliveryPvPhoto[] = [];
+        for (const photo of photoItems) {
+          const photoData: DeliveryPvPhoto = {
+            label: photo.label || "Photo",
+            category: photo.category || "",
+            storageKey: photo.storageKey,
+            imageData: null,
+          };
+
+          if (photo.storageKey) {
+            try {
+              const fs = await import("fs/promises");
+              const path = await import("path");
+              const absPath = path.join(process.cwd(), "uploads", photo.storageKey);
+              photoData.imageData = await fs.readFile(absPath);
+            } catch {
+              // Photo not found
+            }
+          }
+
+          photos.push(photoData);
+        }
+
+        // Build PDF data
+        const pdfData: DeliveryPvData = {
+          interventionId,
+          createdAt: session.createdAt,
+          signedAt: signatureRequest.status === "SIGNED" ? signatureRequest.signedAt : null,
+          signerName: signatureRequest.status === "SIGNED" ? signatureRequest.signerNameDeclared : null,
+          signerIp: null, // IP not stored in SignatureRequest model
+
+          client: {
+            firstName: client.firstName,
+            lastName: client.lastName,
+            email: client.email,
+            phone: client.phone,
+          },
+
+          vehicle: {
+            brand: intervention.vehicle?.brand || "",
+            model: intervention.vehicle?.model || "",
+            plate: intervention.vehicle?.plate || "",
+            vin: intervention.vehicle?.vin || undefined,
+          },
+
+          odometerKm: intervention.odometerKm,
+
+          outtakeChecklist: {
+            roadTest: outtakeChecklist.roadTest || false,
+            lightsOff: outtakeChecklist.lightsOff || false,
+            noisesGone: outtakeChecklist.noisesGone || false,
+            leaksFixed: outtakeChecklist.leaksFixed || false,
+            cleanVehicle: outtakeChecklist.cleanVehicle || false,
+            toolsRemoved: outtakeChecklist.toolsRemoved || false,
+          },
+
+          hasReservations,
+          reservations,
+
+          photos,
+
+          organisation: {
+            name: intervention.garage?.name || "",
+            displayName: intervention.garage?.displayName || undefined,
+            address: intervention.garage?.address || undefined,
+            city: intervention.garage?.city || undefined,
+            postalCode: intervention.garage?.postalCode || undefined,
+            phone: intervention.garage?.phone || undefined,
+            email: intervention.garage?.email || undefined,
+            siret: intervention.garage?.siret || undefined,
+            vatNumber: intervention.garage?.vatNumber || undefined,
+          },
+
+          garageSignatureImage: null,
+          garageSignerName: intervention.garage?.displayName || intervention.garage?.name || undefined,
+        };
+
+        // Load garage signature if available
+        const garage = intervention.garage;
+        if (garage?.signatureImageKey) {
+          try {
+            const fs = await import("fs/promises");
+            const path = await import("path");
+            const sigPath = path.join(process.cwd(), "uploads", garage.signatureImageKey);
+            pdfData.garageSignatureImage = await fs.readFile(sigPath);
+          } catch {
+            // Signature not found
+          }
+        }
+
+        // Generate PDF
+        const brandingCtx = intervention.garageId
+          ? await buildPdfBrandingContext(intervention.garageId)
+          : null;
+        const pdfBytes = await generateDeliveryPdf(pdfData, brandingCtx);
+        const fileName = `pv_restitution_${intervention.vehicle?.plate || interventionId.slice(0, 8)}.pdf`;
+
+        return new NextResponse(Buffer.from(pdfBytes), {
+          status: 200,
+          headers: {
+            "Content-Type": "application/pdf",
+            "Content-Disposition": `inline; filename="${fileName}"`,
+            "Cache-Control": "private, no-store",
+          },
+        });
+      } catch (pdfErr) {
+        console.error("Delivery PV PDF generation error:", pdfErr);
+        return NextResponse.json(failure("Erreur lors de la génération du PDF"), { status: 500 });
+      }
+    }
+
+    // Handle INTERVENTION_INTAKE (PV de reception)
+    if (signatureRequest.documentType === "INTERVENTION_INTAKE") {
+      try {
+        const interventionId = signatureRequest.documentId;
+
+        // Get intervention with all related data
+        const intervention = await prisma.intervention.findUnique({
+          where: { id: interventionId },
+          include: {
+            vehicle: { include: { client: true } },
+            garage: true,
+          },
+        });
+
+        if (!intervention) {
+          return NextResponse.json(failure("Intervention introuvable"), { status: 404 });
+        }
+
+        // Get intake session
+        const session = await prisma.evidenceCaptureSession.findFirst({
+          where: {
+            interventionId,
+            step: "INTAKE" as EvidenceCaptureStep,
+          },
+          include: {
+            items: { orderBy: { createdAt: "asc" } },
+          },
+        });
+
+        if (!session) {
+          return NextResponse.json(failure("Session de reception non trouvee"), { status: 404 });
+        }
+
+        // Decrypt client data
+        const clientRaw = intervention.vehicle?.client;
+        const client = clientRaw
+          ? (decryptClientData(clientRaw as Record<string, unknown>) as {
+              firstName: string;
+              lastName: string;
+              email?: string | null;
+              phone?: string | null;
+            })
+          : { firstName: "", lastName: "", email: null, phone: null };
+
+        // Extract form data
+        const formItem = session.items.find((i) => i.type === "FORM" && i.category === "INTAKE_FORM");
+        const photoItems = session.items.filter((i) => i.type === "PHOTO");
+
+        const formData = (formItem?.jsonData as {
+          warnings?: Record<string, boolean>;
+          additionalNotes?: string;
+          fuelLevel?: number;
+        }) || {};
+
+        const warnings = formData.warnings || {};
+        const additionalNotes = formData.additionalNotes || null;
+        const fuelLevel = formData.fuelLevel ?? null;
+
+        // Load photos
+        const photos: IntakePvPhoto[] = [];
+        for (const photo of photoItems) {
+          const photoData: IntakePvPhoto = {
+            label: photo.label || "Photo",
+            category: photo.category || "",
+            storageKey: photo.storageKey,
+            imageData: null,
+          };
+
+          if (photo.storageKey) {
+            try {
+              const fs = await import("fs/promises");
+              const path = await import("path");
+              const absPath = path.join(process.cwd(), "uploads", photo.storageKey);
+              photoData.imageData = await fs.readFile(absPath);
+            } catch {
+              // Photo not found
+            }
+          }
+
+          photos.push(photoData);
+        }
+
+        // Build PDF data
+        const pdfData: IntakePvData = {
+          interventionId,
+          createdAt: session.createdAt,
+          signedAt: signatureRequest.status === "SIGNED" ? signatureRequest.signedAt : null,
+          signerName: signatureRequest.status === "SIGNED" ? signatureRequest.signerNameDeclared : null,
+          signerIp: null,
+
+          client: {
+            firstName: client.firstName,
+            lastName: client.lastName,
+            email: client.email,
+            phone: client.phone,
+          },
+
+          vehicle: {
+            brand: intervention.vehicle?.brand || "",
+            model: intervention.vehicle?.model || "",
+            plate: intervention.vehicle?.plate || "",
+            vin: intervention.vehicle?.vin || undefined,
+          },
+
+          odometerKm: intervention.odometerKm,
+          fuelLevel,
+
+          intakeChecklist: {
+            engineLight: warnings.engineLight || false,
+            oilLight: warnings.oilLight || false,
+            batteryLight: warnings.batteryLight || false,
+            brakeLight: warnings.brakeLight || false,
+            absLight: warnings.absLight || false,
+            airbagLight: warnings.airbagLight || false,
+            tireLight: warnings.tireLight || false,
+            tempLight: warnings.tempLight || false,
+            noises: warnings.noises || false,
+            leaks: warnings.leaks || false,
+            bodyDamage: warnings.bodyDamage || false,
+            scratches: warnings.scratches || false,
+          },
+
+          additionalNotes,
+
+          photos,
+
+          organisation: {
+            name: intervention.garage?.name || "",
+            displayName: intervention.garage?.displayName || undefined,
+            address: intervention.garage?.address || undefined,
+            city: intervention.garage?.city || undefined,
+            postalCode: intervention.garage?.postalCode || undefined,
+            phone: intervention.garage?.phone || undefined,
+            email: intervention.garage?.email || undefined,
+            siret: intervention.garage?.siret || undefined,
+            vatNumber: intervention.garage?.vatNumber || undefined,
+          },
+
+          garageSignatureImage: null,
+          garageSignerName: intervention.garage?.displayName || intervention.garage?.name || undefined,
+        };
+
+        // Load garage signature if available
+        const garage = intervention.garage;
+        if (garage?.signatureImageKey) {
+          try {
+            const fs = await import("fs/promises");
+            const path = await import("path");
+            const sigPath = path.join(process.cwd(), "uploads", garage.signatureImageKey);
+            pdfData.garageSignatureImage = await fs.readFile(sigPath);
+          } catch {
+            // Signature not found
+          }
+        }
+
+        // Generate PDF
+        const brandingCtx = intervention.garageId
+          ? await buildPdfBrandingContext(intervention.garageId)
+          : null;
+        const pdfBytes = await generateIntakePdf(pdfData, brandingCtx);
+        const fileName = `pv_reception_${intervention.vehicle?.plate || interventionId.slice(0, 8)}.pdf`;
+
+        return new NextResponse(Buffer.from(pdfBytes), {
+          status: 200,
+          headers: {
+            "Content-Type": "application/pdf",
+            "Content-Disposition": `inline; filename="${fileName}"`,
+            "Cache-Control": "private, no-store",
+          },
+        });
+      } catch (pdfErr) {
+        console.error("Intake PV PDF generation error:", pdfErr);
+        return NextResponse.json(failure("Erreur lors de la génération du PDF"), { status: 500 });
+      }
+    }
+
+    // Only support INTERVENTION_ORDER for other intervention types
     if (!signatureRequest.documentType.startsWith("INTERVENTION_")) {
       return NextResponse.json(failure("Type de document non supporté pour l'aperçu PDF"), { status: 400 });
     }
 
-    // Generate PDF using the shared function
+    // Generate PDF using the shared function (for INTERVENTION_ORDER, etc.)
     try {
       const result = await buildOrderMasterPdf(signatureRequest.documentId, {
-        // For preview, don't include signature
         showSignedWatermark: signatureRequest.status === "SIGNED",
         signerName: signatureRequest.status === "SIGNED" ? signatureRequest.signerNameDeclared || undefined : undefined,
         signedAt: signatureRequest.status === "SIGNED" && signatureRequest.signedAt ? signatureRequest.signedAt : undefined,

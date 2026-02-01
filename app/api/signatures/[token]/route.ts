@@ -18,6 +18,7 @@ type Ctx = { params: Promise<{ token: string }> };
 const DOCUMENT_TYPE_LABELS: Record<string, string> = {
   INTERVENTION_ORDER: "Ordre de réparation",
   INTERVENTION_DELIVERY: "PV de restitution",
+  INTERVENTION_INTAKE: "PV de réception",
   INTERVENTION_DOSSIER: "Dossier d'intervention",
   QUOTE: "Devis",
 };

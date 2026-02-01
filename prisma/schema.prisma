@@ -129,6 +129,7 @@ model Garage {
   country       String    @default("France")
   logoKey       String?   // Clé S3/local du logo
   brandColor    String?   // Couleur accent (hex, ex: #4ADE80) - PRO only
+  signatureImageKey String? // Clé S3/local de la signature du garage (pour PV)
 
   // Organisation settings (quotes/invoices)
   vatNumber       String?                     // Numéro TVA intracommunautaire (ex: FR12345678901)
@@ -989,6 +990,7 @@ model LegalReferenceAssignment {
 enum SignatureDocumentType {
   INTERVENTION_ORDER
   INTERVENTION_DELIVERY
+  INTERVENTION_INTAKE   // EVIDENCE-CAPTURE-01: PV de réception
   INTERVENTION_DOSSIER
   QUOTE
   REPAIR_ORDER          // WORKSHOP-OPS-01: Ordre de Réparation
