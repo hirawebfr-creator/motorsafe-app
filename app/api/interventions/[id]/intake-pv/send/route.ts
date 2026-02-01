@@ -273,23 +273,15 @@ export async function POST(req: Request, context: RouteContext) {
       }
     }
 
-    // Generate PDF
+    // Generate PDF hash for integrity verification (PDF is regenerated on demand via /api/signatures/[token]/pdf)
     console.log("[IntakePV] Building PDF branding context");
     const brandingCtx = await buildPdfBrandingContext(garageId);
-    console.log("[IntakePV] Generating PDF");
+    console.log("[IntakePV] Generating PDF for hash calculation");
     const pdfBytes = await generateIntakePdf(pdfData, brandingCtx);
     console.log("[IntakePV] PDF generated, size:", pdfBytes.length);
 
-    // Save PDF to storage
-    const fs = await import("fs/promises");
-    const path = await import("path");
-
+    // Calculate PDF hash for integrity (don't save file - serverless environment)
     const pdfHash = sha256(Buffer.from(pdfBytes).toString("base64"));
-    const pdfKey = `uploads/${garageId}/evidence/${interventionId}/intake/pv_reception_${pdfHash.slice(0, 12)}.pdf`;
-    const pdfAbsPath = path.join(process.cwd(), "uploads", pdfKey);
-
-    await fs.mkdir(path.dirname(pdfAbsPath), { recursive: true });
-    await fs.writeFile(pdfAbsPath, pdfBytes);
 
     // Generate signature token
     const token = randomBytes(32).toString("hex");
