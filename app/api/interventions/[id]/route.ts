@@ -97,12 +97,17 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
         vehicle: { include: { client: true } },
         revisions: { orderBy: { createdAt: "desc" } },
         documents: { where: { deletedAt: null }, orderBy: { createdAt: "desc" } },
+        evidenceCaptureSessions: { orderBy: { createdAt: "desc" } },
       },
     });
 
     if (!intervention) {
       return NextResponse.json(failure("Intervention introuvable."), { status: 404 });
     }
+
+    // Get intake and delivery completion status from evidence sessions
+    const intakeSession = intervention.evidenceCaptureSessions?.find((s) => s.step === "INTAKE");
+    const deliverySession = intervention.evidenceCaptureSessions?.find((s) => s.step === "DELIVERY");
 
     // Décrypter les données client
     const result = {
@@ -115,6 +120,11 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
               : intervention.vehicle.client,
           }
         : intervention.vehicle,
+      // Add completion timestamps from evidence sessions
+      intakeCompletedAt: intakeSession?.intakeCompletedAt || null,
+      intakeStatus: intakeSession?.status || null,
+      deliveryCompletedAt: deliverySession?.deliveryCompletedAt || null,
+      deliveryStatus: deliverySession?.status || null,
     };
 
     return NextResponse.json(success(result));
