@@ -177,8 +177,8 @@ export async function POST(req: Request, ctx: Ctx) {
     if (signatureRequest.documentType === "QUOTE") {
       await prisma.quote.update({
         where: { id: signatureRequest.documentId },
-        data: { 
-          status: "ACCEPTED", 
+        data: {
+          status: "ACCEPTED",
           acceptedAt: signedAt,
           signedAt,
           signedByName: signerName.trim(),
@@ -186,6 +186,35 @@ export async function POST(req: Request, ctx: Ctx) {
           signedByIp: ip,
         },
       });
+    }
+
+    // Update EvidenceCaptureSession status when intake/delivery PV is signed
+    if (signatureRequest.documentType === "INTERVENTION_INTAKE") {
+      await prisma.evidenceCaptureSession.updateMany({
+        where: {
+          interventionId: signatureRequest.documentId,
+          step: "INTAKE",
+        },
+        data: {
+          status: "SIGNED",
+          intakeCompletedAt: signedAt,
+        },
+      });
+      console.log(`[Signature] Updated INTAKE session status to SIGNED for intervention ${signatureRequest.documentId}`);
+    }
+
+    if (signatureRequest.documentType === "INTERVENTION_DELIVERY") {
+      await prisma.evidenceCaptureSession.updateMany({
+        where: {
+          interventionId: signatureRequest.documentId,
+          step: "DELIVERY",
+        },
+        data: {
+          status: "SIGNED",
+          deliveryCompletedAt: signedAt,
+        },
+      });
+      console.log(`[Signature] Updated DELIVERY session status to SIGNED for intervention ${signatureRequest.documentId}`);
     }
 
     // Create signed event with full audit trail
