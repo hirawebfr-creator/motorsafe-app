@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { ComplianceToggles } from "@/components/parametres/ComplianceToggles";
 import { BrandingSettings } from "@/components/parametres/BrandingSettings";
+import { SignatureSettings } from "@/components/parametres/SignatureSettings";
 
 // ============================================================================
 // PARAMÈTRES PAGE - SafeMotor Design System (Responsive)
@@ -65,6 +66,7 @@ type GarageInfo = {
   siret?: string | null;
   status?: "PENDING" | "ACTIVE" | "REJECTED" | string | null;
   logoKey?: string | null;
+  signatureImageKey?: string | null;
 } | null;
 
 type TabKey = "garage" | "users" | "security" | "notifications" | "abonnement";
@@ -369,6 +371,14 @@ export function ParametresClient({
           <BrandingSettings
             garageId={garage?.id ?? null}
             currentLogoKey={garage?.logoKey ?? null}
+            hasBrandingFeature={hasBrandingFeature}
+            planName={planName}
+          />
+
+          {/* Signature Card - EVIDENCE-CAPTURE-01 */}
+          <SignatureSettings
+            garageId={garage?.id ?? null}
+            currentSignatureKey={garage?.signatureImageKey ?? null}
             hasBrandingFeature={hasBrandingFeature}
             planName={planName}
           />

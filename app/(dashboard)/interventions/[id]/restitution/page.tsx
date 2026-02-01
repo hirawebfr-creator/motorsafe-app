@@ -2,7 +2,7 @@
 
 /**
  * EVIDENCE-CAPTURE-01: Restitution Page
- * 
+ *
  * Guided wizard for vehicle delivery:
  * 1. Tests de sortie checklist
  * 2. Réserves éventuelles
@@ -12,12 +12,6 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Card } from "@/components/ui/Card";
-import { Button } from "@/components/ui/button";
-// Badge import removed - not used in this page
-import { SectionHeader } from "@/components/ui/SectionHeader";
-import { Loading } from "@/components/common/Loading";
-import { ErrorBanner } from "@/components/common/ErrorBanner";
 import { QRCodeDialog } from "@/components/common/QRCodeDialog";
 import {
   Camera,
@@ -29,11 +23,13 @@ import {
   QrCode,
   RefreshCw,
   Trash2,
-  LogOut,
-  PenTool,
-  X,
   ClipboardCheck,
   FileWarning,
+  Loader2,
+  Mail,
+  Send,
+  ExternalLink,
+  FileText,
 } from "lucide-react";
 
 // Types
@@ -85,6 +81,9 @@ const DELIVERY_PHOTOS = [
   { key: "WORK_DONE", label: "Travaux effectués", description: "Photo des pièces changées / réparations" },
 ];
 
+// Step labels
+const STEP_LABELS = ["Tests", "Réserves", "Photos", "Signature"];
+
 export default function RestitutionPage() {
   const params = useParams();
   const router = useRouter();
@@ -116,6 +115,9 @@ export default function RestitutionPage() {
   // Form state - Step 4: Signature
   const [qrUrl, setQrUrl] = useState<string | null>(null);
   const [signatureStatus, setSignatureStatus] = useState<"pending" | "sent" | "signed">("pending");
+  const [emailSent, setEmailSent] = useState(false);
+  const [signingUrl, setSigningUrl] = useState<string | null>(null);
+  const [clientEmail, setClientEmail] = useState("");
 
   // Load intervention and session
   const fetchData = useCallback(async () => {
@@ -128,24 +130,36 @@ export default function RestitutionPage() {
       const intData = await intRes.json();
       setIntervention(intData.data);
 
-      // Get or create session
-      const sessionRes = await fetch(`/api/interventions/${interventionId}/evidence-session?step=DELIVERY`);
-      if (!sessionRes.ok) {
-        // Create session if not exists
-        const createRes = await fetch(`/api/interventions/${interventionId}/evidence-session`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ step: "DELIVERY" }),
-        });
-        if (!createRes.ok) throw new Error("Erreur création session");
-        const createData = await createRes.json();
-        setSession(createData.data);
-      } else {
-        const sessionData = await sessionRes.json();
-        setSession(sessionData.data);
+      // Get or create session - always try to create first to ensure we have one
+      const createRes = await fetch(`/api/interventions/${interventionId}/evidence-session`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ step: "DELIVERY" }),
+      });
 
-        // Restore form state from session items
-        const items = sessionData.data?.items ?? [];
+      if (!createRes.ok) {
+        const errData = await createRes.json().catch(() => ({}));
+        console.error("Session creation error:", errData);
+        throw new Error("Erreur création session");
+      }
+
+      const createData = await createRes.json();
+      console.log("Session API response:", createData);
+
+      // Extract session from response - API returns { data: { session: {...} } }
+      const sessionObj = createData.data?.session || createData.data;
+      console.log("Extracted session:", sessionObj);
+
+      if (!sessionObj?.id) {
+        console.error("No session ID in response:", createData);
+        throw new Error("Session invalide");
+      }
+
+      setSession(sessionObj);
+
+      // If session already existed, restore form state from existing items
+      if (!createData.data?.created) {
+        const items = sessionObj?.items ?? [];
 
         // Restore form data
         const formItem = items.find((i: EvidenceItem) => i.type === "FORM" && i.category === "DELIVERY_FORM");
@@ -218,43 +232,74 @@ export default function RestitutionPage() {
   // Upload photo
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !session || !activePhotoKey) return;
+    if (!file || !session || !activePhotoKey) {
+      console.log("Upload cancelled - missing:", { file: !!file, session: !!session, activePhotoKey });
+      return;
+    }
 
-    setUploading(activePhotoKey);
-    try {
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const base64 = reader.result as string;
-        const category = `DELIVERY_${activePhotoKey}`;
-        const label = DELIVERY_PHOTOS.find((p) => p.key === activePhotoKey)?.label || activePhotoKey;
+    const currentPhotoKey = activePhotoKey;
+    setUploading(currentPhotoKey);
 
-        const res = await fetch(`/api/interventions/${interventionId}/evidence-items`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            sessionId: session.id,
-            type: "PHOTO",
-            label: `Photo ${label}`,
-            category,
-            contentBase64: base64,
-            fileName: file.name,
-            mime: file.type,
-          }),
-        });
+    console.log("Session state:", session);
+    console.log("Session ID:", session?.id);
 
-        if (!res.ok) {
-          const err = await res.json().catch(() => ({}));
-          throw new Error(err?.error?.message ?? "Erreur upload");
-        }
-
-        await fetchData();
-        setUploading(null);
-        setActivePhotoKey(null);
-      };
-      reader.readAsDataURL(file);
-    } catch (err) {
-      alert(err instanceof Error ? err.message : "Erreur");
+    if (!session?.id) {
+      alert("Session non initialisée. Veuillez rafraîchir la page.");
       setUploading(null);
+      return;
+    }
+
+    try {
+      // Read file as base64
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error("Erreur lecture fichier"));
+        reader.readAsDataURL(file);
+      });
+
+      // Remove the data URL prefix (e.g., "data:image/jpeg;base64,") to get pure base64
+      const base64 = dataUrl.split(",")[1];
+      if (!base64) {
+        throw new Error("Format de fichier invalide");
+      }
+
+      const category = `DELIVERY_${currentPhotoKey}`;
+      const label = DELIVERY_PHOTOS.find((p) => p.key === currentPhotoKey)?.label || currentPhotoKey;
+
+      const res = await fetch(`/api/interventions/${interventionId}/evidence-items`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: session.id,
+          type: "PHOTO",
+          label: `Photo ${label}`,
+          category,
+          contentBase64: base64,
+          fileName: file.name,
+          mime: file.type,
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        console.error("API Error:", res.status, JSON.stringify(errData, null, 2));
+        const details = errData?.error?.details?.fieldErrors || errData?.error?.details || {};
+        console.error("Validation details:", details);
+        throw new Error(errData?.error?.message ?? errData?.message ?? `Erreur upload (${res.status})`);
+      }
+
+      await fetchData();
+    } catch (err) {
+      console.error("Upload error:", err);
+      alert(err instanceof Error ? err.message : "Erreur lors de l'upload");
+    } finally {
+      setUploading(null);
+      setActivePhotoKey(null);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     }
   };
 
@@ -274,7 +319,41 @@ export default function RestitutionPage() {
     }
   };
 
-  // Start signature flow
+  // Start signature flow - send PV by email
+  const sendPvByEmail = async () => {
+    if (!session) return;
+    setSaving(true);
+    try {
+      // Save form data first
+      await saveFormData();
+
+      // Send PV by email
+      const res = await fetch(`/api/interventions/${interventionId}/delivery-pv/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: session.id,
+          clientEmail: clientEmail || undefined, // Override if provided
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error?.message ?? "Erreur envoi email");
+      }
+
+      const data = await res.json();
+      setSigningUrl(data.data?.signingUrl);
+      setEmailSent(true);
+      setSignatureStatus("sent");
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Erreur");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Legacy QR code method (keep for fallback)
   const startSignature = async () => {
     if (!session) return;
     setSaving(true);
@@ -327,110 +406,267 @@ export default function RestitutionPage() {
 
   // Validation
   const checkedItems = Object.values(outtakeChecklist).filter(Boolean).length;
-  const step1Valid = checkedItems >= 4; // At least 4 items checked
+  const step1Valid = true; // Tests are now optional but recommended
   const step2Valid = !hasReservations || reservations.trim().length >= 10;
   const step3Valid = true; // Photos are optional for delivery
   const step4Valid = signatureStatus === "signed";
 
   const canProceed = [step1Valid, step2Valid, step3Valid, step4Valid][step];
 
-  if (loading) return <div className="flex justify-center py-12"><Loading /></div>;
-  if (error) return <ErrorBanner message={error} />;
-  if (!intervention) return <ErrorBanner message="Intervention introuvable" />;
+  // Styles
+  const cardStyle: React.CSSProperties = {
+    background: "#ffffff",
+    borderRadius: "16px",
+    border: "1px solid #e5e7eb",
+    boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
+    overflow: "hidden",
+  };
+
+  const cardHeaderStyle: React.CSSProperties = {
+    padding: "20px 24px",
+    borderBottom: "1px solid #f3f4f6",
+    display: "flex",
+    alignItems: "center",
+    gap: "16px",
+  };
+
+  const cardBodyStyle: React.CSSProperties = {
+    padding: "24px",
+  };
+
+  const primaryButtonStyle: React.CSSProperties = {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "8px",
+    padding: "12px 24px",
+    fontSize: "14px",
+    fontWeight: 600,
+    color: "#ffffff",
+    background: "linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)",
+    border: "none",
+    borderRadius: "12px",
+    cursor: "pointer",
+    transition: "all 0.2s",
+    boxShadow: "0 2px 4px rgba(26, 26, 46, 0.2)",
+  };
+
+  const secondaryButtonStyle: React.CSSProperties = {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "8px",
+    padding: "12px 24px",
+    fontSize: "14px",
+    fontWeight: 600,
+    color: "#374151",
+    background: "#ffffff",
+    border: "2px solid #e5e7eb",
+    borderRadius: "12px",
+    cursor: "pointer",
+    transition: "all 0.2s",
+  };
+
+  const textareaStyle: React.CSSProperties = {
+    width: "100%",
+    minHeight: "120px",
+    padding: "12px 16px",
+    fontSize: "14px",
+    border: "2px solid #e5e7eb",
+    borderRadius: "12px",
+    outline: "none",
+    resize: "vertical",
+    fontFamily: "inherit",
+  };
+
+  if (loading) {
+    return (
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", padding: "48px", minHeight: "400px" }}>
+        <Loader2 size={32} style={{ animation: "spin 1s linear infinite", color: "#1a1a2e" }} />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={{ padding: "24px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "12px", color: "#dc2626" }}>
+        <strong>Erreur:</strong> {error}
+      </div>
+    );
+  }
+
+  if (!intervention) {
+    return (
+      <div style={{ padding: "24px", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "12px", color: "#dc2626" }}>
+        Intervention introuvable
+      </div>
+    );
+  }
 
   const isSigned = session?.status === "SIGNED" || signatureStatus === "signed";
   const photosUploaded = Object.values(photos).filter((p) => p !== null).length;
 
   return (
-    <div className="grid gap-6 max-w-4xl mx-auto ms-animate-slide-up">
-      <SectionHeader
-        title="Restitution véhicule"
-        description={`${intervention.vehicle.plate} — ${intervention.vehicle.brand} ${intervention.vehicle.model}`}
-        level={1}
-        action={
-          <Button variant="secondary" size="sm" onClick={() => router.push(`/interventions/${interventionId}`)}>
-            <ChevronLeft size={16} className="mr-1" />
-            Retour au dossier
-          </Button>
-        }
-      />
+    <div style={{ maxWidth: "900px", margin: "0 auto", padding: "24px", display: "flex", flexDirection: "column", gap: "24px" }}>
+      {/* Header */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "16px" }}>
+        <div>
+          <h1 style={{ fontSize: "24px", fontWeight: 700, color: "#1a1a2e", margin: 0 }}>Restitution véhicule</h1>
+          <p style={{ fontSize: "14px", color: "#6b7280", marginTop: "4px" }}>
+            {intervention.vehicle.plate} — {intervention.vehicle.brand} {intervention.vehicle.model}
+          </p>
+        </div>
+        <button
+          onClick={() => router.push(`/interventions/${interventionId}`)}
+          style={secondaryButtonStyle}
+        >
+          <ChevronLeft size={16} />
+          Retour au dossier
+        </button>
+      </div>
 
       {/* Progress indicator */}
-      <div className="flex items-center justify-between px-4">
-        {["Tests", "Réserves", "Photos", "Signature"].map((label, idx) => (
-          <div key={idx} className="flex items-center">
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px", background: "#ffffff", borderRadius: "16px", border: "1px solid #e5e7eb" }}>
+        {STEP_LABELS.map((label, idx) => (
+          <div key={idx} style={{ display: "flex", alignItems: "center" }}>
             <div
-              className={`flex h-10 w-10 items-center justify-center rounded-full font-semibold transition-all ${
-                idx < step
-                  ? "bg-[var(--ms-success)] text-white"
+              style={{
+                width: "44px",
+                height: "44px",
+                borderRadius: "50%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontWeight: 700,
+                fontSize: "16px",
+                transition: "all 0.3s",
+                ...(idx < step
+                  ? { background: "linear-gradient(135deg, #10b981 0%, #059669 100%)", color: "#ffffff", boxShadow: "0 2px 8px rgba(16, 185, 129, 0.3)" }
                   : idx === step
-                  ? "bg-[var(--ms-primary)] text-white"
-                  : "bg-[var(--ms-bg-subtle)] text-muted2"
-              }`}
+                  ? { background: "linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)", color: "#ffffff", boxShadow: "0 2px 8px rgba(26, 26, 46, 0.3)" }
+                  : { background: "#f3f4f6", color: "#9ca3af" }),
+              }}
             >
-              {idx < step ? <Check size={18} /> : idx + 1}
+              {idx < step ? <Check size={20} /> : idx + 1}
             </div>
-            <span className={`ml-2 hidden sm:inline text-sm ${idx === step ? "font-semibold" : "text-muted2"}`}>
+            <span
+              style={{
+                marginLeft: "12px",
+                fontSize: "14px",
+                fontWeight: idx === step ? 600 : 400,
+                color: idx === step ? "#1a1a2e" : "#9ca3af",
+                display: "none",
+              }}
+              className="step-label"
+            >
               {label}
             </span>
-            {idx < 3 && <div className={`mx-4 h-0.5 w-8 ${idx < step ? "bg-[var(--ms-success)]" : "bg-[var(--ms-border)]"}`} />}
+            {idx < 3 && (
+              <div
+                style={{
+                  width: "40px",
+                  height: "3px",
+                  marginLeft: "16px",
+                  marginRight: "16px",
+                  borderRadius: "2px",
+                  background: idx < step ? "#10b981" : "#e5e7eb",
+                  transition: "background 0.3s",
+                }}
+              />
+            )}
           </div>
         ))}
       </div>
 
       {/* Signed banner */}
       {isSigned && (
-        <div className="rounded-xl bg-[var(--ms-success-light)] border border-[var(--ms-success)] p-4 flex items-center gap-3">
-          <CheckCircle2 size={24} className="text-[var(--ms-success)]" />
+        <div style={{ display: "flex", alignItems: "center", gap: "16px", padding: "20px 24px", background: "#ecfdf5", border: "2px solid #10b981", borderRadius: "16px" }}>
+          <CheckCircle2 size={28} style={{ color: "#10b981" }} />
           <div>
-            <p className="font-semibold text-[var(--ms-success)]">PV de restitution signé</p>
-            <p className="text-sm text-muted2">Le client a accepté l&apos;état de sortie du véhicule.</p>
+            <p style={{ fontWeight: 700, color: "#047857", margin: 0 }}>PV de restitution signé</p>
+            <p style={{ fontSize: "14px", color: "#6b7280", marginTop: "4px" }}>Le client a accepté l&apos;état de sortie du véhicule.</p>
           </div>
         </div>
       )}
 
       {/* Step content */}
-      <Card className="p-0 overflow-hidden">
+      <div style={cardStyle}>
         {/* Step 1: Outtake checklist */}
         {step === 0 && (
           <>
-            <div className="ms-cardHeader flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--ms-success-light)]">
-                <ClipboardCheck size={20} className="text-[var(--ms-success)]" />
+            <div style={cardHeaderStyle}>
+              <div style={{ width: "48px", height: "48px", borderRadius: "12px", background: "linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <ClipboardCheck size={24} style={{ color: "#16a34a" }} />
               </div>
               <div>
-                <h3 className="text-lg font-semibold">Tests de sortie</h3>
-                <p className="text-xs text-muted2">{checkedItems}/{OUTTAKE_ITEMS.length} validés — Minimum 4 requis</p>
+                <h3 style={{ fontSize: "18px", fontWeight: 700, color: "#1a1a2e", margin: 0 }}>Tests de sortie</h3>
+                <p style={{ fontSize: "13px", color: "#6b7280", marginTop: "4px" }}>{checkedItems}/{OUTTAKE_ITEMS.length} validés — Recommandé pour votre protection</p>
               </div>
             </div>
-            <div className="ms-cardBody space-y-3">
+            <div style={{ ...cardBodyStyle, display: "flex", flexDirection: "column", gap: "12px" }}>
               {OUTTAKE_ITEMS.map((item) => (
                 <button
                   key={item.key}
                   type="button"
                   onClick={() => setOuttakeChecklist((prev) => ({ ...prev, [item.key]: !prev[item.key] }))}
                   disabled={isSigned}
-                  className={`w-full flex items-center gap-4 rounded-xl p-4 text-left transition-all ${
-                    outtakeChecklist[item.key]
-                      ? "bg-[var(--ms-success-light)] border-2 border-[var(--ms-success)]"
-                      : "bg-[var(--ms-bg-subtle)] border-2 border-transparent hover:border-[var(--ms-border)]"
-                  }`}
+                  style={{
+                    width: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "16px",
+                    padding: "16px",
+                    borderRadius: "12px",
+                    textAlign: "left",
+                    cursor: isSigned ? "not-allowed" : "pointer",
+                    transition: "all 0.2s",
+                    ...(outtakeChecklist[item.key]
+                      ? { background: "#ecfdf5", border: "2px solid #10b981" }
+                      : { background: "#f9fafb", border: "2px solid transparent" }),
+                  }}
                 >
                   <div
-                    className={`flex h-8 w-8 items-center justify-center rounded-full ${
-                      outtakeChecklist[item.key]
-                        ? "bg-[var(--ms-success)] text-white"
-                        : "bg-[var(--ms-border)]"
-                    }`}
+                    style={{
+                      width: "32px",
+                      height: "32px",
+                      borderRadius: "50%",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                      ...(outtakeChecklist[item.key]
+                        ? { background: "#10b981", color: "#ffffff" }
+                        : { background: "#e5e7eb", color: "#9ca3af" }),
+                    }}
                   >
-                    {outtakeChecklist[item.key] ? <Check size={16} /> : null}
+                    {outtakeChecklist[item.key] && <Check size={16} />}
                   </div>
-                  <div className="flex-1">
-                    <p className="font-medium">{item.label}</p>
-                    <p className="text-sm text-muted2">{item.description}</p>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ fontWeight: 600, color: "#1a1a2e", margin: 0 }}>{item.label}</p>
+                    <p style={{ fontSize: "13px", color: "#6b7280", marginTop: "2px" }}>{item.description}</p>
                   </div>
                 </button>
               ))}
+
+              {/* Warning if not enough tests checked */}
+              {checkedItems < 4 && (
+                <div style={{ marginTop: "8px", padding: "16px 20px", borderRadius: "12px", background: "#fef2f2", border: "1px solid #fecaca" }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
+                    <AlertTriangle size={20} style={{ color: "#dc2626", flexShrink: 0, marginTop: "2px" }} />
+                    <div>
+                      <p style={{ fontWeight: 600, color: "#991b1b", margin: 0 }}>
+                        {checkedItems === 0 ? "Aucun test validé" : `Seulement ${checkedItems} test(s) validé(s)`}
+                      </p>
+                      <p style={{ fontSize: "13px", color: "#b91c1c", marginTop: "6px" }}>
+                        <strong>Risques en cas de litige :</strong> Sans validation des tests de sortie, vous ne pourrez pas prouver que le véhicule fonctionnait correctement lors de la restitution. En cas de réclamation du client (panne, bruit, voyant allumé...), votre responsabilité pourrait être engagée.
+                      </p>
+                      <p style={{ fontSize: "12px", color: "#dc2626", marginTop: "8px" }}>
+                        Nous recommandons fortement de valider au moins 4 tests avant de continuer.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </>
         )}
@@ -438,58 +674,70 @@ export default function RestitutionPage() {
         {/* Step 2: Reservations */}
         {step === 1 && (
           <>
-            <div className="ms-cardHeader flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--ms-warning-light)]">
-                <FileWarning size={20} className="text-[#B45309]" />
+            <div style={cardHeaderStyle}>
+              <div style={{ width: "48px", height: "48px", borderRadius: "12px", background: "linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <FileWarning size={24} style={{ color: "#b45309" }} />
               </div>
               <div>
-                <h3 className="text-lg font-semibold">Réserves éventuelles</h3>
-                <p className="text-xs text-muted2">Signaler les points non résolus ou observations</p>
+                <h3 style={{ fontSize: "18px", fontWeight: 700, color: "#1a1a2e", margin: 0 }}>Réserves éventuelles</h3>
+                <p style={{ fontSize: "13px", color: "#6b7280", marginTop: "4px" }}>Signaler les points non résolus ou observations</p>
               </div>
             </div>
-            <div className="ms-cardBody space-y-4">
-              <div className="flex gap-4">
+            <div style={{ ...cardBodyStyle, display: "flex", flexDirection: "column", gap: "16px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
                 <button
                   type="button"
                   onClick={() => setHasReservations(false)}
                   disabled={isSigned}
-                  className={`flex-1 p-4 rounded-xl text-center transition-all ${
-                    !hasReservations
-                      ? "bg-[var(--ms-success-light)] border-2 border-[var(--ms-success)]"
-                      : "bg-[var(--ms-bg-subtle)] border-2 border-transparent"
-                  }`}
+                  style={{
+                    padding: "24px 16px",
+                    borderRadius: "12px",
+                    textAlign: "center",
+                    cursor: isSigned ? "not-allowed" : "pointer",
+                    transition: "all 0.2s",
+                    ...(!hasReservations
+                      ? { background: "#ecfdf5", border: "3px solid #10b981" }
+                      : { background: "#f9fafb", border: "2px solid transparent" }),
+                  }}
                 >
-                  <CheckCircle2 size={32} className={`mx-auto mb-2 ${!hasReservations ? "text-[var(--ms-success)]" : "text-muted2"}`} />
-                  <p className="font-semibold">Aucune réserve</p>
-                  <p className="text-sm text-muted2">Travaux conformes</p>
+                  <CheckCircle2 size={40} style={{ margin: "0 auto 12px", color: !hasReservations ? "#10b981" : "#9ca3af" }} />
+                  <p style={{ fontWeight: 700, color: "#1a1a2e", margin: 0 }}>Aucune réserve</p>
+                  <p style={{ fontSize: "13px", color: "#6b7280", marginTop: "4px" }}>Travaux conformes</p>
                 </button>
                 <button
                   type="button"
                   onClick={() => setHasReservations(true)}
                   disabled={isSigned}
-                  className={`flex-1 p-4 rounded-xl text-center transition-all ${
-                    hasReservations
-                      ? "bg-[var(--ms-warning-light)] border-2 border-[var(--ms-warning)]"
-                      : "bg-[var(--ms-bg-subtle)] border-2 border-transparent"
-                  }`}
+                  style={{
+                    padding: "24px 16px",
+                    borderRadius: "12px",
+                    textAlign: "center",
+                    cursor: isSigned ? "not-allowed" : "pointer",
+                    transition: "all 0.2s",
+                    ...(hasReservations
+                      ? { background: "#fffbeb", border: "3px solid #f59e0b" }
+                      : { background: "#f9fafb", border: "2px solid transparent" }),
+                  }}
                 >
-                  <AlertTriangle size={32} className={`mx-auto mb-2 ${hasReservations ? "text-[#B45309]" : "text-muted2"}`} />
-                  <p className="font-semibold">Réserves</p>
-                  <p className="text-sm text-muted2">Points à signaler</p>
+                  <AlertTriangle size={40} style={{ margin: "0 auto 12px", color: hasReservations ? "#f59e0b" : "#9ca3af" }} />
+                  <p style={{ fontWeight: 700, color: "#1a1a2e", margin: 0 }}>Réserves</p>
+                  <p style={{ fontSize: "13px", color: "#6b7280", marginTop: "4px" }}>Points à signaler</p>
                 </button>
               </div>
               {hasReservations && (
                 <div>
-                  <label className="block text-sm font-medium mb-2">Détail des réserves *</label>
+                  <label style={{ display: "block", fontSize: "14px", fontWeight: 600, marginBottom: "8px", color: "#374151" }}>
+                    Détail des réserves *
+                  </label>
                   <textarea
                     value={reservations}
                     onChange={(e) => setReservations(e.target.value)}
-                    className="ms-input w-full min-h-[120px]"
+                    style={textareaStyle}
                     placeholder="Décrivez les points non résolus, travaux à prévoir, observations importantes..."
                     disabled={isSigned}
                   />
                   {reservations.length < 10 && (
-                    <p className="text-sm text-[var(--ms-warning)] mt-1">
+                    <p style={{ fontSize: "13px", color: "#f59e0b", marginTop: "8px" }}>
                       Minimum 10 caractères requis
                     </p>
                   )}
@@ -502,41 +750,43 @@ export default function RestitutionPage() {
         {/* Step 3: Photos */}
         {step === 2 && (
           <>
-            <div className="ms-cardHeader flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--ms-accent-light)]">
-                <Camera size={20} className="text-[var(--ms-accent)]" />
+            <div style={cardHeaderStyle}>
+              <div style={{ width: "48px", height: "48px", borderRadius: "12px", background: "linear-gradient(135deg, #ede9fe 0%, #ddd6fe 100%)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Camera size={24} style={{ color: "#7c3aed" }} />
               </div>
               <div>
-                <h3 className="text-lg font-semibold">Photos sortie (optionnel)</h3>
-                <p className="text-xs text-muted2">{photosUploaded} photo(s) ajoutée(s)</p>
+                <h3 style={{ fontSize: "18px", fontWeight: 700, color: "#1a1a2e", margin: 0 }}>Photos sortie (optionnel)</h3>
+                <p style={{ fontSize: "13px", color: "#6b7280", marginTop: "4px" }}>{photosUploaded} photo(s) ajoutée(s)</p>
               </div>
             </div>
-            <div className="ms-cardBody">
-              <div className="grid grid-cols-2 gap-4">
+            <div style={cardBodyStyle}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "16px" }}>
                 {DELIVERY_PHOTOS.map((photo) => {
                   const item = photos[photo.key];
                   const isUploading = uploading === photo.key;
 
                   return (
-                    <div key={photo.key} className="relative">
+                    <div key={photo.key} style={{ position: "relative" }}>
                       {item ? (
-                        <div className="rounded-xl border border-[var(--ms-success)] overflow-hidden">
-                          <div className="aspect-video bg-[var(--ms-bg-subtle)] relative">
+                        <div style={{ borderRadius: "12px", border: "2px solid #10b981", overflow: "hidden" }}>
+                          <div style={{ aspectRatio: "16/10", background: "#f3f4f6", position: "relative" }}>
                             <img
                               src={item.storageKey ? `/api/uploads/file/${item.storageKey}` : ""}
                               alt={photo.label}
-                              className="w-full h-full object-cover"
+                              style={{ width: "100%", height: "100%", objectFit: "cover" }}
                             />
                             {!isSigned && (
                               <button
                                 onClick={() => deletePhoto(item.id, photo.key)}
-                                className="absolute bottom-2 right-2 p-2 rounded-lg bg-white/90 text-[var(--ms-error)] hover:bg-[var(--ms-error)] hover:text-white"
+                                style={{ position: "absolute", bottom: "8px", right: "8px", padding: "8px", borderRadius: "8px", background: "rgba(255,255,255,0.9)", color: "#dc2626", border: "none", cursor: "pointer" }}
                               >
                                 <Trash2 size={16} />
                               </button>
                             )}
                           </div>
-                          <div className="p-2 text-center text-sm font-medium">{photo.label}</div>
+                          <div style={{ padding: "8px", textAlign: "center", fontSize: "13px", fontWeight: 600, color: "#374151" }}>
+                            {photo.label}
+                          </div>
                         </div>
                       ) : (
                         <button
@@ -545,14 +795,27 @@ export default function RestitutionPage() {
                             fileInputRef.current?.click();
                           }}
                           disabled={isSigned || isUploading}
-                          className="w-full aspect-video rounded-xl border-2 border-dashed border-[var(--ms-border)] flex flex-col items-center justify-center gap-2 hover:border-[var(--ms-primary)] hover:bg-[var(--ms-primary-light)] transition-all"
+                          style={{
+                            width: "100%",
+                            aspectRatio: "16/10",
+                            borderRadius: "12px",
+                            border: "2px dashed #d1d5db",
+                            background: "#f9fafb",
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: "8px",
+                            cursor: isSigned || isUploading ? "not-allowed" : "pointer",
+                            transition: "all 0.2s",
+                          }}
                         >
                           {isUploading ? (
-                            <RefreshCw size={24} className="animate-spin text-[var(--ms-primary)]" />
+                            <RefreshCw size={24} style={{ animation: "spin 1s linear infinite", color: "#7c3aed" }} />
                           ) : (
                             <>
-                              <Camera size={24} className="text-muted2" />
-                              <span className="text-sm font-medium">{photo.label}</span>
+                              <Camera size={24} style={{ color: "#9ca3af" }} />
+                              <span style={{ fontSize: "13px", fontWeight: 600, color: "#374151" }}>{photo.label}</span>
                             </>
                           )}
                         </button>
@@ -566,7 +829,7 @@ export default function RestitutionPage() {
                 type="file"
                 accept="image/*"
                 capture="environment"
-                className="hidden"
+                style={{ display: "none" }}
                 onChange={handlePhotoUpload}
               />
             </div>
@@ -576,107 +839,229 @@ export default function RestitutionPage() {
         {/* Step 4: Signature */}
         {step === 3 && (
           <>
-            <div className="ms-cardHeader flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--ms-success-light)]">
-                <PenTool size={20} className="text-[var(--ms-success)]" />
+            <div style={cardHeaderStyle}>
+              <div style={{ width: "48px", height: "48px", borderRadius: "12px", background: "linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Mail size={24} style={{ color: "#16a34a" }} />
               </div>
               <div>
-                <h3 className="text-lg font-semibold">Signature PV restitution</h3>
-                <p className="text-xs text-muted2">Le client signe pour accepter la restitution</p>
+                <h3 style={{ fontSize: "18px", fontWeight: 700, color: "#1a1a2e", margin: 0 }}>Envoi PV de restitution</h3>
+                <p style={{ fontSize: "13px", color: "#6b7280", marginTop: "4px" }}>Le client recevra un email professionnel avec le PV complet</p>
               </div>
             </div>
-            <div className="ms-cardBody">
+            <div style={cardBodyStyle}>
               {signatureStatus === "signed" || isSigned ? (
-                <div className="text-center py-8">
-                  <CheckCircle2 size={64} className="mx-auto text-[var(--ms-success)] mb-4" />
-                  <h4 className="text-xl font-bold text-[var(--ms-success)]">PV signé avec succès !</h4>
-                  <p className="text-muted2 mt-2">
+                <div style={{ textAlign: "center", padding: "32px 0" }}>
+                  <CheckCircle2 size={64} style={{ color: "#10b981", margin: "0 auto 16px" }} />
+                  <h4 style={{ fontSize: "20px", fontWeight: 700, color: "#10b981", margin: 0 }}>PV signé avec succès !</h4>
+                  <p style={{ color: "#6b7280", marginTop: "8px" }}>
                     Le véhicule a été officiellement restitué au client.
                   </p>
-                  <div className="mt-6">
-                    <Button onClick={() => router.push(`/interventions/${interventionId}`)}>
-                      <Check size={16} className="mr-1" />
+                  <div style={{ marginTop: "24px", display: "flex", gap: "12px", justifyContent: "center", flexWrap: "wrap" }}>
+                    <a
+                      href={`/api/interventions/${interventionId}/delivery-pv/pdf?sessionId=${session?.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ ...secondaryButtonStyle, textDecoration: "none" }}
+                    >
+                      <FileText size={16} />
+                      Télécharger le PDF
+                    </a>
+                    <button
+                      onClick={() => router.push(`/interventions/${interventionId}`)}
+                      style={primaryButtonStyle}
+                    >
+                      <Check size={16} />
                       Retour au dossier
-                    </Button>
+                    </button>
                   </div>
                 </div>
-              ) : signatureStatus === "sent" ? (
-                <div className="text-center py-8">
-                  <QrCode size={64} className="mx-auto text-[var(--ms-primary)] mb-4" />
-                  <h4 className="text-xl font-bold">En attente de signature</h4>
-                  <p className="text-muted2 mt-2">
-                    Présentez le QR code au client.
+              ) : emailSent || signatureStatus === "sent" ? (
+                <div style={{ textAlign: "center", padding: "32px 0" }}>
+                  <div style={{ width: "80px", height: "80px", borderRadius: "50%", background: "linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%)", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+                    <Send size={36} style={{ color: "#2563eb" }} />
+                  </div>
+                  <h4 style={{ fontSize: "20px", fontWeight: 700, color: "#1a1a2e", margin: 0 }}>Email envoyé !</h4>
+                  <p style={{ color: "#6b7280", marginTop: "8px", maxWidth: "400px", margin: "8px auto 0" }}>
+                    Le client a reçu un email avec le PV complet et un lien de signature sécurisé.
                   </p>
-                  <div className="mt-4 flex justify-center gap-4">
-                    <Button variant="secondary" onClick={() => setQrUrl(qrUrl)}>
-                      <QrCode size={16} className="mr-1" />
-                      Afficher QR code
-                    </Button>
-                    <Button variant="ghost" onClick={() => setSignatureStatus("pending")}>
-                      <X size={16} className="mr-1" />
-                      Annuler
-                    </Button>
+
+                  {/* Email details */}
+                  <div style={{ marginTop: "24px", maxWidth: "400px", margin: "24px auto 0", background: "#f0fdf4", borderRadius: "12px", padding: "16px", border: "1px solid #bbf7d0" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+                      <Mail size={16} style={{ color: "#16a34a" }} />
+                      <span style={{ fontSize: "14px", fontWeight: 600, color: "#166534" }}>Email envoyé au client</span>
+                    </div>
+                    <p style={{ fontSize: "13px", color: "#15803d", margin: 0 }}>
+                      Le PDF inclut : logo garage, SIRET, coordonnées, photos, tests, et réserves.
+                    </p>
                   </div>
-                  <div className="mt-4 flex items-center justify-center gap-2 text-sm text-muted2">
-                    <RefreshCw size={14} className="animate-spin" />
-                    Vérification automatique...
+
+                  <div style={{ marginTop: "20px", display: "flex", justifyContent: "center", gap: "12px", flexWrap: "wrap" }}>
+                    {signingUrl && (
+                      <a
+                        href={signingUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ ...secondaryButtonStyle, textDecoration: "none" }}
+                      >
+                        <ExternalLink size={16} />
+                        Ouvrir le lien signature
+                      </a>
+                    )}
+                    <a
+                      href={`/api/interventions/${interventionId}/delivery-pv/pdf?sessionId=${session?.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ ...secondaryButtonStyle, textDecoration: "none" }}
+                    >
+                      <FileText size={16} />
+                      Voir le PDF
+                    </a>
                   </div>
+
+                  <div style={{ marginTop: "20px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", fontSize: "13px", color: "#6b7280" }}>
+                    <RefreshCw size={14} style={{ animation: "spin 1s linear infinite" }} />
+                    Vérification automatique de la signature...
+                  </div>
+
+                  <button
+                    onClick={() => { setSignatureStatus("pending"); setEmailSent(false); }}
+                    style={{ marginTop: "16px", background: "transparent", border: "none", color: "#6b7280", cursor: "pointer", fontSize: "13px", textDecoration: "underline" }}
+                  >
+                    Renvoyer l&apos;email
+                  </button>
                 </div>
               ) : (
-                <div className="text-center py-8">
-                  <LogOut size={64} className="mx-auto text-muted2 mb-4" />
-                  <h4 className="text-xl font-bold">Récapitulatif sortie</h4>
-                  <div className="mt-4 text-left max-w-md mx-auto bg-[var(--ms-bg-subtle)] rounded-xl p-4 space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-muted2">Tests validés</span>
-                      <span className="font-semibold">{checkedItems}/{OUTTAKE_ITEMS.length}</span>
+                <div style={{ padding: "16px 0" }}>
+                  {/* Summary */}
+                  <div style={{ maxWidth: "500px", margin: "0 auto" }}>
+                    <h4 style={{ fontSize: "16px", fontWeight: 600, color: "#1a1a2e", margin: "0 0 16px", textAlign: "center" }}>
+                      Récapitulatif du PV
+                    </h4>
+
+                    <div style={{ background: "#f9fafb", borderRadius: "12px", padding: "16px", marginBottom: "20px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid #e5e7eb" }}>
+                        <span style={{ color: "#6b7280" }}>Véhicule</span>
+                        <span style={{ fontWeight: 600, color: "#1a1a2e" }}>{intervention?.vehicle?.brand} {intervention?.vehicle?.model}</span>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid #e5e7eb" }}>
+                        <span style={{ color: "#6b7280" }}>Immatriculation</span>
+                        <span style={{ fontWeight: 600, color: "#1a1a2e" }}>{intervention?.vehicle?.plate}</span>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid #e5e7eb" }}>
+                        <span style={{ color: "#6b7280" }}>Tests validés</span>
+                        <span style={{ fontWeight: 600, color: checkedItems >= 4 ? "#10b981" : "#f59e0b" }}>{checkedItems}/{OUTTAKE_ITEMS.length}</span>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid #e5e7eb" }}>
+                        <span style={{ color: "#6b7280" }}>Réserves</span>
+                        <span style={{ fontWeight: 600, color: hasReservations ? "#f59e0b" : "#10b981" }}>
+                          {hasReservations ? "Signalées" : "Aucune"}
+                        </span>
+                      </div>
+                      <div style={{ display: "flex", justifyContent: "space-between", padding: "10px 0" }}>
+                        <span style={{ color: "#6b7280" }}>Photos jointes</span>
+                        <span style={{ fontWeight: 600, color: "#1a1a2e" }}>{photosUploaded} photo(s)</span>
+                      </div>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted2">Réserves</span>
-                      <span className={`font-semibold ${hasReservations ? "text-[var(--ms-warning)]" : "text-[var(--ms-success)]"}`}>
-                        {hasReservations ? "Oui" : "Aucune"}
-                      </span>
+
+                    {hasReservations && reservations && (
+                      <div style={{ marginBottom: "20px", padding: "16px", borderRadius: "12px", background: "#fffbeb", border: "1px solid #fcd34d" }}>
+                        <p style={{ fontSize: "13px", fontWeight: 600, color: "#b45309", marginBottom: "4px" }}>Réserves signalées :</p>
+                        <p style={{ fontSize: "13px", color: "#92400e", margin: 0 }}>{reservations}</p>
+                      </div>
+                    )}
+
+                    {/* Email preview */}
+                    <div style={{ background: "linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)", borderRadius: "12px", padding: "20px", color: "#fff", marginBottom: "20px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px" }}>
+                        <Mail size={20} style={{ color: "#4ade80" }} />
+                        <span style={{ fontSize: "14px", fontWeight: 600, color: "#4ade80" }}>Email professionnel</span>
+                      </div>
+                      <p style={{ fontSize: "13px", color: "#94a3b8", margin: 0, lineHeight: "1.6" }}>
+                        Le client recevra un email professionnel contenant :<br />
+                        • Logo et coordonnées du garage<br />
+                        • Récapitulatif des tests et réserves<br />
+                        • Photos de sortie<br />
+                        • Lien de signature sécurisé (7 jours)<br />
+                        • PDF complet en pièce jointe
+                      </p>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted2">Photos sortie</span>
-                      <span className="font-semibold">{photosUploaded}</span>
+
+                    {/* Optional: Override email */}
+                    <div style={{ marginBottom: "20px" }}>
+                      <label style={{ display: "block", fontSize: "13px", fontWeight: 500, color: "#374151", marginBottom: "6px" }}>
+                        Email du client (optionnel - pour modifier)
+                      </label>
+                      <input
+                        type="email"
+                        value={clientEmail}
+                        onChange={(e) => setClientEmail(e.target.value)}
+                        placeholder="Laisser vide pour utiliser l'email du dossier"
+                        style={{
+                          width: "100%",
+                          padding: "12px 16px",
+                          borderRadius: "8px",
+                          border: "1px solid #d1d5db",
+                          fontSize: "14px",
+                          boxSizing: "border-box",
+                        }}
+                      />
                     </div>
-                  </div>
-                  {hasReservations && reservations && (
-                    <div className="mt-4 text-left max-w-md mx-auto bg-[var(--ms-warning-light)] rounded-xl p-4">
-                      <p className="text-sm font-medium text-[#B45309] mb-1">Réserves signalées :</p>
-                      <p className="text-sm">{reservations}</p>
+
+                    {/* Send button */}
+                    <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
+                      <button
+                        onClick={sendPvByEmail}
+                        disabled={saving}
+                        style={saving ? { ...primaryButtonStyle, opacity: 0.6, cursor: "not-allowed" } : primaryButtonStyle}
+                      >
+                        {saving ? (
+                          <RefreshCw size={16} style={{ animation: "spin 1s linear infinite" }} />
+                        ) : (
+                          <Send size={16} />
+                        )}
+                        Envoyer le PV par email
+                      </button>
                     </div>
-                  )}
-                  <div className="mt-6">
-                    <Button onClick={startSignature} disabled={saving}>
-                      {saving ? (
-                        <RefreshCw size={16} className="mr-1 animate-spin" />
-                      ) : (
-                        <QrCode size={16} className="mr-1" />
-                      )}
-                      Générer QR code signature
-                    </Button>
+
+                    {/* Alternative: QR code */}
+                    <div style={{ marginTop: "16px", textAlign: "center" }}>
+                      <button
+                        onClick={startSignature}
+                        disabled={saving}
+                        style={{ background: "transparent", border: "none", color: "#6b7280", cursor: "pointer", fontSize: "13px", textDecoration: "underline" }}
+                      >
+                        <QrCode size={14} style={{ marginRight: "4px", verticalAlign: "middle" }} />
+                        Ou utiliser un QR code (signature en personne)
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
             </div>
           </>
         )}
-      </Card>
+      </div>
 
       {/* Navigation */}
       {!isSigned && (
-        <div className="flex justify-between">
-          <Button
-            variant="secondary"
+        <div style={{ display: "flex", justifyContent: "space-between", gap: "16px" }}>
+          <button
+            type="button"
             onClick={() => setStep((s) => Math.max(0, s - 1))}
             disabled={step === 0}
+            style={{
+              ...secondaryButtonStyle,
+              opacity: step === 0 ? 0.5 : 1,
+              cursor: step === 0 ? "not-allowed" : "pointer",
+              pointerEvents: step === 0 ? "none" : "auto",
+            }}
           >
-            <ChevronLeft size={16} className="mr-1" />
+            <ChevronLeft size={18} />
             Précédent
-          </Button>
-          <Button
+          </button>
+          <button
+            type="button"
             onClick={async () => {
               if (step === 0 || step === 1) {
                 await saveFormData();
@@ -684,21 +1069,38 @@ export default function RestitutionPage() {
               setStep((s) => Math.min(3, s + 1));
             }}
             disabled={!canProceed || step === 3}
+            style={{
+              ...primaryButtonStyle,
+              opacity: (!canProceed || step === 3) ? 0.5 : 1,
+              cursor: (!canProceed || step === 3) ? "not-allowed" : "pointer",
+              pointerEvents: (!canProceed || step === 3) ? "none" : "auto",
+            }}
           >
             {saving ? (
-              <RefreshCw size={16} className="mr-1 animate-spin" />
+              <RefreshCw size={16} style={{ animation: "spin 1s linear infinite" }} />
             ) : (
               <>
                 Suivant
-                <ChevronRight size={16} className="ml-1" />
+                <ChevronRight size={18} />
               </>
             )}
-          </Button>
+          </button>
         </div>
       )}
 
       {/* QR Code Dialog */}
       {qrUrl && <QRCodeDialog url={qrUrl} onClose={() => setQrUrl(null)} />}
+
+      {/* CSS for spin animation */}
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        @media (min-width: 640px) {
+          .step-label { display: inline !important; }
+        }
+      `}</style>
     </div>
   );
 }

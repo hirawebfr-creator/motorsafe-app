@@ -24,6 +24,7 @@ export default async function ParametresPage() {
           siret: true,
           status: true,
           logoKey: true,
+          signatureImageKey: true,
           plan: true,
         },
       });
