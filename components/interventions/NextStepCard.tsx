@@ -183,7 +183,7 @@ export function getNextStep(data: {
       step: "or",
       title: "Ordre de Reparation",
       description: "Generez l'ordre de reparation pour officialiser les travaux a effectuer.",
-      href: `/interventions/${interventionId}?action=or`,
+      href: `/interventions/${interventionId}/or?create=true`,
       buttonLabel: "Generer l'OR",
       icon: <FileText size={20} />,
     };

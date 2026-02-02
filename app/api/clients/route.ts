@@ -110,18 +110,64 @@ export async function GET(req: Request) {
       ...(user.role === "ADMIN" ? {} : { garageId: user.garageId ?? -1 }),
     };
 
+    // Si recherche: on doit charger plus de clients puis filtrer après déchiffrement
+    // car les données sont chiffrées et ne peuvent pas être recherchées via SQL
     if (effectiveQuery) {
-      baseWhere.OR = [
-        { firstName: { contains: effectiveQuery, mode: "insensitive" } },
-        { lastName: { contains: effectiveQuery, mode: "insensitive" } },
-        { email: { contains: effectiveQuery, mode: "insensitive" } },
-        { phone: { contains: effectiveQuery, mode: "insensitive" } },
-        { vehicles: { some: { plate: { contains: effectiveQuery, mode: "insensitive" } } } },
-        { vehicles: { some: { brand: { contains: effectiveQuery, mode: "insensitive" } } } },
-        { vehicles: { some: { model: { contains: effectiveQuery, mode: "insensitive" } } } },
-      ];
+      // D'abord, essayer de rechercher par les champs non-chiffrés (véhicules)
+      const vehicleMatches = await prisma.vehicle.findMany({
+        where: {
+          deletedAt: null,
+          OR: [
+            { plate: { contains: effectiveQuery, mode: "insensitive" } },
+            { brand: { contains: effectiveQuery, mode: "insensitive" } },
+            { model: { contains: effectiveQuery, mode: "insensitive" } },
+          ],
+        },
+        select: { clientId: true },
+        take: 100,
+      });
+      const vehicleClientIds = [...new Set(vehicleMatches.map(v => v.clientId))];
+
+      // Charger les clients potentiels (limiter pour les performances)
+      const rawCandidates = await prisma.client.findMany({
+        where: baseWhere,
+        orderBy: [{ lastName: "asc" }, { firstName: "asc" }, { id: "desc" }],
+        take: 500, // Limite de sécurité
+        include: { garage: { select: { id: true, name: true } } },
+      });
+
+      // Déchiffrer et filtrer
+      const decrypted = decryptClients(rawCandidates as Record<string, unknown>[]);
+      const query = effectiveQuery.toLowerCase();
+      const filtered = decrypted.filter((client: any) => {
+        // Vérifier si le client a un véhicule qui correspond
+        if (vehicleClientIds.includes(client.id)) return true;
+
+        // Vérifier les champs texte déchiffrés
+        const firstName = (client.firstName || "").toLowerCase();
+        const lastName = (client.lastName || "").toLowerCase();
+        const email = (client.email || "").toLowerCase();
+        const phone = (client.phone || "").replace(/\s/g, "").toLowerCase();
+        const fullName = `${firstName} ${lastName}`;
+
+        return (
+          firstName.includes(query) ||
+          lastName.includes(query) ||
+          fullName.includes(query) ||
+          email.includes(query) ||
+          phone.includes(query)
+        );
+      });
+
+      // Paginer les résultats filtrés
+      const total = filtered.length;
+      const start = (page - 1) * effectivePageSize;
+      const items = filtered.slice(start, start + effectivePageSize);
+
+      return NextResponse.json(success({ items, clients: items, page, pageSize: effectivePageSize, total }));
     }
 
+    // Sans recherche: pagination normale
     const [total, rawItems] = await Promise.all([
       prisma.client.count({ where: baseWhere }),
       prisma.client.findMany({

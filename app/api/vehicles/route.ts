@@ -57,14 +57,14 @@ export async function GET(req: Request) {
       ...(clientId ? { clientId } : {}),
     };
 
+    // Recherche par champs véhicule non-chiffrés uniquement
+    // (les noms clients sont chiffrés et ne peuvent pas être recherchés via SQL)
     if (effectiveQuery) {
       baseWhere.OR = [
         { plate: { contains: effectiveQuery, mode: "insensitive" } },
         { brand: { contains: effectiveQuery, mode: "insensitive" } },
         { model: { contains: effectiveQuery, mode: "insensitive" } },
         { vin: { contains: effectiveQuery, mode: "insensitive" } },
-        { client: { firstName: { contains: effectiveQuery, mode: "insensitive" } } },
-        { client: { lastName: { contains: effectiveQuery, mode: "insensitive" } } },
       ];
     }
 
