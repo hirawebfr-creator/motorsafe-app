@@ -25,6 +25,7 @@ import {
   Calendar,
   HelpCircle,
   Zap,
+  FolderOpen,
   type LucideIcon,
 } from "lucide-react";
 
@@ -65,6 +66,7 @@ export const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, group: "main" },
 
   // ===== GESTION - Coeur de métier =====
+  { label: "Dossiers", href: "/dossiers", icon: FolderOpen, group: "gestion", isNew: true },
   { label: "Clients", href: "/clients", icon: Users, group: "gestion" },
   { label: "Véhicules", href: "/vehicules", icon: Car, group: "gestion" },
   { label: "Interventions", href: "/interventions", icon: Wrench, group: "gestion" },

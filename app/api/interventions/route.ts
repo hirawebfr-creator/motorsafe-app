@@ -40,6 +40,7 @@ const QuerySchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
   q: z.string().trim().max(120).optional(),
   vehicleId: z.string().trim().min(1).optional(),
+  clientId: z.string().trim().min(1).optional(),
   status: z.string().optional().transform(val => {
     if (!val) return undefined;
     const mapped = STATUS_FR_TO_EN[val] || val;
@@ -75,6 +76,7 @@ export async function GET(req: Request) {
       pageSize: url.searchParams.get("pageSize") ?? undefined,
       q: url.searchParams.get("q") ?? undefined,
       vehicleId: url.searchParams.get("vehicleId") ?? undefined,
+      clientId: url.searchParams.get("clientId") ?? undefined,
       status: url.searchParams.get("status") ?? undefined,
       from: url.searchParams.get("from") ?? undefined,
       to: url.searchParams.get("to") ?? undefined,
@@ -87,13 +89,14 @@ export async function GET(req: Request) {
       );
     }
 
-    const { page, pageSize, q, vehicleId, status, from, to } = parsed.data;
+    const { page, pageSize, q, vehicleId, clientId, status, from, to } = parsed.data;
     const query = (q ?? "").trim();
 
     const where: any = {
       deletedAt: null,
       ...(user.role === "ADMIN" ? {} : { garageId: user.garageId ?? -1 }),
       ...(vehicleId ? { vehicleId } : {}),
+      ...(clientId ? { vehicle: { clientId } } : {}),
       ...(status ? { status } : {}),
       ...(query
         ? {

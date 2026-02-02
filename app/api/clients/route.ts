@@ -12,7 +12,9 @@ export const dynamic = "force-dynamic";
 const QuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
   q: z.string().trim().min(1).max(120).optional(),
+  search: z.string().trim().min(1).max(120).optional(),
 });
 
 const CreateSchema = z.union([
@@ -88,7 +90,9 @@ export async function GET(req: Request) {
     const parsed = QuerySchema.safeParse({
       page: getNonEmpty("page"),
       pageSize: getNonEmpty("pageSize"),
+      limit: getNonEmpty("limit"),
       q: getNonEmpty("q"),
+      search: getNonEmpty("search"),
     });
     if (!parsed.success) {
       return NextResponse.json(
@@ -97,22 +101,24 @@ export async function GET(req: Request) {
       );
     }
 
-    const { page, pageSize, q } = parsed.data;
+    const { page, pageSize, limit, q, search } = parsed.data;
+    const effectivePageSize = limit || pageSize;
+    const effectiveQuery = search || q;
 
     const baseWhere: any = {
       deletedAt: null,
       ...(user.role === "ADMIN" ? {} : { garageId: user.garageId ?? -1 }),
     };
 
-    if (q) {
+    if (effectiveQuery) {
       baseWhere.OR = [
-        { firstName: { contains: q, mode: "insensitive" } },
-        { lastName: { contains: q, mode: "insensitive" } },
-        { email: { contains: q, mode: "insensitive" } },
-        { phone: { contains: q, mode: "insensitive" } },
-        { vehicles: { some: { plate: { contains: q, mode: "insensitive" } } } },
-        { vehicles: { some: { brand: { contains: q, mode: "insensitive" } } } },
-        { vehicles: { some: { model: { contains: q, mode: "insensitive" } } } },
+        { firstName: { contains: effectiveQuery, mode: "insensitive" } },
+        { lastName: { contains: effectiveQuery, mode: "insensitive" } },
+        { email: { contains: effectiveQuery, mode: "insensitive" } },
+        { phone: { contains: effectiveQuery, mode: "insensitive" } },
+        { vehicles: { some: { plate: { contains: effectiveQuery, mode: "insensitive" } } } },
+        { vehicles: { some: { brand: { contains: effectiveQuery, mode: "insensitive" } } } },
+        { vehicles: { some: { model: { contains: effectiveQuery, mode: "insensitive" } } } },
       ];
     }
 
@@ -121,8 +127,8 @@ export async function GET(req: Request) {
       prisma.client.findMany({
         where: baseWhere,
         orderBy: [{ lastName: "asc" }, { firstName: "asc" }, { id: "desc" }],
-        skip: (page - 1) * pageSize,
-        take: pageSize,
+        skip: (page - 1) * effectivePageSize,
+        take: effectivePageSize,
         include: { garage: { select: { id: true, name: true } } },
       }),
     ]);
@@ -130,7 +136,8 @@ export async function GET(req: Request) {
     // Décrypter les données sensibles avant de retourner
     const items = decryptClients(rawItems as Record<string, unknown>[]);
 
-    return NextResponse.json(success({ items, page, pageSize, total }));
+    // Return with both formats for compatibility
+    return NextResponse.json(success({ items, clients: items, page, pageSize: effectivePageSize, total }));
   } catch (err) {
     console.error("Erreur API GET /api/clients :", err);
     return toErrorResponse(err);
