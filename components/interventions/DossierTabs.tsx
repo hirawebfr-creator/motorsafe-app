@@ -173,7 +173,7 @@ export function DossierTabs({
     WebkitOverflowScrolling: "touch",
   };
 
-  const tabStyle = (isActive: boolean, status?: "completed" | "in_progress" | "pending"): React.CSSProperties => ({
+  const tabStyle = (isActive: boolean): React.CSSProperties => ({
     display: "flex",
     alignItems: "center",
     gap: compact ? "4px" : "8px",
@@ -654,7 +654,7 @@ export function DossierTabs({
             <button
               key={tab.id}
               onClick={() => onTabChange(tab.id)}
-              style={tabStyle(isActive, tab.status)}
+              style={tabStyle(isActive)}
             >
               <TabIcon size={compact ? 14 : 16} />
               {!compact && <span>{tab.label}</span>}
