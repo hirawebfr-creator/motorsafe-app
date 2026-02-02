@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Shield, Mail, Lock, ArrowRight, Sparkles, Check, AlertCircle } from "lucide-react";
+import { Shield, Mail, Lock, ArrowRight, Sparkles, Check, AlertCircle, Eye, EyeOff } from "lucide-react";
 
 // ============================================================================
 // LOGIN PAGE - SafeMotor
@@ -54,6 +54,8 @@ function LoginContent() {
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [globalError, setGlobalError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
 
   // Check for OAuth errors in URL
   useEffect(() => {
@@ -91,7 +93,7 @@ function LoginContent() {
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({ ...formData, rememberMe }),
       });
 
       const data = await response.json();
@@ -448,7 +450,7 @@ function LoginContent() {
             </div>
 
             {/* Password */}
-            <div style={{ marginBottom: "8px" }}>
+            <div style={{ marginBottom: "16px" }}>
               <label
                 style={{
                   display: "block",
@@ -467,7 +469,7 @@ function LoginContent() {
                   style={{ position: "absolute", left: "14px", top: "50%", transform: "translateY(-50%)" }}
                 />
                 <input
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
@@ -476,7 +478,7 @@ function LoginContent() {
                     width: "100%",
                     height: "48px",
                     paddingLeft: "44px",
-                    paddingRight: "16px",
+                    paddingRight: "48px",
                     borderRadius: "12px",
                     border: errors.password ? "1px solid #EF4444" : "1px solid #E5E7EB",
                     fontSize: "15px",
@@ -487,14 +489,61 @@ function LoginContent() {
                   onFocus={(e) => (e.currentTarget.style.borderColor = "#6366F1")}
                   onBlur={(e) => (e.currentTarget.style.borderColor = errors.password ? "#EF4444" : "#E5E7EB")}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{
+                    position: "absolute",
+                    right: "12px",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    padding: "4px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                  tabIndex={-1}
+                >
+                  {showPassword ? (
+                    <EyeOff size={18} color="#9CA3AF" />
+                  ) : (
+                    <Eye size={18} color="#9CA3AF" />
+                  )}
+                </button>
               </div>
               {errors.password && (
                 <p style={{ fontSize: "13px", color: "#EF4444", marginTop: "6px" }}>{errors.password}</p>
               )}
             </div>
 
-            {/* Forgot password */}
-            <div style={{ textAlign: "right", marginBottom: "24px" }}>
+            {/* Remember me + Forgot password */}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  cursor: "pointer",
+                  userSelect: "none",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  style={{
+                    width: "18px",
+                    height: "18px",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                    accentColor: "#6366F1",
+                  }}
+                />
+                <span style={{ fontSize: "14px", color: "#374151" }}>Rester connecté</span>
+              </label>
               <Link
                 href="/auth/forgot-password"
                 style={{

@@ -5,7 +5,8 @@ import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 
 const SESSION_COOKIE = "ms_session";
-const SESSION_TTL_DAYS = 30;
+const SESSION_TTL_DAYS_DEFAULT = 1; // 1 jour par défaut
+const SESSION_TTL_DAYS_REMEMBER = 30; // 30 jours si "rester connecté"
 
 export type SessionUser = {
   id: string;
@@ -40,8 +41,9 @@ function parseCookie(cookieHeader: string | null) {
   }, {} as Record<string, string>);
 }
 
-function getExpiryDate() {
-  return new Date(Date.now() + SESSION_TTL_DAYS * 24 * 60 * 60 * 1000);
+function getExpiryDate(rememberMe: boolean = false) {
+  const days = rememberMe ? SESSION_TTL_DAYS_REMEMBER : SESSION_TTL_DAYS_DEFAULT;
+  return new Date(Date.now() + days * 24 * 60 * 60 * 1000);
 }
 
 export async function hashPassword(password: string) {
@@ -52,9 +54,9 @@ export async function verifyPassword(password: string, hash: string) {
   return bcrypt.compare(password, hash);
 }
 
-export async function createSession(userId: string) {
+export async function createSession(userId: string, rememberMe: boolean = false) {
   const token = randomBytes(32).toString("hex");
-  const expiresAt = getExpiryDate();
+  const expiresAt = getExpiryDate(rememberMe);
 
   await prisma.session.create({
     data: {

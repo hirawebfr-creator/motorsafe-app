@@ -25,6 +25,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     const email = normalizeEmail(body.email);
     const password = String(body.password ?? "");
+    const rememberMe = Boolean(body.rememberMe);
 
     if (!email || !password) {
       return NextResponse.json(failure("Email et mot de passe obligatoires."), { status: 400 });
@@ -51,7 +52,7 @@ export async function POST(req: Request) {
       return NextResponse.json(failure("Compte refuse."), { status: 403 });
     }
 
-    const { token, expiresAt } = await createSession(user.id);
+    const { token, expiresAt } = await createSession(user.id, rememberMe);
     const res = NextResponse.json(
       success({
         user: {
