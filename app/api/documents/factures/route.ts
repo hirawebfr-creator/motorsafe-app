@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { success } from "@/lib/api";
 import { requireApprovedTenant, requireUser, getTenantIdWithAdminOverride } from "@/lib/guards";
 import { toErrorResponse } from "@/lib/routeErrors";
+import { decryptClientData } from "@/lib/encryption";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -83,8 +84,16 @@ export async function GET(req: Request) {
       prisma.invoice.count({ where }),
     ]);
 
+    // Décrypter les données clients
+    const decryptedInvoices = invoices.map((invoice) => ({
+      ...invoice,
+      client: invoice.client
+        ? decryptClientData(invoice.client as Record<string, unknown>)
+        : invoice.client,
+    }));
+
     return NextResponse.json(success({
-      items: invoices,
+      items: decryptedInvoices,
       page,
       limit,
       total,

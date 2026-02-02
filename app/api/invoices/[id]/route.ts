@@ -53,10 +53,17 @@ export async function GET(req: Request, ctx: Ctx) {
 
     if (!invoice) throw new RouteError(404, "NOT_FOUND", "Facture introuvable");
 
-    // Decrypt client data for display
+    // Decrypt client data for display and map line field names for frontend
     const decryptedInvoice = {
       ...invoice,
       client: invoice.client ? decryptClientData(invoice.client as Record<string, unknown>) : invoice.client,
+      lines: invoice.lines.map((line) => ({
+        ...line,
+        // Map database field names to frontend expected names
+        totalExcl: line.lineTotalExcl,
+        totalVat: line.lineVatAmount,
+        totalIncl: line.lineTotalIncl,
+      })),
     };
 
     return NextResponse.json({ ok: true, data: decryptedInvoice });

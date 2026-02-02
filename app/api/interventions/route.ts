@@ -40,7 +40,7 @@ const QuerySchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
   q: z.string().trim().max(120).optional(),
   vehicleId: z.string().trim().min(1).optional(),
-  clientId: z.string().trim().min(1).optional(),
+  clientId: z.coerce.number().int().positive().optional(),
   status: z.string().optional().transform(val => {
     if (!val) return undefined;
     const mapped = STATUS_FR_TO_EN[val] || val;

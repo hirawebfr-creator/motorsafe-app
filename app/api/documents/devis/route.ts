@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { success } from "@/lib/api";
 import { requireApprovedTenant, requireUser, getTenantIdWithAdminOverride } from "@/lib/guards";
 import { toErrorResponse } from "@/lib/routeErrors";
+import { decryptClientData } from "@/lib/encryption";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -83,8 +84,16 @@ export async function GET(req: Request) {
       prisma.quote.count({ where }),
     ]);
 
+    // Décrypter les données clients
+    const decryptedQuotes = quotes.map((quote) => ({
+      ...quote,
+      client: quote.client
+        ? decryptClientData(quote.client as Record<string, unknown>)
+        : quote.client,
+    }));
+
     return NextResponse.json(success({
-      items: quotes,
+      items: decryptedQuotes,
       page,
       limit,
       total,
