@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   FileCheck,
   PenTool,
@@ -25,13 +25,7 @@ import {
   Camera,
   AlertTriangle,
   Award,
-  BarChart3,
-  CalendarCheck,
-  Fingerprint,
-  Globe,
   HeartHandshake,
-  Layers,
-  MessageSquare,
   Sparkles,
   Target,
   Timer,
@@ -75,20 +69,6 @@ function useCountUp(end: number, duration: number = 2000, start: boolean = false
   }, [end, duration, start])
 
   return count
-}
-
-function useMousePosition() {
-  const [position, setPosition] = useState({ x: 0, y: 0 })
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      setPosition({ x: e.clientX, y: e.clientY })
-    }
-    window.addEventListener('mousemove', handleMouseMove)
-    return () => window.removeEventListener('mousemove', handleMouseMove)
-  }, [])
-
-  return position
 }
 
 // ============================================================================
@@ -440,7 +420,7 @@ function GlowingOrb({ color, size, top, left, delay = 0 }: { color: string; size
   )
 }
 
-function FeatureCard({ feature, index, isVisible }: { feature: typeof FEATURES_DATA[0]; index: number; isVisible: boolean }) {
+function FeatureCard({ feature, isVisible }: { feature: typeof FEATURES_DATA[0]; isVisible: boolean }) {
   const [isHovered, setIsHovered] = useState(false)
 
   return (
@@ -850,7 +830,6 @@ export default function LandingPage() {
   const [openFAQ, setOpenFAQ] = useState<number | null>(null)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
-  const mousePos = useMousePosition()
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20)
@@ -1337,7 +1316,7 @@ export default function LandingPage() {
 
           <div className="features-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px' }}>
             {FEATURES_DATA.map((feature, i) => (
-              <FeatureCard key={i} feature={feature} index={i} isVisible={featuresAnim.isVisible} />
+              <FeatureCard key={i} feature={feature} isVisible={featuresAnim.isVisible} />
             ))}
           </div>
         </div>
