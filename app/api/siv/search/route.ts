@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+// Force Node.js runtime to access environment variables properly
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 /**
  * API SIV Search - Recherche véhicule par immatriculation
  * Basée sur https://apiplaqueimmatriculation.com
- * 
+ *
  * Endpoint: POST /api/siv/search
  * Body: { registrationNumber: string, country?: string }
  */
