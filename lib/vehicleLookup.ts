@@ -21,13 +21,19 @@ export interface VehiclePrefill {
   vin?: string;
   typeMine?: string;
   cnit?: string;
-  
+  serialNumber?: string;
+  genre?: string;
+  genreCode?: string;
+  finition?: string;
+
   // Dates
   firstRegistrationDate?: string;
+  firstRegistrationDateFr?: string;
   year?: number;
-  
+
   // Motorisation
   fuel?: string;
+  fuelRaw?: string;
   engine?: string;
   engineCode?: string;
   ccm?: number;
@@ -36,25 +42,77 @@ export interface VehiclePrefill {
   powerCh?: number;
   powerKw?: number;
   gearbox?: string;
-  
+  gearboxCode?: string;
+  transmission?: string;
+  nbRapports?: string;
+  couple?: string;
+  acceleration?: string;
+  vitesseMax?: string;
+
   // Carrosserie
   bodyType?: string;
   color?: string;
   doors?: number;
   seats?: number;
-  
+
   // Poids & Dimensions
   weightKg?: number;
   ptacKg?: number;
-  
+  ptraKg?: number;
+  chargeUtile?: number;
+  empattement?: string;
+  longueur?: string;
+  largeur?: string;
+  hauteur?: string;
+  coffre?: string;
+  reservoir?: string;
+
   // Environnement
   co2?: number;
-  
+  normeEuro?: string;
+  critair?: string;
+  consommationMixte?: string;
+  consommationUrbaine?: string;
+  consommationExtraUrbaine?: string;
+
+  // Provenance & Historique
+  provenance?: string;
+  isImported?: boolean;
+  paysOrigine?: string;
+  premierMain?: boolean;
+
+  // Contrôle Technique
+  dateDerniereCT?: string;
+  resultatCT?: string;
+  kmCT?: string;
+
+  // Valeur
+  prixNeuf?: string;
+  coteArgus?: string;
+
   // Assurance (SRA)
   sraId?: string;
   sraGroup?: string;
   sraCommercial?: string;
-  
+
+  // Technique avancée
+  kType?: string;
+  platformCode?: string;
+
+  // TecDoc
+  tecdocManuid?: string;
+  tecdocModelid?: string;
+  tecdocCarid?: string;
+
+  // Equipements
+  equipements?: string;
+  options?: string;
+  garantieConstructeur?: string;
+
+  // Collection
+  isCollector?: boolean;
+  date30?: string;
+
   // Medias
   logoUrl?: string;
   photoUrl?: string;
@@ -82,6 +140,8 @@ interface ApiPlaqueResponse {
   data?: {
     erreur?: string;
     // Identification
+    immat?: string;
+    pays?: string;
     marque?: string;
     modele?: string;
     variante?: string;
@@ -89,32 +149,83 @@ interface ApiPlaqueResponse {
     vin?: string;
     type_mine?: string;
     cnit?: string;
+    numero_serie?: string;
+    genreVCG?: string;
+    genreVCGNGC?: string;
+    finition?: string;
     // Dates
     date1erCir_us?: string;
+    date1erCir_fr?: string;
+    date30?: string;
+    collection?: string;
     // Motorisation
+    energie?: string;
     energieNGC?: string;
     code_moteur?: string;
     ccm?: string;
     cylindres?: string;
+    nb_cylindres?: string;
     puisFisc?: string;
     puisFiscReelCH?: string;
     puisFiscReelKW?: string;
     boite_vitesse?: string;
+    code_boite_vitesse?: string;
+    transmission?: string;
+    nb_rapports?: string;
+    couple?: string;
+    acceleration?: string;
+    vitesse_max?: string;
     // Carrosserie
     carrosserie?: string;
     carrosserieCG?: string;
     couleur?: string;
     nb_portes?: string;
     nr_passagers?: string;
-    // Poids
+    // Poids & Dimensions
     poids?: string;
     ptac?: string;
+    ptra?: string;
+    charge_utile?: string;
+    empattement?: string;
+    longueur?: string;
+    largeur?: string;
+    hauteur?: string;
+    coffre?: string;
+    reservoir?: string;
     // Environnement
     co2?: string;
+    norme_euro?: string;
+    critair?: string;
+    consommation_mixte?: string;
+    consommation_urbaine?: string;
+    consommation_extra_urbaine?: string;
+    // Provenance & Historique
+    provenance?: string;
+    import?: string;
+    pays_origine?: string;
+    premiere_main?: string;
+    // Contrôle Technique
+    date_derniere_ct?: string;
+    resultat_ct?: string;
+    km_ct?: string;
+    // Valeur
+    prix_neuf?: string;
+    cote_argus?: string;
     // Assurance
     sra_id?: string;
     sra_group?: string;
     sra_commercial?: string;
+    // Technique avancée
+    k_type?: string;
+    codes_platforme?: string;
+    // TecDoc
+    tecdoc_manuid?: string;
+    tecdoc_modelid?: string;
+    tecdoc_carid?: string;
+    // Equipements
+    equipements?: string;
+    options?: string;
+    garantie_constructeur?: string;
     // Medias
     logo_marque?: string;
     photo_modele?: string;
@@ -198,44 +309,102 @@ export function mapApiResponseToInternal(data: ApiPlaqueResponse["data"]): Vehic
     brand: data.marque || "",
     model: data.modele || "",
     variant: data.variante || undefined,
-    version: data.version || undefined,
+    version: data.version || data.sra_commercial || undefined,
     vin: data.vin || undefined,
     typeMine: data.type_mine || undefined,
     cnit: data.cnit || undefined,
-    
+    serialNumber: data.numero_serie || undefined,
+    genre: data.genreVCGNGC || undefined,
+    genreCode: data.genreVCG || undefined,
+    finition: data.finition || undefined,
+
     // Dates
     firstRegistrationDate: data.date1erCir_us || undefined,
+    firstRegistrationDateFr: data.date1erCir_fr || undefined,
     year,
-    
+
     // Motorisation
-    fuel: data.energieNGC || undefined,
+    fuel: data.energieNGC || data.energie || undefined,
+    fuelRaw: data.energieNGC || data.energie || undefined,
     engine,
     engineCode: data.code_moteur || undefined,
     ccm: parseNumeric(data.ccm),
-    cylinders: parseNumeric(data.cylindres),
+    cylinders: parseNumeric(data.cylindres) || parseNumeric(data.nb_cylindres),
     powerFiscal: parseNumeric(data.puisFisc),
     powerCh: parseNumeric(data.puisFiscReelCH),
     powerKw: parseNumeric(data.puisFiscReelKW),
     gearbox: data.boite_vitesse ? (gearboxMap[data.boite_vitesse] || data.boite_vitesse) : undefined,
-    
+    gearboxCode: data.code_boite_vitesse || undefined,
+    transmission: data.transmission || undefined,
+    nbRapports: data.nb_rapports || undefined,
+    couple: data.couple || undefined,
+    acceleration: data.acceleration || undefined,
+    vitesseMax: data.vitesse_max || undefined,
+
     // Carrosserie
     bodyType: data.carrosserie || data.carrosserieCG || undefined,
     color: data.couleur || undefined,
     doors: parseNumeric(data.nb_portes),
     seats: parseNumeric(data.nr_passagers),
-    
-    // Poids
+
+    // Poids & Dimensions
     weightKg: parseNumeric(data.poids),
     ptacKg: parseNumeric(data.ptac),
-    
+    ptraKg: parseNumeric(data.ptra),
+    chargeUtile: parseNumeric(data.charge_utile),
+    empattement: data.empattement || undefined,
+    longueur: data.longueur || undefined,
+    largeur: data.largeur || undefined,
+    hauteur: data.hauteur || undefined,
+    coffre: data.coffre || undefined,
+    reservoir: data.reservoir || undefined,
+
     // Environnement
     co2: parseNumeric(data.co2),
-    
+    normeEuro: data.norme_euro || undefined,
+    critair: data.critair || undefined,
+    consommationMixte: data.consommation_mixte || undefined,
+    consommationUrbaine: data.consommation_urbaine || undefined,
+    consommationExtraUrbaine: data.consommation_extra_urbaine || undefined,
+
+    // Provenance & Historique
+    provenance: data.provenance || undefined,
+    isImported: data.import === "oui" || data.import === "1" || (data.provenance?.toLowerCase().includes("import") ?? false),
+    paysOrigine: data.pays_origine || undefined,
+    premierMain: data.premiere_main === "oui" || data.premiere_main === "1",
+
+    // Contrôle Technique
+    dateDerniereCT: data.date_derniere_ct || undefined,
+    resultatCT: data.resultat_ct || undefined,
+    kmCT: data.km_ct || undefined,
+
+    // Valeur
+    prixNeuf: data.prix_neuf || undefined,
+    coteArgus: data.cote_argus || undefined,
+
     // Assurance
     sraId: data.sra_id || undefined,
     sraGroup: data.sra_group || undefined,
     sraCommercial: data.sra_commercial || undefined,
-    
+
+    // Technique avancée
+    kType: data.k_type || undefined,
+    platformCode: data.codes_platforme || undefined,
+
+    // TecDoc
+    tecdocManuid: data.tecdoc_manuid || undefined,
+    tecdocModelid: data.tecdoc_modelid || undefined,
+    tecdocCarid: data.tecdoc_carid || undefined,
+
+    // Equipements
+    equipements: data.equipements || undefined,
+    options: data.options || undefined,
+    garantieConstructeur: data.garantie_constructeur || undefined,
+
+    // Collection
+    isCollector: data.collection === "oui",
+    date30: data.date30 || undefined,
+
     // Medias
     logoUrl: data.logo_marque || undefined,
     photoUrl: data.photo_modele || undefined,
