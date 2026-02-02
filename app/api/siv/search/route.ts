@@ -24,12 +24,14 @@ interface SivApiResponse {
     genreVCGNGC: string
     puisFisc: string
     carrosserieCG: string
+    carrosserie: string
     puisFiscReelKW: string
     puisFiscReelCH: string
     collection: string
     date30: string
     vin: string
     variante: string
+    version: string
     boite_vitesse: string
     code_boite_vitesse: string
     nr_passagers: string
@@ -46,12 +48,47 @@ interface SivApiResponse {
     numero_serie: string
     ptac: string
     logo_marque: string
+    photo_modele: string
     k_type: string
     tecdoc_manuid: string
     tecdoc_modelid: string
     tecdoc_carid: string
     code_moteur: string
     codes_platforme: string
+    // Champs additionnels
+    provenance: string
+    import: string
+    pays_origine: string
+    premiere_main: string
+    date_derniere_ct: string
+    resultat_ct: string
+    km_ct: string
+    prix_neuf: string
+    cote_argus: string
+    nb_cylindres: string
+    transmission: string
+    empattement: string
+    longueur: string
+    largeur: string
+    hauteur: string
+    coffre: string
+    reservoir: string
+    norme_euro: string
+    critair: string
+    consommation_mixte: string
+    consommation_urbaine: string
+    consommation_extra_urbaine: string
+    garantie_constructeur: string
+    finition: string
+    equipements: string
+    options: string
+    nb_rapports: string
+    couple: string
+    acceleration: string
+    vitesse_max: string
+    ptra: string
+    charge_utile: string
+    [key: string]: unknown
   }
   'api-version': string
 }
@@ -179,65 +216,119 @@ export async function POST(request: NextRequest) {
  * Mapper les données API vers notre format véhicule
  */
 function mapApiDataToVehicle(apiData: SivApiResponse, cleanPlate: string, country: string) {
+  const d = apiData.data
+
   return {
     // === CHAMPS OBLIGATOIRES ===
-    registrationNumber: apiData.data.immat || cleanPlate,
-    vin: apiData.data.vin || '',
-    make: apiData.data.marque || '',
-    model: apiData.data.modele || '',
-    
+    registrationNumber: d.immat || cleanPlate,
+    vin: d.vin || '',
+    make: d.marque || '',
+    model: d.modele || '',
+
     // === CHAMPS OPTIONNELS - INFORMATIONS PRINCIPALES ===
-    version: apiData.data.sra_commercial || apiData.data.variante || '',
-    year: apiData.data.date1erCir_us ? new Date(apiData.data.date1erCir_us).getFullYear() : null,
-    firstRegistrationDate: apiData.data.date1erCir_us || '',
-    color: apiData.data.couleur || '',
-    fuelType: mapFuelType(apiData.data.energieNGC || apiData.data.energie),
-    
+    version: d.version || d.sra_commercial || d.variante || '',
+    year: d.date1erCir_us ? new Date(d.date1erCir_us).getFullYear() : null,
+    firstRegistrationDate: d.date1erCir_us || '',
+    firstRegistrationDateFr: d.date1erCir_fr || '',
+    color: d.couleur || '',
+    fuelType: mapFuelType(d.energieNGC || d.energie),
+    fuelTypeRaw: d.energieNGC || d.energie || '',
+
     // === CHAMPS OPTIONNELS - TECHNIQUE ===
-    horsePower: apiData.data.puisFiscReelCH || '',
-    horsePowerKW: apiData.data.puisFiscReelKW || '',
-    fiscalPower: apiData.data.puisFisc || '',
-    co2: apiData.data.co2 || '',
-    displacement: apiData.data.ccm || '',
-    cylinders: apiData.data.cylindres || '',
-    
+    horsePower: d.puisFiscReelCH || '',
+    horsePowerKW: d.puisFiscReelKW || '',
+    fiscalPower: d.puisFisc || '',
+    co2: d.co2 || '',
+    displacement: d.ccm || '',
+    cylinders: d.cylindres || d.nb_cylindres || '',
+    engineCode: d.code_moteur || '',
+    couple: d.couple || '',
+    acceleration: d.acceleration || '',
+    vitesseMax: d.vitesse_max || '',
+
     // === CHAMPS OPTIONNELS - CARROSSERIE ===
-    bodyType: apiData.data.carrosserieCG || '',
-    doors: apiData.data.nb_portes || '',
-    seats: apiData.data.nr_passagers || '',
-    weight: apiData.data.poids || '',
-    ptac: apiData.data.ptac || '',
-    
+    bodyType: d.carrosserie || d.carrosserieCG || '',
+    doors: d.nb_portes || '',
+    seats: d.nr_passagers || '',
+    weight: d.poids || '',
+    ptac: d.ptac || '',
+    ptra: d.ptra || '',
+    chargeUtile: d.charge_utile || '',
+
+    // === DIMENSIONS ===
+    empattement: d.empattement || '',
+    longueur: d.longueur || '',
+    largeur: d.largeur || '',
+    hauteur: d.hauteur || '',
+    coffre: d.coffre || '',
+    reservoir: d.reservoir || '',
+
     // === CHAMPS OPTIONNELS - IDENTIFICATION ===
-    genre: apiData.data.genreVCGNGC || '',
-    genreCode: apiData.data.genreVCG || '',
-    typeApproval: apiData.data.type_mine || '',
-    cnit: apiData.data.cnit || '',
-    serialNumber: apiData.data.numero_serie || '',
-    
+    genre: d.genreVCGNGC || '',
+    genreCode: d.genreVCG || '',
+    typeApproval: d.type_mine || '',
+    cnit: d.cnit || '',
+    serialNumber: d.numero_serie || '',
+
     // === CHAMPS OPTIONNELS - TRANSMISSION ===
-    gearbox: mapGearbox(apiData.data.boite_vitesse),
-    gearboxCode: apiData.data.code_boite_vitesse || '',
-    
+    gearbox: mapGearbox(d.boite_vitesse),
+    gearboxCode: d.code_boite_vitesse || '',
+    transmission: d.transmission || '',
+    nbRapports: d.nb_rapports || '',
+
     // === CHAMPS OPTIONNELS - SRA / ASSURANCE ===
-    sraId: apiData.data.sra_id || '',
-    sraGroup: apiData.data.sra_group || '',
-    sraCommercial: apiData.data.sra_commercial || '',
-    
+    sraId: d.sra_id || '',
+    sraGroup: d.sra_group || '',
+    sraCommercial: d.sra_commercial || '',
+
     // === CHAMPS OPTIONNELS - TECHNIQUE AVANCÉE ===
-    kType: apiData.data.k_type || '',
-    engineCode: apiData.data.code_moteur || '',
-    platformCode: apiData.data.codes_platforme || '',
-    variant: apiData.data.variante || '',
-    
+    kType: d.k_type || '',
+    platformCode: d.codes_platforme || '',
+    variant: d.variante || '',
+    finition: d.finition || '',
+
+    // === PROVENANCE & HISTORIQUE ===
+    provenance: d.provenance || '',
+    isImported: d.import === 'oui' || d.import === '1' || d.provenance?.toLowerCase().includes('import'),
+    paysOrigine: d.pays_origine || '',
+    premierMain: d.premiere_main === 'oui' || d.premiere_main === '1',
+
+    // === CONTRÔLE TECHNIQUE ===
+    dateDerniereCT: d.date_derniere_ct || '',
+    resultatCT: d.resultat_ct || '',
+    kmCT: d.km_ct || '',
+
+    // === VALEUR ===
+    prixNeuf: d.prix_neuf || '',
+    coteArgus: d.cote_argus || '',
+
+    // === ENVIRONNEMENT ===
+    normeEuro: d.norme_euro || '',
+    critair: d.critair || '',
+    consommationMixte: d.consommation_mixte || '',
+    consommationUrbaine: d.consommation_urbaine || '',
+    consommationExtraUrbaine: d.consommation_extra_urbaine || '',
+
+    // === EQUIPEMENTS ===
+    equipements: d.equipements || '',
+    options: d.options || '',
+    garantieConstructeur: d.garantie_constructeur || '',
+
     // === CHAMPS OPTIONNELS - COLLECTION ===
-    isCollector: apiData.data.collection === 'oui',
-    
+    isCollector: d.collection === 'oui',
+    date30: d.date30 || '',
+
     // === CHAMPS OPTIONNELS - MÉDIA ===
-    logoUrl: apiData.data.logo_marque || '',
-    
+    logoUrl: d.logo_marque || '',
+    photoUrl: d.photo_modele || '',
+
+    // === TECDOC ===
+    tecdocManuid: d.tecdoc_manuid || '',
+    tecdocModelid: d.tecdoc_modelid || '',
+    tecdocCarid: d.tecdoc_carid || '',
+
     // === MÉTADONNÉES ===
-    country: apiData.data.pays || country,
+    country: d.pays || country,
     apiVersion: apiData['api-version'] || '1.0.0'
   }
 }
@@ -329,6 +420,11 @@ function generateMockVehicle(registrationNumber: string) {
     vin += vinChars[(absHash + i * 7) % vinChars.length]
   }
   
+  const isImported = absHash % 10 === 0 // 10% chance d'être importé
+  const paysOrigineList = ['Allemagne', 'Belgique', 'Espagne', 'Italie', 'Pays-Bas', '']
+  const normeEuroList = ['Euro 6d', 'Euro 6c', 'Euro 6b', 'Euro 5', 'Euro 4']
+  const critairList = ['1', '2', '3', 'Crit\'Air 1', 'Crit\'Air 2']
+
   return {
     registrationNumber: formattedPlate,
     vin: vin,
@@ -337,21 +433,40 @@ function generateMockVehicle(registrationNumber: string) {
     version: `${model} ${gearbox === 'Automatique' ? 'Auto' : ''} ${fuelType === 'DIESEL' ? 'BlueHDi' : fuelType === 'ESSENCE' ? 'PureTech' : ''}`.trim(),
     year: year,
     firstRegistrationDate: `${year}-${String((absHash % 12) + 1).padStart(2, '0')}-15`,
+    firstRegistrationDateFr: `15/${String((absHash % 12) + 1).padStart(2, '0')}/${year}`,
     color: color,
     fuelType: fuelType,
+    fuelTypeRaw: fuelType === 'DIESEL' ? 'Gazole' : fuelType === 'ESSENCE' ? 'Essence' : fuelType,
     horsePower: `${horsePower}`,
     horsePowerKW: `${Math.round(horsePower * 0.7355)}`,
     fiscalPower: `${Math.ceil(horsePower / 20)}`,
     co2: `${co2}`,
     displacement: `${displacement}`,
     cylinders: displacement > 1500 ? '4' : '3',
+    engineCode: `${make.substring(0, 1)}${displacement}${fuelType.substring(0, 1)}`,
+    couple: `${200 + (absHash % 200)} Nm`,
+    acceleration: `${7 + (absHash % 8)}.${absHash % 10} s`,
+    vitesseMax: `${180 + (absHash % 70)} km/h`,
     bodyType: bodyType,
     doors: '5',
     seats: '5',
     weight: `${1200 + (absHash % 600)}`,
     ptac: `${1800 + (absHash % 400)}`,
+    ptra: `${2500 + (absHash % 500)}`,
+    chargeUtile: `${400 + (absHash % 300)}`,
+    // Dimensions
+    empattement: `${2500 + (absHash % 300)} mm`,
+    longueur: `${4000 + (absHash % 800)} mm`,
+    largeur: `${1700 + (absHash % 200)} mm`,
+    hauteur: `${1400 + (absHash % 300)} mm`,
+    coffre: `${300 + (absHash % 200)} L`,
+    reservoir: `${45 + (absHash % 25)} L`,
+    // Transmission
     gearbox: gearbox,
     gearboxCode: gearbox === 'Automatique' ? 'A' : 'M',
+    transmission: gearbox === 'Automatique' ? 'Automatique 8 rapports' : 'Manuelle 6 rapports',
+    nbRapports: gearbox === 'Automatique' ? '8' : '6',
+    // Identification
     sraId: `${100000 + (absHash % 900000)}`,
     sraGroup: `${10 + (absHash % 40)}`,
     sraCommercial: `${make} ${model} ${year}`,
@@ -361,11 +476,42 @@ function generateMockVehicle(registrationNumber: string) {
     cnit: `M10${make.substring(0, 3).toUpperCase()}VP`,
     serialNumber: vin.substring(vin.length - 8),
     kType: `${10000 + (absHash % 90000)}`,
-    engineCode: `${make.substring(0, 1)}${displacement}${fuelType.substring(0, 1)}`,
     platformCode: `${make.substring(0, 3).toUpperCase()}${year % 100}`,
     variant: model,
+    finition: ['Active', 'Allure', 'GT Line', 'Intens', 'Business'][absHash % 5],
+    // Provenance & Historique
+    provenance: isImported ? 'Import' : 'France',
+    isImported: isImported,
+    paysOrigine: isImported ? paysOrigineList[absHash % paysOrigineList.length] : 'France',
+    premierMain: absHash % 3 === 0,
+    // Contrôle technique
+    dateDerniereCT: year < 2024 ? `${2023 - (absHash % 2)}-${String((absHash % 12) + 1).padStart(2, '0')}-${String((absHash % 28) + 1).padStart(2, '0')}` : '',
+    resultatCT: year < 2024 ? (absHash % 5 === 0 ? 'Défavorable' : 'Favorable') : '',
+    kmCT: year < 2024 ? `${50000 + (absHash % 100000)}` : '',
+    // Valeur
+    prixNeuf: `${15000 + (absHash % 35000)}`,
+    coteArgus: `${Math.round((15000 + (absHash % 35000)) * (0.3 + (year - 2015) * 0.05))}`,
+    // Environnement
+    normeEuro: normeEuroList[Math.min(year - 2015, 4)],
+    critair: critairList[fuelType === 'ELECTRIC' ? 0 : fuelType === 'HYBRID' ? 1 : absHash % 3 + 1],
+    consommationMixte: fuelType === 'ELECTRIC' ? '' : `${4 + (absHash % 5)}.${absHash % 10} L/100km`,
+    consommationUrbaine: fuelType === 'ELECTRIC' ? '' : `${5 + (absHash % 6)}.${absHash % 10} L/100km`,
+    consommationExtraUrbaine: fuelType === 'ELECTRIC' ? '' : `${3 + (absHash % 4)}.${absHash % 10} L/100km`,
+    // Equipements
+    equipements: 'Climatisation, Bluetooth, Régulateur de vitesse, Aide au stationnement',
+    options: 'Pack City, Toit panoramique, Navigation',
+    garantieConstructeur: year > 2022 ? 'En cours' : 'Expirée',
+    // Collection
     isCollector: year < 1990,
+    date30: year < 1990 ? `${year + 30}-01-01` : '',
+    // Média
     logoUrl: `https://logo.clearbit.com/${make.toLowerCase()}.com`,
+    photoUrl: '',
+    // TecDoc
+    tecdocManuid: `${absHash % 1000}`,
+    tecdocModelid: `${absHash % 10000}`,
+    tecdocCarid: `${absHash % 100000}`,
+    // Métadonnées
     country: 'FR',
     apiVersion: 'mock-1.0.0'
   }

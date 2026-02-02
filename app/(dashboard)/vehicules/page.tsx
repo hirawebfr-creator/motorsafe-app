@@ -558,21 +558,27 @@ export default function VehiculesPage() {
               </div>
               {sivError && <div style={{ padding: '12px 16px', borderRadius: '10px', background: '#FEF2F2', border: '1px solid #FECACA', marginBottom: '16px' }}><div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><AlertCircle size={16} color="#EF4444" /><span style={{ fontSize: '13px', color: '#DC2626' }}>{sivError}</span></div></div>}
               {sivResult && (
-                <div style={{ padding: '20px', borderRadius: '12px', background: '#F0FDF4', border: '1px solid #BBF7D0' }}>
+                <div style={{ padding: '20px', borderRadius: '12px', background: '#F0FDF4', border: '1px solid #BBF7D0', maxHeight: '60vh', overflowY: 'auto' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}><CheckCircle size={18} color="#10B981" /><span style={{ fontSize: '14px', fontWeight: 600, color: '#166534' }}>Véhicule trouvé</span></div>
-                  
-                  {/* Brand Logo */}
-                  {sivResult.logoUrl && (
-                    <div style={{ marginBottom: '16px', textAlign: 'center' }}>
-                      <img 
-                        src={sivResult.logoUrl} 
-                        alt={sivResult.make} 
-                        style={{ maxWidth: '80px', maxHeight: '60px', objectFit: 'contain' }} 
-                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                      />
+
+                  {/* Brand Logo & Photo */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
+                    {sivResult.logoUrl && (
+                      <img src={sivResult.logoUrl} alt={sivResult.make} style={{ maxWidth: '60px', maxHeight: '40px', objectFit: 'contain' }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                    )}
+                    {sivResult.photoUrl && (
+                      <img src={sivResult.photoUrl} alt={sivResult.model} style={{ maxWidth: '120px', maxHeight: '80px', objectFit: 'contain', borderRadius: '8px' }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                    )}
+                  </div>
+
+                  {/* Provenance Alert */}
+                  {sivResult.isImported && (
+                    <div style={{ padding: '10px 14px', borderRadius: '8px', background: '#FEF3C7', border: '1px solid #FCD34D', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <AlertCircle size={16} color="#D97706" />
+                      <span style={{ fontSize: '13px', color: '#92400E', fontWeight: 500 }}>Véhicule importé {sivResult.paysOrigine ? `(${sivResult.paysOrigine})` : ''}</span>
                     </div>
                   )}
-                  
+
                   {/* Main Info */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
                     <div><div style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Marque</div><div style={{ fontSize: '15px', fontWeight: 600, color: '#111827' }}>{sivResult.make || '-'}</div></div>
@@ -580,34 +586,96 @@ export default function VehiculesPage() {
                     <div><div style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Version</div><div style={{ fontSize: '15px', fontWeight: 600, color: '#111827' }}>{sivResult.version || sivResult.sraCommercial || '-'}</div></div>
                     <div><div style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Année</div><div style={{ fontSize: '15px', fontWeight: 600, color: '#111827' }}>{sivResult.year || '-'}</div></div>
                   </div>
-                  
+
                   {/* Technical Info */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '16px' }}>
-                    <div><div style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Énergie</div><div style={{ fontSize: '14px', fontWeight: 500, color: '#111827' }}>{sivResult.fuelType || '-'}</div></div>
-                    <div><div style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Puissance</div><div style={{ fontSize: '14px', fontWeight: 500, color: '#111827' }}>{sivResult.horsePower || sivResult.power || '-'}</div></div>
-                    <div><div style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Cylindrée</div><div style={{ fontSize: '14px', fontWeight: 500, color: '#111827' }}>{sivResult.displacement || '-'}</div></div>
+                    <div><div style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Énergie</div><div style={{ fontSize: '14px', fontWeight: 500, color: '#111827' }}>{sivResult.fuelTypeRaw || sivResult.fuelType || '-'}</div></div>
+                    <div><div style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Puissance</div><div style={{ fontSize: '14px', fontWeight: 500, color: '#111827' }}>{sivResult.horsePower ? `${sivResult.horsePower} ch` : '-'}{sivResult.horsePowerKW ? ` (${sivResult.horsePowerKW} kW)` : ''}</div></div>
+                    <div><div style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Cylindrée</div><div style={{ fontSize: '14px', fontWeight: 500, color: '#111827' }}>{sivResult.displacement ? `${sivResult.displacement} cm³` : '-'}</div></div>
                   </div>
-                  
-                  {/* Additional Info - Section 1 */}
+
+                  {/* Provenance & Historique */}
+                  <div style={{ marginBottom: '12px', padding: '12px', background: '#fff', borderRadius: '8px' }}>
+                    <div style={{ fontSize: '12px', fontWeight: 600, color: '#374151', marginBottom: '8px', textTransform: 'uppercase' }}>Provenance & Historique</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+                      <div><div style={{ fontSize: '10px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Provenance</div><div style={{ fontSize: '13px', fontWeight: 500, color: sivResult.isImported ? '#D97706' : '#059669' }}>{sivResult.provenance || 'France'}</div></div>
+                      {sivResult.paysOrigine && <div><div style={{ fontSize: '10px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Pays origine</div><div style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>{sivResult.paysOrigine}</div></div>}
+                      <div><div style={{ fontSize: '10px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>1ère main</div><div style={{ fontSize: '13px', fontWeight: 500, color: sivResult.premierMain ? '#059669' : '#6B7280' }}>{sivResult.premierMain ? 'Oui' : 'Non / Inconnu'}</div></div>
+                    </div>
+                  </div>
+
+                  {/* Contrôle Technique */}
+                  {(sivResult.dateDerniereCT || sivResult.resultatCT) && (
+                    <div style={{ marginBottom: '12px', padding: '12px', background: sivResult.resultatCT === 'Défavorable' ? '#FEF2F2' : '#fff', borderRadius: '8px', border: sivResult.resultatCT === 'Défavorable' ? '1px solid #FECACA' : 'none' }}>
+                      <div style={{ fontSize: '12px', fontWeight: 600, color: '#374151', marginBottom: '8px', textTransform: 'uppercase' }}>Contrôle Technique</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+                        {sivResult.dateDerniereCT && <div><div style={{ fontSize: '10px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Date dernier CT</div><div style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>{sivResult.dateDerniereCT}</div></div>}
+                        {sivResult.resultatCT && <div><div style={{ fontSize: '10px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Résultat</div><div style={{ fontSize: '13px', fontWeight: 600, color: sivResult.resultatCT === 'Favorable' ? '#059669' : '#DC2626' }}>{sivResult.resultatCT}</div></div>}
+                        {sivResult.kmCT && <div><div style={{ fontSize: '10px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Kilométrage CT</div><div style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>{Number(sivResult.kmCT).toLocaleString('fr-FR')} km</div></div>}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Valeur */}
+                  {(sivResult.prixNeuf || sivResult.coteArgus) && (
+                    <div style={{ marginBottom: '12px', padding: '12px', background: '#EEF2FF', borderRadius: '8px' }}>
+                      <div style={{ fontSize: '12px', fontWeight: 600, color: '#374151', marginBottom: '8px', textTransform: 'uppercase' }}>Valeur estimée</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                        {sivResult.prixNeuf && <div><div style={{ fontSize: '10px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Prix neuf catalogue</div><div style={{ fontSize: '14px', fontWeight: 600, color: '#111827' }}>{Number(sivResult.prixNeuf).toLocaleString('fr-FR')} €</div></div>}
+                        {sivResult.coteArgus && <div><div style={{ fontSize: '10px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Cote Argus</div><div style={{ fontSize: '14px', fontWeight: 600, color: '#6366F1' }}>{Number(sivResult.coteArgus).toLocaleString('fr-FR')} €</div></div>}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Identification */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px', padding: '12px', background: '#fff', borderRadius: '8px' }}>
-                    {sivResult.vin && <div><div style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>VIN</div><div style={{ fontSize: '11px', fontWeight: 500, color: '#111827', fontFamily: 'monospace' }}>{sivResult.vin}</div></div>}
-                    {(sivResult.firstRegistration || sivResult.firstRegistrationDate) && <div><div style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>1ère immat.</div><div style={{ fontSize: '14px', fontWeight: 500, color: '#111827' }}>{sivResult.firstRegistration || sivResult.firstRegistrationDate}</div></div>}
-                    {sivResult.fiscalPower && <div><div style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Puissance fiscale</div><div style={{ fontSize: '14px', fontWeight: 500, color: '#111827' }}>{sivResult.fiscalPower} CV</div></div>}
-                    {sivResult.gearbox && <div><div style={{ fontSize: '11px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Boîte</div><div style={{ fontSize: '14px', fontWeight: 500, color: '#111827' }}>{sivResult.gearbox}</div></div>}
+                    {sivResult.vin && <div><div style={{ fontSize: '10px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>VIN</div><div style={{ fontSize: '11px', fontWeight: 500, color: '#111827', fontFamily: 'monospace' }}>{sivResult.vin}</div></div>}
+                    {sivResult.firstRegistrationDateFr && <div><div style={{ fontSize: '10px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>1ère immatriculation</div><div style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>{sivResult.firstRegistrationDateFr}</div></div>}
+                    {sivResult.fiscalPower && <div><div style={{ fontSize: '10px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Puissance fiscale</div><div style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>{sivResult.fiscalPower} CV</div></div>}
+                    {sivResult.gearbox && <div><div style={{ fontSize: '10px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Boîte</div><div style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>{sivResult.transmission || sivResult.gearbox}</div></div>}
+                    {sivResult.typeApproval && <div><div style={{ fontSize: '10px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Type mine</div><div style={{ fontSize: '11px', fontWeight: 500, color: '#111827', fontFamily: 'monospace' }}>{sivResult.typeApproval}</div></div>}
+                    {sivResult.cnit && <div><div style={{ fontSize: '10px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>CNIT</div><div style={{ fontSize: '11px', fontWeight: 500, color: '#111827', fontFamily: 'monospace' }}>{sivResult.cnit}</div></div>}
                   </div>
-                  
-                  {/* Additional Info - Section 2 */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '8px', marginBottom: '16px', padding: '12px', background: '#fff', borderRadius: '8px' }}>
+
+                  {/* Environnement */}
+                  <div style={{ marginBottom: '12px', padding: '12px', background: '#ECFDF5', borderRadius: '8px' }}>
+                    <div style={{ fontSize: '12px', fontWeight: 600, color: '#374151', marginBottom: '8px', textTransform: 'uppercase' }}>Environnement</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '8px' }}>
+                      {sivResult.co2 && <div><div style={{ fontSize: '10px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>CO₂</div><div style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>{sivResult.co2} g/km</div></div>}
+                      {sivResult.normeEuro && <div><div style={{ fontSize: '10px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Norme Euro</div><div style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>{sivResult.normeEuro}</div></div>}
+                      {sivResult.critair && <div><div style={{ fontSize: '10px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Crit&apos;Air</div><div style={{ fontSize: '13px', fontWeight: 600, color: sivResult.critair === '1' ? '#059669' : sivResult.critair === '2' ? '#D97706' : '#DC2626' }}>{sivResult.critair}</div></div>}
+                      {sivResult.consommationMixte && <div><div style={{ fontSize: '10px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Conso. mixte</div><div style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>{sivResult.consommationMixte}</div></div>}
+                    </div>
+                  </div>
+
+                  {/* Carrosserie & Dimensions */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '8px', marginBottom: '12px', padding: '12px', background: '#fff', borderRadius: '8px' }}>
+                    {sivResult.bodyType && <div><div style={{ fontSize: '10px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Carrosserie</div><div style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>{sivResult.bodyType}</div></div>}
                     {sivResult.doors && <div><div style={{ fontSize: '10px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Portes</div><div style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>{sivResult.doors}</div></div>}
                     {sivResult.seats && <div><div style={{ fontSize: '10px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Places</div><div style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>{sivResult.seats}</div></div>}
-                    {sivResult.co2 && <div><div style={{ fontSize: '10px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>CO₂</div><div style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>{sivResult.co2} g/km</div></div>}
-                    {sivResult.weight && <div><div style={{ fontSize: '10px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Poids</div><div style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>{sivResult.weight}</div></div>}
                     {sivResult.color && <div><div style={{ fontSize: '10px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Couleur</div><div style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>{sivResult.color}</div></div>}
-                    {sivResult.bodyType && <div><div style={{ fontSize: '10px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Carrosserie</div><div style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>{sivResult.bodyType}</div></div>}
-                    {sivResult.genre && <div><div style={{ fontSize: '10px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Genre</div><div style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>{sivResult.genre}</div></div>}
-                    {sivResult.typeApproval && <div><div style={{ fontSize: '10px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Type mine</div><div style={{ fontSize: '11px', fontWeight: 500, color: '#111827', fontFamily: 'monospace' }}>{sivResult.typeApproval}</div></div>}
+                    {sivResult.weight && <div><div style={{ fontSize: '10px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Poids</div><div style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>{sivResult.weight} kg</div></div>}
+                    {sivResult.ptac && <div><div style={{ fontSize: '10px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>PTAC</div><div style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>{sivResult.ptac} kg</div></div>}
+                    {sivResult.longueur && <div><div style={{ fontSize: '10px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Longueur</div><div style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>{sivResult.longueur}</div></div>}
+                    {sivResult.coffre && <div><div style={{ fontSize: '10px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Coffre</div><div style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>{sivResult.coffre}</div></div>}
                   </div>
-                  
+
+                  {/* Performances */}
+                  {(sivResult.couple || sivResult.acceleration || sivResult.vitesseMax) && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '12px', padding: '12px', background: '#fff', borderRadius: '8px' }}>
+                      {sivResult.couple && <div><div style={{ fontSize: '10px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Couple</div><div style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>{sivResult.couple}</div></div>}
+                      {sivResult.acceleration && <div><div style={{ fontSize: '10px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>0-100 km/h</div><div style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>{sivResult.acceleration}</div></div>}
+                      {sivResult.vitesseMax && <div><div style={{ fontSize: '10px', color: '#6B7280', textTransform: 'uppercase', marginBottom: '2px' }}>Vitesse max</div><div style={{ fontSize: '13px', fontWeight: 500, color: '#111827' }}>{sivResult.vitesseMax}</div></div>}
+                    </div>
+                  )}
+
+                  {/* Collection status */}
+                  {sivResult.isCollector && (
+                    <div style={{ padding: '10px 14px', borderRadius: '8px', background: '#FDF4FF', border: '1px solid #E879F9', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '13px', color: '#A21CAF', fontWeight: 600 }}>🏆 Véhicule de collection</span>
+                    </div>
+                  )}
+
                   <button onClick={handleSivImport} style={{ width: '100%', padding: '12px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)', color: '#fff', fontSize: '14px', fontWeight: 600, cursor: 'pointer' }}>Importer ces informations</button>
                 </div>
               )}
