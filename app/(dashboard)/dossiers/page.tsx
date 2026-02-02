@@ -106,14 +106,18 @@ export default function DossiersPage() {
       if (mode === "client") {
         const res = await fetch(`/api/clients?search=${encodeURIComponent(query)}&limit=10`);
         if (res.ok) {
-          const data = await res.json();
-          setClients(data.clients || []);
+          const json = await res.json();
+          // API returns { ok: true, data: { clients, items, ... } }
+          const clientList = json.data?.clients || json.data?.items || json.clients || [];
+          setClients(clientList);
         }
       } else {
         const res = await fetch(`/api/vehicles?search=${encodeURIComponent(query)}&limit=10`);
         if (res.ok) {
-          const data = await res.json();
-          setVehicles(data.vehicles || []);
+          const json = await res.json();
+          // API returns { ok: true, data: { vehicles, items, ... } }
+          const vehicleList = json.data?.vehicles || json.data?.items || json.vehicles || [];
+          setVehicles(vehicleList);
         }
       }
     } catch (error) {
@@ -136,7 +140,7 @@ export default function DossiersPage() {
 
     setIsLoadingInterventions(true);
     try {
-      let url = "/api/interventions?";
+      let url = "/api/interventions?pageSize=50&";
       if (entity.type === "client") {
         url += `clientId=${entity.data.id}`;
       } else {
@@ -145,8 +149,32 @@ export default function DossiersPage() {
 
       const res = await fetch(url);
       if (res.ok) {
-        const data = await res.json();
-        setInterventions(data.interventions || []);
+        const json = await res.json();
+        // API returns { ok: true, data: { items, ... } }
+        const interventionList = json.data?.items || json.data?.interventions || json.items || [];
+        // Map API response to our interface
+        const mapped = interventionList.map((itv: any) => ({
+          id: itv.id,
+          number: itv.number || `INT-${itv.id.slice(0, 8)}`,
+          status: itv.status,
+          type: itv.type || itv.title || "Intervention",
+          entryDate: itv.performedAt || itv.createdAt,
+          exitDate: itv.exitDate || null,
+          intakeCompletedAt: itv.intakeCompletedAt || null,
+          deliveryCompletedAt: itv.deliveryCompletedAt || null,
+          devisStatus: itv.devisStatus || "none",
+          orStatus: itv.orStatus || "none",
+          factureStatus: itv.factureStatus || "none",
+          clientName: itv.vehicle?.client?.firstName
+            ? `${itv.vehicle.client.firstName} ${itv.vehicle.client.lastName}`
+            : "",
+          vehicleInfo: itv.vehicle
+            ? `${itv.vehicle.brand} ${itv.vehicle.model}`
+            : "",
+          vehicleRegistration: itv.vehicle?.plate || "",
+          totalAmount: itv.amountCents ? itv.amountCents / 100 : null,
+        }));
+        setInterventions(mapped);
       }
     } catch (error) {
       console.error("Load interventions error:", error);
