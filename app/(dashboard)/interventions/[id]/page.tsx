@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { DossierProgress, buildDossierSteps } from "@/components/interventions/DossierProgress";
 import { NextStepCard, getNextStep } from "@/components/interventions/NextStepCard";
+import { DossierTabs, TabId, getTabStatuses } from "@/components/interventions/DossierTabs";
 
 // ============================================================================
 // INTERVENTION DETAIL PAGE - SafeMotor Inline Styles
@@ -126,6 +127,11 @@ export default function InterventionDetailPage() {
 
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // DossierTabs state
+  const [activeTab, setActiveTab] = useState<TabId>("general");
+  const [isSendingReception, setIsSendingReception] = useState(false);
+  const [isSendingRestitution, setIsSendingRestitution] = useState(false);
 
   useEffect(() => {
     loadInterventionData();
@@ -302,6 +308,59 @@ export default function InterventionDetailPage() {
     } finally {
       setIsDeleting(false);
     }
+  };
+
+  // DossierTabs action handlers
+  const handleSendReceptionPv = async () => {
+    if (!intervention) return;
+    setIsSendingReception(true);
+    try {
+      const res = await fetch(`/api/interventions/${intervention.id}/intake-pv/send`, {
+        method: "POST",
+      });
+      if (res.ok) {
+        alert("Email de signature envoye au client");
+        loadInterventionData();
+      } else {
+        const data = await res.json();
+        alert(data.error?.message || "Erreur lors de l'envoi");
+      }
+    } catch (error) {
+      console.error("Error sending reception PV:", error);
+      alert("Erreur lors de l'envoi");
+    } finally {
+      setIsSendingReception(false);
+    }
+  };
+
+  const handleSendRestitutionPv = async () => {
+    if (!intervention) return;
+    setIsSendingRestitution(true);
+    try {
+      const res = await fetch(`/api/interventions/${intervention.id}/delivery-pv/send`, {
+        method: "POST",
+      });
+      if (res.ok) {
+        alert("Email de signature envoye au client");
+        loadInterventionData();
+      } else {
+        const data = await res.json();
+        alert(data.error?.message || "Erreur lors de l'envoi");
+      }
+    } catch (error) {
+      console.error("Error sending restitution PV:", error);
+      alert("Erreur lors de l'envoi");
+    } finally {
+      setIsSendingRestitution(false);
+    }
+  };
+
+  const handleCreateDevis = () => {
+    router.push(`/devis/new?interventionId=${intervention?.id}`);
+  };
+
+  const handleCreateFacture = () => {
+    router.push(`/factures/new?interventionId=${intervention?.id}`);
   };
 
   const formatDate = (date: Date) => {
@@ -523,6 +582,40 @@ export default function InterventionDetailPage() {
               facturePaid: intervention.factureStatus === "paid",
             })}
           />
+
+          {/* UX-IMPROVEMENT-02: Onglets du dossier */}
+          {(() => {
+            const tabStatuses = getTabStatuses({
+              intakeCompletedAt: intervention.intakeCompletedAt,
+              devisStatus: intervention.devisStatus,
+              orStatus: intervention.orStatus,
+              apiStatus: intervention.apiStatus,
+              deliveryCompletedAt: intervention.deliveryCompletedAt,
+              factureStatus: intervention.factureStatus,
+            });
+            return (
+              <DossierTabs
+                interventionId={intervention.id}
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+                receptionStatus={tabStatuses.reception}
+                devisStatus={tabStatuses.devis}
+                orStatus={tabStatuses.or}
+                travauxStatus={tabStatuses.travaux}
+                restitutionStatus={tabStatuses.restitution}
+                factureStatus={tabStatuses.facture}
+                quotes={intervention.quotes}
+                invoices={intervention.invoices}
+                onSendReceptionPv={handleSendReceptionPv}
+                onSendRestitutionPv={handleSendRestitutionPv}
+                onCreateDevis={handleCreateDevis}
+                onCreateFacture={handleCreateFacture}
+                isSendingReception={isSendingReception}
+                isSendingRestitution={isSendingRestitution}
+                compact={isMobile}
+              />
+            );
+          })()}
 
           {/* Informations intervention */}
           <div style={cardStyle}>
