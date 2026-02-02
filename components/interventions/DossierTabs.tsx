@@ -19,13 +19,10 @@ import {
   Package,
   Receipt,
   Check,
-  Clock,
   AlertCircle,
   Send,
   Eye,
   Download,
-  ExternalLink,
-  FileSignature,
   Mail,
 } from "lucide-react";
 
